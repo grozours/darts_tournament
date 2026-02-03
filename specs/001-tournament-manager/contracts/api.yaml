@@ -1,0 +1,742 @@
+openapi: 3.0.3
+info:
+  title: Darts Tournament Manager API
+  description: REST API for managing darts tournaments with real-time features
+  version: 1.0.0
+  contact:
+    name: Tournament Manager API
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+
+paths:
+  /tournaments:
+    get:
+      summary: List all tournaments
+      description: Get all tournaments with filtering options
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, registration_open, in_progress, completed, archived]
+        - name: historical
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of tournaments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tournaments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tournament'
+                  total:
+                    type: integer
+
+    post:
+      summary: Create new tournament
+      description: Create a new tournament with configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTournamentRequest'
+      responses:
+        '201':
+          description: Tournament created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '400':
+          description: Invalid tournament configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tournaments/{tournamentId}:
+    get:
+      summary: Get tournament details
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tournament details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetailed'
+
+  /tournaments/{tournamentId}/logo:
+    post:
+      summary: Upload tournament logo
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                  description: Logo file (JPG/PNG, max 5MB)
+      responses:
+        '200':
+          description: Logo uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logo_url:
+                    type: string
+        '400':
+          description: Invalid file format or size
+
+  /tournaments/{tournamentId}/players:
+    get:
+      summary: List tournament players
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of registered players
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  players:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Player'
+
+    post:
+      summary: Register player
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPlayerRequest'
+      responses:
+        '201':
+          description: Player registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '400':
+          description: Invalid player data or duplicate registration
+
+  /tournaments/{tournamentId}/pools/seed:
+    post:
+      summary: Generate automatic pool seeding
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pool seeding completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pools:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pool'
+
+  /tournaments/{tournamentId}/schedule:
+    get:
+      summary: Get tournament schedule
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tournament schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+    post:
+      summary: Generate tournament schedule
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Schedule generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+  /tournaments/{tournamentId}/matches:
+    get:
+      summary: Get tournament matches
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, in_progress, completed]
+        - name: target
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of matches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Match'
+
+  /tournaments/{tournamentId}/matches/{matchId}/score:
+    post:
+      summary: Enter match score
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreEntryRequest'
+      responses:
+        '200':
+          description: Score entered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+
+  /tournaments/{tournamentId}/targets:
+    get:
+      summary: Get target availability
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Target status information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Target'
+                  available_count:
+                    type: integer
+                  next_matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Match'
+
+  /tournaments/{tournamentId}/standings:
+    get:
+      summary: Get current tournament standings
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current standings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pools:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PoolStandings'
+                  brackets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BracketStandings'
+
+components:
+  schemas:
+    Tournament:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        logo_url:
+          type: string
+          nullable: true
+        format:
+          type: string
+          enum: [single, double, team_4_player]
+        duration_type:
+          type: string
+          enum: [half_day_morning, half_day_afternoon, half_day_night, full_day, two_day]
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        total_participants:
+          type: integer
+        target_count:
+          type: integer
+        status:
+          type: string
+          enum: [draft, registration_open, in_progress, completed, archived]
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    TournamentDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Tournament'
+        - type: object
+          properties:
+            pool_stages:
+              type: array
+              items:
+                $ref: '#/components/schemas/PoolStage'
+            brackets:
+              type: array
+              items:
+                $ref: '#/components/schemas/Bracket'
+            registered_count:
+              type: integer
+
+    CreateTournamentRequest:
+      type: object
+      required:
+        - name
+        - format
+        - duration_type
+        - start_time
+        - end_time
+        - total_participants
+        - target_count
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+        format:
+          type: string
+          enum: [single, double, team_4_player]
+        duration_type:
+          type: string
+          enum: [half_day_morning, half_day_afternoon, half_day_night, full_day, two_day]
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        total_participants:
+          type: integer
+          minimum: 2
+          maximum: 128
+        target_count:
+          type: integer
+          minimum: 1
+          maximum: 32
+        pool_stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatePoolStageRequest'
+        brackets:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateBracketRequest'
+
+    CreatePoolStageRequest:
+      type: object
+      required:
+        - stage_number
+        - pool_count
+        - participants_per_pool
+        - rounds_per_match
+      properties:
+        stage_number:
+          type: integer
+          minimum: 1
+        pool_count:
+          type: integer
+          minimum: 1
+          maximum: 16
+        participants_per_pool:
+          type: integer
+          minimum: 2
+          maximum: 16
+        rounds_per_match:
+          type: integer
+          minimum: 1
+          maximum: 7
+        advancement_count:
+          type: integer
+          minimum: 1
+
+    CreateBracketRequest:
+      type: object
+      required:
+        - bracket_type
+        - size
+        - rounds_per_match
+      properties:
+        bracket_type:
+          type: string
+          enum: [winner, loser]
+        size:
+          type: integer
+          enum: [8, 16, 32, 64]
+        rounds_per_match:
+          type: integer
+          minimum: 1
+          maximum: 7
+
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+        tournament_id:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        surname:
+          type: string
+          nullable: true
+        team_name:
+          type: string
+          nullable: true
+        mobile_phone:
+          type: string
+        skill_level:
+          type: string
+          enum: [novice, intermediate, advanced, expert]
+        registration_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterPlayerRequest:
+      type: object
+      required:
+        - firstname
+        - lastname
+        - mobile_phone
+        - skill_level
+      properties:
+        firstname:
+          type: string
+          minLength: 1
+          maxLength: 50
+        lastname:
+          type: string
+          minLength: 1
+          maxLength: 50
+        surname:
+          type: string
+          maxLength: 50
+        team_name:
+          type: string
+          maxLength: 50
+        mobile_phone:
+          type: string
+          pattern: '^[+]?[1-9][\d\s\-\(\)]{7,15}$'
+        skill_level:
+          type: string
+          enum: [novice, intermediate, advanced, expert]
+
+    PoolStage:
+      type: object
+      properties:
+        id:
+          type: string
+        tournament_id:
+          type: string
+        stage_number:
+          type: integer
+        pool_count:
+          type: integer
+        participants_per_pool:
+          type: integer
+        rounds_per_match:
+          type: integer
+        advancement_count:
+          type: integer
+        pools:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pool'
+
+    Pool:
+      type: object
+      properties:
+        id:
+          type: string
+        pool_stage_id:
+          type: string
+        pool_number:
+          type: integer
+        seeded:
+          type: boolean
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Player'
+
+    Bracket:
+      type: object
+      properties:
+        id:
+          type: string
+        tournament_id:
+          type: string
+        bracket_type:
+          type: string
+          enum: [winner, loser]
+        size:
+          type: integer
+        rounds_per_match:
+          type: integer
+        current_round:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+
+    Match:
+      type: object
+      properties:
+        id:
+          type: string
+        tournament_id:
+          type: string
+        match_type:
+          type: string
+          enum: [pool, bracket]
+        participant_1:
+          $ref: '#/components/schemas/Player'
+        participant_2:
+          $ref: '#/components/schemas/Player'
+        participant_1_score:
+          type: integer
+          nullable: true
+        participant_2_score:
+          type: integer
+          nullable: true
+        winner_id:
+          type: string
+          nullable: true
+        scheduled_time:
+          type: string
+          format: date-time
+          nullable: true
+        target_number:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ScoreEntryRequest:
+      type: object
+      required:
+        - participant_1_score
+        - participant_2_score
+      properties:
+        participant_1_score:
+          type: integer
+          minimum: 0
+          maximum: 999
+        participant_2_score:
+          type: integer
+          minimum: 0
+          maximum: 999
+
+    Target:
+      type: object
+      properties:
+        id:
+          type: string
+        tournament_id:
+          type: string
+        target_number:
+          type: integer
+        current_match_id:
+          type: string
+          nullable: true
+        availability_status:
+          type: string
+          enum: [available, occupied, maintenance]
+        last_match_completed:
+          type: string
+          format: date-time
+          nullable: true
+
+    Schedule:
+      type: object
+      properties:
+        id:
+          type: string
+        tournament_id:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        total_estimated_duration:
+          type: integer
+        sharing_enabled:
+          type: boolean
+        sharing_url:
+          type: string
+          nullable: true
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+
+    PoolStandings:
+      type: object
+      properties:
+        pool_id:
+          type: string
+        pool_number:
+          type: integer
+        standings:
+          type: array
+          items:
+            type: object
+            properties:
+              participant:
+                $ref: '#/components/schemas/Player'
+              matches_played:
+                type: integer
+              matches_won:
+                type: integer
+              points_for:
+                type: integer
+              points_against:
+                type: integer
+              position:
+                type: integer
+
+    BracketStandings:
+      type: object
+      properties:
+        bracket_id:
+          type: string
+        bracket_type:
+          type: string
+          enum: [winner, loser]
+        current_round:
+          type: integer
+        participants:
+          type: array
+          items:
+            type: object
+            properties:
+              participant:
+                $ref: '#/components/schemas/Player'
+              position:
+                type: string
+              eliminated:
+                type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

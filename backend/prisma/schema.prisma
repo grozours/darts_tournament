@@ -1,0 +1,378 @@
+// Darts Tournament Manager - Prisma Schema
+// Generated from data-model.md specifications
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Core Tournament Entity
+model Tournament {
+  id                String        @id @default(uuid())
+  name              String        @db.VarChar(100)
+  logoUrl           String?       @map("logo_url")
+  format            TournamentFormat
+  durationType      DurationType  @map("duration_type")
+  startTime         DateTime      @map("start_time")
+  endTime           DateTime      @map("end_time")
+  totalParticipants Int           @map("total_participants")
+  targetCount       Int           @map("target_count")
+  status            TournamentStatus @default(DRAFT)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  completedAt       DateTime?     @map("completed_at")
+  historicalFlag    Boolean       @default(false) @map("historical_flag")
+
+  // Relationships
+  poolStages        PoolStage[]
+  brackets          Bracket[]
+  players           Player[]
+  matches           Match[]
+  schedule          Schedule?
+  targets           Target[]
+
+  @@map("tournaments")
+}
+
+// Player Entity
+model Player {
+  id                String         @id @default(uuid())
+  tournamentId      String         @map("tournament_id")
+  firstName         String         @map("first_name") @db.VarChar(50)
+  lastName          String         @map("last_name") @db.VarChar(50)
+  email             String?        @db.VarChar(255)
+  phone             String?        @db.VarChar(20)
+  skillLevel        SkillLevel?    @map("skill_level")
+  registeredAt      DateTime       @default(now()) @map("registered_at")
+  isActive          Boolean        @default(true) @map("is_active")
+
+  // Relationships
+  tournament        Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  poolAssignments   PoolAssignment[]
+  playerMatches     PlayerMatch[]
+  bracketEntries    BracketEntry[]
+  wonMatches        Match[]        @relation("MatchWinner")
+  scores            Score[]        @relation("PlayerScores")
+
+  @@unique([tournamentId, email])
+  @@unique([tournamentId, firstName, lastName])
+  @@map("players")
+}
+
+// Pool Stage Entity
+model PoolStage {
+  id             String    @id @default(uuid())
+  tournamentId   String    @map("tournament_id")
+  stageNumber    Int       @map("stage_number")
+  name           String    @db.VarChar(100)
+  poolCount      Int       @map("pool_count")
+  playersPerPool Int       @map("players_per_pool")
+  advanceCount   Int       @map("advance_count")
+  status         StageStatus @default(NOT_STARTED)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  completedAt    DateTime? @map("completed_at")
+
+  // Relationships
+  tournament     Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  pools          Pool[]
+
+  @@unique([tournamentId, stageNumber])
+  @@map("pool_stages")
+}
+
+// Pool Entity
+model Pool {
+  id           String    @id @default(uuid())
+  poolStageId  String    @map("pool_stage_id")
+  poolNumber   Int       @map("pool_number")
+  name         String    @db.VarChar(50)
+  status       PoolStatus @default(NOT_STARTED)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+
+  // Relationships
+  poolStage    PoolStage @relation(fields: [poolStageId], references: [id], onDelete: Cascade)
+  assignments  PoolAssignment[]
+  matches      Match[]
+
+  @@unique([poolStageId, poolNumber])
+  @@map("pools")
+}
+
+// Pool Assignment Entity
+model PoolAssignment {
+  id            String      @id @default(uuid())
+  poolId        String      @map("pool_id")
+  playerId      String      @map("player_id")
+  assignmentType AssignmentType @map("assignment_type")
+  seedNumber    Int?        @map("seed_number")
+  assignedAt    DateTime    @default(now()) @map("assigned_at")
+
+  // Relationships
+  pool          Pool        @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  player        Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([poolId, playerId])
+  @@unique([poolId, seedNumber])
+  @@map("pool_assignments")
+}
+
+// Bracket Entity
+model Bracket {
+  id             String        @id @default(uuid())
+  tournamentId   String        @map("tournament_id")
+  bracketType    BracketType   @map("bracket_type")
+  name           String        @db.VarChar(100)
+  totalRounds    Int           @map("total_rounds")
+  status         BracketStatus @default(NOT_STARTED)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  completedAt    DateTime?     @map("completed_at")
+
+  // Relationships
+  tournament     Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  entries        BracketEntry[]
+  matches        Match[]
+
+  @@map("brackets")
+}
+
+// Bracket Entry Entity
+model BracketEntry {
+  id           String    @id @default(uuid())
+  bracketId    String    @map("bracket_id")
+  playerId     String    @map("player_id")
+  seedNumber   Int       @map("seed_number")
+  currentRound Int       @map("current_round")
+  isEliminated Boolean   @default(false) @map("is_eliminated")
+  finalPosition Int?     @map("final_position")
+  enteredAt    DateTime  @default(now()) @map("entered_at")
+
+  // Relationships
+  bracket      Bracket   @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  player       Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([bracketId, playerId])
+  @@unique([bracketId, seedNumber])
+  @@map("bracket_entries")
+}
+
+// Target Entity
+model Target {
+  id             String        @id @default(uuid())
+  tournamentId   String        @map("tournament_id")
+  targetNumber   Int           @map("target_number")
+  name           String?       @db.VarChar(50)
+  status         TargetStatus  @default(AVAILABLE)
+  currentMatchId String?       @map("current_match_id")
+  lastUsedAt     DateTime?     @map("last_used_at")
+
+  // Relationships
+  tournament     Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches        Match[]
+  currentMatch   Match?        @relation("CurrentMatch", fields: [currentMatchId], references: [id])
+  scheduledMatches ScheduledMatch[]
+
+  @@unique([tournamentId, targetNumber])
+  @@map("targets")
+}
+
+// Match Entity
+model Match {
+  id               String         @id @default(uuid())
+  tournamentId     String         @map("tournament_id")
+  poolId           String?        @map("pool_id")
+  bracketId        String?        @map("bracket_id")
+  targetId         String?        @map("target_id")
+  roundNumber      Int            @map("round_number")
+  matchNumber      Int            @map("match_number")
+  legs             Int            @default(1)
+  sets             Int            @default(1)
+  status           MatchStatus    @default(SCHEDULED)
+  scheduledAt      DateTime?      @map("scheduled_at")
+  startedAt        DateTime?      @map("started_at")
+  completedAt      DateTime?      @map("completed_at")
+  winnerId         String?        @map("winner_id")
+
+  // Relationships
+  tournament       Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  pool             Pool?          @relation(fields: [poolId], references: [id])
+  bracket          Bracket?       @relation(fields: [bracketId], references: [id])
+  target           Target?        @relation(fields: [targetId], references: [id])
+  winner           Player?        @relation("MatchWinner", fields: [winnerId], references: [id])
+  currentTarget    Target[]       @relation("CurrentMatch")
+  playerMatches    PlayerMatch[]
+  scores           Score[]
+  scheduledMatch   ScheduledMatch?
+
+  @@map("matches")
+}
+
+// Player Match Entity (Junction for match participants)
+model PlayerMatch {
+  id             String   @id @default(uuid())
+  matchId        String   @map("match_id")
+  playerId       String   @map("player_id")
+  playerPosition Int      @map("player_position")
+  scoreTotal     Int      @default(0) @map("score_total")
+  legsWon        Int      @default(0) @map("legs_won")
+  setsWon        Int      @default(0) @map("sets_won")
+  isWinner       Boolean  @default(false) @map("is_winner")
+
+  // Relationships
+  match          Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playerId])
+  @@unique([matchId, playerPosition])
+  @@map("player_matches")
+}
+
+// Score Entity
+model Score {
+  id         String   @id @default(uuid())
+  matchId    String   @map("match_id")
+  playerId   String   @map("player_id")
+  setNumber  Int      @map("set_number")
+  legNumber  Int      @map("leg_number")
+  dartThrow  Int      @map("dart_throw")
+  score      Int
+  remaining  Int
+  isFinish   Boolean  @default(false) @map("is_finish")
+  thrownAt   DateTime @default(now()) @map("thrown_at")
+
+  // Relationships
+  match      Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player     Player   @relation("PlayerScores", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("scores")
+}
+
+// Schedule Entity
+model Schedule {
+  id             String           @id @default(uuid())
+  tournamentId   String           @unique @map("tournament_id")
+  generatedAt    DateTime         @default(now()) @map("generated_at")
+  isPublished    Boolean          @default(false) @map("is_published")
+  publishedAt    DateTime?        @map("published_at")
+
+  // Relationships
+  tournament     Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  scheduledMatches ScheduledMatch[]
+
+  @@map("schedules")
+}
+
+// Scheduled Match Entity
+model ScheduledMatch {
+  id             String    @id @default(uuid())
+  scheduleId     String    @map("schedule_id")
+  matchId        String    @unique @map("match_id")
+  targetId       String    @map("target_id")
+  scheduledTime  DateTime  @map("scheduled_time")
+  estimatedDuration Int    @map("estimated_duration") // in minutes
+  sequenceOrder  Int       @map("sequence_order")
+
+  // Relationships
+  schedule       Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  match          Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  target         Target    @relation(fields: [targetId], references: [id])
+
+  @@map("scheduled_matches")
+}
+
+// Enums
+enum TournamentFormat {
+  SINGLE
+  DOUBLE
+  TEAM_4_PLAYER
+
+  @@map("tournament_format")
+}
+
+enum DurationType {
+  HALF_DAY_MORNING
+  HALF_DAY_AFTERNOON
+  HALF_DAY_NIGHT
+  FULL_DAY
+  TWO_DAY
+
+  @@map("duration_type")
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+
+  @@map("tournament_status")
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+
+  @@map("skill_level")
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("stage_status")
+}
+
+enum PoolStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("pool_status")
+}
+
+enum AssignmentType {
+  SEEDED
+  RANDOM
+  BYE
+
+  @@map("assignment_type")
+}
+
+enum BracketType {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+
+  @@map("bracket_type")
+}
+
+enum BracketStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("bracket_status")
+}
+
+enum TargetStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+
+  @@map("target_status")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+
+  @@map("match_status")
+}

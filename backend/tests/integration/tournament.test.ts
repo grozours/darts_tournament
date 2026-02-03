@@ -1,0 +1,342 @@
+import request from 'supertest';
+import path from 'path';
+import fs from 'fs';
+import App from '../../src/app';
+import { TournamentFormat, DurationType } from '@shared/types';
+
+describe('Tournament Management - Integration Tests', () => {
+  let app: App;
+  let server: any;
+  let createdTournamentId: string;
+
+  const validTournamentData = {
+    name: 'Integration Test Tournament',
+    format: TournamentFormat.SINGLE,
+    durationType: DurationType.FULL_DAY,
+    startTime: new Date('2026-03-15T10:00:00.000Z').toISOString(),
+    endTime: new Date('2026-03-15T18:00:00.000Z').toISOString(),
+    totalParticipants: 16,
+    targetCount: 3,
+  };
+
+  beforeAll(async () => {
+    app = new App();
+    server = app.server;
+
+    // Wait for server to be fully initialized
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  });
+
+  afterAll(async () => {
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
+  });
+
+  describe('End-to-end tournament workflow', () => {
+    it('should complete full tournament creation workflow', async () => {
+      // Step 1: Create tournament
+      const createResponse = await request(server)
+        .post('/api/tournaments')
+        .send(validTournamentData)
+        .expect(201);
+
+      createdTournamentId = createResponse.body.id;
+      
+      expect(createResponse.body).toMatchObject({
+        id: expect.any(String),
+        name: validTournamentData.name,
+        format: validTournamentData.format,
+        status: 'draft',
+        totalParticipants: validTournamentData.totalParticipants,
+      });
+
+      // Step 2: Verify tournament exists in database
+      const getResponse = await request(server)
+        .get(`/api/tournaments/${createdTournamentId}`)
+        .expect(200);
+
+      expect(getResponse.body.id).toBe(createdTournamentId);
+      expect(getResponse.body.name).toBe(validTournamentData.name);
+
+      // Step 3: Upload logo
+      const testImagePath = await createTestImage();
+      
+      const logoResponse = await request(server)
+        .post(`/api/tournaments/${createdTournamentId}/logo`)
+        .attach('logo', testImagePath)
+        .expect(200);
+
+      expect(logoResponse.body.logo_url).toMatch(/^\/uploads\/.+\.png$/);
+
+      // Step 4: Verify logo in tournament data
+      const updatedTournamentResponse = await request(server)
+        .get(`/api/tournaments/${createdTournamentId}`)
+        .expect(200);
+
+      expect(updatedTournamentResponse.body.logo_url).toBe(logoResponse.body.logo_url);
+
+      // Cleanup test image
+      if (fs.existsSync(testImagePath)) {
+        fs.unlinkSync(testImagePath);
+      }
+    });
+
+    it('should handle tournament list operations', async () => {
+      // Create multiple tournaments
+      const tournaments = [];
+      
+      for (let i = 0; i < 3; i++) {
+        const tournamentData = {
+          ...validTournamentData,
+          name: `List Test Tournament ${i + 1}`,
+          startTime: new Date(`2026-0${i + 4}-15T10:00:00.000Z`).toISOString(),
+          endTime: new Date(`2026-0${i + 4}-15T18:00:00.000Z`).toISOString(),
+        };
+
+        const response = await request(server)
+          .post('/api/tournaments')
+          .send(tournamentData)
+          .expect(201);
+
+        tournaments.push(response.body);
+      }
+
+      // Test tournament listing
+      const listResponse = await request(server)
+        .get('/api/tournaments')
+        .expect(200);
+
+      expect(Array.isArray(listResponse.body)).toBe(true);
+      expect(listResponse.body.length).toBeGreaterThanOrEqual(3);
+
+      // Verify our tournaments are in the list
+      const tournamentNames = listResponse.body.map((t: any) => t.name);
+      expect(tournamentNames).toContain('List Test Tournament 1');
+      expect(tournamentNames).toContain('List Test Tournament 2');
+      expect(tournamentNames).toContain('List Test Tournament 3');
+    });
+
+    it('should handle tournament filtering and pagination', async () => {
+      // Test filtering by status
+      const draftResponse = await request(server)
+        .get('/api/tournaments?status=draft')
+        .expect(200);
+
+      expect(Array.isArray(draftResponse.body)).toBe(true);
+      draftResponse.body.forEach((tournament: any) => {
+        expect(tournament.status).toBe('draft');
+      });
+
+      // Test pagination
+      const page1Response = await request(server)
+        .get('/api/tournaments?page=1&limit=5')
+        .expect(200);
+
+      expect(Array.isArray(page1Response.body)).toBe(true);
+      expect(page1Response.body.length).toBeLessThanOrEqual(5);
+    });
+  });
+
+  describe('Error handling integration', () => {
+    it('should handle cascading validation errors', async () => {
+      const invalidData = {
+        name: '', // Empty name
+        format: 'INVALID_FORMAT', // Invalid format
+        durationType: DurationType.FULL_DAY,
+        startTime: 'invalid-date', // Invalid date
+        endTime: new Date('2026-01-01T10:00:00.000Z').toISOString(),
+        totalParticipants: -1, // Invalid count
+        targetCount: 0, // Invalid count
+      };
+
+      const response = await request(server)
+        .post('/api/tournaments')
+        .send(invalidData)
+        .expect(400);
+
+      // Should contain multiple validation errors
+      expect(response.body.error.details).toBeDefined();
+      expect(Array.isArray(response.body.error.details)).toBe(true);
+      expect(response.body.error.details.length).toBeGreaterThan(1);
+
+      // Check for specific validation errors
+      const errorMessages = response.body.error.details.map((d: any) => d.message);
+      expect(errorMessages.some((msg: string) => msg.includes('name'))).toBe(true);
+      expect(errorMessages.some((msg: string) => msg.includes('format'))).toBe(true);
+      expect(errorMessages.some((msg: string) => msg.includes('startTime') || msg.includes('date'))).toBe(true);
+    });
+
+    it('should handle database constraint violations', async () => {
+      // Create tournament with specific name
+      const uniqueTournament = {
+        ...validTournamentData,
+        name: 'Unique Tournament Name Test',
+      };
+
+      await request(server)
+        .post('/api/tournaments')
+        .send(uniqueTournament)
+        .expect(201);
+
+      // Try to create another tournament with same name (should fail if unique constraint exists)
+      const duplicateResponse = await request(server)
+        .post('/api/tournaments')
+        .send(uniqueTournament);
+
+      // Either succeeds (no unique constraint) or fails with proper error
+      if (duplicateResponse.status === 400 || duplicateResponse.status === 409) {
+        expect(duplicateResponse.body.error.message).toMatch(/unique|duplicate|exists/i);
+      } else {
+        expect(duplicateResponse.status).toBe(201);
+      }
+    });
+  });
+
+  describe('Performance integration tests', () => {
+    it('should handle multiple concurrent tournament creations', async () => {
+      const concurrentRequests = 5;
+      const startTime = Date.now();
+
+      const promises = Array.from({ length: concurrentRequests }, (_, index) => 
+        request(server)
+          .post('/api/tournaments')
+          .send({
+            ...validTournamentData,
+            name: `Concurrent Test Tournament ${index}`,
+          })
+          .expect(201)
+      );
+
+      const responses = await Promise.all(promises);
+      const duration = Date.now() - startTime;
+
+      // All requests should succeed
+      expect(responses).toHaveLength(concurrentRequests);
+      responses.forEach(response => {
+        expect(response.body.id).toBeDefined();
+      });
+
+      // Constitution: Should handle reasonable concurrent load
+      expect(duration).toBeLessThan(10000); // 10 seconds for 5 concurrent requests
+    });
+
+    it('should handle large tournament data efficiently', async () => {
+      const largeTournament = {
+        ...validTournamentData,
+        name: 'Large Tournament Test'.repeat(10), // Long name
+        totalParticipants: 256, // Large participant count
+        targetCount: 10, // Many targets
+      };
+
+      const startTime = Date.now();
+      
+      const response = await request(server)
+        .post('/api/tournaments')
+        .send(largeTournament)
+        .expect(201);
+
+      const duration = Date.now() - startTime;
+
+      expect(response.body.id).toBeDefined();
+      expect(response.body.totalParticipants).toBe(256);
+      
+      // Constitution: Should handle large data efficiently
+      expect(duration).toBeLessThan(5000); // 5 seconds for large tournament
+    });
+  });
+
+  describe('Database consistency tests', () => {
+    it('should maintain data consistency across operations', async () => {
+      // Create tournament
+      const createResponse = await request(server)
+        .post('/api/tournaments')
+        .send({
+          ...validTournamentData,
+          name: 'Consistency Test Tournament',
+        })
+        .expect(201);
+
+      const tournamentId = createResponse.body.id;
+      const originalCreatedAt = createResponse.body.created_at;
+
+      // Verify data persistence
+      const getResponse = await request(server)
+        .get(`/api/tournaments/${tournamentId}`)
+        .expect(200);
+
+      expect(getResponse.body.created_at).toBe(originalCreatedAt);
+      expect(getResponse.body.status).toBe('draft');
+
+      // Upload logo and verify consistency
+      const testImagePath = await createTestImage();
+      
+      const logoResponse = await request(server)
+        .post(`/api/tournaments/${tournamentId}/logo`)
+        .attach('logo', testImagePath)
+        .expect(200);
+
+      // Verify logo URL is consistent
+      const finalGetResponse = await request(server)
+        .get(`/api/tournaments/${tournamentId}`)
+        .expect(200);
+
+      expect(finalGetResponse.body.logo_url).toBe(logoResponse.body.logo_url);
+      expect(finalGetResponse.body.created_at).toBe(originalCreatedAt); // Should not change
+
+      // Cleanup
+      if (fs.existsSync(testImagePath)) {
+        fs.unlinkSync(testImagePath);
+      }
+    });
+  });
+
+  describe('Security integration tests', () => {
+    it('should apply security headers consistently', async () => {
+      const response = await request(server)
+        .post('/api/tournaments')
+        .send(validTournamentData)
+        .expect(201);
+
+      // Constitution: Security headers should be present
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+      expect(response.headers['x-frame-options']).toBeDefined();
+    });
+
+    it('should handle malicious input safely', async () => {
+      const maliciousData = {
+        ...validTournamentData,
+        name: '<script>alert("xss")</script>',
+        // Note: More sophisticated attacks would be tested in security-specific tests
+      };
+
+      const response = await request(server)
+        .post('/api/tournaments')
+        .send(maliciousData)
+        .expect(201);
+
+      // Should sanitize or reject malicious input
+      expect(response.body.name).not.toContain('<script>');
+    });
+  });
+
+  // Helper function to create test image
+  async function createTestImage(): Promise<string> {
+    const testImagePath = path.join(__dirname, '../fixtures/integration-test-logo.png');
+    const testImageBuffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77yQAAAABJRU5ErkJggg==',
+      'base64'
+    );
+
+    // Ensure fixtures directory exists
+    const fixturesDir = path.dirname(testImagePath);
+    if (!fs.existsSync(fixturesDir)) {
+      fs.mkdirSync(fixturesDir, { recursive: true });
+    }
+
+    fs.writeFileSync(testImagePath, testImageBuffer);
+    return testImagePath;
+  }
+});

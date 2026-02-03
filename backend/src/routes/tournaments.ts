@@ -1,0 +1,377 @@
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import TournamentController from '../controllers/TournamentController';
+import { validate } from '../middleware/validation';
+import { uploadTournamentLogo } from '../middleware/upload';
+import { z } from 'zod';
+import { TournamentFormat, DurationType, TournamentStatus } from '../../../shared/src/types';
+
+// Initialize Prisma client
+const prisma = new PrismaClient();
+const tournamentController = new TournamentController(prisma);
+
+const router = Router();
+
+// Validation schemas
+const createTournamentSchema = {
+  body: z.object({
+    name: z.string()
+      .min(3, 'Tournament name must be at least 3 characters long')
+      .max(100, 'Tournament name cannot exceed 100 characters')
+      .trim(),
+    format: z.nativeEnum(TournamentFormat, {
+      errorMap: () => ({ message: 'Invalid tournament format' }),
+    }),
+    durationType: z.nativeEnum(DurationType, {
+      errorMap: () => ({ message: 'Invalid duration type' }),
+    }),
+    startTime: z.string()
+      .datetime({ message: 'Invalid start time format' })
+      .refine((val) => new Date(val) > new Date(), {
+        message: 'Start time must be in the future',
+      }),
+    endTime: z.string()
+      .datetime({ message: 'Invalid end time format' }),
+    totalParticipants: z.number()
+      .int({ message: 'Total participants must be an integer' })
+      .min(2, 'Tournament must have at least 2 participants')
+      .max(512, 'Tournament cannot exceed 512 participants'),
+    targetCount: z.number()
+      .int({ message: 'Target count must be an integer' })
+      .min(1, 'Tournament must have at least 1 target')
+      .max(20, 'Tournament cannot exceed 20 targets'),
+  }).refine((data) => {
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+    return endTime > startTime;
+  }, {
+    message: 'End time must be after start time',
+    path: ['endTime'],
+  }).refine((data) => {
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+    const duration = endTime.getTime() - startTime.getTime();
+    const minDuration = 60 * 60 * 1000; // 1 hour
+    return duration >= minDuration;
+  }, {
+    message: 'Tournament duration must be at least 1 hour',
+    path: ['endTime'],
+  }).refine((data) => {
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+    const duration = endTime.getTime() - startTime.getTime();
+    const maxDuration = 24 * 60 * 60 * 1000; // 24 hours
+    return duration <= maxDuration;
+  }, {
+    message: 'Tournament duration cannot exceed 24 hours',
+    path: ['endTime'],
+  }),
+};
+
+const updateTournamentSchema = {
+  body: z.object({
+    name: z.string()
+      .min(3, 'Tournament name must be at least 3 characters long')
+      .max(100, 'Tournament name cannot exceed 100 characters')
+      .trim()
+      .optional(),
+    format: z.nativeEnum(TournamentFormat).optional(),
+    durationType: z.nativeEnum(DurationType).optional(),
+    startTime: z.string()
+      .datetime({ message: 'Invalid start time format' })
+      .refine((val) => new Date(val) > new Date(), {
+        message: 'Start time must be in the future',
+      })
+      .optional(),
+    endTime: z.string()
+      .datetime({ message: 'Invalid end time format' })
+      .optional(),
+    totalParticipants: z.number()
+      .int({ message: 'Total participants must be an integer' })
+      .min(2, 'Tournament must have at least 2 participants')
+      .max(512, 'Tournament cannot exceed 512 participants')
+      .optional(),
+    targetCount: z.number()
+      .int({ message: 'Target count must be an integer' })
+      .min(1, 'Tournament must have at least 1 target')
+      .max(20, 'Tournament cannot exceed 20 targets')
+      .optional(),
+  }),
+};
+
+const uuidSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID format'),
+  }),
+};
+
+const getTournamentsSchema = {
+  query: z.object({
+    status: z.nativeEnum(TournamentStatus, {
+      errorMap: () => ({ message: 'Invalid tournament status' }),
+    }).optional(),
+    format: z.nativeEnum(TournamentFormat, {
+      errorMap: () => ({ message: 'Invalid tournament format' }),
+    }).optional(),
+    name: z.string()
+      .min(1, 'Name search term must be at least 1 character')
+      .max(100, 'Name search term cannot exceed 100 characters')
+      .optional(),
+    page: z.string()
+      .regex(/^\d+$/, 'Page must be a positive integer')
+      .transform((val) => parseInt(val, 10))
+      .refine((val) => val > 0, 'Page must be greater than 0')
+      .optional(),
+    limit: z.string()
+      .regex(/^\d+$/, 'Limit must be a positive integer')
+      .transform((val) => parseInt(val, 10))
+      .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100')
+      .optional(),
+    sortBy: z.enum(['name', 'startTime', 'createdAt']).optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+  }),
+};
+
+const dateRangeSchema = {
+  query: z.object({
+    startDate: z.string()
+      .datetime({ message: 'Invalid start date format' }),
+    endDate: z.string()
+      .datetime({ message: 'Invalid end date format' }),
+  }).refine((data) => {
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    return endDate > startDate;
+  }, {
+    message: 'End date must be after start date',
+    path: ['endDate'],
+  }),
+};
+
+// Routes
+
+/**
+ * @route   GET /api/tournaments
+ * @desc    Get all tournaments with filtering and pagination
+ * @access  Public
+ */
+router.get(
+  '/',
+  validate(getTournamentsSchema),
+  tournamentController.getTournaments
+);
+
+/**
+ * @route   GET /api/tournaments/date-range
+ * @desc    Get tournaments by date range
+ * @access  Public
+ * @note    This route must come before /:id to avoid conflicts
+ */
+router.get(
+  '/date-range',
+  validate(dateRangeSchema),
+  tournamentController.getTournamentsByDateRange
+);
+
+/**
+ * @route   GET /api/tournaments/check-name/:name
+ * @desc    Check if tournament name is available
+ * @access  Public
+ */
+router.get(
+  '/check-name/:name',
+  tournamentController.checkTournamentNameAvailability
+);
+
+/**
+ * @route   GET /api/tournaments/stats
+ * @desc    Get overall tournament statistics
+ * @access  Public
+ */
+router.get(
+  '/stats',
+  tournamentController.getOverallTournamentStats
+);
+
+/**
+ * @route   POST /api/tournaments
+ * @desc    Create a new tournament
+ * @access  Public
+ */
+router.post(
+  '/',
+  validate(createTournamentSchema),
+  tournamentController.createTournament
+);
+
+/**
+ * @route   GET /api/tournaments/:id
+ * @desc    Get tournament by ID
+ * @access  Public
+ */
+router.get(
+  '/:id',
+  validate(uuidSchema),
+  tournamentController.getTournament
+);
+
+/**
+ * @route   PUT /api/tournaments/:id
+ * @desc    Update tournament
+ * @access  Public
+ */
+router.put(
+  '/:id',
+  validate(uuidSchema),
+  validate(updateTournamentSchema),
+  tournamentController.updateTournament
+);
+
+/**
+ * @route   DELETE /api/tournaments/:id
+ * @desc    Delete tournament
+ * @access  Public
+ */
+router.delete(
+  '/:id',
+  validate(uuidSchema),
+  tournamentController.deleteTournament
+);
+
+/**
+ * @route   POST /api/tournaments/:id/logo
+ * @desc    Upload tournament logo
+ * @access  Public
+ */
+router.post(
+  '/:id/logo',
+  validate(uuidSchema),
+  uploadTournamentLogo,
+  tournamentController.uploadTournamentLogo
+);
+
+/**
+ * @route   GET /api/tournaments/:id/stats
+ * @desc    Get tournament statistics
+ * @access  Public
+ */
+router.get(
+  '/:id/stats',
+  validate(uuidSchema),
+  tournamentController.getTournamentStats
+);
+
+/**
+ * @route   POST /api/tournaments/:id/register
+ * @desc    Register player for tournament
+ * @access  Public
+ */
+router.post(
+  '/:id/register',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+    }),
+    body: z.object({
+      playerId: z.string().uuid('Invalid player ID'),
+    }),
+  }),
+  tournamentController.registerPlayer
+);
+
+/**
+ * @route   DELETE /api/tournaments/:id/register/:playerId
+ * @desc    Unregister player from tournament
+ * @access  Public
+ */
+router.delete(
+  '/:id/register/:playerId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      playerId: z.string().uuid('Invalid player ID'),
+    }),
+  }),
+  tournamentController.unregisterPlayer
+);
+
+/**
+ * @route   GET /api/tournaments/:id/participants
+ * @desc    Get tournament participants
+ * @access  Public
+ */
+router.get(
+  '/:id/participants',
+  validate(uuidSchema),
+  tournamentController.getTournamentParticipants
+);
+
+/**
+ * @route   GET /api/tournaments/:id/registration-validation/:playerId
+ * @desc    Validate registration constraints for player
+ * @access  Public
+ */
+router.get(
+  '/:id/registration-validation/:playerId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      playerId: z.string().uuid('Invalid player ID'),
+    }),
+  }),
+  tournamentController.validateRegistration
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/status
+ * @desc    Update tournament status
+ * @access  Public
+ */
+router.patch(
+  '/:id/status',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+    }),
+    body: z.object({
+      status: z.enum(['DRAFT', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED']),
+      force: z.boolean().optional(),
+    }),
+  }),
+  tournamentController.updateTournamentStatus
+);
+
+/**
+ * @route   POST /api/tournaments/:id/open-registration
+ * @desc    Open tournament registration
+ * @access  Public
+ */
+router.post(
+  '/:id/open-registration',
+  validate(uuidSchema),
+  tournamentController.openTournamentRegistration
+);
+
+/**
+ * @route   POST /api/tournaments/:id/start
+ * @desc    Start tournament
+ * @access  Public
+ */
+router.post(
+  '/:id/start',
+  validate(uuidSchema),
+  tournamentController.startTournament
+);
+
+/**
+ * @route   POST /api/tournaments/:id/complete
+ * @desc    Complete tournament
+ * @access  Public
+ */
+router.post(
+  '/:id/complete',
+  validate(uuidSchema),
+  tournamentController.completeTournament
+);
+
+export default router;
