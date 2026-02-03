@@ -262,6 +262,122 @@ run_migrations() {
     print_success "Database migrations complete!"
 }
 
+# Function to seed the database with sample data
+seed_database() {
+    local project_dir="$1"
+    local backend_dir="$project_dir/backend"
+    
+    print_status "Seeding database with sample data..."
+    
+    cd "$backend_dir"
+    
+    npx prisma db seed 2>/dev/null || npm run db:seed 2>/dev/null || {
+        print_warning "Database seeding failed. You can run it manually later: npm run db:seed"
+        return 1
+    }
+    
+    print_success "Database seeded with sample data!"
+}
+
+# Function to export current database to SQL dump
+export_database() {
+    local project_dir="$1"
+    local backend_dir="$project_dir/backend"
+    local dump_file="$backend_dir/prisma/data-dump.sql"
+    
+    print_status "Exporting current database..."
+    
+    cd "$backend_dir"
+    
+    # Source .env to get DATABASE_URL
+    if [ -f ".env" ]; then
+        source .env
+    fi
+    
+    # Extract connection details from DATABASE_URL
+    if [ -n "$DATABASE_URL" ]; then
+        # Try pg_dump if available
+        if command -v pg_dump &> /dev/null; then
+            pg_dump "$DATABASE_URL" --data-only --inserts > "$dump_file" 2>/dev/null && {
+                print_success "Database exported to: $dump_file"
+                return 0
+            }
+        fi
+        
+        # Fallback: use Prisma to export as JSON
+        print_status "pg_dump not available, exporting as JSON..."
+        npx ts-node -e "
+import { PrismaClient } from '@prisma/client';
+const p = new PrismaClient();
+async function exportData() {
+  const tournaments = await p.tournament.findMany();
+  const players = await p.player.findMany();
+  console.log(JSON.stringify({ tournaments, players }, null, 2));
+}
+exportData().finally(() => p.\$disconnect());
+" > "$backend_dir/prisma/data-export.json" 2>/dev/null && {
+            print_success "Database exported to: $backend_dir/prisma/data-export.json"
+            return 0
+        }
+    fi
+    
+    print_warning "Could not export database. DATABASE_URL not set or export failed."
+    return 1
+}
+
+# Function to import database from SQL dump or JSON
+import_database() {
+    local project_dir="$1"
+    local backend_dir="$project_dir/backend"
+    local dump_file="$backend_dir/prisma/data-dump.sql"
+    local json_file="$backend_dir/prisma/data-export.json"
+    
+    cd "$backend_dir"
+    
+    # Source .env to get DATABASE_URL
+    if [ -f ".env" ]; then
+        source .env
+    fi
+    
+    # Try SQL dump first
+    if [ -f "$dump_file" ]; then
+        print_status "Importing database from SQL dump..."
+        if command -v psql &> /dev/null && [ -n "$DATABASE_URL" ]; then
+            psql "$DATABASE_URL" < "$dump_file" 2>/dev/null && {
+                print_success "Database imported from SQL dump!"
+                return 0
+            }
+        fi
+    fi
+    
+    # Try JSON import
+    if [ -f "$json_file" ]; then
+        print_status "Importing database from JSON export..."
+        npx ts-node -e "
+import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+const p = new PrismaClient();
+async function importData() {
+  const data = JSON.parse(fs.readFileSync('$json_file', 'utf-8'));
+  for (const t of data.tournaments || []) {
+    await p.tournament.upsert({ where: { id: t.id }, update: t, create: t });
+  }
+  for (const pl of data.players || []) {
+    await p.player.upsert({ where: { id: pl.id }, update: pl, create: pl });
+  }
+  console.log('Imported', data.tournaments?.length || 0, 'tournaments and', data.players?.length || 0, 'players');
+}
+importData().finally(() => p.\$disconnect());
+" 2>/dev/null && {
+            print_success "Database imported from JSON!"
+            return 0
+        }
+    fi
+    
+    print_warning "No data dump found. Run 'npm run db:seed' to create sample data."
+    return 1
+}
+
 # Function to display final instructions
 show_final_instructions() {
     local project_dir="$1"
@@ -285,24 +401,32 @@ show_final_instructions() {
     echo ""
     echo "3. Run database migrations:"
     echo "   cd $project_dir/backend"
-    echo "   npx prisma migrate deploy"
+    echo "   npm run db:migrate"
     echo ""
-    echo "4. Start the services:"
+    echo "4. Seed the database (optional):"
+    echo "   cd $project_dir/backend"
+    echo "   npm run db:seed"
+    echo ""
+    echo "5. Start the services:"
     echo "   cd $project_dir"
     echo "   ./restart.sh both"
     echo ""
-    echo "5. Access the application:"
+    echo "6. Access the application:"
     echo "   Frontend: http://localhost:5173"
     echo "   Backend:  http://localhost:3000"
     echo "   Health:   http://localhost:3000/health"
     echo ""
     echo "📝 Useful commands:"
-    echo "   ./restart.sh both      - Start both services"
-    echo "   ./restart.sh backend   - Start backend only"
-    echo "   ./restart.sh frontend  - Start frontend only"
-    echo "   ./restart.sh stop      - Stop all services"
-    echo "   ./restart.sh status    - Check service status"
-    echo "   ./restart.sh logs backend  - View backend logs"
+    echo "   ./restart.sh both         - Start both services"
+    echo "   ./restart.sh stop         - Stop all services"
+    echo "   ./restart.sh status       - Check service status"
+    echo "   ./restart.sh logs backend - View backend logs"
+    echo ""
+    echo "🗃️ Database commands:"
+    echo "   npm run db:migrate  - Apply migrations"
+    echo "   npm run db:seed     - Seed sample data"
+    echo "   npm run db:reset    - Reset database (WARNING: deletes all data)"
+    echo "   npm run db:studio   - Open Prisma Studio (database UI)"
     echo ""
 }
 
@@ -352,6 +476,13 @@ main() {
     if [[ "$run_migrations_prompt" =~ ^[Yy]$ ]]; then
         run_migrations "$full_path"
         echo ""
+        
+        # Seed database
+        read -p "Do you want to seed the database with sample data? (y/N): " seed_db_prompt
+        if [[ "$seed_db_prompt" =~ ^[Yy]$ ]]; then
+            seed_database "$full_path"
+            echo ""
+        fi
     fi
     
     # Show final instructions
