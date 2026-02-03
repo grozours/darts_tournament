@@ -1,1 +1,43 @@
-.git
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Runtime/PID files
+*.pid
+.backend.pid
+.frontend.pid
+
+# Uploads
+uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage/
+
+# Test outputs
+test-results/
+playwright-report/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# IDE (uncomment if you don't want to share IDE settings)
+# .vscode/
+# .idea/
