@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useOptionalAuth } from '../../auth/optionalAuth';
 import { TournamentFormat, DurationType } from '@shared/types';
 import {
   createTournament,
@@ -31,7 +31,12 @@ export default function TournamentForm({
   onCancel,
   isLoading = false,
 }: TournamentFormProps) {
-  const { isAuthenticated, loginWithRedirect, getAccessTokenSilently } = useAuth0();
+  const {
+    enabled: authEnabled,
+    isAuthenticated,
+    loginWithRedirect,
+    getAccessTokenSilently,
+  } = useOptionalAuth();
   const [formState, setFormState] = useState<FormState>({
     name: '',
     format: '',
@@ -251,7 +256,7 @@ export default function TournamentForm({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isAuthenticated) {
+    if (authEnabled && !isAuthenticated) {
       setErrors((prev) => ({ ...prev, submit: 'Please sign in to create tournaments.' }));
       await loginWithRedirect();
       return;
@@ -268,7 +273,7 @@ export default function TournamentForm({
     setErrors((prev) => ({ ...prev, submit: undefined }));
 
     try {
-      const token = await getAccessTokenSilently();
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const result = await createTournament({
         name: submissionState.name.trim(),
         format: submissionState.format,

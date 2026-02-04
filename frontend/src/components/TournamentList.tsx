@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useOptionalAuth } from '../auth/optionalAuth';
+import { TournamentFormat, DurationType } from '@shared/types';
+import { updateTournament } from '../services/tournamentService';
 
 interface Tournament {
   id: string;
@@ -7,29 +9,76 @@ interface Tournament {
   format: string;
   totalParticipants: number;
   status: string;
+  durationType?: string;
+  startTime?: string;
+  endTime?: string;
+  targetCount?: number;
 }
+
+type EditFormState = {
+  name: string;
+  format: string;
+  durationType: string;
+  startTime: string;
+  endTime: string;
+  totalParticipants: string;
+  targetCount: string;
+};
 
 function TournamentList() {
   const {
+    enabled: authEnabled,
     isAuthenticated,
     isLoading: authLoading,
     loginWithRedirect,
     getAccessTokenSilently,
-  } = useAuth0();
+  } = useOptionalAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const formatOptions = useMemo(
+    () => [
+      { value: TournamentFormat.SINGLE, label: 'Single' },
+      { value: TournamentFormat.DOUBLE, label: 'Double' },
+      { value: TournamentFormat.TEAM_4_PLAYER, label: 'Team (4 players)' },
+    ],
+    []
+  );
+
+  const durationOptions = useMemo(
+    () => [
+      { value: DurationType.HALF_DAY_MORNING, label: 'Half day morning' },
+      { value: DurationType.HALF_DAY_AFTERNOON, label: 'Half day afternoon' },
+      { value: DurationType.HALF_DAY_NIGHT, label: 'Half day night' },
+      { value: DurationType.FULL_DAY, label: 'Full day' },
+      { value: DurationType.TWO_DAY, label: 'Two day' },
+    ],
+    []
+  );
+
+  const toLocalInput = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (v: number) => String(v).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}`;
+  };
 
   const fetchTournaments = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const token = await getAccessTokenSilently();
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch('/api/tournaments', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!response.ok) {
         throw new Error('Failed to fetch tournaments');
@@ -45,29 +94,31 @@ function TournamentList() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!authEnabled || isAuthenticated) {
       fetchTournaments();
     }
-  }, [isAuthenticated]);
+  }, [authEnabled, isAuthenticated]);
 
   const createTournament = async () => {
     const name = prompt('Tournament name:');
     if (!name) return;
 
     try {
-      const token = await getAccessTokenSilently();
+      const startTime = new Date(Date.now() + 60 * 60 * 1000);
+      const endTime = new Date(Date.now() + 5 * 60 * 60 * 1000);
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch('/api/tournaments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           name,
           format: 'SINGLE',
           durationType: 'HALF_DAY_MORNING',
-          startTime: new Date().toISOString(),
-          endTime: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
           totalParticipants: 8,
           targetCount: 4,
         }),
@@ -76,7 +127,8 @@ function TournamentList() {
       if (response.ok) {
         fetchTournaments();
       } else {
-        alert('Failed to create tournament');
+        const message = await response.text();
+        alert(message || 'Failed to create tournament');
       }
     } catch (err) {
       console.error('Error creating tournament:', err);
@@ -88,12 +140,10 @@ function TournamentList() {
     if (!confirm('Are you sure you want to delete this tournament?')) return;
 
     try {
-      const token = await getAccessTokenSilently();
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch(`/api/tournaments/${id}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
       if (response.ok) {
@@ -104,6 +154,59 @@ function TournamentList() {
     } catch (err) {
       console.error('Error deleting tournament:', err);
       alert('Failed to delete tournament');
+    }
+  };
+
+  const openEdit = (tournament: Tournament) => {
+    setEditingTournament(tournament);
+    setEditForm({
+      name: tournament.name || '',
+      format: tournament.format || TournamentFormat.SINGLE,
+      durationType: tournament.durationType || DurationType.FULL_DAY,
+      startTime: toLocalInput(tournament.startTime),
+      endTime: toLocalInput(tournament.endTime),
+      totalParticipants: String(tournament.totalParticipants ?? 0),
+      targetCount: String(tournament.targetCount ?? 0),
+    });
+    setEditError(null);
+  };
+
+  const closeEdit = () => {
+    setEditingTournament(null);
+    setEditForm(null);
+    setEditError(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editingTournament || !editForm) return;
+    if (!editForm.name.trim()) {
+      setEditError('Name is required');
+      return;
+    }
+
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await updateTournament(
+        editingTournament.id,
+        {
+          name: editForm.name.trim(),
+          format: editForm.format,
+          durationType: editForm.durationType,
+          startTime: editForm.startTime ? new Date(editForm.startTime).toISOString() : undefined,
+          endTime: editForm.endTime ? new Date(editForm.endTime).toISOString() : undefined,
+          totalParticipants: Number(editForm.totalParticipants || 0),
+          targetCount: Number(editForm.targetCount || 0),
+        },
+        token
+      );
+      closeEdit();
+      fetchTournaments();
+    } catch (err) {
+      setEditError('Failed to update tournament');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -119,7 +222,7 @@ function TournamentList() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (authEnabled && !isAuthenticated) {
     return (
       <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
         <h3 className="text-xl font-semibold text-white">Sign in to view tournaments</h3>
@@ -217,6 +320,7 @@ function TournamentList() {
 
               <div className="mt-6 flex justify-end gap-2">
                 <button
+                  onClick={() => openEdit(tournament)}
                   className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
                 >
                   Edit
@@ -230,6 +334,118 @@ function TournamentList() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {editingTournament && editForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-6">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-800/70 bg-slate-900 p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">Edit tournament</h3>
+              <button
+                onClick={closeEdit}
+                className="text-sm text-slate-400 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <label className="text-sm text-slate-300">
+                Name
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Format
+                <select
+                  value={editForm.format}
+                  onChange={(e) => setEditForm({ ...editForm, format: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                >
+                  {formatOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Duration type
+                <select
+                  value={editForm.durationType}
+                  onChange={(e) => setEditForm({ ...editForm, durationType: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                >
+                  {durationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-300">
+                Participants
+                <input
+                  type="number"
+                  value={editForm.totalParticipants}
+                  onChange={(e) => setEditForm({ ...editForm, totalParticipants: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Start time
+                <input
+                  type="datetime-local"
+                  value={editForm.startTime}
+                  onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                End time
+                <input
+                  type="datetime-local"
+                  value={editForm.endTime}
+                  onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Target count
+                <input
+                  type="number"
+                  value={editForm.targetCount}
+                  onChange={(e) => setEditForm({ ...editForm, targetCount: e.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                />
+              </label>
+            </div>
+
+            {editError && (
+              <p className="mt-4 text-sm text-rose-300">{editError}</p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={closeEdit}
+                className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={isSaving}
+                className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+              >
+                {isSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

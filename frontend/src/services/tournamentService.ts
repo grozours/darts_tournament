@@ -55,3 +55,24 @@ export async function uploadTournamentLogo(
 
   return response.json();
 }
+
+export async function updateTournament(
+  tournamentId: string,
+  payload: Partial<CreateTournamentPayload>,
+  token?: string
+): Promise<CreateTournamentResponse> {
+  const response = await fetch(`/api/tournaments/${tournamentId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update tournament');
+  }
+
+  return response.json();
+}

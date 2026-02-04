@@ -102,9 +102,10 @@ VITE_AUTH0_CLIENT_ID=your_client_id
 # Optional: VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
 ```
 
-Backend Auth0 (required):
+Backend Auth0 (optional):
 
 ```env
+AUTH_ENABLED=true
 AUTH_ISSUER_BASE_URL=https://your-tenant.eu.auth0.com
 AUTH_AUDIENCE=https://api.yourdomain.com
 ```

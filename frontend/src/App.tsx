@@ -1,14 +1,15 @@
-import { useAuth0 } from "@auth0/auth0-react";
+import { useOptionalAuth } from "./auth/optionalAuth";
 import TournamentList from "./components/TournamentList";
 
 function App() {
   const {
+    enabled: authEnabled,
     isAuthenticated,
     isLoading,
     user,
     loginWithRedirect,
     logout,
-  } = useAuth0();
+  } = useOptionalAuth();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -52,7 +53,11 @@ function App() {
                   className="w-64 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
                 />
               </div>
-              {isLoading ? null : isAuthenticated ? (
+              {!authEnabled ? (
+                <span className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300">
+                  OAuth disabled
+                </span>
+              ) : isLoading ? null : isAuthenticated ? (
                 <div className="flex items-center gap-3">
                   {user?.picture ? (
                     <img

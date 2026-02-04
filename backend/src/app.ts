@@ -101,6 +101,10 @@ class App {
   }
 
   private initializeRoutes(): void {
+    const authMiddleware = config.auth.enabled
+      ? requireAuth
+      : (req: Request, res: Response, next: NextFunction) => next();
+
     // Health check endpoint
     this.app.get('/health', async (req: Request, res: Response) => {
       const dbHealth = await database.healthCheck();
@@ -120,9 +124,9 @@ class App {
     });
 
     // API routes will be added here
-    this.app.use('/api/tournaments', requireAuth, tournamentRoutes);
+    this.app.use('/api/tournaments', authMiddleware, tournamentRoutes);
     
-    this.app.get('/api', requireAuth, (req: Request, res: Response) => {
+    this.app.get('/api', authMiddleware, (req: Request, res: Response) => {
       res.json({
         name: config.app.name,
         version: config.app.version,

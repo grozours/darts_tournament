@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@shared/types': path.resolve(__dirname, '../shared/src/types/index.ts'),
       '@shared': path.resolve(__dirname, '../shared/src'),
     },
   },
@@ -16,11 +17,11 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000', // Backend runs on 3000
+        target: 'http://backend:3000', // Docker service name
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3000', // Backend WebSocket on 3000
+        target: 'http://backend:3000', // Docker service name
         ws: true,
         changeOrigin: true,
       },
