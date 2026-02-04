@@ -87,7 +87,7 @@ cp .env.example .env
 nano .env
 ```
 
-Frontend auth (optional):
+Frontend auth (required for OAuth):
 
 ```bash
 cd ../frontend
@@ -100,6 +100,13 @@ Set your Auth0 credentials in frontend/.env to enable Google/Facebook login:
 VITE_AUTH0_DOMAIN=your-tenant.eu.auth0.com
 VITE_AUTH0_CLIENT_ID=your_client_id
 # Optional: VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
+```
+
+Backend Auth0 (required):
+
+```env
+AUTH_ISSUER_BASE_URL=https://your-tenant.eu.auth0.com
+AUTH_AUDIENCE=https://api.yourdomain.com
 ```
 
 **Required environment variables:**

@@ -19,11 +19,26 @@ git --version   # For version control
 # Clone and setup project
 git clone <repository-url>
 cd darts-tournament-manager
-npm install
+
+# One-command install (recommended)
+./install.sh
+
+# Or manual install
+# npm install
 
 # Setup environment
-cp .env.example .env
-# Edit .env with your configuration
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+# Edit both .env files with your configuration (DB + Auth0)
+
+# Required Auth0 env values
+# backend/.env:
+# AUTH_ISSUER_BASE_URL=https://your-tenant.eu.auth0.com
+# AUTH_AUDIENCE=https://api.yourdomain.com
+# frontend/.env:
+# VITE_AUTH0_DOMAIN=your-tenant.eu.auth0.com
+# VITE_AUTH0_CLIENT_ID=your_client_id
+# VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
 
 # Start database services
 docker-compose up -d postgres redis
@@ -32,8 +47,24 @@ docker-compose up -d postgres redis
 npm run db:migrate
 
 # Start development servers
-npm run dev:backend    # Terminal 1 - API server on :3000
-npm run dev:frontend   # Terminal 2 - React app on :5173
+./restart.sh both
+```
+
+### Service Management
+```bash
+# Start individual services
+./restart.sh backend
+./restart.sh frontend
+
+# Stop all services
+./restart.sh stop
+
+# Check status
+./restart.sh status
+
+# View logs
+./restart.sh logs backend
+./restart.sh logs frontend
 ```
 
 ### Project Structure

@@ -35,6 +35,8 @@ description: "Task list for Darts Tournament Manager implementation"
 - [ ] T006 [P] Setup React Testing Library and Jest for frontend testing in frontend/jest.config.js
 - [ ] T007 [P] Configure Playwright for E2E testing per constitution requirements in playwright.config.ts
 - [ ] T008 [P] Setup Docker development environment per quickstart.md in docker-compose.yml
+- [ ] T010a [P] Create install.sh to bootstrap dependencies, run migrations, and seed data
+- [ ] T010b [P] Create restart.sh to start/stop backend or frontend in background with logging
 - [ ] T009 [P] Configure PostgreSQL 15+ database with connection pooling in backend/src/config/database.ts
 - [ ] T010 [P] Setup Redis for real-time data caching in backend/src/config/redis.ts
 
@@ -56,6 +58,15 @@ description: "Task list for Darts Tournament Manager implementation"
 - [ ] T018 [P] Create shared TypeScript types from data-model.md in shared/src/types/
 - [ ] T019 [P] Setup API validation middleware with Zod schemas in backend/src/middleware/validation.ts
 - [ ] T020 [P] Configure file upload handling for tournament logos in backend/src/middleware/upload.ts
+
+## Phase 2b: Authentication (Cross-cutting)
+
+- [ ] T200 [P] Add Auth0 OAuth config loading in backend/src/config/environment.ts
+- [ ] T201 [P] Add JWT auth middleware using express-oauth2-jwt-bearer in backend/src/middleware/auth.ts
+- [ ] T202 [P] Protect /api routes with auth middleware in backend/src/app.ts
+- [ ] T203 [P] Add Auth0Provider setup in frontend/src/main.tsx
+- [ ] T204 [P] Add sign-in/up/out controls in frontend/src/App.tsx
+
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 

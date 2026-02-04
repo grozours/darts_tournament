@@ -7,7 +7,7 @@
 
 ## Summary
 
-Comprehensive darts tournament management application for desktop browsers with tournament creation, player registration with skill-based seeding, real-time match management, and historical data retention. Features include visual branding, configurable pool/bracket structures, automatic scheduling, and live score tracking without authentication requirements.
+Comprehensive darts tournament management application for desktop browsers with tournament creation, player registration with skill-based seeding, real-time match management, historical data retention, OAuth login, and scripted installation. Features include visual branding, configurable pool/bracket structures, automatic scheduling, live score tracking, protected API access via Auth0, and a background restart script for services.
 
 ## Technical Context
 
@@ -18,7 +18,7 @@ Comprehensive darts tournament management application for desktop browsers with 
 **Target Platform**: Desktop web browsers only
 **Project Type**: web - React frontend with Node.js/Express backend API  
 **Performance Goals**: Schedule generation <30s for 128 participants, real-time updates <2s, target availability <1s  
-**Constraints**: 5MB logo uploads JPG/PNG only, no authentication, permanent data storage, WCAG 2.1 AA compliance  
+**Constraints**: 5MB logo uploads JPG/PNG only, OAuth login required, permanent data storage, WCAG 2.1 AA compliance  
 **Scale/Scope**: Up to 128 participants per tournament, unlimited concurrent tournaments
 
 ## Constitution Check

@@ -66,9 +66,12 @@ services:
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://darts_user:darts_password@postgres:5432/darts_tournament
-      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    env_file:
+      - ./backend/.env
     volumes:
-      - ./backend/src:/app/src
+      - ./backend/src:/app/backend/src
       - ./shared:/app/shared
     depends_on:
       postgres:
@@ -83,12 +86,14 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "3001:3001"
+    env_file:
+      - ./frontend/.env
     volumes:
-      - ./frontend/src:/app/src
+      - ./frontend/src:/app/frontend/src
       - ./shared:/app/shared
     depends_on:
       - backend
-    command: npm run dev
+    command: npm run dev -- --host 0.0.0.0 --port 3001
 
 volumes:
   postgres_data:

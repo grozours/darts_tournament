@@ -12,7 +12,7 @@
 
 ### Session 2026-02-03
 
-- Q: How should tournament access be controlled? → A: No authentication - anyone can access any tournament
+- Q: How should tournament access be controlled? → A: OAuth login (Google/Facebook) via Auth0; protect API endpoints
 - Q: What happens to tournament data after completion? → A: Keep permanently for historical records and statistics
 - Q: What devices/platforms should be supported? → A: Desktop web browser only (traditional tournament management)
 - Q: What skill level scale should be used? → A: Traditional dart player categories (Novice, Intermediate, Advanced, Expert)
@@ -136,7 +136,7 @@ As an organizer, I want to generate a comprehensive tournament agenda showing al
 
 ### Functional Requirements
 
-- **FR-001**: System MUST allow creation of tournaments with name, visual content upload (logos up to 5MB in JPG/PNG format), configurable format, duration (half-day with time slots, full-day, two-day), and start/end times with open access (no authentication required).
+- **FR-001**: System MUST allow creation of tournaments with name, visual content upload (logos up to 5MB in JPG/PNG format), configurable format, duration (half-day with time slots, full-day, two-day), and start/end times for authenticated users.
 - **FR-002**: System MUST support configurable tournament structure including number of players/teams, targets, pool stages, pools per stage, players per pool, and rounds/legs per stage.
 - **FR-003**: System MUST allow configuration of winner and loser brackets with customizable bracket sizes and rounds/legs.
 - **FR-004**: System MUST allow comprehensive player registration including firstname, lastname, surname, team name, mobile phone, and skill level evaluation without user authentication.
@@ -148,7 +148,11 @@ As an organizer, I want to generate a comprehensive tournament agenda showing al
 - **FR-010**: System MUST generate comprehensive tournament agenda with chronological match times for sharing with participants.
 - **FR-011**: System MUST update bracket progression and standings in real-time as scores are entered.
 - **FR-012**: System MUST validate all tournament configurations and prevent invalid setups (insufficient time, target conflicts, etc.).
-- **FR-013**: System MUST persist all tournament data, configurations, registrations, and match results permanently for historical records and statistical analysis with public accessibility.
+- **FR-013**: System MUST persist all tournament data, configurations, registrations, and match results permanently for historical records and statistical analysis with authenticated access.
+- **FR-014**: System MUST support OAuth login with Google and Facebook through Auth0.
+- **FR-015**: System MUST protect API endpoints with JWT validation (issuer + audience) and reject unauthenticated requests.
+- **FR-016**: System MUST provide an install bash script to set up the application from scratch, including database schema creation and seed data.
+- **FR-017**: System MUST provide a restart bash script to start/stop frontend or backend in the background and document its usage.
 
 
 ### Key Entities
