@@ -429,7 +429,7 @@ router.patch(
       poolCount: z.number().int().min(1).max(16).optional(),
       playersPerPool: z.number().int().min(2).max(16).optional(),
       advanceCount: z.number().int().min(1).max(16).optional(),
-      status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']).optional(),
+      status: z.enum(['NOT_STARTED', 'EDITION', 'IN_PROGRESS', 'COMPLETED']).optional(),
     }),
   }),
   tournamentController.updatePoolStage
@@ -449,6 +449,48 @@ router.delete(
     }),
   }),
   tournamentController.deletePoolStage
+);
+
+/**
+ * @route   GET /api/tournaments/:id/pool-stages/:stageId/pools
+ * @desc    Get pools for a pool stage
+ * @access  Public
+ */
+router.get(
+  '/:id/pool-stages/:stageId/pools',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      stageId: z.string().uuid('Invalid pool stage ID'),
+    }),
+  }),
+  tournamentController.getPoolStagePools
+);
+
+/**
+ * @route   PUT /api/tournaments/:id/pool-stages/:stageId/assignments
+ * @desc    Update pool assignments for a pool stage
+ * @access  Public
+ */
+router.put(
+  '/:id/pool-stages/:stageId/assignments',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      stageId: z.string().uuid('Invalid pool stage ID'),
+    }),
+    body: z.object({
+      assignments: z.array(
+        z.object({
+          poolId: z.string().uuid('Invalid pool ID'),
+          playerId: z.string().uuid('Invalid player ID'),
+          assignmentType: z.enum(['SEEDED', 'RANDOM', 'BYE']),
+          seedNumber: z.number().int().min(1).optional(),
+        })
+      ),
+    }),
+  }),
+  tournamentController.updatePoolStageAssignments
 );
 
 /**

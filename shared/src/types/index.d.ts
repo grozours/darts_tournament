@@ -52,6 +52,7 @@ export interface Player {
 }
 export declare enum StageStatus {
     NOT_STARTED = "NOT_STARTED",
+    EDITION = "EDITION",
     IN_PROGRESS = "IN_PROGRESS",
     COMPLETED = "COMPLETED"
 }

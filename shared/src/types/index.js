@@ -33,6 +33,7 @@ var SkillLevel;
 var StageStatus;
 (function (StageStatus) {
     StageStatus["NOT_STARTED"] = "NOT_STARTED";
+    StageStatus["EDITION"] = "EDITION";
     StageStatus["IN_PROGRESS"] = "IN_PROGRESS";
     StageStatus["COMPLETED"] = "COMPLETED";
 })(StageStatus || (exports.StageStatus = StageStatus = {}));

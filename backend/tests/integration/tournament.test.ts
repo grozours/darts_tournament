@@ -84,6 +84,82 @@ describe('Tournament Management - Integration Tests', () => {
       }
     });
 
+    it('should enforce tournament status transitions', async () => {
+      const createResponse = await request(server)
+        .post('/api/tournaments')
+        .send({
+          ...validTournamentData,
+          name: 'Status Transition Tournament',
+        })
+        .expect(201);
+
+      const tournamentId = createResponse.body.id;
+
+      const openResponse = await request(server)
+        .patch(`/api/tournaments/${tournamentId}/status`)
+        .send({ status: 'OPEN' })
+        .expect(200);
+
+      expect(openResponse.body.tournament.status).toBe('OPEN');
+
+      const playerOneResponse = await request(server)
+        .post(`/api/tournaments/${tournamentId}/players`)
+        .send({
+          firstName: 'Grace',
+          lastName: 'Hopper',
+          email: 'grace.hopper@example.com',
+        })
+        .expect(201);
+
+      const playerTwoResponse = await request(server)
+        .post(`/api/tournaments/${tournamentId}/players`)
+        .send({
+          firstName: 'Alan',
+          lastName: 'Turing',
+          email: 'alan.turing@example.com',
+        })
+        .expect(201);
+
+      const signatureResponse = await request(server)
+        .patch(`/api/tournaments/${tournamentId}/status`)
+        .send({ status: 'SIGNATURE' })
+        .expect(200);
+
+      expect(signatureResponse.body.tournament.status).toBe('SIGNATURE');
+
+      const liveDeniedResponse = await request(server)
+        .patch(`/api/tournaments/${tournamentId}/status`)
+        .send({ status: 'LIVE' })
+        .expect(400);
+
+      expect(liveDeniedResponse.body.error.code).toBe('TOURNAMENT_START_TIME_NOT_REACHED');
+
+      await request(server)
+        .patch(`/api/tournaments/${tournamentId}/players/${playerOneResponse.body.id}/check-in`)
+        .send({ checkedIn: true })
+        .expect(200);
+
+      await request(server)
+        .patch(`/api/tournaments/${tournamentId}/players/${playerTwoResponse.body.id}/check-in`)
+        .send({ checkedIn: true })
+        .expect(200);
+
+      const liveResponse = await request(server)
+        .patch(`/api/tournaments/${tournamentId}/status`)
+        .send({ status: 'LIVE' })
+        .expect(200);
+
+      expect(liveResponse.body.tournament.status).toBe('LIVE');
+
+      const finishedResponse = await request(server)
+        .patch(`/api/tournaments/${tournamentId}/status`)
+        .send({ status: 'FINISHED' })
+        .expect(200);
+
+      expect(finishedResponse.body.tournament.status).toBe('FINISHED');
+      expect(finishedResponse.body.tournament.completedAt).toBeTruthy();
+    });
+
     it('should handle tournament list operations', async () => {
       // Create multiple tournaments
       const tournaments = [];

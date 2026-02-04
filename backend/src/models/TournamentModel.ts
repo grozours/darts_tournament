@@ -289,6 +289,13 @@ export class TournamentModel {
           'POOL_STAGE_NOT_FOUND'
         );
       }
+      if (error.code === 'P2002') {
+        throw new AppError(
+          'Pool stage already exists for this stage number',
+          400,
+          'POOL_STAGE_EXISTS'
+        );
+      }
       throw new AppError(
         'Failed to update pool stage',
         500,
@@ -336,6 +343,27 @@ export class TournamentModel {
     }
   }
 
+  async getPoolsWithAssignmentsForStage(stageId: string) {
+    try {
+      return await this.prisma.pool.findMany({
+        where: { poolStageId: stageId },
+        orderBy: { poolNumber: 'asc' },
+        include: {
+          assignments: {
+            orderBy: { assignedAt: 'asc' },
+            include: { player: true },
+          },
+        },
+      });
+    } catch (error: any) {
+      throw new AppError(
+        'Failed to fetch pools',
+        500,
+        'POOLS_FETCH_FAILED'
+      );
+    }
+  }
+
   async getPoolAssignmentCountForStage(stageId: string): Promise<number> {
     try {
       return await this.prisma.poolAssignment.count({
@@ -366,6 +394,12 @@ export class TournamentModel {
     await this.prisma.poolAssignment.createMany({
       data: assignments,
       skipDuplicates: true,
+    });
+  }
+
+  async deletePoolAssignmentsForStage(stageId: string) {
+    await this.prisma.poolAssignment.deleteMany({
+      where: { pool: { poolStageId: stageId } },
     });
   }
 

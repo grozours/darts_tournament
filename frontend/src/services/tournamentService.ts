@@ -55,6 +55,32 @@ export interface BracketConfig {
   status: string;
 }
 
+export interface PoolAssignmentPlayer {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface PoolAssignmentInfo {
+  id: string;
+  playerId: string;
+  player: PoolAssignmentPlayer;
+}
+
+export interface PoolStagePool {
+  id: string;
+  poolNumber: number;
+  name: string;
+  assignments?: PoolAssignmentInfo[];
+}
+
+export interface PoolAssignmentPayload {
+  poolId: string;
+  playerId: string;
+  assignmentType: string;
+  seedNumber?: number;
+}
+
 export async function createTournament(
   payload: CreateTournamentPayload,
   token?: string
@@ -168,6 +194,45 @@ export async function fetchTournamentLiveView(
   }
 
   return response.json();
+}
+
+export async function fetchPoolStagePools(
+  tournamentId: string,
+  stageId: string,
+  token?: string
+): Promise<PoolStagePool[]> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}/pools`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to fetch pool stage pools');
+  }
+
+  const data = await response.json();
+  return data.pools || [];
+}
+
+export async function updatePoolAssignments(
+  tournamentId: string,
+  stageId: string,
+  assignments: PoolAssignmentPayload[],
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}/assignments`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ assignments }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update pool assignments');
+  }
 }
 
 export async function registerTournamentPlayer(

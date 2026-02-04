@@ -119,7 +119,8 @@ export const setupWebSocketServer = (io: SocketServer): void => {
   };
 
   // Monitor every 30 seconds
-  setInterval(monitorConnections, 30000);
+  const monitorInterval = setInterval(monitorConnections, 30000);
+  monitorInterval.unref?.();
 
   console.log('🚀 WebSocket server initialized with real-time tournament support');
 };

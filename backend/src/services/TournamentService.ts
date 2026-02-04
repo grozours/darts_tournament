@@ -969,6 +969,17 @@ export class TournamentService {
 
     const updatedStage = await this.tournamentModel.updatePoolStage(stageId, data);
 
+    if (updatedStage.status === StageStatus.EDITION) {
+      const currentCount = await this.tournamentModel.getPoolCountForStage(stageId);
+      if (currentCount < updatedStage.poolCount) {
+        await this.tournamentModel.createPoolsForStage(
+          stageId,
+          updatedStage.poolCount - currentCount,
+          currentCount + 1
+        );
+      }
+    }
+
     if (updatedStage.status === StageStatus.IN_PROGRESS) {
       const currentCount = await this.tournamentModel.getPoolCountForStage(stageId);
       if (currentCount < updatedStage.poolCount) {
@@ -1012,6 +1023,74 @@ export class TournamentService {
     await this.tournamentModel.deletePoolStage(stageId);
   }
 
+  async getPoolStagePools(tournamentId: string, stageId: string) {
+    this.validateUUID(tournamentId);
+    this.validateUUID(stageId);
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    const stage = await this.tournamentModel.getPoolStageById(stageId);
+    if (!stage || stage.tournamentId !== tournamentId) {
+      throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+    }
+
+    return await this.tournamentModel.getPoolsWithAssignmentsForStage(stageId);
+  }
+
+  async updatePoolAssignments(
+    tournamentId: string,
+    stageId: string,
+    assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }>
+  ): Promise<void> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(stageId);
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE, TournamentStatus.LIVE].includes(tournament.status)) {
+      throw new AppError(
+        'Pool assignments can only be modified for draft, open, signature, or live tournaments',
+        400,
+        'POOL_ASSIGNMENTS_NOT_EDITABLE'
+      );
+    }
+
+    const stage = await this.tournamentModel.getPoolStageById(stageId);
+    if (!stage || stage.tournamentId !== tournamentId) {
+      throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+    }
+
+    if (stage.status !== StageStatus.EDITION) {
+      throw new AppError(
+        'Pool assignments can only be edited in edition stage',
+        400,
+        'POOL_ASSIGNMENTS_NOT_EDITABLE'
+      );
+    }
+
+    const pools = await this.tournamentModel.getPoolsForStage(stageId);
+    const poolIds = new Set(pools.map((pool) => pool.id));
+    const players = await this.tournamentModel.getActivePlayersForTournament(tournamentId);
+    const playerIds = new Set(players.map((player) => player.id));
+
+    const invalidPool = assignments.find((assignment) => !poolIds.has(assignment.poolId));
+    if (invalidPool) {
+      throw new AppError('Invalid pool assignment target', 400, 'POOL_ASSIGNMENTS_INVALID_POOL');
+    }
+
+    const invalidPlayer = assignments.find((assignment) => !playerIds.has(assignment.playerId));
+    if (invalidPlayer) {
+      throw new AppError('Invalid player assignment', 400, 'POOL_ASSIGNMENTS_INVALID_PLAYER');
+    }
+
+    await this.tournamentModel.deletePoolAssignmentsForStage(stageId);
+    await this.tournamentModel.createPoolAssignments(assignments);
+  }
+
   private async assignPlayersToPools(
     tournamentId: string,
     stageId: string,
@@ -1050,9 +1129,14 @@ export class TournamentService {
     let poolIndex = 0;
     for (let i = 0; i < selected.length; i += 1) {
       const pool = pools[poolIndex % pools.length];
+      const player = selected[i];
+      if (!pool || !player) {
+        poolIndex += 1;
+        continue;
+      }
       assignments.push({
         poolId: pool.id,
-        playerId: selected[i].id,
+        playerId: player.id,
         assignmentType: AssignmentType.SEEDED,
         seedNumber: i + 1,
       });

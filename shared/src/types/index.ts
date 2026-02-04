@@ -64,6 +64,7 @@ export interface Player {
 // Pool Types
 export enum StageStatus {
   NOT_STARTED = 'NOT_STARTED',
+  EDITION = 'EDITION',
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
 }

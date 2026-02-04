@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
-import { TournamentFormat, DurationType, SkillLevel, BracketType, BracketStatus, StageStatus } from '@shared/types';
+import { TournamentFormat, DurationType, SkillLevel, BracketType, BracketStatus, StageStatus, AssignmentType } from '@shared/types';
 import {
   updateTournament,
   updateTournamentStatus,
@@ -18,10 +18,14 @@ import {
   createBracket,
   updateBracket,
   deleteBracket,
+  fetchPoolStagePools,
+  updatePoolAssignments,
   type CreatePlayerPayload,
   type TournamentPlayer,
   type PoolStageConfig,
   type BracketConfig,
+  type PoolStagePool,
+  type PoolAssignmentPayload,
 } from '../services/tournamentService';
 
 interface Tournament {
@@ -72,6 +76,12 @@ function TournamentList() {
   const [poolStagesError, setPoolStagesError] = useState<string | null>(null);
   const [brackets, setBrackets] = useState<BracketConfig[]>([]);
   const [bracketsError, setBracketsError] = useState<string | null>(null);
+  const [editingPoolStage, setEditingPoolStage] = useState<PoolStageConfig | null>(null);
+  const [poolStagePools, setPoolStagePools] = useState<PoolStagePool[]>([]);
+  const [poolStagePlayers, setPoolStagePlayers] = useState<TournamentPlayer[]>([]);
+  const [poolStageAssignments, setPoolStageAssignments] = useState<Record<string, string[]>>({});
+  const [poolStageEditError, setPoolStageEditError] = useState<string | null>(null);
+  const [isSavingAssignments, setIsSavingAssignments] = useState(false);
   const [newPoolStage, setNewPoolStage] = useState({
     stageNumber: 1,
     name: '',
@@ -290,6 +300,12 @@ function TournamentList() {
     setPoolStagesError(null);
     setBrackets([]);
     setBracketsError(null);
+    setEditingPoolStage(null);
+    setPoolStagePools([]);
+    setPoolStagePlayers([]);
+    setPoolStageAssignments({});
+    setPoolStageEditError(null);
+    setIsSavingAssignments(false);
     setEditingPlayerId(null);
     setCheckingInPlayerId(null);
     setLogoFile(null);
@@ -436,6 +452,80 @@ function TournamentList() {
       await loadPoolStages(editingTournament.id);
     } catch (err) {
       setPoolStagesError(err instanceof Error ? err.message : 'Failed to delete pool stage');
+    }
+  };
+
+  const openPoolStageAssignments = async (stage: PoolStageConfig) => {
+    if (!editingTournament) return;
+    setPoolStageEditError(null);
+    setEditingPoolStage(stage);
+    setPoolStagePools([]);
+    setPoolStagePlayers([]);
+    setPoolStageAssignments({});
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const [playersData, poolsData] = await Promise.all([
+        fetchTournamentPlayers(editingTournament.id, token),
+        fetchPoolStagePools(editingTournament.id, stage.id, token),
+      ]);
+      setPoolStagePlayers(playersData);
+      setPoolStagePools(poolsData);
+      const initialAssignments: Record<string, string[]> = {};
+      poolsData.forEach((pool) => {
+        const poolAssignments = (pool.assignments || []).map((assignment) => assignment.playerId);
+        initialAssignments[pool.id] = poolAssignments;
+      });
+      setPoolStageAssignments(initialAssignments);
+    } catch (err) {
+      setPoolStageEditError(err instanceof Error ? err.message : 'Failed to load pool assignments');
+    }
+  };
+
+  const closePoolStageAssignments = () => {
+    setEditingPoolStage(null);
+    setPoolStagePools([]);
+    setPoolStagePlayers([]);
+    setPoolStageAssignments({});
+    setPoolStageEditError(null);
+    setIsSavingAssignments(false);
+  };
+
+  const updatePoolStageAssignment = (poolId: string, index: number, playerId: string) => {
+    setPoolStageAssignments((current) => {
+      const next = { ...current };
+      const poolAssignments = [...(next[poolId] || [])];
+      poolAssignments[index] = playerId;
+      next[poolId] = poolAssignments;
+      return next;
+    });
+  };
+
+  const savePoolStageAssignments = async () => {
+    if (!editingTournament || !editingPoolStage) return;
+    setPoolStageEditError(null);
+    setIsSavingAssignments(true);
+    try {
+      const assignments: PoolAssignmentPayload[] = [];
+      Object.entries(poolStageAssignments).forEach(([poolId, playerIds]) => {
+        playerIds
+          .filter((playerId) => playerId)
+          .forEach((playerId, index) => {
+            assignments.push({
+              poolId,
+              playerId,
+              assignmentType: AssignmentType.RANDOM,
+              seedNumber: index + 1,
+            });
+          });
+      });
+
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await updatePoolAssignments(editingTournament.id, editingPoolStage.id, assignments, token);
+      closePoolStageAssignments();
+    } catch (err) {
+      setPoolStageEditError(err instanceof Error ? err.message : 'Failed to update pool assignments');
+    } finally {
+      setIsSavingAssignments(false);
     }
   };
 
@@ -1276,6 +1366,13 @@ function TournamentList() {
                             ))}
                           </select>
                           <button
+                            onClick={() => openPoolStageAssignments(stage)}
+                            disabled={stage.status !== StageStatus.EDITION}
+                            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Edit players
+                          </button>
+                          <button
                             onClick={() => savePoolStage(stage)}
                             className="rounded-full border border-cyan-500/60 px-3 py-1 text-xs text-cyan-200 hover:border-cyan-300"
                           >
@@ -1826,6 +1923,89 @@ function TournamentList() {
                 className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
               >
                 {isSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPoolStage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-6">
+          <div className="flex w-full max-w-3xl max-h-[85vh] flex-col rounded-3xl border border-slate-800/70 bg-slate-900 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Pool players</h3>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500 mt-1">
+                  {editingPoolStage.name}
+                </p>
+              </div>
+              <button
+                onClick={closePoolStageAssignments}
+                className="text-sm text-slate-400 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            {poolStageEditError && (
+              <p className="mt-4 text-sm text-rose-300">{poolStageEditError}</p>
+            )}
+
+            <div className="mt-5 flex-1 space-y-4 overflow-y-auto pr-1">
+              {poolStagePools.length === 0 ? (
+                <p className="text-sm text-slate-400">No pools available for this stage.</p>
+              ) : (
+                poolStagePools.map((pool) => (
+                  <div key={pool.id} className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{pool.name}</p>
+                        <p className="text-xs text-slate-500">Pool #{pool.poolNumber}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {Array.from({ length: editingPoolStage.playersPerPool }).map((_, index) => {
+                        const value = poolStageAssignments[pool.id]?.[index] || '';
+                        return (
+                          <label key={`${pool.id}-${index}`} className="text-xs text-slate-400">
+                            Slot {index + 1}
+                            <select
+                              value={value}
+                              onChange={(e) => updatePoolStageAssignment(pool.id, index, e.target.value)}
+                              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                            >
+                              <option value="">Unassigned</option>
+                              {poolStagePlayers.map((player) => {
+                                const label = player.name || `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim() || player.playerId;
+                                return (
+                                  <option key={player.playerId} value={player.playerId}>
+                                    {label}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={closePoolStageAssignments}
+                className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200 hover:border-slate-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePoolStageAssignments}
+                disabled={isSavingAssignments}
+                className="rounded-full border border-emerald-500/60 px-4 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-300 disabled:opacity-60"
+              >
+                {isSavingAssignments ? 'Saving...' : 'Save assignments'}
               </button>
             </div>
           </div>

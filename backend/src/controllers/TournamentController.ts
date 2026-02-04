@@ -664,6 +664,62 @@ export class TournamentController {
   };
 
   /**
+   * Get pools for a pool stage
+   * GET /api/tournaments/:id/pool-stages/:stageId/pools
+   */
+  getPoolStagePools = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, stageId } = req.params as { id: string; stageId: string };
+      const pools = await this.getTournamentService(req).getPoolStagePools(id, stageId);
+      res.json({ pools });
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Update pool assignments for a pool stage
+   * PUT /api/tournaments/:id/pool-stages/:stageId/assignments
+   */
+  updatePoolStageAssignments = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, stageId } = req.params as { id: string; stageId: string };
+      await this.getTournamentService(req).updatePoolAssignments(id, stageId, req.body.assignments || []);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Get brackets
    * GET /api/tournaments/:id/brackets
    */

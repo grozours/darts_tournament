@@ -325,6 +325,7 @@ enum SkillLevel {
 
 enum StageStatus {
   NOT_STARTED
+  EDITION
   IN_PROGRESS
   COMPLETED
 
