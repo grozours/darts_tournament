@@ -24,6 +24,7 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
   moduleNameMapper: {
+    '^uuid$': '<rootDir>/tests/fixtures/uuid.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@shared/(.*)$': '<rootDir>/../shared/src/$1',
   },

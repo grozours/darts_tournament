@@ -45,6 +45,10 @@ interface Config {
     maxResponseTime: number;
     enableMetrics: boolean;
   };
+  auth: {
+    issuerBaseURL: string;
+    audience: string;
+  };
 }
 
 const config: Config = {
@@ -89,11 +93,19 @@ const config: Config = {
     maxResponseTime: parseInt(process.env.MAX_RESPONSE_TIME || '2000', 10),
     enableMetrics: process.env.ENABLE_METRICS === 'true',
   },
+  auth: {
+    issuerBaseURL: process.env.AUTH_ISSUER_BASE_URL || '',
+    audience: process.env.AUTH_AUDIENCE || '',
+  },
 };
 
 // Validation
 if (!config.database.url) {
   throw new Error('DATABASE_URL environment variable is required');
+}
+
+if (!config.auth.issuerBaseURL || !config.auth.audience) {
+  throw new Error('AUTH_ISSUER_BASE_URL and AUTH_AUDIENCE environment variables are required');
 }
 
 export { config };

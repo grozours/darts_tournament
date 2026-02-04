@@ -16,11 +16,11 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001', // Backend runs on 3001
+        target: 'http://localhost:3000', // Backend runs on 3000
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3001', // Backend WebSocket on 3001
+        target: 'http://localhost:3000', // Backend WebSocket on 3000
         ws: true,
         changeOrigin: true,
       },

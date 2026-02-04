@@ -37,6 +37,7 @@ export const errorHandler = (
     statusCode = error.statusCode;
     message = error.message;
     code = error.code;
+    details = (error as any).details;
   } else if (error instanceof ZodError) {
     statusCode = 400;
     message = 'Validation Error';
@@ -46,6 +47,10 @@ export const errorHandler = (
       message: err.message,
       value: (err as any).received || undefined,
     }));
+  } else if (error instanceof SyntaxError && 'body' in error) {
+    statusCode = 400;
+    message = 'Invalid JSON';
+    code = 'INVALID_JSON';
   } else if (error.name === 'PrismaClientKnownRequestError') {
     const prismaError = error as any;
     statusCode = 400;
@@ -64,9 +69,24 @@ export const errorHandler = (
         message = 'Database error';
     }
   } else if (error.name === 'MulterError') {
+    const multerError = error as any;
     statusCode = 400;
-    code = 'FILE_UPLOAD_ERROR';
-    message = error.message;
+    code = multerError.code || 'FILE_UPLOAD_ERROR';
+
+    // Customize messages for common multer errors to match contract tests
+    if (multerError.code === 'LIMIT_FILE_SIZE') {
+      message = 'File too large';
+    } else if (multerError.code === 'LIMIT_FILE_COUNT') {
+      message = 'Only a single file is allowed';
+    } else if (multerError.code === 'LIMIT_UNEXPECTED_FILE') {
+      if (multerError.field && multerError.field !== 'logo') {
+        message = 'Invalid file field. Expected logo';
+      } else {
+        message = 'Only a single file is allowed';
+      }
+    } else {
+      message = multerError.message || 'File upload error';
+    }
   }
 
   // Log error per constitution logging requirements

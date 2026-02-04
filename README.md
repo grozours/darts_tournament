@@ -87,6 +87,21 @@ cp .env.example .env
 nano .env
 ```
 
+Frontend auth (optional):
+
+```bash
+cd ../frontend
+cp .env.example .env
+```
+
+Set your Auth0 credentials in frontend/.env to enable Google/Facebook login:
+
+```env
+VITE_AUTH0_DOMAIN=your-tenant.eu.auth0.com
+VITE_AUTH0_CLIENT_ID=your_client_id
+# Optional: VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
+```
+
 **Required environment variables:**
 
 ```env
@@ -102,6 +117,10 @@ NODE_ENV=development
 
 # JWT (change in production!)
 JWT_SECRET="your-secret-key"
+
+# Auth0
+AUTH_ISSUER_BASE_URL="https://your-tenant.eu.auth0.com"
+AUTH_AUDIENCE="https://api.yourdomain.com"
 ```
 
 ### 4. Setup Database

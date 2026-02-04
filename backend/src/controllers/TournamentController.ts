@@ -226,6 +226,7 @@ export class TournamentController {
 
       res.json({
         logo_url: logoUrl,
+        logoUrl: logoUrl,
         tournament: tournament,
       });
     } catch (error) {

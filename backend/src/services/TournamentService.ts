@@ -49,8 +49,10 @@ export class TournamentService {
       // Additional date validations
       this.validateDates(startTime, endTime);
 
+      const sanitizedName = this.sanitizeName(data.name);
+
       const tournament = await this.tournamentModel.create({
-        name: data.name.trim(),
+        name: sanitizedName,
         format: data.format,
         durationType: data.durationType,
         startTime,
@@ -166,7 +168,7 @@ export class TournamentService {
     // Validate update data
     if (updateData.name !== undefined) {
       this.validateName(updateData.name);
-      updateData.name = updateData.name.trim();
+      updateData.name = this.sanitizeName(updateData.name);
     }
 
     if (updateData.totalParticipants !== undefined) {
@@ -332,6 +334,10 @@ export class TournamentService {
         'MISSING_TIME_DATA'
       );
     }
+  }
+
+  private sanitizeName(name: string): string {
+    return name.replace(/<[^>]*>/g, '').trim();
   }
 
   private validateName(name: string): void {

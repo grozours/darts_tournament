@@ -12,6 +12,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { securityMiddleware } from './middleware/security';
 import { validationMiddleware } from './middleware/validation';
 import { correlationIdMiddleware } from './middleware/correlationId';
+import { requireAuth } from './middleware/auth';
 import { setupWebSocketServer } from './websocket/server';
 import logger, { stream } from './utils/logger';
 import tournamentRoutes from './routes/tournaments';
@@ -119,9 +120,9 @@ class App {
     });
 
     // API routes will be added here
-    this.app.use('/api/tournaments', tournamentRoutes);
+    this.app.use('/api/tournaments', requireAuth, tournamentRoutes);
     
-    this.app.get('/api', (req: Request, res: Response) => {
+    this.app.get('/api', requireAuth, (req: Request, res: Response) => {
       res.json({
         name: config.app.name,
         version: config.app.version,

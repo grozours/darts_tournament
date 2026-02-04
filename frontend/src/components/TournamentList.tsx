@@ -18,7 +18,7 @@ function TournamentList() {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:3000/api/tournaments');
+      const response = await fetch('/api/tournaments');
       if (!response.ok) {
         throw new Error('Failed to fetch tournaments');
       }
@@ -41,7 +41,7 @@ function TournamentList() {
     if (!name) return;
 
     try {
-      const response = await fetch('http://localhost:3000/api/tournaments', {
+      const response = await fetch('/api/tournaments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ function TournamentList() {
     if (!confirm('Are you sure you want to delete this tournament?')) return;
 
     try {
-      const response = await fetch(`http://localhost:3000/api/tournaments/${id}`, {
+      const response = await fetch(`/api/tournaments/${id}`, {
         method: 'DELETE',
       });
 
@@ -89,20 +89,23 @@ function TournamentList() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading tournaments...</span>
+      <div className="flex items-center justify-center py-16">
+        <div className="relative">
+          <div className="h-10 w-10 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
+          <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
+        </div>
+        <span className="ml-3 text-slate-300">Loading tournaments...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">Error: {error}</div>
+      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center">
+        <div className="text-rose-200 mb-4">Error: {error}</div>
         <button
           onClick={fetchTournaments}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-full bg-rose-500/80 px-5 py-2 text-sm font-semibold text-white transition hover:bg-rose-500"
         >
           Retry
         </button>
@@ -111,47 +114,67 @@ function TournamentList() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Tournaments ({tournaments.length})
-        </h2>
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Tournament hub</p>
+          <h2 className="text-2xl font-semibold text-white mt-2">
+            Tournaments <span className="text-slate-400">({tournaments.length})</span>
+          </h2>
+        </div>
         <button
           onClick={createTournament}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
         >
           + Create Tournament
         </button>
       </div>
 
       {tournaments.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          No tournaments found. Create your first tournament!
+        <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
+          <p className="text-lg font-semibold text-white">No tournaments yet</p>
+          <p className="mt-2">Create your first tournament to start tracking matches and standings.</p>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-2">
           {tournaments.map((tournament) => (
             <div
               key={tournament.id}
-              className="bg-white rounded-lg shadow p-6 border border-gray-200"
+              className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
             >
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {tournament.name}
-              </h3>
-              <div className="space-y-1 text-sm text-gray-600 mb-4">
-                <p>Format: {tournament.format}</p>
-                <p>Players: {tournament.totalParticipants}</p>
-                <p>Status: {tournament.status}</p>
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-1">
+                    {tournament.name}
+                  </h3>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
+                </div>
+                <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
+                  {tournament.status}
+                </span>
               </div>
-              <div className="flex justify-end space-x-2">
-                <button 
-                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+
+              <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+                  <p className="text-xs uppercase tracking-widest text-slate-500">Players</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+                  <p className="text-xs uppercase tracking-widest text-slate-500">Status</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{tournament.status}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => deleteTournament(tournament.id)}
-                  className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                  className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
                 >
                   Delete
                 </button>

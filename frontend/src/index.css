@@ -1,3 +1,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+	:root {
+		color-scheme: light;
+	}
+
+	body {
+		@apply bg-slate-50 text-slate-900 antialiased;
+	}
+
+	a {
+		@apply text-inherit no-underline;
+	}
+
+	::selection {
+		@apply bg-indigo-200 text-indigo-900;
+	}
+}
+
+@layer components {
+	.nav-link {
+		@apply rounded-md px-2 py-1 text-sm font-medium text-slate-200 transition hover:bg-slate-800;
+	}
+
+	.nav-action {
+		@apply rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-100 transition hover:bg-slate-800;
+	}
+
+	.nav-search {
+		@apply w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none;
+	}
+}

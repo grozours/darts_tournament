@@ -3,7 +3,7 @@
 # Darts Tournament Manager - Service Restart Script
 # Usage: ./restart.sh [backend|frontend|both]
 
-PROJECT_ROOT="/home/tangi/projets/darts_tournament/darts_tournament"
+PROJECT_ROOT="/home/tangi/darts_tournament"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 BACKEND_PORT=3000

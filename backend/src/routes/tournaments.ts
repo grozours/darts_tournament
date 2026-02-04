@@ -15,31 +15,33 @@ const router = Router();
 // Validation schemas
 const createTournamentSchema = {
   body: z.object({
-    name: z.string()
+    name: z.string({ required_error: 'Tournament name is required' })
       .min(3, 'Tournament name must be at least 3 characters long')
       .max(100, 'Tournament name cannot exceed 100 characters')
       .trim(),
     format: z.nativeEnum(TournamentFormat, {
-      errorMap: () => ({ message: 'Invalid tournament format' }),
+      required_error: 'Format is required',
+      invalid_type_error: 'Invalid tournament format',
     }),
     durationType: z.nativeEnum(DurationType, {
-      errorMap: () => ({ message: 'Invalid duration type' }),
+      required_error: 'Duration type is required',
+      invalid_type_error: 'Invalid duration type',
     }),
-    startTime: z.string()
+    startTime: z.string({ required_error: 'Start time is required' })
       .datetime({ message: 'Invalid start time format' })
       .refine((val) => new Date(val) > new Date(), {
         message: 'Start time must be in the future',
       }),
-    endTime: z.string()
+    endTime: z.string({ required_error: 'End time is required' })
       .datetime({ message: 'Invalid end time format' }),
-    totalParticipants: z.number()
+    totalParticipants: z.number({ required_error: 'Total participants is required' })
       .int({ message: 'Total participants must be an integer' })
       .min(2, 'Tournament must have at least 2 participants')
-      .max(512, 'Tournament cannot exceed 512 participants'),
-    targetCount: z.number()
+      .max(128, 'Tournament cannot exceed 128 participants'),
+    targetCount: z.number({ required_error: 'Target count is required' })
       .int({ message: 'Target count must be an integer' })
       .min(1, 'Tournament must have at least 1 target')
-      .max(20, 'Tournament cannot exceed 20 targets'),
+      .max(32, 'Tournament cannot exceed 32 targets'),
   }).refine((data) => {
     const startTime = new Date(data.startTime);
     const endTime = new Date(data.endTime);
@@ -101,18 +103,22 @@ const updateTournamentSchema = {
 
 const uuidSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid tournament ID format'),
+    id: z.string().uuid('Invalid UUID format'),
   }),
 };
 
 const getTournamentsSchema = {
   query: z.object({
-    status: z.nativeEnum(TournamentStatus, {
-      errorMap: () => ({ message: 'Invalid tournament status' }),
-    }).optional(),
-    format: z.nativeEnum(TournamentFormat, {
-      errorMap: () => ({ message: 'Invalid tournament format' }),
-    }).optional(),
+    status: z.preprocess((val) => typeof val === 'string' ? val.toUpperCase() : val,
+      z.nativeEnum(TournamentStatus, {
+        errorMap: () => ({ message: 'Invalid tournament status' }),
+      })
+    ).optional(),
+    format: z.preprocess((val) => typeof val === 'string' ? val.toUpperCase() : val,
+      z.nativeEnum(TournamentFormat, {
+        errorMap: () => ({ message: 'Invalid tournament format' }),
+      })
+    ).optional(),
     name: z.string()
       .min(1, 'Name search term must be at least 1 character')
       .max(100, 'Name search term cannot exceed 100 characters')
