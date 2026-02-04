@@ -5,6 +5,8 @@ import {
   DurationType,
   TournamentStatus,
   StageStatus,
+  PoolStatus,
+  MatchStatus,
   BracketType,
   BracketStatus,
   AssignmentType,
@@ -401,6 +403,193 @@ export class TournamentModel {
     await this.prisma.poolAssignment.deleteMany({
       where: { pool: { poolStageId: stageId } },
     });
+  }
+
+  async getMatchCountForPool(poolId: string): Promise<number> {
+    try {
+      return await this.prisma.match.count({
+        where: { poolId },
+      });
+    } catch (error: any) {
+      return 0;
+    }
+  }
+
+  async createPoolMatches(
+    tournamentId: string,
+    poolId: string,
+    matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>
+  ): Promise<void> {
+    if (matches.length === 0) return;
+
+    await this.prisma.$transaction(
+      matches.map((match) =>
+        this.prisma.match.create({
+          data: {
+            tournamentId,
+            poolId,
+            roundNumber: match.roundNumber,
+            matchNumber: match.matchNumber,
+            playerMatches: {
+              create: [
+                {
+                  playerId: match.playerIds[0],
+                  playerPosition: 1,
+                },
+                {
+                  playerId: match.playerIds[1],
+                  playerPosition: 2,
+                },
+              ],
+            },
+          },
+        })
+      )
+    );
+  }
+
+  async updatePoolStatuses(poolIds: string[], status: PoolStatus): Promise<void> {
+    if (poolIds.length === 0) return;
+    await this.prisma.pool.updateMany({
+      where: { id: { in: poolIds } },
+      data: { status },
+    });
+  }
+
+  async getMatchById(matchId: string) {
+    try {
+      return await this.prisma.match.findUnique({
+        where: { id: matchId },
+      });
+    } catch (error: any) {
+      throw new AppError(
+        'Failed to fetch match',
+        500,
+        'MATCH_FETCH_FAILED'
+      );
+    }
+  }
+
+  async updateMatchStatus(
+    matchId: string,
+    status: MatchStatus,
+    timestamps?: { startedAt?: Date | null; completedAt?: Date | null }
+  ) {
+    try {
+      return await this.prisma.match.update({
+        where: { id: matchId },
+        data: {
+          status,
+          ...(timestamps?.startedAt !== undefined && { startedAt: timestamps.startedAt }),
+          ...(timestamps?.completedAt !== undefined && { completedAt: timestamps.completedAt }),
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        throw new AppError(
+          'Match not found',
+          404,
+          'MATCH_NOT_FOUND'
+        );
+      }
+      throw new AppError(
+        'Failed to update match status',
+        500,
+        'MATCH_STATUS_UPDATE_FAILED'
+      );
+    }
+  }
+
+  async getMatchWithPlayerMatches(matchId: string) {
+    try {
+      return await this.prisma.match.findUnique({
+        where: { id: matchId },
+        include: { playerMatches: true },
+      });
+    } catch (error: any) {
+      throw new AppError(
+        'Failed to fetch match',
+        500,
+        'MATCH_FETCH_FAILED'
+      );
+    }
+  }
+
+  async completeMatch(
+    matchId: string,
+    scores: Array<{ playerId: string; scoreTotal: number; isWinner: boolean }>,
+    winnerId: string,
+    timestamps: { startedAt?: Date | null; completedAt?: Date | null }
+  ) {
+    try {
+      await this.prisma.$transaction([
+        ...scores.map((score) =>
+          this.prisma.playerMatch.update({
+            where: { matchId_playerId: { matchId, playerId: score.playerId } },
+            data: {
+              scoreTotal: score.scoreTotal,
+              legsWon: score.scoreTotal,
+              isWinner: score.isWinner,
+            },
+          })
+        ),
+        this.prisma.match.update({
+          where: { id: matchId },
+          data: {
+            status: MatchStatus.COMPLETED,
+            winnerId,
+            ...(timestamps.startedAt !== undefined && { startedAt: timestamps.startedAt }),
+            ...(timestamps.completedAt !== undefined && { completedAt: timestamps.completedAt }),
+          },
+        }),
+      ]);
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+      }
+      throw new AppError(
+        'Failed to complete match',
+        500,
+        'MATCH_COMPLETE_FAILED'
+      );
+    }
+  }
+
+  async updateMatchScores(
+    matchId: string,
+    scores: Array<{ playerId: string; scoreTotal: number; isWinner: boolean }>,
+    winnerId: string
+  ) {
+    try {
+      await this.prisma.$transaction([
+        ...scores.map((score) =>
+          this.prisma.playerMatch.update({
+            where: { matchId_playerId: { matchId, playerId: score.playerId } },
+            data: {
+              scoreTotal: score.scoreTotal,
+              legsWon: score.scoreTotal,
+              isWinner: score.isWinner,
+            },
+          })
+        ),
+        this.prisma.match.update({
+          where: { id: matchId },
+          data: {
+            winnerId,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+      }
+      throw new AppError(
+        'Failed to update match scores',
+        500,
+        'MATCH_SCORE_UPDATE_FAILED'
+      );
+    }
   }
 
   async createPoolsForStage(stageId: string, poolCount: number, startNumber: number = 1) {

@@ -1028,6 +1028,9 @@ function TournamentList() {
             ([
               { title: 'Draft tournaments', status: 'DRAFT' },
               { title: 'Registration open', status: 'OPEN' },
+              { title: 'Signature phase', status: 'SIGNATURE' },
+              { title: 'Live tournaments', status: 'LIVE' },
+              { title: 'Finished tournaments', status: 'FINISHED' },
             ] as const).map((group) => {
               const groupItems = tournaments.filter(
                 (tournament) => normalizeStatus(tournament.status) === group.status
@@ -1061,7 +1064,22 @@ function TournamentList() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-white">
-                      {normalizedStatusFilter === 'DRAFT' ? 'Draft tournaments' : 'Registration open'}
+                      {(() => {
+                        switch (normalizedStatusFilter) {
+                          case 'DRAFT':
+                            return 'Draft tournaments';
+                          case 'OPEN':
+                            return 'Registration open';
+                          case 'SIGNATURE':
+                            return 'Signature phase';
+                          case 'LIVE':
+                            return 'Live tournaments';
+                          case 'FINISHED':
+                            return 'Finished tournaments';
+                          default:
+                            return 'Tournaments';
+                        }
+                      })()}
                     </h3>
                     <span className="text-sm text-slate-400">{filteredTournaments.length}</span>
                   </div>

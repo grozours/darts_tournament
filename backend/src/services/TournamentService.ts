@@ -8,6 +8,8 @@ import {
   BracketType,
   BracketStatus,
   AssignmentType,
+  PoolStatus,
+  MatchStatus,
 } from '../../../shared/src/types';
 import { CreatePlayerRequest, Player, SkillLevel } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
@@ -999,9 +1001,89 @@ export class TournamentService {
           updatedStage.playersPerPool
         );
       }
+
+      await this.createPoolMatchesForStage(tournamentId, stageId);
     }
 
     return updatedStage;
+  }
+
+  private buildRoundRobinSchedule(playerIds: string[]) {
+    const players = [...playerIds];
+    if (players.length < 2) {
+      return [] as Array<{ roundNumber: number; pairs: Array<[string, string]> }>;
+    }
+
+    if (players.length % 2 !== 0) {
+      players.push('');
+    }
+
+    const rounds = players.length - 1;
+    const half = players.length / 2;
+    const schedule: Array<{ roundNumber: number; pairs: Array<[string, string]> }> = [];
+    const rotation = [...players];
+
+    for (let round = 0; round < rounds; round += 1) {
+      const pairs: Array<[string, string]> = [];
+      for (let i = 0; i < half; i += 1) {
+        const home = rotation[i];
+        const away = rotation[rotation.length - 1 - i];
+        if (home && away) {
+          pairs.push([home, away]);
+        }
+      }
+
+      schedule.push({ roundNumber: round + 1, pairs });
+
+      const fixed = rotation[0] ?? '';
+      const rest = rotation.slice(1);
+      rest.unshift(rest.pop() as string);
+      rotation.splice(0, rotation.length, fixed, ...rest);
+    }
+
+    return schedule;
+  }
+
+  private async createPoolMatchesForStage(tournamentId: string, stageId: string): Promise<void> {
+    const pools = await this.tournamentModel.getPoolsWithAssignmentsForStage(stageId);
+    const poolsToUpdate: string[] = [];
+
+    for (const pool of pools) {
+      const matchCount = await this.tournamentModel.getMatchCountForPool(pool.id);
+      if (matchCount > 0) {
+        continue;
+      }
+
+      const playerIds = (pool.assignments || [])
+        .map((assignment) => assignment.player?.id)
+        .filter((id): id is string => Boolean(id));
+
+      if (playerIds.length < 2) {
+        continue;
+      }
+
+      const schedule = this.buildRoundRobinSchedule(playerIds);
+      let matchNumber = 1;
+      const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+
+      for (const round of schedule) {
+        for (const pair of round.pairs) {
+          matches.push({
+            roundNumber: round.roundNumber,
+            matchNumber,
+            playerIds: pair,
+          });
+          matchNumber += 1;
+        }
+      }
+
+      await this.tournamentModel.createPoolMatches(tournamentId, pool.id, matches);
+      if (matches.length > 0) {
+        poolsToUpdate.push(pool.id);
+      }
+    }
+
+    await this.tournamentModel.updatePoolStatuses(poolsToUpdate, PoolStatus.IN_PROGRESS);
   }
 
   async deletePoolStage(tournamentId: string, stageId: string): Promise<void> {
@@ -1089,6 +1171,177 @@ export class TournamentService {
 
     await this.tournamentModel.deletePoolAssignmentsForStage(stageId);
     await this.tournamentModel.createPoolAssignments(assignments);
+  }
+
+  async updateMatchStatus(
+    tournamentId: string,
+    matchId: string,
+    status: MatchStatus
+  ): Promise<void> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(matchId);
+
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    const match = await this.tournamentModel.getMatchById(matchId);
+    if (!match || match.tournamentId !== tournamentId) {
+      throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+    }
+
+    const currentStatus = match.status as MatchStatus;
+    const validTransitions: Record<MatchStatus, MatchStatus[]> = {
+      [MatchStatus.SCHEDULED]: [MatchStatus.IN_PROGRESS, MatchStatus.CANCELLED],
+      [MatchStatus.IN_PROGRESS]: [MatchStatus.COMPLETED, MatchStatus.CANCELLED],
+      [MatchStatus.COMPLETED]: [],
+      [MatchStatus.CANCELLED]: [],
+    };
+
+    if (!validTransitions[currentStatus].includes(status)) {
+      throw new AppError(
+        `Invalid match status transition from ${currentStatus} to ${status}`,
+        400,
+        'INVALID_MATCH_STATUS_TRANSITION'
+      );
+    }
+
+    const now = new Date();
+    const timestamps: { startedAt?: Date | null; completedAt?: Date | null } = {};
+
+    if (status === MatchStatus.IN_PROGRESS && !match.startedAt) {
+      timestamps.startedAt = now;
+    }
+
+    if (status === MatchStatus.COMPLETED || status === MatchStatus.CANCELLED) {
+      timestamps.completedAt = now;
+      if (!match.startedAt && status === MatchStatus.COMPLETED) {
+        timestamps.startedAt = now;
+      }
+    }
+
+    await this.tournamentModel.updateMatchStatus(matchId, status, timestamps);
+  }
+
+  async completeMatch(
+    tournamentId: string,
+    matchId: string,
+    scores: Array<{ playerId: string; scoreTotal: number }>
+  ): Promise<void> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(matchId);
+
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    const match = await this.tournamentModel.getMatchWithPlayerMatches(matchId);
+    if (!match || match.tournamentId !== tournamentId) {
+      throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+    }
+
+    if (match.status !== MatchStatus.IN_PROGRESS) {
+      throw new AppError('Match must be in progress to complete', 400, 'MATCH_NOT_IN_PROGRESS');
+    }
+
+    const participantIds = new Set(match.playerMatches.map((pm) => pm.playerId));
+    if (scores.length < 2) {
+      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    }
+
+    const invalidScore = scores.find((score) => !participantIds.has(score.playerId));
+    if (invalidScore) {
+      throw new AppError('Invalid player score entry', 400, 'MATCH_SCORE_INVALID_PLAYER');
+    }
+
+    const normalizedScores = scores
+      .filter((score) => participantIds.has(score.playerId))
+      .map((score) => ({
+        playerId: score.playerId,
+        scoreTotal: score.scoreTotal,
+      }));
+
+    const sorted = [...normalizedScores].sort((a, b) => b.scoreTotal - a.scoreTotal);
+    if (sorted.length < 2) {
+      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    }
+    if (sorted[0].scoreTotal === sorted[1].scoreTotal) {
+      throw new AppError('Match cannot end in a tie', 400, 'MATCH_SCORE_TIED');
+    }
+
+    const winnerId = sorted[0].playerId;
+    const resultScores = normalizedScores.map((score) => ({
+      ...score,
+      isWinner: score.playerId === winnerId,
+    }));
+
+    const now = new Date();
+    const timestamps: { startedAt?: Date | null; completedAt?: Date | null } = {
+      completedAt: now,
+    };
+    if (!match.startedAt) {
+      timestamps.startedAt = now;
+    }
+
+    await this.tournamentModel.completeMatch(matchId, resultScores, winnerId, timestamps);
+  }
+
+  async updateCompletedMatchScores(
+    tournamentId: string,
+    matchId: string,
+    scores: Array<{ playerId: string; scoreTotal: number }>
+  ): Promise<void> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(matchId);
+
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    const match = await this.tournamentModel.getMatchWithPlayerMatches(matchId);
+    if (!match || match.tournamentId !== tournamentId) {
+      throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+    }
+
+    if (match.status !== MatchStatus.COMPLETED) {
+      throw new AppError('Match must be completed to edit scores', 400, 'MATCH_NOT_COMPLETED');
+    }
+
+    const participantIds = new Set(match.playerMatches.map((pm) => pm.playerId));
+    if (scores.length < 2) {
+      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    }
+
+    const invalidScore = scores.find((score) => !participantIds.has(score.playerId));
+    if (invalidScore) {
+      throw new AppError('Invalid player score entry', 400, 'MATCH_SCORE_INVALID_PLAYER');
+    }
+
+    const normalizedScores = scores
+      .filter((score) => participantIds.has(score.playerId))
+      .map((score) => ({
+        playerId: score.playerId,
+        scoreTotal: score.scoreTotal,
+      }));
+
+    const sorted = [...normalizedScores].sort((a, b) => b.scoreTotal - a.scoreTotal);
+    if (sorted.length < 2) {
+      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    }
+    if (sorted[0].scoreTotal === sorted[1].scoreTotal) {
+      throw new AppError('Match cannot end in a tie', 400, 'MATCH_SCORE_TIED');
+    }
+
+    const winnerId = sorted[0].playerId;
+    const resultScores = normalizedScores.map((score) => ({
+      ...score,
+      isWinner: score.playerId === winnerId,
+    }));
+
+    await this.tournamentModel.updateMatchScores(matchId, resultScores, winnerId);
   }
 
   private async assignPlayersToPools(

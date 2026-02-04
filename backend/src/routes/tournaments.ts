@@ -4,7 +4,7 @@ import TournamentController from '../controllers/TournamentController';
 import { validate } from '../middleware/validation';
 import { uploadTournamentLogo } from '../middleware/upload';
 import { z } from 'zod';
-import { TournamentFormat, DurationType, TournamentStatus, SkillLevel } from '../../../shared/src/types';
+import { TournamentFormat, DurationType, TournamentStatus, SkillLevel, MatchStatus } from '../../../shared/src/types';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -631,6 +631,75 @@ router.get(
     }),
   }),
   tournamentController.validateRegistration
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/matches/:matchId/status
+ * @desc    Update match status
+ * @access  Public
+ */
+router.patch(
+  '/:id/matches/:matchId/status',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      matchId: z.string().uuid('Invalid match ID'),
+    }),
+    body: z.object({
+      status: z.nativeEnum(MatchStatus, {
+        errorMap: () => ({ message: 'Invalid match status' }),
+      }),
+    }),
+  }),
+  tournamentController.updateMatchStatus
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/matches/:matchId/complete
+ * @desc    Complete match with final scores
+ * @access  Public
+ */
+router.patch(
+  '/:id/matches/:matchId/complete',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      matchId: z.string().uuid('Invalid match ID'),
+    }),
+    body: z.object({
+      scores: z.array(
+        z.object({
+          playerId: z.string().uuid('Invalid player ID'),
+          scoreTotal: z.number().int().min(0, 'Score must be non-negative'),
+        })
+      ).min(2, 'At least two scores are required'),
+    }),
+  }),
+  tournamentController.completeMatch
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/matches/:matchId/scores
+ * @desc    Update scores for a completed match
+ * @access  Public
+ */
+router.patch(
+  '/:id/matches/:matchId/scores',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      matchId: z.string().uuid('Invalid match ID'),
+    }),
+    body: z.object({
+      scores: z.array(
+        z.object({
+          playerId: z.string().uuid('Invalid player ID'),
+          scoreTotal: z.number().int().min(0, 'Score must be non-negative'),
+        })
+      ).min(2, 'At least two scores are required'),
+    }),
+  }),
+  tournamentController.updateMatchScores
 );
 
 /**

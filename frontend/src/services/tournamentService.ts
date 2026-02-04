@@ -359,6 +359,69 @@ export async function updatePoolStage(
   return response.json();
 }
 
+export async function updateMatchStatus(
+  tournamentId: string,
+  matchId: string,
+  status: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update match status');
+  }
+}
+
+export async function completeMatch(
+  tournamentId: string,
+  matchId: string,
+  scores: Array<{ playerId: string; scoreTotal: number }>,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/complete`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ scores }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to complete match');
+  }
+}
+
+export async function updateCompletedMatchScores(
+  tournamentId: string,
+  matchId: string,
+  scores: Array<{ playerId: string; scoreTotal: number }>,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/scores`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ scores }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update match scores');
+  }
+}
+
 export async function deletePoolStage(
   tournamentId: string,
   stageId: string,

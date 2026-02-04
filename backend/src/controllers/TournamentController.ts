@@ -720,6 +720,93 @@ export class TournamentController {
   };
 
   /**
+   * Update match status
+   * PATCH /api/tournaments/:id/matches/:matchId/status
+   */
+  updateMatchStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, matchId } = req.params as { id: string; matchId: string };
+      const { status } = req.body as { status: string };
+      await this.getTournamentService(req).updateMatchStatus(id, matchId, status as any);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Complete a match with final scores
+   * PATCH /api/tournaments/:id/matches/:matchId/complete
+   */
+  completeMatch = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, matchId } = req.params as { id: string; matchId: string };
+      const { scores } = req.body as { scores: Array<{ playerId: string; scoreTotal: number }> };
+      await this.getTournamentService(req).completeMatch(id, matchId, scores || []);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Update scores for a completed match
+   * PATCH /api/tournaments/:id/matches/:matchId/scores
+   */
+  updateMatchScores = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, matchId } = req.params as { id: string; matchId: string };
+      const { scores } = req.body as { scores: Array<{ playerId: string; scoreTotal: number }> };
+      await this.getTournamentService(req).updateCompletedMatchScores(id, matchId, scores || []);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Get brackets
    * GET /api/tournaments/:id/brackets
    */
