@@ -76,3 +76,22 @@ export async function updateTournament(
 
   return response.json();
 }
+
+export async function updateTournamentStatus(
+  tournamentId: string,
+  status: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update tournament status');
+  }
+}

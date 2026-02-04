@@ -26,6 +26,15 @@ function App() {
             </div>
 
             <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=DRAFT">
+                Drafts
+              </a>
+              <a
+                className="rounded-md px-2 py-1 hover:bg-slate-800"
+                href="/?status=REGISTRATION_OPEN"
+              >
+                Registration open
+              </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/api">
                 API Home
               </a>

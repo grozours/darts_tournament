@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
 import { TournamentFormat, DurationType } from '@shared/types';
-import { updateTournament } from '../services/tournamentService';
+import { updateTournament, updateTournamentStatus } from '../services/tournamentService';
 
 interface Tournament {
   id: string;
@@ -60,6 +60,12 @@ function TournamentList() {
     ],
     []
   );
+
+  const statusFilter = useMemo(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('status')?.toUpperCase() || 'ALL';
+  }, []);
 
   const toLocalInput = (value?: string) => {
     if (!value) return '';
@@ -210,6 +216,68 @@ function TournamentList() {
     }
   };
 
+  const openRegistration = async () => {
+    if (!editingTournament) return;
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await updateTournamentStatus(editingTournament.id, 'REGISTRATION_OPEN', token);
+      closeEdit();
+      fetchTournaments();
+    } catch (err) {
+      setEditError('Failed to open registration');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const renderCard = (tournament: Tournament) => (
+    <div
+      key={tournament.id}
+      className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-1">
+            {tournament.name}
+          </h3>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
+        </div>
+        <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
+          {tournament.status}
+        </span>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+        <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+          <p className="text-xs uppercase tracking-widest text-slate-500">Players</p>
+          <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+          <p className="text-xs uppercase tracking-widest text-slate-500">Status</p>
+          <p className="mt-2 text-lg font-semibold text-white">{tournament.status}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-end gap-2">
+        <button
+          onClick={() => openEdit(tournament)}
+          className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+        >
+          Edit
+        </button>
+        <button
+          onClick={() => deleteTournament(tournament.id)}
+          className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -288,52 +356,61 @@ function TournamentList() {
           <p className="mt-2">Create your first tournament to start tracking matches and standings.</p>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {tournaments.map((tournament) => (
-            <div
-              key={tournament.id}
-              className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
-            >
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-1">
-                    {tournament.name}
-                  </h3>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
-                </div>
-                <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
-                  {tournament.status}
-                </span>
-              </div>
+        <div className="space-y-8">
+          {statusFilter === 'ALL' ? (
+            ([
+              { title: 'Draft tournaments', status: 'DRAFT' },
+              { title: 'Registration open', status: 'REGISTRATION_OPEN' },
+            ] as const).map((group) => {
+              const groupItems = tournaments.filter(
+                (tournament) => tournament.status === group.status
+              );
 
-              <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Players</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
+              return (
+                <div key={group.status} className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">{group.title}</h3>
+                    <span className="text-sm text-slate-400">{groupItems.length}</span>
+                  </div>
+                  {groupItems.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
+                      No tournaments in this category yet.
+                    </div>
+                  ) : (
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      {groupItems.map(renderCard)}
+                    </div>
+                  )}
                 </div>
-                <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Status</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{tournament.status}</p>
-                </div>
-              </div>
+              );
+            })
+          ) : (
+            (() => {
+              const filteredTournaments = tournaments.filter(
+                (tournament) => tournament.status === statusFilter
+              );
 
-              <div className="mt-6 flex justify-end gap-2">
-                <button
-                  onClick={() => openEdit(tournament)}
-                  className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => deleteTournament(tournament.id)}
-                  className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">
+                      {statusFilter === 'DRAFT' ? 'Draft tournaments' : 'Registration open'}
+                    </h3>
+                    <span className="text-sm text-slate-400">{filteredTournaments.length}</span>
+                  </div>
+                  {filteredTournaments.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
+                      No tournaments in this category yet.
+                    </div>
+                  ) : (
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      {filteredTournaments.map(renderCard)}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          )}
         </div>
       )}
 
@@ -436,6 +513,13 @@ function TournamentList() {
                 className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
               >
                 Cancel
+              </button>
+              <button
+                onClick={openRegistration}
+                disabled={isSaving}
+                className="rounded-full border border-cyan-500/70 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
+              >
+                Open registration
               </button>
               <button
                 onClick={saveEdit}
