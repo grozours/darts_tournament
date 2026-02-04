@@ -48,6 +48,7 @@ export interface Player {
     skillLevel?: SkillLevel;
     registeredAt: Date;
     isActive: boolean;
+    checkedIn: boolean;
 }
 export declare enum StageStatus {
     NOT_STARTED = "NOT_STARTED",

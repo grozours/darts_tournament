@@ -81,9 +81,6 @@ const updateTournamentSchema = {
     durationType: z.nativeEnum(DurationType).optional(),
     startTime: z.string()
       .datetime({ message: 'Invalid start time format' })
-      .refine((val) => new Date(val) > new Date(), {
-        message: 'Start time must be in the future',
-      })
       .optional(),
     endTime: z.string()
       .datetime({ message: 'Invalid end time format' })
@@ -271,6 +268,17 @@ router.get(
 );
 
 /**
+ * @route   GET /api/tournaments/:id/live
+ * @desc    Get tournament live view
+ * @access  Public
+ */
+router.get(
+  '/:id/live',
+  validate(uuidSchema),
+  tournamentController.getTournamentLiveView
+);
+
+/**
  * @route   PUT /api/tournaments/:id
  * @desc    Update tournament
  * @access  Public
@@ -373,6 +381,144 @@ router.get(
 );
 
 /**
+ * @route   GET /api/tournaments/:id/pool-stages
+ * @desc    Get pool stages
+ * @access  Public
+ */
+router.get(
+  '/:id/pool-stages',
+  validate(uuidSchema),
+  tournamentController.getPoolStages
+);
+
+/**
+ * @route   POST /api/tournaments/:id/pool-stages
+ * @desc    Create pool stage
+ * @access  Public
+ */
+router.post(
+  '/:id/pool-stages',
+  validate({
+    params: z.object({ id: z.string().uuid('Invalid tournament ID') }),
+    body: z.object({
+      stageNumber: z.number().int().min(1),
+      name: z.string().min(1).max(100),
+      poolCount: z.number().int().min(1).max(16),
+      playersPerPool: z.number().int().min(2).max(16),
+      advanceCount: z.number().int().min(1).max(16),
+    }),
+  }),
+  tournamentController.createPoolStage
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/pool-stages/:stageId
+ * @desc    Update pool stage
+ * @access  Public
+ */
+router.patch(
+  '/:id/pool-stages/:stageId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      stageId: z.string().uuid('Invalid pool stage ID'),
+    }),
+    body: z.object({
+      stageNumber: z.number().int().min(1).optional(),
+      name: z.string().min(1).max(100).optional(),
+      poolCount: z.number().int().min(1).max(16).optional(),
+      playersPerPool: z.number().int().min(2).max(16).optional(),
+      advanceCount: z.number().int().min(1).max(16).optional(),
+      status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']).optional(),
+    }),
+  }),
+  tournamentController.updatePoolStage
+);
+
+/**
+ * @route   DELETE /api/tournaments/:id/pool-stages/:stageId
+ * @desc    Delete pool stage
+ * @access  Public
+ */
+router.delete(
+  '/:id/pool-stages/:stageId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      stageId: z.string().uuid('Invalid pool stage ID'),
+    }),
+  }),
+  tournamentController.deletePoolStage
+);
+
+/**
+ * @route   GET /api/tournaments/:id/brackets
+ * @desc    Get brackets
+ * @access  Public
+ */
+router.get(
+  '/:id/brackets',
+  validate(uuidSchema),
+  tournamentController.getBrackets
+);
+
+/**
+ * @route   POST /api/tournaments/:id/brackets
+ * @desc    Create bracket
+ * @access  Public
+ */
+router.post(
+  '/:id/brackets',
+  validate({
+    params: z.object({ id: z.string().uuid('Invalid tournament ID') }),
+    body: z.object({
+      name: z.string().min(1).max(100),
+      bracketType: z.enum(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION']),
+      totalRounds: z.number().int().min(1).max(10),
+    }),
+  }),
+  tournamentController.createBracket
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/brackets/:bracketId
+ * @desc    Update bracket
+ * @access  Public
+ */
+router.patch(
+  '/:id/brackets/:bracketId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      bracketId: z.string().uuid('Invalid bracket ID'),
+    }),
+    body: z.object({
+      name: z.string().min(1).max(100).optional(),
+      bracketType: z.enum(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION']).optional(),
+      totalRounds: z.number().int().min(1).max(10).optional(),
+      status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']).optional(),
+    }),
+  }),
+  tournamentController.updateBracket
+);
+
+/**
+ * @route   DELETE /api/tournaments/:id/brackets/:bracketId
+ * @desc    Delete bracket
+ * @access  Public
+ */
+router.delete(
+  '/:id/brackets/:bracketId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      bracketId: z.string().uuid('Invalid bracket ID'),
+    }),
+  }),
+  tournamentController.deleteBracket
+);
+
+/**
  * @route   POST /api/tournaments/:id/players
  * @desc    Register player with details
  * @access  Public
@@ -392,6 +538,25 @@ router.patch(
   '/:id/players/:playerId',
   validate(updatePlayerSchema),
   tournamentController.updateTournamentPlayer
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/players/:playerId/check-in
+ * @desc    Update player check-in status
+ * @access  Public
+ */
+router.patch(
+  '/:id/players/:playerId/check-in',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      playerId: z.string().uuid('Invalid player ID'),
+    }),
+    body: z.object({
+      checkedIn: z.boolean({ required_error: 'checkedIn is required' }),
+    }),
+  }),
+  tournamentController.updateTournamentPlayerCheckIn
 );
 
 /**

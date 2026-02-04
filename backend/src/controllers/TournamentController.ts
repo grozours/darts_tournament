@@ -96,6 +96,35 @@ export class TournamentController {
   };
 
   /**
+   * Get live view for tournament
+   * GET /api/tournaments/:id/live
+   */
+  getTournamentLiveView = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params as { id: string };
+      const liveView = await this.getTournamentService(req).getTournamentLiveView(id);
+
+      res.json(liveView);
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Get all tournaments with filtering and pagination
    * GET /api/tournaments
    */
@@ -111,12 +140,15 @@ export class TournamentController {
         sortOrder = 'desc',
       } = req.query;
 
+      const parsedPage = Number(page);
+      const parsedLimit = Number(limit);
+
       const filters = {
         status: status as string,
         format: format as any,
         name: name as string,
-        page: parseInt(page as string, 10),
-        limit: parseInt(limit as string, 10),
+        page: Number.isFinite(parsedPage) ? parsedPage : 1,
+        limit: Number.isFinite(parsedLimit) ? parsedLimit : 10,
         sortBy: sortBy as 'name' | 'startTime' | 'createdAt',
         sortOrder: sortOrder as 'asc' | 'desc',
       };
@@ -520,6 +552,230 @@ export class TournamentController {
   };
 
   /**
+   * Get pool stages
+   * GET /api/tournaments/:id/pool-stages
+   */
+  getPoolStages = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params as { id: string };
+      const poolStages = await this.getTournamentService(req).getPoolStages(id);
+      res.json({ poolStages });
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Create pool stage
+   * POST /api/tournaments/:id/pool-stages
+   */
+  createPoolStage = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params as { id: string };
+      const poolStage = await this.getTournamentService(req).createPoolStage(id, req.body);
+      res.status(201).json(poolStage);
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Update pool stage
+   * PATCH /api/tournaments/:id/pool-stages/:stageId
+   */
+  updatePoolStage = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, stageId } = req.params as { id: string; stageId: string };
+      const poolStage = await this.getTournamentService(req).updatePoolStage(id, stageId, req.body);
+      res.json(poolStage);
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Delete pool stage
+   * DELETE /api/tournaments/:id/pool-stages/:stageId
+   */
+  deletePoolStage = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, stageId } = req.params as { id: string; stageId: string };
+      await this.getTournamentService(req).deletePoolStage(id, stageId);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Get brackets
+   * GET /api/tournaments/:id/brackets
+   */
+  getBrackets = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params as { id: string };
+      const brackets = await this.getTournamentService(req).getBrackets(id);
+      res.json({ brackets });
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Create bracket
+   * POST /api/tournaments/:id/brackets
+   */
+  createBracket = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params as { id: string };
+      const bracket = await this.getTournamentService(req).createBracket(id, req.body);
+      res.status(201).json(bracket);
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Update bracket
+   * PATCH /api/tournaments/:id/brackets/:bracketId
+   */
+  updateBracket = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, bracketId } = req.params as { id: string; bracketId: string };
+      const bracket = await this.getTournamentService(req).updateBracket(id, bracketId, req.body);
+      res.json(bracket);
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Delete bracket
+   * DELETE /api/tournaments/:id/brackets/:bracketId
+   */
+  deleteBracket = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, bracketId } = req.params as { id: string; bracketId: string };
+      await this.getTournamentService(req).deleteBracket(id, bracketId);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Update tournament player
    * PATCH /api/tournaments/:id/players/:playerId
    */
@@ -533,6 +789,44 @@ export class TournamentController {
       );
 
       res.json(player);
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
+   * Update player check-in status
+   * PATCH /api/tournaments/:id/players/:playerId/check-in
+   */
+  updateTournamentPlayerCheckIn = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, playerId } = req.params as { id: string; playerId: string };
+      const { checkedIn } = req.body as { checkedIn: boolean };
+
+      const player = await this.getTournamentService(req).updateTournamentPlayerCheckIn(
+        id,
+        playerId,
+        checkedIn
+      );
+
+      res.json({
+        message: 'Player check-in status updated',
+        player,
+      });
     } catch (error) {
       if (error instanceof AppError) {
         res.status(error.statusCode).json({

@@ -32,6 +32,27 @@ export interface TournamentPlayer {
   phone?: string;
   skillLevel?: SkillLevel;
   registeredAt?: string;
+  checkedIn?: boolean;
+}
+
+export interface PoolStageConfig {
+  id: string;
+  tournamentId: string;
+  stageNumber: number;
+  name: string;
+  poolCount: number;
+  playersPerPool: number;
+  advanceCount: number;
+  status: string;
+}
+
+export interface BracketConfig {
+  id: string;
+  tournamentId: string;
+  name: string;
+  bracketType: string;
+  totalRounds: number;
+  status: string;
 }
 
 export async function createTournament(
@@ -90,7 +111,8 @@ export async function updateTournament(
   });
 
   if (!response.ok) {
-    throw new Error('Failed to update tournament');
+    const message = await response.text();
+    throw new Error(message || 'Failed to update tournament');
   }
 
   return response.json();
@@ -111,7 +133,8 @@ export async function updateTournamentStatus(
   });
 
   if (!response.ok) {
-    throw new Error('Failed to update tournament status');
+    const message = await response.text();
+    throw new Error(message || 'Failed to update tournament status');
   }
 }
 
@@ -129,6 +152,22 @@ export async function fetchTournamentPlayers(
 
   const data = await response.json();
   return data.players || [];
+}
+
+export async function fetchTournamentLiveView(
+  tournamentId: string,
+  token?: string
+): Promise<any> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/live`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to fetch live tournament view');
+  }
+
+  return response.json();
 }
 
 export async function registerTournamentPlayer(
@@ -169,6 +208,183 @@ export async function updateTournamentPlayer(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Failed to update player');
+  }
+}
+
+export async function updateTournamentPlayerCheckIn(
+  tournamentId: string,
+  playerId: string,
+  checkedIn: boolean,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/players/${playerId}/check-in`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ checkedIn }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update player check-in');
+  }
+}
+
+export async function fetchPoolStages(
+  tournamentId: string,
+  token?: string
+): Promise<PoolStageConfig[]> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to fetch pool stages');
+  }
+
+  const data = await response.json();
+  return data.poolStages || [];
+}
+
+export async function createPoolStage(
+  tournamentId: string,
+  payload: Omit<PoolStageConfig, 'id' | 'tournamentId' | 'status'>,
+  token?: string
+): Promise<PoolStageConfig> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to create pool stage');
+  }
+
+  return response.json();
+}
+
+export async function updatePoolStage(
+  tournamentId: string,
+  stageId: string,
+  payload: Partial<Omit<PoolStageConfig, 'id' | 'tournamentId'>>,
+  token?: string
+): Promise<PoolStageConfig> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update pool stage');
+  }
+
+  return response.json();
+}
+
+export async function deletePoolStage(
+  tournamentId: string,
+  stageId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to delete pool stage');
+  }
+}
+
+export async function fetchBrackets(
+  tournamentId: string,
+  token?: string
+): Promise<BracketConfig[]> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to fetch brackets');
+  }
+
+  const data = await response.json();
+  return data.brackets || [];
+}
+
+export async function createBracket(
+  tournamentId: string,
+  payload: Omit<BracketConfig, 'id' | 'tournamentId' | 'status'>,
+  token?: string
+): Promise<BracketConfig> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to create bracket');
+  }
+
+  return response.json();
+}
+
+export async function updateBracket(
+  tournamentId: string,
+  bracketId: string,
+  payload: Partial<Omit<BracketConfig, 'id' | 'tournamentId'>>,
+  token?: string
+): Promise<BracketConfig> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update bracket');
+  }
+
+  return response.json();
+}
+
+export async function deleteBracket(
+  tournamentId: string,
+  bracketId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to delete bracket');
   }
 }
 

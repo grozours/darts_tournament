@@ -49,6 +49,7 @@ model Player {
   skillLevel        SkillLevel?    @map("skill_level")
   registeredAt      DateTime       @default(now()) @map("registered_at")
   isActive          Boolean        @default(true) @map("is_active")
+  checkedIn         Boolean        @default(false) @map("checked_in")
 
   // Relationships
   tournament        Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)

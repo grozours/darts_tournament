@@ -58,6 +58,7 @@ export interface Player {
   skillLevel?: SkillLevel;
   registeredAt: Date;
   isActive: boolean;
+  checkedIn: boolean;
 }
 
 // Pool Types

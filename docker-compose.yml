@@ -71,6 +71,7 @@ services:
       - ./backend/.env
     volumes:
       - ./backend/src:/app/backend/src
+      - ./backend/prisma:/app/backend/prisma
       - ./shared:/app/shared
     depends_on:
       postgres:

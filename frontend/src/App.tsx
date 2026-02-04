@@ -1,6 +1,7 @@
 import { useOptionalAuth } from "./auth/optionalAuth";
 import TournamentList from "./components/TournamentList";
 import RegistrationPlayers from "./components/RegistrationPlayers";
+import LiveTournament from "./components/LiveTournament";
 
 function App() {
   const {
@@ -69,7 +70,13 @@ function App() {
 
       <main className="max-w-6xl mx-auto px-6 py-16">
         <section className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
-          {view === 'players' ? <RegistrationPlayers /> : <TournamentList />}
+          {view === 'players' ? (
+            <RegistrationPlayers />
+          ) : view === 'live' ? (
+            <LiveTournament />
+          ) : (
+            <TournamentList />
+          )}
         </section>
       </main>
     </div>
