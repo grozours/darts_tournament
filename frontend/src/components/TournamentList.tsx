@@ -1,7 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
-import { TournamentFormat, DurationType } from '@shared/types';
-import { updateTournament, updateTournamentStatus } from '../services/tournamentService';
+import { TournamentFormat, DurationType, SkillLevel } from '@shared/types';
+import {
+  updateTournament,
+  updateTournamentStatus,
+  fetchTournamentPlayers,
+  registerTournamentPlayer,
+  updateTournamentPlayer,
+  removeTournamentPlayer,
+  type CreatePlayerPayload,
+  type TournamentPlayer,
+} from '../services/tournamentService';
 
 interface Tournament {
   id: string;
@@ -40,6 +49,18 @@ function TournamentList() {
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  const [playersLoading, setPlayersLoading] = useState(false);
+  const [playersError, setPlayersError] = useState<string | null>(null);
+  const [isRegisteringPlayer, setIsRegisteringPlayer] = useState(false);
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [playerForm, setPlayerForm] = useState<CreatePlayerPayload>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    skillLevel: undefined,
+  });
 
   const formatOptions = useMemo(
     () => [
@@ -57,6 +78,16 @@ function TournamentList() {
       { value: DurationType.HALF_DAY_NIGHT, label: 'Half day night' },
       { value: DurationType.FULL_DAY, label: 'Full day' },
       { value: DurationType.TWO_DAY, label: 'Two day' },
+    ],
+    []
+  );
+
+  const skillLevelOptions = useMemo(
+    () => [
+      { value: SkillLevel.BEGINNER, label: 'Beginner' },
+      { value: SkillLevel.INTERMEDIATE, label: 'Intermediate' },
+      { value: SkillLevel.ADVANCED, label: 'Advanced' },
+      { value: SkillLevel.EXPERT, label: 'Expert' },
     ],
     []
   );
@@ -175,12 +206,151 @@ function TournamentList() {
       targetCount: String(tournament.targetCount ?? 0),
     });
     setEditError(null);
+    setPlayersError(null);
+    if (tournament.status === 'REGISTRATION_OPEN') {
+      void fetchPlayers(tournament.id);
+    } else {
+      setPlayers([]);
+    }
   };
 
   const closeEdit = () => {
     setEditingTournament(null);
     setEditForm(null);
     setEditError(null);
+    setPlayers([]);
+    setPlayersError(null);
+    setEditingPlayerId(null);
+    setPlayerForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      skillLevel: undefined,
+    });
+  };
+
+  const fetchPlayers = async (tournamentId: string) => {
+    setPlayersLoading(true);
+    setPlayersError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const data = await fetchTournamentPlayers(tournamentId, token);
+      setPlayers(data);
+    } catch (err) {
+      console.error('Error fetching players:', err);
+      setPlayersError('Failed to load players');
+    } finally {
+      setPlayersLoading(false);
+    }
+  };
+
+  const registerPlayer = async () => {
+    if (!editingTournament) return;
+    if (!playerForm.firstName.trim() || !playerForm.lastName.trim()) {
+      setPlayersError('First and last name are required');
+      return;
+    }
+
+    setIsRegisteringPlayer(true);
+    setPlayersError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await registerTournamentPlayer(
+        editingTournament.id,
+        {
+          firstName: playerForm.firstName.trim(),
+          lastName: playerForm.lastName.trim(),
+          email: playerForm.email?.trim() || undefined,
+          phone: playerForm.phone?.trim() || undefined,
+          skillLevel: playerForm.skillLevel,
+        },
+        token
+      );
+      setPlayerForm({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        skillLevel: undefined,
+      });
+      await fetchPlayers(editingTournament.id);
+    } catch (err) {
+      console.error('Error registering player:', err);
+      setPlayersError(err instanceof Error ? err.message : 'Failed to register player');
+    } finally {
+      setIsRegisteringPlayer(false);
+    }
+  };
+
+  const startEditPlayer = (player: TournamentPlayer) => {
+    setEditingPlayerId(player.playerId);
+    setPlayerForm({
+      firstName: player.firstName || player.name.split(' ')[0] || '',
+      lastName: player.lastName || player.name.split(' ').slice(1).join(' ') || '',
+      email: player.email || '',
+      phone: player.phone || '',
+      skillLevel: player.skillLevel,
+    });
+    setPlayersError(null);
+  };
+
+  const cancelEditPlayer = () => {
+    setEditingPlayerId(null);
+    setPlayerForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      skillLevel: undefined,
+    });
+  };
+
+  const savePlayerEdit = async () => {
+    if (!editingTournament || !editingPlayerId) return;
+    if (!playerForm.firstName.trim() || !playerForm.lastName.trim()) {
+      setPlayersError('First and last name are required');
+      return;
+    }
+
+    setIsRegisteringPlayer(true);
+    setPlayersError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await updateTournamentPlayer(
+        editingTournament.id,
+        editingPlayerId,
+        {
+          firstName: playerForm.firstName.trim(),
+          lastName: playerForm.lastName.trim(),
+          email: playerForm.email?.trim() || undefined,
+          phone: playerForm.phone?.trim() || undefined,
+          skillLevel: playerForm.skillLevel,
+        },
+        token
+      );
+      await fetchPlayers(editingTournament.id);
+      cancelEditPlayer();
+    } catch (err) {
+      console.error('Error updating player:', err);
+      setPlayersError(err instanceof Error ? err.message : 'Failed to update player');
+    } finally {
+      setIsRegisteringPlayer(false);
+    }
+  };
+
+  const removePlayer = async (playerId: string) => {
+    if (!editingTournament) return;
+    if (!confirm('Remove this player from the tournament?')) return;
+    setPlayersError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await removeTournamentPlayer(editingTournament.id, playerId, token);
+      await fetchPlayers(editingTournament.id);
+    } catch (err) {
+      console.error('Error removing player:', err);
+      setPlayersError(err instanceof Error ? err.message : 'Failed to remove player');
+    }
   };
 
   const saveEdit = async () => {
@@ -502,6 +672,152 @@ function TournamentList() {
                 />
               </label>
             </div>
+
+            {editingTournament.status === 'REGISTRATION_OPEN' && (
+              <div className="mt-8 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-semibold text-white">Player registration</h4>
+                    <p className="text-sm text-slate-400">
+                      {players.length} of {editingTournament.totalParticipants} spots filled
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => fetchPlayers(editingTournament.id)}
+                    className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="text-sm text-slate-300">
+                    First name
+                    <input
+                      type="text"
+                      value={playerForm.firstName}
+                      onChange={(e) => setPlayerForm({ ...playerForm, firstName: e.target.value })}
+                      className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Last name
+                    <input
+                      type="text"
+                      value={playerForm.lastName}
+                      onChange={(e) => setPlayerForm({ ...playerForm, lastName: e.target.value })}
+                      className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Email
+                    <input
+                      type="email"
+                      value={playerForm.email || ''}
+                      onChange={(e) => setPlayerForm({ ...playerForm, email: e.target.value })}
+                      className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Phone
+                    <input
+                      type="text"
+                      value={playerForm.phone || ''}
+                      onChange={(e) => setPlayerForm({ ...playerForm, phone: e.target.value })}
+                      className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300 md:col-span-2">
+                    Skill level
+                    <select
+                      value={playerForm.skillLevel || ''}
+                      onChange={(e) =>
+                        setPlayerForm({
+                          ...playerForm,
+                          skillLevel: (e.target.value as SkillLevel) || undefined,
+                        })
+                      }
+                      className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">Select level (optional)</option>
+                      {skillLevelOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {playersError && <p className="mt-3 text-sm text-rose-300">{playersError}</p>}
+
+                <div className="mt-4 flex flex-wrap justify-end gap-3">
+                  {editingPlayerId && (
+                    <button
+                      onClick={cancelEditPlayer}
+                      className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+                    >
+                      Cancel edit
+                    </button>
+                  )}
+                  <button
+                    onClick={editingPlayerId ? savePlayerEdit : registerPlayer}
+                    disabled={isRegisteringPlayer}
+                    className="rounded-full bg-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-60"
+                  >
+                    {isRegisteringPlayer
+                      ? 'Saving...'
+                      : editingPlayerId
+                      ? 'Save changes'
+                      : 'Add player'}
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-2">
+                  <h5 className="text-sm font-semibold text-slate-200">Registered players</h5>
+                  {playersLoading ? (
+                    <p className="text-sm text-slate-400">Loading players...</p>
+                  ) : players.length === 0 ? (
+                    <p className="text-sm text-slate-400">No players registered yet.</p>
+                  ) : (
+                    <div className="grid gap-2">
+                      {players.map((player) => (
+                        <div
+                          key={player.playerId}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/50 px-4 py-2 text-sm"
+                        >
+                          <div>
+                            <p className="text-slate-100">{player.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {player.email || 'No email'}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {player.skillLevel && (
+                              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
+                                {player.skillLevel}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => startEditPlayer(player)}
+                              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => removePlayer(player.playerId)}
+                              className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {editError && (
               <p className="mt-4 text-sm text-rose-300">{editError}</p>

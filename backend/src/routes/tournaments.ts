@@ -4,7 +4,7 @@ import TournamentController from '../controllers/TournamentController';
 import { validate } from '../middleware/validation';
 import { uploadTournamentLogo } from '../middleware/upload';
 import { z } from 'zod';
-import { TournamentFormat, DurationType, TournamentStatus } from '../../../shared/src/types';
+import { TournamentFormat, DurationType, TournamentStatus, SkillLevel } from '../../../shared/src/types';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -151,6 +151,55 @@ const dateRangeSchema = {
   }, {
     message: 'End date must be after start date',
     path: ['endDate'],
+  }),
+};
+
+const createPlayerSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+  }),
+  body: z.object({
+    firstName: z.string()
+      .min(2, 'First name must be at least 2 characters long')
+      .max(50, 'First name cannot exceed 50 characters')
+      .trim(),
+    lastName: z.string()
+      .min(2, 'Last name must be at least 2 characters long')
+      .max(50, 'Last name cannot exceed 50 characters')
+      .trim(),
+    email: z.string()
+      .email('Invalid email address')
+      .optional(),
+    phone: z.string()
+      .min(5, 'Phone number must be at least 5 characters long')
+      .max(20, 'Phone number cannot exceed 20 characters')
+      .optional(),
+    skillLevel: z.nativeEnum(SkillLevel).optional(),
+  }),
+};
+
+const updatePlayerSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    playerId: z.string().uuid('Invalid player ID'),
+  }),
+  body: z.object({
+    firstName: z.string()
+      .min(2, 'First name must be at least 2 characters long')
+      .max(50, 'First name cannot exceed 50 characters')
+      .trim(),
+    lastName: z.string()
+      .min(2, 'Last name must be at least 2 characters long')
+      .max(50, 'Last name cannot exceed 50 characters')
+      .trim(),
+    email: z.string()
+      .email('Invalid email address')
+      .optional(),
+    phone: z.string()
+      .min(5, 'Phone number must be at least 5 characters long')
+      .max(20, 'Phone number cannot exceed 20 characters')
+      .optional(),
+    skillLevel: z.nativeEnum(SkillLevel).optional(),
   }),
 };
 
@@ -310,6 +359,55 @@ router.get(
   '/:id/participants',
   validate(uuidSchema),
   tournamentController.getTournamentParticipants
+);
+
+/**
+ * @route   GET /api/tournaments/:id/players
+ * @desc    Get tournament players
+ * @access  Public
+ */
+router.get(
+  '/:id/players',
+  validate(uuidSchema),
+  tournamentController.getTournamentPlayers
+);
+
+/**
+ * @route   POST /api/tournaments/:id/players
+ * @desc    Register player with details
+ * @access  Public
+ */
+router.post(
+  '/:id/players',
+  validate(createPlayerSchema),
+  tournamentController.registerPlayerDetails
+);
+
+/**
+ * @route   PATCH /api/tournaments/:id/players/:playerId
+ * @desc    Update player details
+ * @access  Public
+ */
+router.patch(
+  '/:id/players/:playerId',
+  validate(updatePlayerSchema),
+  tournamentController.updateTournamentPlayer
+);
+
+/**
+ * @route   DELETE /api/tournaments/:id/players/:playerId
+ * @desc    Remove player from tournament
+ * @access  Public
+ */
+router.delete(
+  '/:id/players/:playerId',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      playerId: z.string().uuid('Invalid player ID'),
+    }),
+  }),
+  tournamentController.deleteTournamentPlayer
 );
 
 /**

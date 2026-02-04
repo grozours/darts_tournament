@@ -1,4 +1,4 @@
-import { TournamentFormat, DurationType } from '@shared/types';
+import { TournamentFormat, DurationType, SkillLevel } from '@shared/types';
 
 export interface CreateTournamentPayload {
   name: string;
@@ -13,6 +13,25 @@ export interface CreateTournamentPayload {
 export interface CreateTournamentResponse {
   id: string;
   name?: string;
+}
+
+export interface CreatePlayerPayload {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  skillLevel?: SkillLevel;
+}
+
+export interface TournamentPlayer {
+  playerId: string;
+  firstName?: string;
+  lastName?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  skillLevel?: SkillLevel;
+  registeredAt?: string;
 }
 
 export async function createTournament(
@@ -93,5 +112,78 @@ export async function updateTournamentStatus(
 
   if (!response.ok) {
     throw new Error('Failed to update tournament status');
+  }
+}
+
+export async function fetchTournamentPlayers(
+  tournamentId: string,
+  token?: string
+): Promise<TournamentPlayer[]> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/players`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch tournament players');
+  }
+
+  const data = await response.json();
+  return data.players || [];
+}
+
+export async function registerTournamentPlayer(
+  tournamentId: string,
+  payload: CreatePlayerPayload,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/players`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to register player');
+  }
+}
+
+export async function updateTournamentPlayer(
+  tournamentId: string,
+  playerId: string,
+  payload: CreatePlayerPayload,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/players/${playerId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update player');
+  }
+}
+
+export async function removeTournamentPlayer(
+  tournamentId: string,
+  playerId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/players/${playerId}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to remove player');
   }
 }

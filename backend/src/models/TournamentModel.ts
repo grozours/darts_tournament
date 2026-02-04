@@ -1,5 +1,12 @@
 import { PrismaClient } from '@prisma/client';
-import { Tournament, TournamentFormat, DurationType, TournamentStatus } from '../../../shared/src/types';
+import {
+  Tournament,
+  TournamentFormat,
+  DurationType,
+  TournamentStatus,
+  Player,
+  SkillLevel,
+} from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 
 export class TournamentModel {
@@ -316,6 +323,49 @@ export class TournamentModel {
   }
 
   /**
+   * Create player registration with details
+   */
+  async createPlayer(
+    tournamentId: string,
+    playerData: {
+      firstName: string;
+      lastName: string;
+      email?: string;
+      phone?: string;
+      skillLevel?: SkillLevel;
+    }
+  ): Promise<Player> {
+    try {
+      const player = await this.prisma.player.create({
+        data: {
+          tournamentId,
+          firstName: playerData.firstName,
+          lastName: playerData.lastName,
+          email: playerData.email || null,
+          phone: playerData.phone || null,
+          skillLevel: playerData.skillLevel || null,
+          registeredAt: new Date(),
+        },
+      });
+
+      return this.mapToPlayer(player);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new AppError(
+          'Player is already registered for this tournament',
+          400,
+          'DUPLICATE_REGISTRATION'
+        );
+      }
+      throw new AppError(
+        'Failed to register player',
+        500,
+        'PLAYER_REGISTRATION_FAILED'
+      );
+    }
+  }
+
+  /**
    * Unregister player from tournament
    */
   async unregisterPlayer(tournamentId: string, playerId: string): Promise<void> {
@@ -404,6 +454,8 @@ export class TournamentModel {
 
       return participants.map((player: any) => ({
         playerId: player.id,
+        firstName: player.firstName,
+        lastName: player.lastName,
         name: `${player.firstName} ${player.lastName}`,
         email: player.email,
         phone: player.phone,
@@ -415,6 +467,53 @@ export class TournamentModel {
         'Failed to fetch tournament participants',
         500,
         'PARTICIPANTS_FETCH_FAILED'
+      );
+    }
+  }
+
+  /**
+   * Update player details
+   */
+  async updatePlayer(
+    tournamentId: string,
+    playerId: string,
+    updateData: {
+      firstName?: string;
+      lastName?: string;
+      email?: string | null;
+      phone?: string | null;
+      skillLevel?: SkillLevel | null;
+    }
+  ): Promise<Player> {
+    try {
+      const player = await this.prisma.player.update({
+        where: { id: playerId },
+        data: {
+          ...updateData,
+          tournamentId,
+        },
+      });
+
+      return this.mapToPlayer(player);
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        throw new AppError(
+          'Player not found',
+          404,
+          'PLAYER_NOT_FOUND'
+        );
+      }
+      if (error.code === 'P2002') {
+        throw new AppError(
+          'Player is already registered for this tournament',
+          400,
+          'DUPLICATE_REGISTRATION'
+        );
+      }
+      throw new AppError(
+        'Failed to update player',
+        500,
+        'PLAYER_UPDATE_FAILED'
       );
     }
   }
@@ -475,6 +574,23 @@ export class TournamentModel {
       ...(prismaResult.players && { players: prismaResult.players }),
       ...(prismaResult.targets && { targets: prismaResult.targets }),
       ...(prismaResult.matches && { matches: prismaResult.matches }),
+    };
+  }
+
+  /**
+   * Map Prisma player result to Player type
+   */
+  private mapToPlayer(prismaResult: any): Player {
+    return {
+      id: prismaResult.id,
+      tournamentId: prismaResult.tournamentId,
+      firstName: prismaResult.firstName,
+      lastName: prismaResult.lastName,
+      email: prismaResult.email || undefined,
+      phone: prismaResult.phone || undefined,
+      skillLevel: prismaResult.skillLevel || undefined,
+      registeredAt: prismaResult.registeredAt,
+      isActive: prismaResult.isActive,
     };
   }
 

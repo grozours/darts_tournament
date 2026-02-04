@@ -240,15 +240,18 @@ describe('TournamentForm Component', () => {
       await user.click(screen.getByRole('button', { name: /create tournament/i }));
 
       await waitFor(() => {
-        expect(mockCreateTournament).toHaveBeenCalledWith({
-          name: validFormData.name,
-          format: validFormData.format,
-          durationType: validFormData.durationType,
-          startTime: expect.stringContaining('2026-03-15T10:00'),
-          endTime: expect.stringContaining('2026-03-15T18:00'),
-          totalParticipants: 16,
-          targetCount: 3,
-        });
+          expect(mockCreateTournament).toHaveBeenCalledWith(
+            {
+              name: validFormData.name,
+              format: validFormData.format,
+              durationType: validFormData.durationType,
+              startTime: '2026-03-15T10:00',
+              endTime: '2026-03-15T18:00',
+              totalParticipants: 16,
+              targetCount: 3,
+            },
+            undefined
+          );
         expect(mockOnSubmit).toHaveBeenCalled();
       });
     });
@@ -285,9 +288,9 @@ describe('TournamentForm Component', () => {
       await user.click(screen.getByRole('button', { name: /create tournament/i }));
 
       await waitFor(() => {
-        expect(mockCreateTournament).toHaveBeenCalled();
-        expect(mockUploadLogo).toHaveBeenCalledWith('tournament-123', file);
-        expect(mockOnSubmit).toHaveBeenCalled();
+          expect(mockCreateTournament).toHaveBeenCalled();
+          expect(mockUploadLogo).toHaveBeenCalledWith('tournament-123', file, undefined);
+          expect(mockOnSubmit).toHaveBeenCalled();
       });
     });
 

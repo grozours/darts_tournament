@@ -1,5 +1,6 @@
 import { useOptionalAuth } from "./auth/optionalAuth";
 import TournamentList from "./components/TournamentList";
+import RegistrationPlayers from "./components/RegistrationPlayers";
 
 function App() {
   const {
@@ -10,6 +11,10 @@ function App() {
     loginWithRedirect,
     logout,
   } = useOptionalAuth();
+
+  const view = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('view')
+    : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -26,6 +31,9 @@ function App() {
             </div>
 
             <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
+                Registration players
+              </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=DRAFT">
                 Drafts
               </a>
@@ -109,7 +117,7 @@ function App() {
 
       <main className="max-w-6xl mx-auto px-6 py-16">
         <section className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
-          <TournamentList />
+          {view === 'players' ? <RegistrationPlayers /> : <TournamentList />}
         </section>
       </main>
     </div>

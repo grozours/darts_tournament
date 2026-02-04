@@ -21,17 +21,12 @@ describe('Home page', () => {
   it('renders the header and empty state', async () => {
     render(<App />);
 
-    expect(
-      screen.getByRole('heading', { name: /darts tournament manager/i })
-    ).toBeInTheDocument();
+    expect(screen.getByText(/darts hub/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText(/tournaments \(0\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/no tournaments yet/i)).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByText(/no tournaments found/i)
-    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /create tournament/i })
     ).toBeInTheDocument();

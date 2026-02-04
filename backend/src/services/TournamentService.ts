@@ -1,5 +1,6 @@
 import { TournamentModel } from '../models/TournamentModel';
 import { Tournament, TournamentFormat, DurationType, TournamentStatus } from '../../../shared/src/types';
+import { CreatePlayerRequest, Player, SkillLevel } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 import { PrismaClient } from '@prisma/client';
 import TournamentLogger from '../utils/tournamentLogger';
@@ -34,6 +35,31 @@ export class TournamentService {
     this.logger = new TournamentLogger(req);
   }
 
+  private validatePlayerData(data: CreatePlayerRequest): void {
+    if (!data.firstName || data.firstName.trim().length < 2) {
+      throw new AppError(
+        'First name must be at least 2 characters long',
+        400,
+        'INVALID_FIRST_NAME'
+      );
+    }
+
+    if (!data.lastName || data.lastName.trim().length < 2) {
+      throw new AppError(
+        'Last name must be at least 2 characters long',
+        400,
+        'INVALID_LAST_NAME'
+      );
+    }
+
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      throw new AppError(
+        'Invalid email address',
+        400,
+        'INVALID_EMAIL'
+      );
+    }
+  }
   /**
    * Create a new tournament with validation
    */
@@ -600,6 +626,122 @@ export class TournamentService {
   }
 
   /**
+   * Register player with details for tournament
+   */
+  async registerPlayerDetails(
+    tournamentId: string,
+    playerData: CreatePlayerRequest
+  ): Promise<Player> {
+    this.validateUUID(tournamentId);
+    this.validatePlayerData(playerData);
+
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      this.logger.accessError(
+        'TOURNAMENT_NOT_FOUND',
+        `Tournament not found during registration: ${tournamentId}`,
+        tournamentId
+      );
+      throw new AppError(
+        'Tournament not found',
+        404,
+        'TOURNAMENT_NOT_FOUND'
+      );
+    }
+
+    try {
+      if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
+        this.logger.validationError(
+          'REGISTRATION_NOT_OPEN',
+          `Registration not open for tournament: ${tournament.name}`,
+          tournamentId,
+          tournament.name
+        );
+        throw new AppError(
+          'Tournament registration is not open',
+          400,
+          'REGISTRATION_NOT_OPEN'
+        );
+      }
+
+      const now = new Date();
+      const registrationDeadline = new Date(tournament.startTime);
+      registrationDeadline.setHours(registrationDeadline.getHours() - 1);
+
+      if (now > registrationDeadline) {
+        this.logger.validationError(
+          'REGISTRATION_DEADLINE_PASSED',
+          `Registration deadline passed for tournament: ${tournament.name}`,
+          tournamentId,
+          tournament.name
+        );
+        throw new AppError(
+          'Registration deadline has passed',
+          400,
+          'REGISTRATION_DEADLINE_PASSED'
+        );
+      }
+
+      const currentParticipants = await this.tournamentModel.getParticipantCount(tournamentId);
+      if (currentParticipants >= tournament.totalParticipants) {
+        this.logger.validationError(
+          'TOURNAMENT_FULL',
+          `Tournament is full: ${tournament.name}`,
+          tournamentId,
+          tournament.name
+        );
+        throw new AppError(
+          'Tournament is full',
+          400,
+          'TOURNAMENT_FULL'
+        );
+      }
+
+      const playerPayload: {
+        firstName: string;
+        lastName: string;
+        email?: string;
+        phone?: string;
+        skillLevel?: SkillLevel;
+      } = {
+        firstName: playerData.firstName.trim(),
+        lastName: playerData.lastName.trim(),
+      };
+
+      if (playerData.email?.trim()) {
+        playerPayload.email = playerData.email.trim();
+      }
+
+      if (playerData.phone?.trim()) {
+        playerPayload.phone = playerData.phone.trim();
+      }
+
+      if (playerData.skillLevel) {
+        playerPayload.skillLevel = playerData.skillLevel as SkillLevel;
+      }
+
+      const player = await this.tournamentModel.createPlayer(tournamentId, playerPayload);
+
+      this.logger.playerRegistered(
+        tournamentId,
+        tournament.name,
+        player.id
+      );
+
+      return player;
+    } catch (error) {
+      if (!(error instanceof AppError)) {
+        this.logger.error(
+          'Failed to register player for tournament',
+          tournamentId,
+          error
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Unregister player from tournament
    */
   async unregisterPlayer(tournamentId: string, playerId: string): Promise<void> {
@@ -635,6 +777,48 @@ export class TournamentService {
     }
 
     await this.tournamentModel.unregisterPlayer(tournamentId, playerId);
+  }
+
+  /**
+   * Update player details for tournament
+   */
+  async updateTournamentPlayer(
+    tournamentId: string,
+    playerId: string,
+    updateData: CreatePlayerRequest
+  ): Promise<Player> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(playerId);
+    this.validatePlayerData(updateData);
+
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError(
+        'Tournament not found',
+        404,
+        'TOURNAMENT_NOT_FOUND'
+      );
+    }
+
+    if (
+      ![TournamentStatus.DRAFT, TournamentStatus.REGISTRATION_OPEN].includes(
+        tournament.status as TournamentStatus
+      )
+    ) {
+      throw new AppError(
+        'Cannot update player details for this tournament status',
+        400,
+        'PLAYER_UPDATE_NOT_ALLOWED'
+      );
+    }
+
+    return await this.tournamentModel.updatePlayer(tournamentId, playerId, {
+      firstName: updateData.firstName.trim(),
+      lastName: updateData.lastName.trim(),
+      email: updateData.email?.trim() || null,
+      phone: updateData.phone?.trim() || null,
+      skillLevel: (updateData.skillLevel as SkillLevel | undefined) || null,
+    });
   }
 
   /**
