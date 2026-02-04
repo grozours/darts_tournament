@@ -438,7 +438,7 @@ router.patch(
       id: z.string().uuid('Invalid tournament ID'),
     }),
     body: z.object({
-      status: z.enum(['DRAFT', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED']),
+      status: z.enum(['DRAFT', 'OPEN', 'SIGNATURE', 'LIVE', 'FINISHED']),
       force: z.boolean().optional(),
     }),
   }),

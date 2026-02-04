@@ -237,7 +237,7 @@ export class TournamentService {
     // Check if tournament exists and can be deleted
     const tournament = await this.getTournamentById(id);
     
-    if (tournament.status === TournamentStatus.IN_PROGRESS) {
+    if (tournament.status === TournamentStatus.LIVE) {
       throw new AppError(
         'Cannot delete active tournament',
         400,
@@ -539,7 +539,7 @@ export class TournamentService {
 
     try {
       // Check tournament status allows registration
-      if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
+      if (tournament.status !== TournamentStatus.OPEN) {
         this.logger.validationError(
           'REGISTRATION_NOT_OPEN',
           `Registration not open for tournament: ${tournament.name}`,
@@ -650,7 +650,7 @@ export class TournamentService {
     }
 
     try {
-      if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
+      if (tournament.status !== TournamentStatus.OPEN) {
         this.logger.validationError(
           'REGISTRATION_NOT_OPEN',
           `Registration not open for tournament: ${tournament.name}`,
@@ -758,9 +758,9 @@ export class TournamentService {
     }
 
     // Check if tournament allows unregistration
-    if (tournament.status === TournamentStatus.IN_PROGRESS || tournament.status === TournamentStatus.COMPLETED) {
+    if (tournament.status === TournamentStatus.LIVE || tournament.status === TournamentStatus.FINISHED) {
       throw new AppError(
-        'Cannot unregister from tournament that is in progress or completed',
+        'Cannot unregister from tournament that is live or finished',
         400,
         'UNREGISTRATION_NOT_ALLOWED'
       );
@@ -801,7 +801,7 @@ export class TournamentService {
     }
 
     if (
-      ![TournamentStatus.DRAFT, TournamentStatus.REGISTRATION_OPEN].includes(
+      ![TournamentStatus.DRAFT, TournamentStatus.OPEN].includes(
         tournament.status as TournamentStatus
       )
     ) {
@@ -901,7 +901,7 @@ export class TournamentService {
       const updatedTournament = await this.tournamentModel.updateStatus(
         tournamentId, 
         newStatus,
-        newStatus === 'COMPLETED' ? new Date() : undefined
+        newStatus === 'FINISHED' ? new Date() : undefined
       );
 
       // Log successful status transition
@@ -937,28 +937,21 @@ export class TournamentService {
    * Open registration for tournament
    */
   async openTournamentRegistration(tournamentId: string): Promise<Tournament> {
-    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.REGISTRATION_OPEN);
+    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.OPEN);
   }
 
   /**
    * Start tournament
    */
   async startTournament(tournamentId: string): Promise<Tournament> {
-    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.IN_PROGRESS);
+    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.LIVE);
   }
 
   /**
    * Complete tournament
    */
   async completeTournament(tournamentId: string): Promise<Tournament> {
-    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.COMPLETED);
-  }
-
-  /**
-   * Archive tournament
-   */
-  async archiveTournament(tournamentId: string): Promise<Tournament> {
-    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.ARCHIVED);
+    return await this.transitionTournamentStatus(tournamentId, TournamentStatus.FINISHED);
   }
 
   /**
@@ -970,11 +963,11 @@ export class TournamentService {
     tournament: Tournament
   ): void {
     const validTransitions: Record<TournamentStatus, TournamentStatus[]> = {
-      [TournamentStatus.DRAFT]: [TournamentStatus.REGISTRATION_OPEN, TournamentStatus.ARCHIVED],
-      [TournamentStatus.REGISTRATION_OPEN]: [TournamentStatus.IN_PROGRESS, TournamentStatus.DRAFT, TournamentStatus.ARCHIVED],
-      [TournamentStatus.IN_PROGRESS]: [TournamentStatus.COMPLETED, TournamentStatus.ARCHIVED],
-      [TournamentStatus.COMPLETED]: [TournamentStatus.ARCHIVED],
-      [TournamentStatus.ARCHIVED]: [], // No transitions from archived state
+      [TournamentStatus.DRAFT]: [TournamentStatus.OPEN],
+      [TournamentStatus.OPEN]: [TournamentStatus.SIGNATURE, TournamentStatus.DRAFT],
+      [TournamentStatus.SIGNATURE]: [TournamentStatus.LIVE, TournamentStatus.OPEN],
+      [TournamentStatus.LIVE]: [TournamentStatus.FINISHED],
+      [TournamentStatus.FINISHED]: [],
     };
 
     if (!validTransitions[currentStatus].includes(newStatus)) {
@@ -986,7 +979,7 @@ export class TournamentService {
     }
 
     // Additional business rule validations
-    if (newStatus === TournamentStatus.REGISTRATION_OPEN) {
+    if (newStatus === TournamentStatus.OPEN) {
       const now = new Date();
       if (now > tournament.endTime) {
         throw new AppError(
@@ -997,7 +990,7 @@ export class TournamentService {
       }
     }
 
-    if (newStatus === TournamentStatus.IN_PROGRESS) {
+    if (newStatus === TournamentStatus.LIVE) {
       const now = new Date();
       if (now < tournament.startTime) {
         throw new AppError(
@@ -1017,7 +1010,7 @@ export class TournamentService {
     newStatus: TournamentStatus
   ): Promise<void> {
     switch (newStatus) {
-      case TournamentStatus.REGISTRATION_OPEN:
+      case TournamentStatus.OPEN:
         // Ensure tournament has minimum configuration
         if (tournament.totalParticipants < 2) {
           throw new AppError(
@@ -1035,7 +1028,7 @@ export class TournamentService {
         }
         break;
 
-      case TournamentStatus.IN_PROGRESS:
+      case TournamentStatus.LIVE:
         // Check minimum participants registered
         const participantCount = await this.tournamentModel.getParticipantCount(tournament.id);
         if (participantCount < 2) {
@@ -1047,28 +1040,14 @@ export class TournamentService {
         }
         break;
 
-      case TournamentStatus.COMPLETED:
+      case TournamentStatus.FINISHED:
         // Verify all matches are completed (this would require match tracking)
         // For now, just ensure tournament was in progress
-        if (tournament.status !== TournamentStatus.IN_PROGRESS) {
+        if (tournament.status !== TournamentStatus.LIVE) {
           throw new AppError(
-            'Only tournaments in progress can be completed',
+            'Only live tournaments can be finished',
             400,
-            'TOURNAMENT_NOT_IN_PROGRESS'
-          );
-        }
-        break;
-
-      case TournamentStatus.ARCHIVED:
-        // Tournaments can only be archived if completed or if they're old drafts
-        const daysSinceCreation = Math.floor(
-          (Date.now() - tournament.createdAt.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (tournament.status !== TournamentStatus.COMPLETED && daysSinceCreation < 30) {
-          throw new AppError(
-            'Only completed tournaments or drafts older than 30 days can be archived',
-            400,
-            'TOURNAMENT_NOT_ARCHIVABLE'
+            'TOURNAMENT_NOT_LIVE'
           );
         }
         break;

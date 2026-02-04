@@ -18,10 +18,10 @@ var DurationType;
 var TournamentStatus;
 (function (TournamentStatus) {
     TournamentStatus["DRAFT"] = "DRAFT";
-    TournamentStatus["REGISTRATION_OPEN"] = "REGISTRATION_OPEN";
-    TournamentStatus["IN_PROGRESS"] = "IN_PROGRESS";
-    TournamentStatus["COMPLETED"] = "COMPLETED";
-    TournamentStatus["ARCHIVED"] = "ARCHIVED";
+    TournamentStatus["OPEN"] = "OPEN";
+    TournamentStatus["SIGNATURE"] = "SIGNATURE";
+    TournamentStatus["LIVE"] = "LIVE";
+    TournamentStatus["FINISHED"] = "FINISHED";
 })(TournamentStatus || (exports.TournamentStatus = TournamentStatus = {}));
 var SkillLevel;
 (function (SkillLevel) {

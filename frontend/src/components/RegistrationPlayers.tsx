@@ -48,7 +48,7 @@ function RegistrationPlayers() {
 
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const response = await fetch('/api/tournaments?status=REGISTRATION_OPEN&limit=100', {
+      const response = await fetch('/api/tournaments?status=OPEN&limit=100', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 

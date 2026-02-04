@@ -6,10 +6,6 @@ function App() {
   const {
     enabled: authEnabled,
     isAuthenticated,
-    isLoading,
-    user,
-    loginWithRedirect,
-    logout,
   } = useOptionalAuth();
 
   const view = typeof window !== 'undefined'
@@ -24,10 +20,16 @@ function App() {
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-900 font-semibold">
+              <a
+                className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-900 font-semibold"
+                href="/"
+                aria-label="Darts Hub home"
+              >
                 🎯
-              </span>
-              <span className="text-sm font-semibold tracking-wide">Darts Hub</span>
+              </a>
+              <a className="text-sm font-semibold tracking-wide hover:text-white" href="/">
+                Darts Hub
+              </a>
             </div>
 
             <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
@@ -39,78 +41,28 @@ function App() {
               </a>
               <a
                 className="rounded-md px-2 py-1 hover:bg-slate-800"
-                href="/?status=REGISTRATION_OPEN"
+                href="/?status=OPEN"
               >
-                Registration open
+                Open
               </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/api">
-                API Home
+              <a
+                className="rounded-md px-2 py-1 hover:bg-slate-800"
+                href="/?status=SIGNATURE"
+              >
+                Signature
               </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/api/tournaments">
-                Tournaments
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=LIVE">
+                Live
               </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/api/tournaments/stats">
-                Stats
-              </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/api/tournaments/date-range?startDate=2026-01-01T00:00:00.000Z&endDate=2026-12-31T23:59:59.000Z">
-                Date range
-              </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/api/tournaments/check-name/demo">
-                Name check
+              <a
+                className="rounded-md px-2 py-1 hover:bg-slate-800"
+                href="/?status=FINISHED"
+              >
+                Finished
               </a>
             </nav>
 
-            <div className="ml-auto flex items-center gap-3">
-              <label className="sr-only" htmlFor="global-search">Search</label>
-              <div className="hidden md:block">
-                <input
-                  id="global-search"
-                  type="text"
-                  placeholder="Search or jump to..."
-                  className="w-64 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
-                />
-              </div>
-              {!authEnabled ? (
-                <span className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300">
-                  OAuth disabled
-                </span>
-              ) : isLoading ? null : isAuthenticated ? (
-                <div className="flex items-center gap-3">
-                  {user?.picture ? (
-                    <img
-                      src={user.picture}
-                      alt={user?.name || "User avatar"}
-                      className="h-8 w-8 rounded-full border border-slate-700"
-                    />
-                  ) : (
-                    <span className="grid h-8 w-8 place-items-center rounded-full bg-indigo-500 text-white">
-                      {user?.name?.[0]?.toUpperCase() || "U"}
-                    </span>
-                  )}
-                  <button
-                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm font-medium text-white hover:border-slate-400"
-                    onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-slate-800"
-                    onClick={() => loginWithRedirect()}
-                  >
-                    Sign in
-                  </button>
-                  <button
-                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm font-medium text-white hover:border-slate-400"
-                    onClick={() => loginWithRedirect({ authorizationParams: { screen_hint: "signup" } })}
-                  >
-                    Sign up
-                  </button>
-                </div>
-              )}
-            </div>
+            <div className="ml-auto" />
           </div>
         </div>
       </header>

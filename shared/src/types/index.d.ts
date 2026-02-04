@@ -12,10 +12,10 @@ export declare enum DurationType {
 }
 export declare enum TournamentStatus {
     DRAFT = "DRAFT",
-    REGISTRATION_OPEN = "REGISTRATION_OPEN",
-    IN_PROGRESS = "IN_PROGRESS",
-    COMPLETED = "COMPLETED",
-    ARCHIVED = "ARCHIVED"
+    OPEN = "OPEN",
+    SIGNATURE = "SIGNATURE",
+    LIVE = "LIVE",
+    FINISHED = "FINISHED"
 }
 export interface Tournament {
     id: string;

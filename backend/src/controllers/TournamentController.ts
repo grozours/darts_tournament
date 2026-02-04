@@ -729,7 +729,7 @@ export class TournamentController {
       const tournament = await this.getTournamentService(req).completeTournament(id);
 
       res.json({
-        message: 'Tournament completed successfully',
+        message: 'Tournament finished successfully',
         tournament,
       });
     } catch (error) {

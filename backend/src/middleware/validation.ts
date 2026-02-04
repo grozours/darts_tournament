@@ -133,7 +133,7 @@ export const commonSchemas = {
 
   // Tournament status updates
   updateTournamentStatus: z.object({
-    status: z.enum(['DRAFT', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'], {
+    status: z.enum(['DRAFT', 'OPEN', 'SIGNATURE', 'LIVE', 'FINISHED'], {
       errorMap: () => ({ message: 'Invalid tournament status' }),
     }),
   }),

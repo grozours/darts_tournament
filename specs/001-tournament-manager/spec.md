@@ -148,6 +148,7 @@ As an organizer, I want to generate a comprehensive tournament agenda showing al
 - **FR-010**: System MUST generate comprehensive tournament agenda with chronological match times for sharing with participants.
 - **FR-011**: System MUST update bracket progression and standings in real-time as scores are entered.
 - **FR-012**: System MUST validate all tournament configurations and prevent invalid setups (insufficient time, target conflicts, etc.).
+- **FR-012a**: System MUST support tournament lifecycle states: draft (creation/edit), open (registration), signature (presence validation on tournament day), live (tournament running), finished (tournament ended).
 - **FR-013**: System MUST persist all tournament data, configurations, registrations, and match results permanently for historical records and statistical analysis with authenticated access.
 - **FR-014**: System MUST support OAuth login with Google and Facebook through Auth0.
 - **FR-015**: System MUST protect API endpoints with JWT validation (issuer + audience) and reject unauthenticated requests.
@@ -157,7 +158,7 @@ As an organizer, I want to generate a comprehensive tournament agenda showing al
 
 ### Key Entities
 
-- **Tournament**: Represents a darts tournament. Attributes: name, visual content (logos), format, duration type, start/end times, number of players/teams, number of targets, pool configuration, bracket configuration, schedule, status, completion date, historical flag.
+- **Tournament**: Represents a darts tournament. Attributes: name, visual content (logos), format, duration type, start/end times, number of players/teams, number of targets, pool configuration, bracket configuration, schedule, status (draft, open, signature, live, finished), completion date, historical flag.
 - **Player**: Represents an individual participant. Attributes: firstname, lastname, surname, team name, mobile phone, skill level (Novice/Intermediate/Advanced/Expert), assigned pools/brackets, match history.
 - **Team**: Represents a group of players (for team formats). Attributes: team name, player list, skill level (derived), tournament association.
 - **PoolStage**: Represents a complete pool stage. Attributes: stage number, number of pools in stage, number of players per pool, rounds/legs configuration, tournament association.

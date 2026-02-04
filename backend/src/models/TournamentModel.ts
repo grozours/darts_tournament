@@ -277,8 +277,8 @@ export class TournamentModel {
         );
       }
 
-      // Tournament is editable if it's in draft or registration open status
-      return [TournamentStatus.DRAFT, TournamentStatus.REGISTRATION_OPEN].includes(tournament.status as TournamentStatus);
+      // Tournament is editable if it's in draft or open status
+      return [TournamentStatus.DRAFT, TournamentStatus.OPEN].includes(tournament.status as TournamentStatus);
     } catch (error: any) {
       if (error instanceof AppError) {
         throw error;
@@ -638,8 +638,8 @@ export class TournamentModel {
       const currentParticipants = await this.prisma.player.count();
 
       // Calculate completion rates
-      const completedTournaments = statusStats.find(s => s.status === 'COMPLETED')?._count.status || 0;
-      const inProgressTournaments = statusStats.find(s => s.status === 'IN_PROGRESS')?._count.status || 0;
+      const completedTournaments = statusStats.find(s => s.status === 'FINISHED')?._count.status || 0;
+      const inProgressTournaments = statusStats.find(s => s.status === 'LIVE')?._count.status || 0;
       const totalNonDraft = totalTournaments - (statusStats.find(s => s.status === 'DRAFT')?._count.status || 0);
       
       const completionRate = totalNonDraft > 0 ? (completedTournaments / totalNonDraft) * 100 : 0;

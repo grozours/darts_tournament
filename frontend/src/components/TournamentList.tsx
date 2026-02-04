@@ -98,6 +98,24 @@ function TournamentList() {
     return params.get('status')?.toUpperCase() || 'ALL';
   }, []);
 
+  const normalizeStatus = (status?: string) => {
+    if (!status) return '';
+    const normalized = status.trim().toUpperCase();
+    switch (normalized) {
+      case 'REGISTRATION_OPEN':
+        return 'OPEN';
+      case 'IN_PROGRESS':
+        return 'LIVE';
+      case 'COMPLETED':
+      case 'ARCHIVED':
+        return 'FINISHED';
+      default:
+        return normalized;
+    }
+  };
+
+  const normalizedStatusFilter = statusFilter === 'ALL' ? 'ALL' : normalizeStatus(statusFilter);
+
   const toLocalInput = (value?: string) => {
     if (!value) return '';
     const date = new Date(value);
@@ -207,7 +225,7 @@ function TournamentList() {
     });
     setEditError(null);
     setPlayersError(null);
-    if (tournament.status === 'REGISTRATION_OPEN') {
+    if (normalizeStatus(tournament.status) === 'OPEN') {
       void fetchPlayers(tournament.id);
     } else {
       setPlayers([]);
@@ -392,7 +410,7 @@ function TournamentList() {
     setEditError(null);
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      await updateTournamentStatus(editingTournament.id, 'REGISTRATION_OPEN', token);
+      await updateTournamentStatus(editingTournament.id, 'OPEN', token);
       closeEdit();
       fetchTournaments();
     } catch (err) {
@@ -530,10 +548,10 @@ function TournamentList() {
           {statusFilter === 'ALL' ? (
             ([
               { title: 'Draft tournaments', status: 'DRAFT' },
-              { title: 'Registration open', status: 'REGISTRATION_OPEN' },
+              { title: 'Registration open', status: 'OPEN' },
             ] as const).map((group) => {
               const groupItems = tournaments.filter(
-                (tournament) => tournament.status === group.status
+                (tournament) => normalizeStatus(tournament.status) === group.status
               );
 
               return (
@@ -557,14 +575,14 @@ function TournamentList() {
           ) : (
             (() => {
               const filteredTournaments = tournaments.filter(
-                (tournament) => tournament.status === statusFilter
+                (tournament) => normalizeStatus(tournament.status) === normalizedStatusFilter
               );
 
               return (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-white">
-                      {statusFilter === 'DRAFT' ? 'Draft tournaments' : 'Registration open'}
+                      {normalizedStatusFilter === 'DRAFT' ? 'Draft tournaments' : 'Registration open'}
                     </h3>
                     <span className="text-sm text-slate-400">{filteredTournaments.length}</span>
                   </div>
@@ -673,7 +691,7 @@ function TournamentList() {
               </label>
             </div>
 
-            {editingTournament.status === 'REGISTRATION_OPEN' && (
+            {normalizeStatus(editingTournament.status) === 'OPEN' && (
               <div className="mt-8 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

@@ -54,7 +54,7 @@ describe('TournamentList - player registration', () => {
           name: 'Registration Open Tournament',
           format: 'SINGLE',
           totalParticipants: 8,
-          status: 'REGISTRATION_OPEN',
+          status: 'OPEN',
           durationType: 'FULL_DAY',
           startTime: new Date('2026-04-10T10:00:00.000Z').toISOString(),
           endTime: new Date('2026-04-10T18:00:00.000Z').toISOString(),

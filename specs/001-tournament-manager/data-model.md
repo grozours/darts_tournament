@@ -19,7 +19,7 @@
 - `end_time: datetime` (tournament end time)
 - `total_participants: integer` (configured number of players/teams)
 - `target_count: integer` (number of dartboards available)
-- `status: enum` (draft, registration_open, in_progress, completed, archived)
+- `status: enum` (draft, open, signature, live, finished)
 - `created_at: datetime`
 - `completed_at: datetime?`
 - `historical_flag: boolean` (marks completed tournaments)

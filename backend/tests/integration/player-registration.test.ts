@@ -50,7 +50,7 @@ describe('Tournament Player Registration - Integration Tests', () => {
 
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'REGISTRATION_OPEN' })
+      .send({ status: 'OPEN' })
       .expect(200);
 
     const registerResponse = await request(server)

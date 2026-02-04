@@ -305,10 +305,10 @@ enum DurationType {
 
 enum TournamentStatus {
   DRAFT
-  REGISTRATION_OPEN
-  IN_PROGRESS
-  COMPLETED
-  ARCHIVED
+  OPEN
+  SIGNATURE
+  LIVE
+  FINISHED
 
   @@map("tournament_status")
 }

@@ -154,8 +154,8 @@ socket.on('next_match_assigned', {
 ```javascript
 socket.on('tournament_status_changed', {
   tournament_id: 'uuid',
-  old_status: 'registration_open',
-  new_status: 'in_progress',
+  old_status: 'open',
+  new_status: 'live',
   changed_at: '2026-02-03T14:00:00Z',
   message: 'Tournament has started - Pool stage beginning'
 });
@@ -205,7 +205,7 @@ socket.on('tournament_error', {
 ```javascript
 socket.on('connection_error', {
   error_type: 'tournament_not_found',
-  message: 'Tournament ID does not exist or has been archived',
+  message: 'Tournament ID does not exist or is finished',
   tournament_id: 'uuid'
 });
 ```
