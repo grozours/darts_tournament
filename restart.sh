@@ -82,24 +82,22 @@ show_logs() {
     local service=$1
     case $service in
         "backend")
-            if [ -f "$BACKEND_DIR/logs/server.log" ]; then
-                print_status "Backend logs (last 50 lines):"
-                print_status "Backend logs (last 50 lines):"
-                $COMPOSE_CMD logs --tail=50 backend
-            if [ -f "$FRONTEND_DIR/logs/vite.log" ]; then
-                print_status "Frontend logs (last 50 lines):"
-                print_status "Frontend logs (last 50 lines):"
-                $COMPOSE_CMD logs --tail=50 frontend
+            print_status "Backend logs (last 50 lines):"
+            $COMPOSE_CMD logs --tail=50 backend
+            ;;
+        "frontend")
+            print_status "Frontend logs (last 50 lines):"
+            $COMPOSE_CMD logs --tail=50 frontend
+            ;;
+        *)
             print_error "Invalid service. Use 'backend' or 'frontend'"
             ;;
     esac
 }
 
 # Create log directories if they don't exist
-mkdir -p "$BACKEND_DIR/logs"
-mkdir -p "$FRONTEND_DIR/logs"
-    mkdir -p "$PROJECT_ROOT/backend/logs"
-    mkdir -p "$PROJECT_ROOT/frontend/logs"
+mkdir -p "$PROJECT_ROOT/backend/logs"
+mkdir -p "$PROJECT_ROOT/frontend/logs"
 case "${1:-both}" in
     "backend")
         print_status "🔄 Restarting backend only..."
@@ -111,11 +109,12 @@ case "${1:-both}" in
         ;;
     "both")
         print_status "🔄 Restarting both backend and frontend..."
-        start_backend && start_frontend
+        cd "$PROJECT_ROOT" || exit 1
+        $COMPOSE_CMD up -d --build
+        print_success "Services started"
+        check_status
         ;;
-            cd "$PROJECT_ROOT" || exit 1
-            $COMPOSE_CMD up -d --build
-            print_success "Services started"
+    "stop")
         stop_services
         ;;
     "status")

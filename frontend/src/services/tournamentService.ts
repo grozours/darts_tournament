@@ -16,12 +16,14 @@ export interface CreateTournamentResponse {
 }
 
 export async function createTournament(
-  payload: CreateTournamentPayload
+  payload: CreateTournamentPayload,
+  token?: string
 ): Promise<CreateTournamentResponse> {
   const response = await fetch('/api/tournaments', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -35,13 +37,15 @@ export async function createTournament(
 
 export async function uploadTournamentLogo(
   tournamentId: string,
-  file: File
+  file: File,
+  token?: string
 ): Promise<{ logo_url: string } | void> {
   const formData = new FormData();
   formData.append('logo', file);
 
   const response = await fetch(`/api/tournaments/${tournamentId}/logo`, {
     method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   });
 

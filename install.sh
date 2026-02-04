@@ -122,6 +122,8 @@ clone_repo() {
     fi
 }
 
+USE_DOCKER=0
+
 # Function to setup backend
 setup_backend() {
     local project_dir="$1"
@@ -147,7 +149,32 @@ setup_backend() {
         print_warning "Please edit backend/.env with your database credentials"
     elif [ ! -f ".env" ]; then
         print_status "Creating default .env file..."
-        cat > .env << 'EOF'
+        if [ "$USE_DOCKER" -eq 1 ]; then
+            cat > .env << 'EOF'
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# Database Configuration
+DATABASE_URL="postgresql://darts_user:darts_password@postgres:5432/darts_tournament"
+
+# Redis Configuration
+REDIS_HOST="redis"
+REDIS_PORT=6379
+
+# Auth0
+AUTH_ISSUER_BASE_URL="https://your-tenant.eu.auth0.com"
+AUTH_AUDIENCE="https://api.yourdomain.com"
+
+# CORS Configuration
+CORS_ORIGINS="http://localhost:3001"
+
+# File Upload Configuration
+MAX_FILE_SIZE=5242880
+UPLOAD_DIR="./uploads"
+EOF
+        else
+            cat > .env << 'EOF'
 # Server Configuration
 PORT=3000
 NODE_ENV=development
@@ -156,19 +183,21 @@ NODE_ENV=development
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/darts_tournament?schema=public"
 
 # Redis Configuration
-REDIS_URL="redis://localhost:6379"
+REDIS_HOST="localhost"
+REDIS_PORT=6379
 
-# JWT Configuration
-JWT_SECRET="your-super-secret-jwt-key-change-in-production"
-JWT_EXPIRES_IN="7d"
+# Auth0
+AUTH_ISSUER_BASE_URL="https://your-tenant.eu.auth0.com"
+AUTH_AUDIENCE="https://api.yourdomain.com"
 
 # CORS Configuration
-CORS_ORIGIN="http://localhost:5173"
+CORS_ORIGINS="http://localhost:3001"
 
 # File Upload Configuration
 MAX_FILE_SIZE=5242880
 UPLOAD_DIR="./uploads"
 EOF
+        fi
         print_warning "Created default .env file. Please update with your settings."
     fi
     
@@ -186,7 +215,7 @@ EOF
     print_success "Backend setup complete!"
 }
 
-# Function to setup frontend
+ # Function to setup frontend
 setup_frontend() {
     local project_dir="$1"
     local frontend_dir="$project_dir/frontend"
@@ -214,7 +243,7 @@ setup_frontend() {
     print_success "Frontend setup complete!"
 }
 
-# Function to setup database with Docker
+ # Function to setup database with Docker
 setup_docker_services() {
     local project_dir="$1"
     
@@ -229,12 +258,12 @@ setup_docker_services() {
         return 0
     fi
     
-    print_status "Starting Docker services (PostgreSQL & Redis)..."
+    print_status "Starting Docker services (PostgreSQL, Redis, backend, frontend)..."
     
     cd "$project_dir"
     
     if [ -f "docker-compose.yml" ]; then
-        docker compose up -d postgres redis 2>/dev/null || docker-compose up -d postgres redis 2>/dev/null
+        docker compose up -d --build 2>/dev/null || docker-compose up -d --build 2>/dev/null
         print_success "Docker services started!"
         
         # Wait for services to be ready
@@ -245,36 +274,50 @@ setup_docker_services() {
     fi
 }
 
-# Function to run database migrations
+ # Function to run database migrations
 run_migrations() {
     local project_dir="$1"
     local backend_dir="$project_dir/backend"
     
     print_status "Running database migrations..."
     
-    cd "$backend_dir"
-    
-    npx prisma migrate deploy 2>/dev/null || npx prisma db push 2>/dev/null || {
-        print_warning "Database migrations failed. Make sure PostgreSQL is running and configured."
-        return 1
-    }
+    if [ "$USE_DOCKER" -eq 1 ]; then
+        cd "$project_dir"
+        docker compose exec -T backend npx prisma migrate deploy 2>/dev/null || {
+            print_warning "Database migrations failed in Docker. Check container logs."
+            return 1
+        }
+    else
+        cd "$backend_dir"
+        npx prisma migrate deploy 2>/dev/null || npx prisma db push 2>/dev/null || {
+            print_warning "Database migrations failed. Make sure PostgreSQL is running and configured."
+            return 1
+        }
+    fi
     
     print_success "Database migrations complete!"
 }
 
-# Function to seed the database with sample data
+ # Function to seed the database with sample data
 seed_database() {
     local project_dir="$1"
     local backend_dir="$project_dir/backend"
     
     print_status "Seeding database with sample data..."
     
-    cd "$backend_dir"
-    
-    npx prisma db seed 2>/dev/null || npm run db:seed 2>/dev/null || {
-        print_warning "Database seeding failed. You can run it manually later: npm run db:seed"
-        return 1
-    }
+    if [ "$USE_DOCKER" -eq 1 ]; then
+        cd "$project_dir"
+        docker compose exec -T backend npx prisma db seed 2>/dev/null || {
+            print_warning "Database seeding failed in Docker. You can run it manually later: docker compose exec -T backend npx prisma db seed"
+            return 1
+        }
+    else
+        cd "$backend_dir"
+        npx prisma db seed 2>/dev/null || npm run db:seed 2>/dev/null || {
+            print_warning "Database seeding failed. You can run it manually later: npm run db:seed"
+            return 1
+        }
+    fi
     
     print_success "Database seeded with sample data!"
 }
@@ -395,24 +438,22 @@ show_final_instructions() {
     echo "   cd $project_dir/backend"
     echo "   Edit .env with your database credentials"
     echo ""
-    echo "2. Start the database (if using Docker):"
+    echo "2. Start services with Docker Compose:"
     echo "   cd $project_dir"
-    echo "   docker compose up -d"
+    echo "   ./restart.sh both"
     echo ""
     echo "3. Run database migrations:"
-    echo "   cd $project_dir/backend"
-    echo "   npm run db:migrate"
+    echo "   docker compose exec -T backend npx prisma migrate deploy"
     echo ""
     echo "4. Seed the database (optional):"
-    echo "   cd $project_dir/backend"
-    echo "   npm run db:seed"
+    echo "   docker compose exec -T backend npx prisma db seed"
     echo ""
     echo "5. Start the services:"
     echo "   cd $project_dir"
     echo "   ./restart.sh both"
     echo ""
     echo "6. Access the application:"
-    echo "   Frontend: http://localhost:5173"
+    echo "   Frontend: http://localhost:3001"
     echo "   Backend:  http://localhost:3000"
     echo "   Health:   http://localhost:3000/health"
     echo ""
@@ -457,8 +498,9 @@ main() {
     echo ""
     
     # Setup Docker services (optional)
-    read -p "Do you want to start Docker services (PostgreSQL & Redis)? (y/N): " start_docker
+    read -p "Do you want to start Docker services (PostgreSQL, Redis, backend, frontend)? (y/N): " start_docker
     if [[ "$start_docker" =~ ^[Yy]$ ]]; then
+        USE_DOCKER=1
         setup_docker_services "$full_path"
         echo ""
     fi

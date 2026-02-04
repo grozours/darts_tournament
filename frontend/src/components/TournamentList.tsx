@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 
 interface Tournament {
   id: string;
@@ -9,6 +10,12 @@ interface Tournament {
 }
 
 function TournamentList() {
+  const {
+    isAuthenticated,
+    isLoading: authLoading,
+    loginWithRedirect,
+    getAccessTokenSilently,
+  } = useAuth0();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +25,12 @@ function TournamentList() {
     setError(null);
     
     try {
-      const response = await fetch('/api/tournaments');
+      const token = await getAccessTokenSilently();
+      const response = await fetch('/api/tournaments', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch tournaments');
       }
@@ -33,18 +45,22 @@ function TournamentList() {
   };
 
   useEffect(() => {
-    fetchTournaments();
-  }, []);
+    if (isAuthenticated) {
+      fetchTournaments();
+    }
+  }, [isAuthenticated]);
 
   const createTournament = async () => {
     const name = prompt('Tournament name:');
     if (!name) return;
 
     try {
+      const token = await getAccessTokenSilently();
       const response = await fetch('/api/tournaments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name,
@@ -72,8 +88,12 @@ function TournamentList() {
     if (!confirm('Are you sure you want to delete this tournament?')) return;
 
     try {
+      const token = await getAccessTokenSilently();
       const response = await fetch(`/api/tournaments/${id}`, {
         method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (response.ok) {
@@ -86,6 +106,35 @@ function TournamentList() {
       alert('Failed to delete tournament');
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="relative">
+          <div className="h-10 w-10 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
+          <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
+        </div>
+        <span className="ml-3 text-slate-300">Checking session...</span>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
+        <h3 className="text-xl font-semibold text-white">Sign in to view tournaments</h3>
+        <p className="mt-2 text-sm text-slate-300">
+          Your tournaments are protected. Please sign in to continue.
+        </p>
+        <button
+          onClick={() => loginWithRedirect()}
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

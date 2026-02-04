@@ -150,7 +150,7 @@ npm run db:seed
 ```
 
 Access the application:
-- **Frontend**: http://localhost:5173
+- **Frontend**: http://localhost:3001
 - **Backend API**: http://localhost:3000
 - **Health Check**: http://localhost:3000/health
 
@@ -166,7 +166,7 @@ The `restart.sh` script manages backend and frontend services:
 
 # Start individual services
 ./restart.sh backend    # Start backend only (port 3000)
-./restart.sh frontend   # Start frontend only (port 5173)
+./restart.sh frontend   # Start frontend only (port 3001)
 
 # Stop services
 ./restart.sh stop       # Stop all services
