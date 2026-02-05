@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, Tournament as PrismaTournament, Player as PrismaPlayer } from '@prisma/client';
 import {
   Tournament,
   TournamentFormat,
@@ -15,8 +15,66 @@ import {
 } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 
+type PrismaError = { code?: string; meta?: { target?: unknown } };
+
+const getPrismaErrorCode = (error: unknown): string | undefined => {
+  const code = (error as PrismaError)?.code;
+  return typeof code === 'string' ? code : undefined;
+};
+
+const logModelError = (context: string, error: unknown) => {
+  console.error(`[TournamentModel] ${context}`, error);
+};
+
+const liveViewArgs = {
+  include: {
+    poolStages: {
+      orderBy: { stageNumber: 'asc' },
+      include: {
+        pools: {
+          orderBy: { poolNumber: 'asc' },
+          include: {
+            assignments: {
+              orderBy: { assignedAt: 'asc' },
+              include: { player: true },
+            },
+            matches: {
+              orderBy: { matchNumber: 'asc' },
+              include: {
+                playerMatches: { include: { player: true } },
+                winner: true,
+                target: true,
+              },
+            },
+          },
+        },
+      },
+    },
+    brackets: {
+      orderBy: { createdAt: 'asc' },
+      include: {
+        entries: {
+          orderBy: { seedNumber: 'asc' },
+          include: { player: true },
+        },
+        matches: {
+          orderBy: { matchNumber: 'asc' },
+          include: {
+            playerMatches: { include: { player: true } },
+            winner: true,
+            target: true,
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+type TournamentLiveView = Prisma.TournamentGetPayload<typeof liveViewArgs>;
+
+
 export class TournamentModel {
-  private prisma: PrismaClient;
+  private readonly prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -52,8 +110,9 @@ export class TournamentModel {
       });
 
       return this.mapToTournament(tournament);
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error) {
+      logModelError('create', error);
+      if (getPrismaErrorCode(error) === 'P2002') {
         // Unique constraint violation
         throw new AppError(
           'Tournament with this name already exists',
@@ -79,7 +138,8 @@ export class TournamentModel {
       });
 
       return tournament ? this.mapToTournament(tournament) : null;
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('findById', error);
       throw new AppError(
         'Failed to fetch tournament',
         500,
@@ -91,53 +151,14 @@ export class TournamentModel {
   /**
    * Find tournament with live view details
    */
-  async findLiveView(id: string): Promise<any | null> {
+  async findLiveView(id: string): Promise<TournamentLiveView | null> {
     try {
       return await this.prisma.tournament.findUnique({
         where: { id },
-        include: {
-          poolStages: {
-            orderBy: { stageNumber: 'asc' },
-            include: {
-              pools: {
-                orderBy: { poolNumber: 'asc' },
-                include: {
-                  assignments: {
-                    orderBy: { assignedAt: 'asc' },
-                    include: { player: true },
-                  },
-                  matches: {
-                    orderBy: { matchNumber: 'asc' },
-                    include: {
-                      playerMatches: { include: { player: true } },
-                      winner: true,
-                      target: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          brackets: {
-            orderBy: { createdAt: 'asc' },
-            include: {
-              entries: {
-                orderBy: { seedNumber: 'asc' },
-                include: { player: true },
-              },
-              matches: {
-                orderBy: { matchNumber: 'asc' },
-                include: {
-                  playerMatches: { include: { player: true } },
-                  winner: true,
-                  target: true,
-                },
-              },
-            },
-          },
-        },
+        ...liveViewArgs,
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('findLiveView', error);
       throw new AppError(
         'Failed to fetch live tournament view',
         500,
@@ -150,7 +171,7 @@ export class TournamentModel {
    * Find all tournaments with optional filtering
    */
   async findAll(options?: {
-    status?: string;
+    status?: TournamentStatus;
     format?: TournamentFormat;
     name?: string;
     page?: number;
@@ -169,7 +190,7 @@ export class TournamentModel {
         sortOrder = 'desc',
       } = options || {};
 
-      const where: any = {};
+      const where: Prisma.TournamentWhereInput = {};
       
       if (status) {
         where.status = status;
@@ -206,7 +227,8 @@ export class TournamentModel {
         page,
         limit,
       };
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('findAll', error);
       throw new AppError(
         'Failed to fetch tournaments',
         500,
@@ -224,7 +246,8 @@ export class TournamentModel {
         where: { tournamentId },
         orderBy: { stageNumber: 'asc' },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getPoolStages', error);
       throw new AppError(
         'Failed to fetch pool stages',
         500,
@@ -251,8 +274,9 @@ export class TournamentModel {
           advanceCount: data.advanceCount,
         },
       });
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error) {
+      logModelError('createPoolStage', error);
+      if (getPrismaErrorCode(error) === 'P2002') {
         throw new AppError(
           'Pool stage already exists for this stage number',
           400,
@@ -276,6 +300,7 @@ export class TournamentModel {
       playersPerPool: number;
       advanceCount: number;
       status: StageStatus;
+      completedAt: Date | null;
     }>
   ) {
     try {
@@ -283,15 +308,16 @@ export class TournamentModel {
         where: { id: stageId },
         data,
       });
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('updatePoolStage', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Pool stage not found',
           404,
           'POOL_STAGE_NOT_FOUND'
         );
       }
-      if (error.code === 'P2002') {
+      if (getPrismaErrorCode(error) === 'P2002') {
         throw new AppError(
           'Pool stage already exists for this stage number',
           400,
@@ -311,7 +337,8 @@ export class TournamentModel {
       return await this.prisma.poolStage.findUnique({
         where: { id: stageId },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getPoolStageById', error);
       throw new AppError(
         'Failed to fetch pool stage',
         500,
@@ -325,7 +352,8 @@ export class TournamentModel {
       return await this.prisma.pool.count({
         where: { poolStageId: stageId },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getPoolCountForStage', error);
       return 0;
     }
   }
@@ -336,7 +364,8 @@ export class TournamentModel {
         where: { poolStageId: stageId },
         orderBy: { poolNumber: 'asc' },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getPoolsForStage', error);
       throw new AppError(
         'Failed to fetch pools',
         500,
@@ -357,7 +386,8 @@ export class TournamentModel {
           },
         },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getPoolsWithAssignmentsForStage', error);
       throw new AppError(
         'Failed to fetch pools',
         500,
@@ -371,7 +401,8 @@ export class TournamentModel {
       return await this.prisma.poolAssignment.count({
         where: { pool: { poolStageId: stageId } },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getPoolAssignmentCountForStage', error);
       return 0;
     }
   }
@@ -382,7 +413,8 @@ export class TournamentModel {
         where: { tournamentId, isActive: true },
         orderBy: { registeredAt: 'asc' },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getActivePlayersForTournament', error);
       throw new AppError(
         'Failed to fetch tournament players',
         500,
@@ -410,7 +442,8 @@ export class TournamentModel {
       return await this.prisma.match.count({
         where: { poolId },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getMatchCountForPool', error);
       return 0;
     }
   }
@@ -456,12 +489,30 @@ export class TournamentModel {
     });
   }
 
+  async completePoolsForStage(stageId: string, completedAt: Date): Promise<void> {
+    await this.prisma.pool.updateMany({
+      where: { poolStageId: stageId },
+      data: { status: PoolStatus.COMPLETED, completedAt },
+    });
+  }
+
+  async completeMatchesForStage(stageId: string, completedAt: Date): Promise<void> {
+    await this.prisma.match.updateMany({
+      where: {
+        pool: { poolStageId: stageId },
+        status: { in: [MatchStatus.SCHEDULED, MatchStatus.IN_PROGRESS] },
+      },
+      data: { status: MatchStatus.COMPLETED, completedAt },
+    });
+  }
+
   async getMatchById(matchId: string) {
     try {
       return await this.prisma.match.findUnique({
         where: { id: matchId },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getMatchById', error);
       throw new AppError(
         'Failed to fetch match',
         500,
@@ -484,8 +535,9 @@ export class TournamentModel {
           ...(timestamps?.completedAt !== undefined && { completedAt: timestamps.completedAt }),
         },
       });
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('updateMatchStatus', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Match not found',
           404,
@@ -506,7 +558,8 @@ export class TournamentModel {
         where: { id: matchId },
         include: { playerMatches: true },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getMatchWithPlayerMatches', error);
       throw new AppError(
         'Failed to fetch match',
         500,
@@ -543,8 +596,9 @@ export class TournamentModel {
           },
         }),
       ]);
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('completeMatch', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
       }
       throw new AppError(
@@ -580,8 +634,9 @@ export class TournamentModel {
           },
         }),
       ]);
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('updateMatchScores', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
       }
       throw new AppError(
@@ -615,8 +670,9 @@ export class TournamentModel {
       await this.prisma.poolStage.delete({
         where: { id: stageId },
       });
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('deletePoolStage', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Pool stage not found',
           404,
@@ -640,7 +696,8 @@ export class TournamentModel {
         where: { tournamentId },
         orderBy: { createdAt: 'asc' },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getBrackets', error);
       throw new AppError(
         'Failed to fetch brackets',
         500,
@@ -663,7 +720,8 @@ export class TournamentModel {
           totalRounds: data.totalRounds,
         },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('createBracket', error);
       throw new AppError(
         'Failed to create bracket',
         500,
@@ -686,8 +744,9 @@ export class TournamentModel {
         where: { id: bracketId },
         data,
       });
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('updateBracket', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Bracket not found',
           404,
@@ -707,8 +766,9 @@ export class TournamentModel {
       await this.prisma.bracket.delete({
         where: { id: bracketId },
       });
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('deleteBracket', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Bracket not found',
           404,
@@ -749,15 +809,16 @@ export class TournamentModel {
       });
 
       return this.mapToTournament(tournament);
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('update', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Tournament not found',
           404,
           'TOURNAMENT_NOT_FOUND'
         );
       }
-      if (error.code === 'P2002') {
+      if (getPrismaErrorCode(error) === 'P2002') {
         throw new AppError(
           'Tournament with this name already exists',
           400,
@@ -781,8 +842,9 @@ export class TournamentModel {
         where: { id },
       });
       return true;
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('delete', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Tournament not found',
           404,
@@ -822,7 +884,8 @@ export class TournamentModel {
       });
 
       return tournaments.map(tournament => this.mapToTournament(tournament));
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('findByDateRange', error);
       throw new AppError(
         'Failed to fetch tournaments by date range',
         500,
@@ -856,7 +919,8 @@ export class TournamentModel {
         TournamentStatus.SIGNATURE,
         TournamentStatus.LIVE,
       ].includes(tournament.status as TournamentStatus);
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('isEditable', error);
       if (error instanceof AppError) {
         throw error;
       }
@@ -883,8 +947,9 @@ export class TournamentModel {
           registeredAt: new Date(),
         },
       });
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error) {
+      logModelError('registerPlayer', error);
+      if (getPrismaErrorCode(error) === 'P2002') {
         throw new AppError(
           'Player is already registered for this tournament',
           400,
@@ -926,8 +991,9 @@ export class TournamentModel {
       });
 
       return this.mapToPlayer(player);
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error) {
+      logModelError('createPlayer', error);
+      if (getPrismaErrorCode(error) === 'P2002') {
         throw new AppError(
           'Player is already registered for this tournament',
           400,
@@ -961,7 +1027,8 @@ export class TournamentModel {
           'PLAYER_NOT_REGISTERED'
         );
       }
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('unregisterPlayer', error);
       if (error instanceof AppError) {
         throw error;
       }
@@ -983,8 +1050,9 @@ export class TournamentModel {
           id: playerId,
         },
       });
-      return !!(player && player.tournamentId === tournamentId);
-    } catch (error: any) {
+      return player?.tournamentId === tournamentId;
+    } catch (error) {
+      logModelError('isPlayerRegistered', error);
       return false;
     }
   }
@@ -1000,7 +1068,8 @@ export class TournamentModel {
           isActive: true,
         },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getParticipantCount', error);
       return 0;
     }
   }
@@ -1017,7 +1086,8 @@ export class TournamentModel {
           checkedIn: true,
         },
       });
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getCheckedInCount', error);
       return 0;
     }
   }
@@ -1025,9 +1095,32 @@ export class TournamentModel {
   /**
    * Get tournament participants with player details
    */
-  async getParticipants(tournamentId: string): Promise<any[]> {
+  async getParticipants(tournamentId: string): Promise<Array<{
+    playerId: string;
+    firstName: string;
+    lastName: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    skillLevel: SkillLevel | null;
+    registeredAt: Date;
+    checkedIn: boolean;
+  }>> {
     try {
-      const participants = await this.prisma.player.findMany({
+      type ParticipantRow = Prisma.PlayerGetPayload<{
+        select: {
+          id: true;
+          firstName: true;
+          lastName: true;
+          email: true;
+          phone: true;
+          skillLevel: true;
+          registeredAt: true;
+          checkedIn: true;
+        };
+      }>;
+
+      const participants: ParticipantRow[] = await this.prisma.player.findMany({
         where: {
           tournamentId,
           isActive: true,
@@ -1047,18 +1140,19 @@ export class TournamentModel {
         },
       });
 
-      return participants.map((player: any) => ({
+      return participants.map((player) => ({
         playerId: player.id,
         firstName: player.firstName,
         lastName: player.lastName,
         name: `${player.firstName} ${player.lastName}`,
         email: player.email,
         phone: player.phone,
-        skillLevel: player.skillLevel,
+        skillLevel: player.skillLevel as SkillLevel | null,
         registeredAt: player.registeredAt,
         checkedIn: player.checkedIn,
       }));
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getParticipants', error);
       throw new AppError(
         'Failed to fetch tournament participants',
         500,
@@ -1085,8 +1179,9 @@ export class TournamentModel {
       });
 
       return this.mapToPlayer(player);
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('updatePlayerCheckIn', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Player not found',
           404,
@@ -1125,15 +1220,16 @@ export class TournamentModel {
       });
 
       return this.mapToPlayer(player);
-    } catch (error: any) {
-      if (error.code === 'P2025') {
+    } catch (error) {
+      logModelError('updatePlayer', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Player not found',
           404,
           'PLAYER_NOT_FOUND'
         );
       }
-      if (error.code === 'P2002') {
+      if (getPrismaErrorCode(error) === 'P2002') {
         throw new AppError(
           'Player is already registered for this tournament',
           400,
@@ -1166,7 +1262,8 @@ export class TournamentModel {
       });
 
       return this.mapToTournament(tournament);
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('updateStatus', error);
       if (error instanceof Error && error.name === 'PrismaClientValidationError') {
         const updatedTournament = await this.updateStatusWithRaw(id, status, completedAt);
         if (!updatedTournament) {
@@ -1178,7 +1275,7 @@ export class TournamentModel {
         }
         return updatedTournament;
       }
-      if (error.code === 'P2025') {
+      if (getPrismaErrorCode(error) === 'P2025') {
         throw new AppError(
           'Tournament not found',
           404,
@@ -1223,7 +1320,9 @@ export class TournamentModel {
   /**
    * Map Prisma tournament result to Tournament type
    */
-  private mapToTournament(prismaResult: any): Tournament {
+  private mapToTournament(
+    prismaResult: PrismaTournament & { players?: unknown; targets?: unknown; matches?: unknown }
+  ): Tournament {
     return {
       id: prismaResult.id,
       name: prismaResult.name,
@@ -1234,29 +1333,31 @@ export class TournamentModel {
       endTime: prismaResult.endTime, // Keep as Date object
       totalParticipants: prismaResult.totalParticipants,
       targetCount: prismaResult.targetCount,
-      logoUrl: prismaResult.logoUrl || undefined,
+      ...(prismaResult.logoUrl ? { logoUrl: prismaResult.logoUrl } : {}),
       createdAt: prismaResult.createdAt, // Keep as Date object
-      completedAt: prismaResult.completedAt || undefined,
+      ...(prismaResult.completedAt ? { completedAt: prismaResult.completedAt } : {}),
       historicalFlag: prismaResult.historicalFlag || false,
       // Include related data if available for extended interface compatibility
-      ...(prismaResult.players && { players: prismaResult.players }),
-      ...(prismaResult.targets && { targets: prismaResult.targets }),
-      ...(prismaResult.matches && { matches: prismaResult.matches }),
+      ...(prismaResult.players ? { players: prismaResult.players } : {}),
+      ...(prismaResult.targets ? { targets: prismaResult.targets } : {}),
+      ...(prismaResult.matches ? { matches: prismaResult.matches } : {}),
     };
   }
 
   /**
    * Map Prisma player result to Player type
    */
-  private mapToPlayer(prismaResult: any): Player {
+  private mapToPlayer(prismaResult: PrismaPlayer): Player {
     return {
       id: prismaResult.id,
       tournamentId: prismaResult.tournamentId,
       firstName: prismaResult.firstName,
       lastName: prismaResult.lastName,
-      email: prismaResult.email || undefined,
-      phone: prismaResult.phone || undefined,
-      skillLevel: prismaResult.skillLevel || undefined,
+      ...(prismaResult.email ? { email: prismaResult.email } : {}),
+      ...(prismaResult.phone ? { phone: prismaResult.phone } : {}),
+      ...(prismaResult.skillLevel
+        ? { skillLevel: prismaResult.skillLevel as SkillLevel }
+        : {}),
       registeredAt: prismaResult.registeredAt,
       isActive: prismaResult.isActive,
       checkedIn: prismaResult.checkedIn,
@@ -1353,9 +1454,10 @@ export class TournamentModel {
           })),
         },
       };
-    } catch (error: any) {
+    } catch (error) {
+      logModelError('getTournamentStatistics', error);
       throw new AppError(
-        `Failed to get tournament statistics: ${error.message}`,
+        `Failed to get tournament statistics: ${error instanceof Error ? error.message : 'Unknown error'}`,
         500,
         'STATS_QUERY_ERROR'
       );

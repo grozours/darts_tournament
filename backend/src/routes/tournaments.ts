@@ -122,12 +122,12 @@ const getTournamentsSchema = {
       .optional(),
     page: z.string()
       .regex(/^\d+$/, 'Page must be a positive integer')
-      .transform((val) => parseInt(val, 10))
+      .transform((val) => Number.parseInt(val, 10))
       .refine((val) => val > 0, 'Page must be greater than 0')
       .optional(),
     limit: z.string()
       .regex(/^\d+$/, 'Limit must be a positive integer')
-      .transform((val) => parseInt(val, 10))
+      .transform((val) => Number.parseInt(val, 10))
       .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100')
       .optional(),
     sortBy: z.enum(['name', 'startTime', 'createdAt']).optional(),

@@ -6,7 +6,7 @@ import { config } from '../config/environment';
 export class AppError extends Error {
   public statusCode: number;
   public isOperational: boolean;
-  public code?: string | undefined;
+  public code?: string;
 
   constructor(message: string, statusCode: number = 500, code?: string) {
     super(message);
@@ -20,42 +20,67 @@ export class AppError extends Error {
   }
 }
 
-// Error handler middleware per constitution requirements
-export const errorHandler = (
-  error: Error | AppError | ZodError,
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  let statusCode = 500;
-  let message = 'Internal Server Error';
-  let code: string | undefined;
-  let details: any = undefined;
+type ErrorContext = {
+  statusCode: number;
+  message: string;
+  code?: string;
+  details?: unknown;
+};
 
-  // Handle different error types
-  if (error instanceof AppError) {
-    statusCode = error.statusCode;
-    message = error.message;
-    code = error.code;
-    details = (error as any).details;
-  } else if (error instanceof ZodError) {
-    statusCode = 400;
-    message = 'Validation Error';
-    code = 'VALIDATION_ERROR';
-    details = error.errors.map(err => ({
-      field: err.path.join('.'),
-      message: err.message,
-      value: (err as any).received || undefined,
-    }));
-  } else if (error instanceof SyntaxError && 'body' in error) {
-    statusCode = 400;
-    message = 'Invalid JSON';
-    code = 'INVALID_JSON';
-  } else if (error.name === 'PrismaClientKnownRequestError') {
-    const prismaError = error as any;
-    statusCode = 400;
-    code = prismaError.code;
-    
+type ErrorWithDetails = Error & { details?: unknown; code?: string };
+type PrismaError = { code?: string; meta?: { target?: unknown } };
+type MulterErrorLike = { code?: string; field?: string; message?: string };
+
+const defaultErrorContext: ErrorContext = {
+  statusCode: 500,
+  message: 'Internal Server Error',
+};
+
+const buildAppErrorContext = (error: AppError): ErrorContext => {
+  const details = (error as ErrorWithDetails).details;
+  const context: ErrorContext = {
+    statusCode: error.statusCode,
+    message: error.message,
+  };
+  if (error.code) {
+    context.code = error.code;
+  }
+  if (details) {
+    context.details = details;
+  }
+  return context;
+};
+
+const buildZodErrorContext = (error: ZodError): ErrorContext => ({
+  statusCode: 400,
+  message: 'Validation Error',
+  code: 'VALIDATION_ERROR',
+  details: error.errors.map(err => ({
+    field: err.path.join('.'),
+    message: err.message,
+    value: 'received' in err ? (err as { received?: unknown }).received : undefined,
+  })),
+});
+
+const buildSyntaxErrorContext = (error: Error): ErrorContext | null => {
+  if (error instanceof SyntaxError && 'body' in error) {
+    return {
+      statusCode: 400,
+      message: 'Invalid JSON',
+      code: 'INVALID_JSON',
+    };
+  }
+
+  return null;
+};
+
+const buildPrismaErrorContext = (error: Error): ErrorContext | null => {
+  if (error.name === 'PrismaClientKnownRequestError') {
+    const prismaError = error as PrismaError;
+    let statusCode = 400;
+    let message = 'Database error';
+    let details: unknown = undefined;
+
     switch (prismaError.code) {
       case 'P2002':
         message = 'Unique constraint violation';
@@ -66,14 +91,30 @@ export const errorHandler = (
         statusCode = 404;
         break;
       default:
-        message = 'Database error';
+        break;
     }
-  } else if (error.name === 'MulterError') {
-    const multerError = error as any;
-    statusCode = 400;
-    code = multerError.code || 'FILE_UPLOAD_ERROR';
 
-    // Customize messages for common multer errors to match contract tests
+    const context: ErrorContext = {
+      statusCode,
+      message,
+    };
+    if (prismaError.code) {
+      context.code = prismaError.code;
+    }
+    if (details) {
+      context.details = details;
+    }
+    return context;
+  }
+
+  return null;
+};
+
+const buildMulterErrorContext = (error: Error): ErrorContext | null => {
+  if (error.name === 'MulterError') {
+    const multerError = error as MulterErrorLike;
+    let message = multerError.message || 'File upload error';
+
     if (multerError.code === 'LIMIT_FILE_SIZE') {
       message = 'File too large';
     } else if (multerError.code === 'LIMIT_FILE_COUNT') {
@@ -84,10 +125,44 @@ export const errorHandler = (
       } else {
         message = 'Only a single file is allowed';
       }
-    } else {
-      message = multerError.message || 'File upload error';
     }
+
+    return {
+      statusCode: 400,
+      message,
+      code: multerError.code || 'FILE_UPLOAD_ERROR',
+    };
   }
+
+  return null;
+};
+
+const resolveErrorContext = (error: Error | AppError | ZodError): ErrorContext => {
+  if (error instanceof AppError) {
+    return buildAppErrorContext(error);
+  }
+
+  if (error instanceof ZodError) {
+    return buildZodErrorContext(error);
+  }
+
+  return (
+    buildSyntaxErrorContext(error) ||
+    buildPrismaErrorContext(error) ||
+    buildMulterErrorContext(error) ||
+    defaultErrorContext
+  );
+};
+
+// Error handler middleware per constitution requirements
+export const errorHandler = (
+  error: Error | AppError | ZodError,
+  req: Request,
+  res: Response,
+  _next: NextFunction
+): void => {
+  void _next;
+  const { statusCode, message, code, details } = resolveErrorContext(error);
 
   // Log error per constitution logging requirements
   const errorLog = {
@@ -113,8 +188,8 @@ export const errorHandler = (
     error: {
       message,
       statusCode,
-      ...(code && { code }),
-      ...(details && { details }),
+      ...(code ? { code } : {}),
+      ...(details ? { details } : {}),
       ...(config.isDevelopment && { stack: error.stack }),
     },
     timestamp: new Date().toISOString(),
@@ -125,7 +200,9 @@ export const errorHandler = (
 };
 
 // Async error wrapper
-export const asyncHandler = (fn: Function) => (
+type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void> | void;
+
+export const asyncHandler = (fn: AsyncHandler) => (
   req: Request,
   res: Response,
   next: NextFunction
@@ -154,7 +231,7 @@ export const createValidationError = (
 ): AppError => {
   const error = new AppError(message, 400, 'VALIDATION_ERROR');
   if (field) {
-    (error as any).field = field;
+    (error as AppError & { field?: string }).field = field;
   }
   return error;
 };

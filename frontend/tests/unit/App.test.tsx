@@ -21,7 +21,7 @@ describe('Home page', () => {
   it('renders the header and empty state', async () => {
     render(<App />);
 
-    expect(screen.getByText(/darts hub/i)).toBeInTheDocument();
+    expect(screen.getByText(/tournament manager/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText(/no tournaments yet/i)).toBeInTheDocument();

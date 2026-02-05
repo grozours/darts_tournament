@@ -10,8 +10,10 @@ import {
   AssignmentType,
   PoolStatus,
   MatchStatus,
+  CreatePlayerRequest,
+  Player,
+  SkillLevel,
 } from '../../../shared/src/types';
-import { CreatePlayerRequest, Player, SkillLevel } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 import { PrismaClient } from '@prisma/client';
 import TournamentLogger from '../utils/tournamentLogger';
@@ -28,7 +30,7 @@ export interface CreateTournamentData {
 }
 
 export interface TournamentFilters {
-  status?: string;
+  status?: TournamentStatus;
   format?: TournamentFormat;
   name?: string;
   page?: number;
@@ -37,9 +39,11 @@ export interface TournamentFilters {
   sortOrder?: 'asc' | 'desc';
 }
 
+type TournamentUpdateData = Parameters<TournamentModel['update']>[1];
+
 export class TournamentService {
-  private tournamentModel: TournamentModel;
-  private logger: TournamentLogger;
+  private readonly tournamentModel: TournamentModel;
+  private readonly logger: TournamentLogger;
 
   constructor(prisma: PrismaClient, req?: Request) {
     this.tournamentModel = new TournamentModel(prisma);
@@ -162,10 +166,12 @@ export class TournamentService {
   /**
    * Get live view data for tournament
    */
-  async getTournamentLiveView(tournamentId: string): Promise<any> {
+  async getTournamentLiveView(tournamentId: string): Promise<unknown> {
     this.validateUUID(tournamentId);
 
-    const tournament = await this.tournamentModel.findLiveView(tournamentId);
+    const tournament = await this.tournamentModel.findLiveView(tournamentId) as (Tournament & {
+      status: TournamentStatus;
+    }) | null;
     if (!tournament) {
       throw new AppError(
         'Tournament not found',
@@ -217,54 +223,11 @@ export class TournamentService {
     updateData: Partial<CreateTournamentData>
   ): Promise<Tournament> {
     this.validateUUID(id);
+    await this.ensureTournamentEditable(id);
 
-    // Check if tournament exists and is editable
-    const isEditable = await this.tournamentModel.isEditable(id);
-    if (!isEditable) {
-      throw new AppError(
-        'Tournament cannot be edited in its current status',
-        400,
-        'TOURNAMENT_NOT_EDITABLE'
-      );
-    }
-
-    // Validate update data
-    if (updateData.name !== undefined) {
-      this.validateName(updateData.name);
-      updateData.name = this.sanitizeName(updateData.name);
-    }
-
-    if (updateData.totalParticipants !== undefined) {
-      this.validateParticipantCount(updateData.totalParticipants);
-    }
-
-    if (updateData.targetCount !== undefined) {
-      this.validateTargetCount(updateData.targetCount);
-    }
-
-    // Convert dates if provided
-    let processedData: any = { ...updateData };
-    
-    if (updateData.startTime) {
-      processedData.startTime = new Date(updateData.startTime);
-    }
-    
-    if (updateData.endTime) {
-      processedData.endTime = new Date(updateData.endTime);
-    }
-
-    // Validate dates if both are provided or if we need to check against existing
-    if (processedData.startTime || processedData.endTime) {
-      const existing = await this.tournamentModel.findById(id);
-      const startTime = processedData.startTime || new Date(existing!.startTime);
-      const endTime = processedData.endTime || new Date(existing!.endTime);
-      const allowPastStart =
-        existing?.status === TournamentStatus.SIGNATURE ||
-        existing?.status === TournamentStatus.LIVE ||
-        existing?.status === TournamentStatus.FINISHED;
-
-      this.validateDates(startTime, endTime, allowPastStart);
-    }
+    const sanitizedUpdateData = this.sanitizeUpdateData(updateData);
+    const processedData = this.buildTournamentUpdateData(sanitizedUpdateData);
+    await this.validateUpdateDates(id, processedData);
 
     return await this.tournamentModel.update(id, processedData);
   }
@@ -276,7 +239,7 @@ export class TournamentService {
     this.validateUUID(id);
 
     // Check if tournament exists and can be deleted
-    const tournament = await this.getTournamentById(id);
+    await this.getTournamentById(id);
 
     return await this.tournamentModel.delete(id);
   }
@@ -305,7 +268,7 @@ export class TournamentService {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       throw new AppError(
         'Invalid date format',
         400,
@@ -331,16 +294,23 @@ export class TournamentService {
     if (!name || name.trim().length === 0) {
       return false;
     }
+    const normalizedExcludeId = excludeId?.trim();
+    const hasExcludeId = Boolean(normalizedExcludeId);
 
     try {
-      const tournaments = await this.tournamentModel.findAll({
+      await this.tournamentModel.findAll({
         limit: 1,
       });
+
+      if (hasExcludeId) {
+        // Placeholder for future exclusion logic.
+      }
 
       // This is a simplified check - in a real implementation,
       // you'd want a specific method to check name uniqueness
       return true; // Placeholder - actual implementation would check database
     } catch (error) {
+      this.logger.error('Failed to check tournament name availability', undefined, error);
       return false;
     }
   }
@@ -349,8 +319,6 @@ export class TournamentService {
    * Get tournament statistics
    */
   async getTournamentStats(id: string) {
-    const tournament = await this.getTournamentById(id);
-    
     // Get the tournament with details to access related data
     const tournamentWithDetails = await this.tournamentModel.findById(id);
     
@@ -362,9 +330,14 @@ export class TournamentService {
       );
     }
     
-    const currentParticipants = (tournamentWithDetails as any).players?.length || 0;
-    const matchesTotal = (tournamentWithDetails as any).matches?.length || 0;
-    const matchesCompleted = (tournamentWithDetails as any).matches?.filter((m: any) => m.status === 'completed').length || 0;
+    const tournamentDetails = tournamentWithDetails as Tournament & {
+      players?: unknown[];
+      matches?: Array<{ status?: string }>;
+    };
+    const tournament = tournamentDetails;
+    const currentParticipants = tournamentDetails.players?.length || 0;
+    const matchesTotal = tournamentDetails.matches?.length || 0;
+    const matchesCompleted = tournamentDetails.matches?.filter((m) => m.status === 'completed').length || 0;
     
     return {
       totalParticipants: tournament.totalParticipants,
@@ -395,8 +368,228 @@ export class TournamentService {
     }
   }
 
+  private async ensureTournamentEditable(id: string): Promise<void> {
+    const isEditable = await this.tournamentModel.isEditable(id);
+    if (!isEditable) {
+      throw new AppError(
+        'Tournament cannot be edited in its current status',
+        400,
+        'TOURNAMENT_NOT_EDITABLE'
+      );
+    }
+  }
+
+  private sanitizeUpdateData(updateData: Partial<CreateTournamentData>): Partial<CreateTournamentData> {
+    const sanitized = { ...updateData };
+
+    if (sanitized.name !== undefined) {
+      this.validateName(sanitized.name);
+      sanitized.name = this.sanitizeName(sanitized.name);
+    }
+
+    if (sanitized.totalParticipants !== undefined) {
+      this.validateParticipantCount(sanitized.totalParticipants);
+    }
+
+    if (sanitized.targetCount !== undefined) {
+      this.validateTargetCount(sanitized.targetCount);
+    }
+
+    return sanitized;
+  }
+
+  private buildTournamentUpdateData(updateData: Partial<CreateTournamentData>): TournamentUpdateData {
+    const processedData: TournamentUpdateData = {};
+
+    if (updateData.name !== undefined) {
+      processedData.name = updateData.name;
+    }
+    if (updateData.format !== undefined) {
+      processedData.format = updateData.format;
+    }
+    if (updateData.durationType !== undefined) {
+      processedData.durationType = updateData.durationType;
+    }
+    if (updateData.totalParticipants !== undefined) {
+      processedData.totalParticipants = updateData.totalParticipants;
+    }
+    if (updateData.targetCount !== undefined) {
+      processedData.targetCount = updateData.targetCount;
+    }
+    if (updateData.startTime !== undefined) {
+      processedData.startTime = new Date(updateData.startTime);
+    }
+    if (updateData.endTime !== undefined) {
+      processedData.endTime = new Date(updateData.endTime);
+    }
+
+    return processedData;
+  }
+
+  private async validateUpdateDates(id: string, processedData: TournamentUpdateData): Promise<void> {
+    if (!processedData.startTime && !processedData.endTime) {
+      return;
+    }
+
+    const existing = await this.tournamentModel.findById(id);
+    const startTime = processedData.startTime || new Date(existing!.startTime);
+    const endTime = processedData.endTime || new Date(existing!.endTime);
+    const allowPastStart =
+      existing?.status === TournamentStatus.SIGNATURE ||
+      existing?.status === TournamentStatus.LIVE ||
+      existing?.status === TournamentStatus.FINISHED;
+
+    this.validateDates(startTime, endTime, allowPastStart);
+  }
+
+  private async getEditableTournamentForPoolStage(tournamentId: string): Promise<void> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    if (!this.isPoolStageEditable(tournament.status)) {
+      throw new AppError(
+        'Pool stages can only be modified for draft, open, signature, or live tournaments',
+        400,
+        'POOL_STAGE_NOT_EDITABLE'
+      );
+    }
+  }
+
+  private isPoolStageEditable(status: TournamentStatus): boolean {
+    return [
+      TournamentStatus.DRAFT,
+      TournamentStatus.OPEN,
+      TournamentStatus.SIGNATURE,
+      TournamentStatus.LIVE,
+    ].includes(status);
+  }
+
+  private buildPoolStageUpdateData(
+    data: Partial<{
+      stageNumber: number;
+      name: string;
+      poolCount: number;
+      playersPerPool: number;
+      advanceCount: number;
+      status: StageStatus;
+      completedAt: Date | null;
+    }>
+  ): {
+    nextData: Partial<{
+      stageNumber: number;
+      name: string;
+      poolCount: number;
+      playersPerPool: number;
+      advanceCount: number;
+      status: StageStatus;
+      completedAt: Date | null;
+    }>;
+    shouldRedistribute: boolean;
+  } {
+    const nextData = { ...data };
+    const shouldRedistribute =
+      data.poolCount !== undefined || data.playersPerPool !== undefined;
+
+    if (nextData.status === StageStatus.COMPLETED) {
+      nextData.completedAt = new Date();
+    }
+
+    return { nextData, shouldRedistribute };
+  }
+
+  private async applyPoolStageStatusUpdates(
+    tournamentId: string,
+    stageId: string,
+    updatedStage: Awaited<ReturnType<TournamentModel['updatePoolStage']>>,
+    shouldRedistribute: boolean,
+    completedAt?: Date | null
+  ): Promise<void> {
+    switch (updatedStage.status) {
+      case StageStatus.EDITION:
+        await this.handlePoolStageEdition(tournamentId, stageId, updatedStage, shouldRedistribute);
+        break;
+      case StageStatus.IN_PROGRESS:
+        await this.handlePoolStageInProgress(tournamentId, stageId, updatedStage);
+        break;
+      case StageStatus.COMPLETED:
+        await this.handlePoolStageCompleted(stageId, completedAt ?? new Date());
+        break;
+      default:
+        break;
+    }
+  }
+
+  private async ensurePoolsForStage(
+    stageId: string,
+    updatedStage: Awaited<ReturnType<TournamentModel['updatePoolStage']>>
+  ): Promise<void> {
+    const currentCount = await this.tournamentModel.getPoolCountForStage(stageId);
+    if (currentCount < updatedStage.poolCount) {
+      await this.tournamentModel.createPoolsForStage(
+        stageId,
+        updatedStage.poolCount - currentCount,
+        currentCount + 1
+      );
+    }
+  }
+
+  private async ensurePoolAssignments(
+    tournamentId: string,
+    stageId: string,
+    updatedStage: Awaited<ReturnType<TournamentModel['updatePoolStage']>>,
+    shouldRedistribute: boolean
+  ): Promise<void> {
+    if (shouldRedistribute) {
+      await this.tournamentModel.deletePoolAssignmentsForStage(stageId);
+      await this.assignPlayersToPools(
+        tournamentId,
+        stageId,
+        updatedStage.poolCount,
+        updatedStage.playersPerPool
+      );
+      return;
+    }
+
+    const assignmentsCount = await this.tournamentModel.getPoolAssignmentCountForStage(stageId);
+    if (assignmentsCount === 0) {
+      await this.assignPlayersToPools(
+        tournamentId,
+        stageId,
+        updatedStage.poolCount,
+        updatedStage.playersPerPool
+      );
+    }
+  }
+
+  private async handlePoolStageEdition(
+    tournamentId: string,
+    stageId: string,
+    updatedStage: Awaited<ReturnType<TournamentModel['updatePoolStage']>>,
+    shouldRedistribute: boolean
+  ): Promise<void> {
+    await this.ensurePoolsForStage(stageId, updatedStage);
+    await this.ensurePoolAssignments(tournamentId, stageId, updatedStage, shouldRedistribute);
+  }
+
+  private async handlePoolStageInProgress(
+    tournamentId: string,
+    stageId: string,
+    updatedStage: Awaited<ReturnType<TournamentModel['updatePoolStage']>>
+  ): Promise<void> {
+    await this.ensurePoolsForStage(stageId, updatedStage);
+    await this.ensurePoolAssignments(tournamentId, stageId, updatedStage, false);
+    await this.createPoolMatchesForStage(tournamentId, stageId);
+  }
+
+  private async handlePoolStageCompleted(stageId: string, completedAt: Date): Promise<void> {
+    await this.tournamentModel.completeMatchesForStage(stageId, completedAt);
+    await this.tournamentModel.completePoolsForStage(stageId, completedAt);
+  }
+
   private sanitizeName(name: string): string {
-    return name.replace(/<[^>]*>/g, '').trim();
+    return name.replaceAll(/<[^>]*>/g, '').trim();
   }
 
   private validateName(name: string): void {
@@ -503,7 +696,7 @@ export class TournamentService {
   private validateDates(startTime: Date, endTime: Date, allowPastStart: boolean = false): void {
     const now = new Date();
     
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+    if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
       throw new AppError(
         'Invalid date format',
         400,
@@ -750,7 +943,7 @@ export class TournamentService {
       }
 
       if (playerData.skillLevel) {
-        playerPayload.skillLevel = playerData.skillLevel as SkillLevel;
+        playerPayload.skillLevel = playerData.skillLevel;
       }
 
       const player = await this.tournamentModel.createPlayer(tournamentId, playerPayload);
@@ -835,7 +1028,7 @@ export class TournamentService {
 
     if (
       ![TournamentStatus.DRAFT, TournamentStatus.OPEN].includes(
-        tournament.status as TournamentStatus
+        tournament.status
       )
     ) {
       throw new AppError(
@@ -850,7 +1043,7 @@ export class TournamentService {
       lastName: updateData.lastName.trim(),
       email: updateData.email?.trim() || null,
       phone: updateData.phone?.trim() || null,
-      skillLevel: (updateData.skillLevel as SkillLevel | undefined) || null,
+      skillLevel: updateData.skillLevel ?? null,
     });
   }
 
@@ -892,7 +1085,7 @@ export class TournamentService {
   /**
    * Get tournament participants
    */
-  async getTournamentParticipants(tournamentId: string): Promise<any[]> {
+  async getTournamentParticipants(tournamentId: string): Promise<Awaited<ReturnType<TournamentModel['getParticipants']>>> {
     this.validateUUID(tournamentId);
 
     const tournament = await this.tournamentModel.findById(tournamentId);
@@ -952,58 +1145,23 @@ export class TournamentService {
       playersPerPool: number;
       advanceCount: number;
       status: StageStatus;
+      completedAt: Date | null;
     }>
   ) {
     this.validateUUID(tournamentId);
     this.validateUUID(stageId);
-    const tournament = await this.tournamentModel.findById(tournamentId);
-    if (!tournament) {
-      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
-    }
+    await this.getEditableTournamentForPoolStage(tournamentId);
 
-    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE, TournamentStatus.LIVE].includes(tournament.status)) {
-      throw new AppError(
-        'Pool stages can only be modified for draft, open, signature, or live tournaments',
-        400,
-        'POOL_STAGE_NOT_EDITABLE'
-      );
-    }
+    const { nextData, shouldRedistribute } = this.buildPoolStageUpdateData(data);
+    const updatedStage = await this.tournamentModel.updatePoolStage(stageId, nextData);
 
-    const updatedStage = await this.tournamentModel.updatePoolStage(stageId, data);
-
-    if (updatedStage.status === StageStatus.EDITION) {
-      const currentCount = await this.tournamentModel.getPoolCountForStage(stageId);
-      if (currentCount < updatedStage.poolCount) {
-        await this.tournamentModel.createPoolsForStage(
-          stageId,
-          updatedStage.poolCount - currentCount,
-          currentCount + 1
-        );
-      }
-    }
-
-    if (updatedStage.status === StageStatus.IN_PROGRESS) {
-      const currentCount = await this.tournamentModel.getPoolCountForStage(stageId);
-      if (currentCount < updatedStage.poolCount) {
-        await this.tournamentModel.createPoolsForStage(
-          stageId,
-          updatedStage.poolCount - currentCount,
-          currentCount + 1
-        );
-      }
-
-      const assignmentsCount = await this.tournamentModel.getPoolAssignmentCountForStage(stageId);
-      if (assignmentsCount === 0) {
-        await this.assignPlayersToPools(
-          tournamentId,
-          stageId,
-          updatedStage.poolCount,
-          updatedStage.playersPerPool
-        );
-      }
-
-      await this.createPoolMatchesForStage(tournamentId, stageId);
-    }
+    await this.applyPoolStageStatusUpdates(
+      tournamentId,
+      stageId,
+      updatedStage,
+      shouldRedistribute,
+      nextData.completedAt
+    );
 
     return updatedStage;
   }
@@ -1063,17 +1221,15 @@ export class TournamentService {
       }
 
       const schedule = this.buildRoundRobinSchedule(playerIds);
-      let matchNumber = 1;
       const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
 
       for (const round of schedule) {
         for (const pair of round.pairs) {
           matches.push({
             roundNumber: round.roundNumber,
-            matchNumber,
+            matchNumber: matches.length + 1,
             playerIds: pair,
           });
-          matchNumber += 1;
         }
       }
 
@@ -1114,7 +1270,7 @@ export class TournamentService {
     }
 
     const stage = await this.tournamentModel.getPoolStageById(stageId);
-    if (!stage || stage.tournamentId !== tournamentId) {
+    if (stage?.tournamentId !== tournamentId) {
       throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
     }
 
@@ -1142,7 +1298,7 @@ export class TournamentService {
     }
 
     const stage = await this.tournamentModel.getPoolStageById(stageId);
-    if (!stage || stage.tournamentId !== tournamentId) {
+    if (stage?.tournamentId !== tournamentId) {
       throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
     }
 
@@ -1187,7 +1343,7 @@ export class TournamentService {
     }
 
     const match = await this.tournamentModel.getMatchById(matchId);
-    if (!match || match.tournamentId !== tournamentId) {
+    if (match?.tournamentId !== tournamentId) {
       throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
     }
 
@@ -1238,7 +1394,7 @@ export class TournamentService {
     }
 
     const match = await this.tournamentModel.getMatchWithPlayerMatches(matchId);
-    if (!match || match.tournamentId !== tournamentId) {
+    if (match?.tournamentId !== tournamentId) {
       throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
     }
 
@@ -1267,11 +1423,15 @@ export class TournamentService {
     if (sorted.length < 2) {
       throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
     }
-    if (sorted[0].scoreTotal === sorted[1].scoreTotal) {
+    const [first, second] = sorted;
+    if (!first || !second) {
+      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    }
+    if (first.scoreTotal === second.scoreTotal) {
       throw new AppError('Match cannot end in a tie', 400, 'MATCH_SCORE_TIED');
     }
 
-    const winnerId = sorted[0].playerId;
+    const winnerId = first.playerId;
     const resultScores = normalizedScores.map((score) => ({
       ...score,
       isWinner: score.playerId === winnerId,
@@ -1302,7 +1462,7 @@ export class TournamentService {
     }
 
     const match = await this.tournamentModel.getMatchWithPlayerMatches(matchId);
-    if (!match || match.tournamentId !== tournamentId) {
+    if (match?.tournamentId !== tournamentId) {
       throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
     }
 
@@ -1331,11 +1491,15 @@ export class TournamentService {
     if (sorted.length < 2) {
       throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
     }
-    if (sorted[0].scoreTotal === sorted[1].scoreTotal) {
+    const [first, second] = sorted;
+    if (!first || !second) {
+      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    }
+    if (first.scoreTotal === second.scoreTotal) {
       throw new AppError('Match cannot end in a tie', 400, 'MATCH_SCORE_TIED');
     }
 
-    const winnerId = sorted[0].playerId;
+    const winnerId = first.playerId;
     const resultScores = normalizedScores.map((score) => ({
       ...score,
       isWinner: score.playerId === winnerId,
@@ -1646,7 +1810,7 @@ export class TournamentService {
     newStatus: TournamentStatus
   ): Promise<void> {
     switch (newStatus) {
-      case TournamentStatus.OPEN:
+      case TournamentStatus.OPEN: {
         // Ensure tournament has minimum configuration
         if (tournament.totalParticipants < 2) {
           throw new AppError(
@@ -1663,8 +1827,9 @@ export class TournamentService {
           );
         }
         break;
+      }
 
-      case TournamentStatus.LIVE:
+      case TournamentStatus.LIVE: {
         // Check minimum participants registered
         const participantCount = await this.tournamentModel.getParticipantCount(tournament.id);
         if (participantCount < 2) {
@@ -1675,8 +1840,9 @@ export class TournamentService {
           );
         }
         break;
+      }
 
-      case TournamentStatus.FINISHED:
+      case TournamentStatus.FINISHED: {
         // Verify all matches are completed (this would require match tracking)
         // For now, just ensure tournament was in progress
         if (tournament.status !== TournamentStatus.LIVE) {
@@ -1687,6 +1853,7 @@ export class TournamentService {
           );
         }
         break;
+      }
     }
   }
 
@@ -1727,7 +1894,8 @@ export class TournamentService {
     try {
       const stats = await this.tournamentModel.getOverallStats();
       return stats;
-    } catch (error: any) {
+    } catch (error) {
+      this.logger.error('Failed to retrieve tournament statistics', undefined, error);
       throw new AppError(
         'Failed to retrieve tournament statistics',
         500,

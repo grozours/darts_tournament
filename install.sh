@@ -156,7 +156,8 @@ PORT=3000
 NODE_ENV=development
 
 # Database Configuration
-DATABASE_URL="postgresql://darts_user:darts_password@postgres:5432/darts_tournament"
+DB_PASSWORD=
+DATABASE_URL="postgresql://darts_user:${DB_PASSWORD}@postgres:5432/darts_tournament"
 
 # Redis Configuration
 REDIS_HOST="redis"
@@ -180,7 +181,8 @@ PORT=3000
 NODE_ENV=development
 
 # Database Configuration
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/darts_tournament?schema=public"
+DB_PASSWORD=
+DATABASE_URL="postgresql://postgres:${DB_PASSWORD}@localhost:5432/darts_tournament?schema=public"
 
 # Redis Configuration
 REDIS_HOST="localhost"

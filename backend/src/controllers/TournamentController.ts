@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
-import { TournamentService } from '../services/TournamentService';
+import { TournamentService, TournamentFilters } from '../services/TournamentService';
+import { TournamentFormat, MatchStatus, TournamentStatus } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 import { PrismaClient } from '@prisma/client';
 
 export class TournamentController {
-  private prisma: PrismaClient;
+  private readonly prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -52,7 +53,7 @@ export class TournamentController {
           error: {
             message: error.message,
             code: error.code,
-            details: (error as any).details,
+            details: (error as AppError & { details?: unknown }).details,
           },
         });
       } else {
@@ -143,15 +144,22 @@ export class TournamentController {
       const parsedPage = Number(page);
       const parsedLimit = Number(limit);
 
-      const filters = {
-        status: status as string,
-        format: format as any,
-        name: name as string,
+      const filters: TournamentFilters = {
         page: Number.isFinite(parsedPage) ? parsedPage : 1,
         limit: Number.isFinite(parsedLimit) ? parsedLimit : 10,
         sortBy: sortBy as 'name' | 'startTime' | 'createdAt',
         sortOrder: sortOrder as 'asc' | 'desc',
       };
+
+      if (typeof status === 'string') {
+        filters.status = status as TournamentStatus;
+      }
+      if (typeof format === 'string') {
+        filters.format = format as TournamentFormat;
+      }
+      if (typeof name === 'string') {
+        filters.name = name;
+      }
 
       const result = await this.getTournamentService(req).getTournaments(filters);
 
@@ -727,7 +735,7 @@ export class TournamentController {
     try {
       const { id, matchId } = req.params as { id: string; matchId: string };
       const { status } = req.body as { status: string };
-      await this.getTournamentService(req).updateMatchStatus(id, matchId, status as any);
+      await this.getTournamentService(req).updateMatchStatus(id, matchId, status as MatchStatus);
       res.status(204).send();
     } catch (error) {
       if (error instanceof AppError) {
@@ -1061,8 +1069,8 @@ export class TournamentController {
       const { status, force = false } = req.body as { status: string; force?: boolean };
 
       const tournament = await this.getTournamentService(req).transitionTournamentStatus(
-        id, 
-        status as any, 
+        id,
+        status as TournamentStatus,
         force
       );
 

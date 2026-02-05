@@ -1,8 +1,24 @@
 import request from 'supertest';
-import path from 'path';
-import fs from 'fs';
+import path from 'node:path';
+import fs from 'node:fs';
 import App from '../../src/app';
 import { TournamentFormat, DurationType } from '@shared/types';
+
+const createTestImage = async (): Promise<string> => {
+  const testImagePath = path.join(__dirname, '../fixtures/integration-test-logo.png');
+  const testImageBuffer = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77yQAAAABJRU5ErkJggg==',
+    'base64'
+  );
+
+  const fixturesDir = path.dirname(testImagePath);
+  if (!fs.existsSync(fixturesDir)) {
+    fs.mkdirSync(fixturesDir, { recursive: true });
+  }
+
+  fs.writeFileSync(testImagePath, testImageBuffer);
+  return testImagePath;
+};
 
 describe('Tournament Management - Integration Tests', () => {
   let app: App;
@@ -22,9 +38,9 @@ describe('Tournament Management - Integration Tests', () => {
   beforeAll(async () => {
     app = new App();
     server = app.server;
-
-    // Wait for server to be fully initialized
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise<void>((resolve) => {
+      server.listen(0, () => resolve());
+    });
   });
 
   afterAll(async () => {
@@ -162,8 +178,6 @@ describe('Tournament Management - Integration Tests', () => {
 
     it('should handle tournament list operations', async () => {
       // Create multiple tournaments
-      const tournaments = [];
-      
       for (let i = 0; i < 3; i++) {
         const tournamentData = {
           ...validTournamentData,
@@ -172,12 +186,10 @@ describe('Tournament Management - Integration Tests', () => {
           endTime: new Date(`2026-0${i + 4}-15T18:00:00.000Z`).toISOString(),
         };
 
-        const response = await request(server)
+        await request(server)
           .post('/api/tournaments')
           .send(tournamentData)
           .expect(201);
-
-        tournaments.push(response.body);
       }
 
       // Test tournament listing
@@ -398,21 +410,4 @@ describe('Tournament Management - Integration Tests', () => {
     });
   });
 
-  // Helper function to create test image
-  async function createTestImage(): Promise<string> {
-    const testImagePath = path.join(__dirname, '../fixtures/integration-test-logo.png');
-    const testImageBuffer = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77yQAAAABJRU5ErkJggg==',
-      'base64'
-    );
-
-    // Ensure fixtures directory exists
-    const fixturesDir = path.dirname(testImagePath);
-    if (!fs.existsSync(fixturesDir)) {
-      fs.mkdirSync(fixturesDir, { recursive: true });
-    }
-
-    fs.writeFileSync(testImagePath, testImageBuffer);
-    return testImagePath;
-  }
 });

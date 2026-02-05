@@ -1,6 +1,5 @@
 // Server entry point for Darts Tournament Manager
 import App from './app';
-import { config } from './config/environment';
 
 // Handle uncaught exceptions per constitution error handling
 process.on('uncaughtException', (error: Error) => {
@@ -9,7 +8,7 @@ process.on('uncaughtException', (error: Error) => {
 });
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
@@ -17,10 +16,12 @@ process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
 // Start the application
 const app = new App();
 
-app.start().catch((error) => {
+try {
+  await app.start();
+} catch (error) {
   console.error('❌ Failed to start application:', error);
   process.exit(1);
-});
+}
 
 // Export for testing
 export default app;

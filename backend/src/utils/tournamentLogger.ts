@@ -19,29 +19,34 @@ export enum TournamentLogEvent {
 }
 
 interface TournamentLogData {
-  tournamentId?: string | undefined;
-  tournamentName?: string | undefined;
-  playerId?: string | undefined;
-  playerName?: string | undefined;
-  previousStatus?: string | undefined;
-  newStatus?: string | undefined;
-  previousData?: any;
-  newData?: any;
-  errorCode?: string | undefined;
-  errorMessage?: string | undefined;
-  userId?: string | undefined;
-  userRole?: string | undefined;
-  metadata?: any;
+  tournamentId?: string;
+  tournamentName?: string;
+  playerId?: string;
+  playerName?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  previousData?: unknown;
+  newData?: unknown;
+  errorCode?: string;
+  errorMessage?: string;
+  userId?: string;
+  userRole?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export class TournamentLogger {
-  private correlationId?: string | undefined;
-  private userId?: string | undefined;
+  private readonly correlationId?: string;
+  private readonly userId?: string;
 
   constructor(req?: Request) {
     if (req) {
-      this.correlationId = req.correlationId || undefined;
-      this.userId = (req as any).user?.id || undefined; // Assuming user is attached to request
+      if (req.correlationId !== undefined) {
+        this.correlationId = req.correlationId;
+      }
+      const authUser = (req as { user?: { id?: string } }).user;
+      if (authUser?.id !== undefined) {
+        this.userId = authUser.id;
+      }
     }
   }
 
@@ -76,7 +81,7 @@ export class TournamentLogger {
   }
 
   // Tournament lifecycle events
-  tournamentCreated(tournamentId: string, tournamentName: string, data?: any) {
+  tournamentCreated(tournamentId: string, tournamentName: string, data?: unknown) {
     this.log(
       'info',
       TournamentLogEvent.CREATED,
@@ -92,8 +97,8 @@ export class TournamentLogger {
   tournamentUpdated(
     tournamentId: string,
     tournamentName: string,
-    previousData?: any,
-    newData?: any
+    previousData?: unknown,
+    newData?: unknown
   ) {
     this.log(
       'info',
@@ -146,16 +151,18 @@ export class TournamentLogger {
     playerId: string,
     playerName?: string
   ) {
+    const data: TournamentLogData = {
+      tournamentId,
+      tournamentName,
+      playerId,
+      ...(playerName ? { playerName } : {}),
+    };
+
     this.log(
       'info',
       TournamentLogEvent.PLAYER_REGISTERED,
-      `Player registered for tournament: ${playerName || playerId} → ${tournamentName}`,
-      {
-        tournamentId,
-        tournamentName,
-        playerId,
-        playerName,
-      }
+      `Player registered for tournament: ${playerName ?? playerId} → ${tournamentName}`,
+      data
     );
   }
 
@@ -165,16 +172,18 @@ export class TournamentLogger {
     playerId: string,
     playerName?: string
   ) {
+    const data: TournamentLogData = {
+      tournamentId,
+      tournamentName,
+      playerId,
+      ...(playerName ? { playerName } : {}),
+    };
+
     this.log(
       'info',
       TournamentLogEvent.PLAYER_UNREGISTERED,
-      `Player unregistered from tournament: ${playerName || playerId} ← ${tournamentName}`,
-      {
-        tournamentId,
-        tournamentName,
-        playerId,
-        playerName,
-      }
+      `Player unregistered from tournament: ${playerName ?? playerId} ← ${tournamentName}`,
+      data
     );
   }
 
@@ -211,16 +220,18 @@ export class TournamentLogger {
     tournamentId?: string,
     tournamentName?: string
   ) {
+    const data: TournamentLogData = {
+      ...(tournamentId ? { tournamentId } : {}),
+      ...(tournamentName ? { tournamentName } : {}),
+      errorCode,
+      errorMessage,
+    };
+
     this.log(
       'warn',
       TournamentLogEvent.VALIDATION_ERROR,
       `Tournament validation error: ${errorMessage}`,
-      {
-        tournamentId,
-        tournamentName,
-        errorCode,
-        errorMessage,
-      }
+      data
     );
   }
 
@@ -230,34 +241,49 @@ export class TournamentLogger {
     tournamentId?: string,
     tournamentName?: string
   ) {
+    const data: TournamentLogData = {
+      ...(tournamentId ? { tournamentId } : {}),
+      ...(tournamentName ? { tournamentName } : {}),
+      errorCode,
+      errorMessage,
+    };
+
     this.log(
       'error',
       TournamentLogEvent.ACCESS_ERROR,
       `Tournament access error: ${errorMessage}`,
-      {
-        tournamentId,
-        tournamentName,
-        errorCode,
-        errorMessage,
-      }
+      data
     );
   }
 
   // Generic error logging
-  error(message: string, tournamentId?: string, error?: any) {
+  error(message: string, tournamentId?: string, error?: unknown) {
+    const isObjectError = typeof error === 'object' && error !== null;
+    const errorInfo = isObjectError
+      ? (error as { message?: string; code?: string; stack?: string })
+      : undefined;
+    const errorMetadata = isObjectError ? (error as Record<string, unknown>) : undefined;
+
+    const metadata: Record<string, unknown> = {};
+    if (errorInfo?.stack) {
+      metadata.stack = errorInfo.stack;
+    }
+    if (errorMetadata) {
+      Object.assign(metadata, errorMetadata);
+    }
+
+    const data: TournamentLogData = {
+      ...(tournamentId ? { tournamentId } : {}),
+      ...(errorInfo?.message ? { errorMessage: errorInfo.message } : {}),
+      ...(errorInfo?.code ? { errorCode: errorInfo.code } : {}),
+      ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+    };
+
     this.log(
       'error',
       TournamentLogEvent.ACCESS_ERROR,
       message,
-      {
-        tournamentId,
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        metadata: {
-          stack: error?.stack,
-          ...error,
-        },
-      }
+      data
     );
   }
 }

@@ -7,9 +7,9 @@ import {
 } from '../../services/tournamentService';
 
 interface TournamentFormProps {
-  onSubmit: (data?: unknown) => void;
-  onCancel: () => void;
-  isLoading?: boolean;
+  readonly onSubmit: (data?: unknown) => void;
+  readonly onCancel: () => void;
+  readonly isLoading?: boolean;
 }
 
 type FormState = {
@@ -291,6 +291,7 @@ export default function TournamentForm({
       resetForm();
       onSubmit(result);
     } catch (error) {
+      console.error('Failed to create tournament', error);
       setErrors((prev) => ({ ...prev, submit: 'Failed to create tournament' }));
     } finally {
       setIsSubmitting(false);

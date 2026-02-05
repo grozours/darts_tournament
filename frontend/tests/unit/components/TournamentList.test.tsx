@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import TournamentList from '../../../src/components/TournamentList';
 
 const mockFetchPlayers = vi.fn();
 const mockRegisterPlayer = vi.fn();
 const mockFetchPoolStages = vi.fn();
 const mockFetchBrackets = vi.fn();
+const mockLoginWithRedirect = vi.fn();
+const mockGetAccessTokenSilently = vi.fn();
 
 vi.mock('../../../src/services/tournamentService', () => ({
   updateTournament: vi.fn(),
@@ -26,8 +27,8 @@ vi.mock('../../../src/auth/optionalAuth', () => ({
     enabled: false,
     isAuthenticated: false,
     isLoading: false,
-    loginWithRedirect: vi.fn(),
-    getAccessTokenSilently: vi.fn(),
+    loginWithRedirect: mockLoginWithRedirect,
+    getAccessTokenSilently: mockGetAccessTokenSilently,
   }),
 }));
 
@@ -36,7 +37,13 @@ describe('TournamentList - player registration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal('fetch', vi.fn());
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ tournaments: [] }),
+      })
+    );
     mockFetchPlayers.mockResolvedValue([]);
     mockFetchPoolStages.mockResolvedValue([]);
     mockFetchBrackets.mockResolvedValue([]);
@@ -54,8 +61,6 @@ describe('TournamentList - player registration', () => {
   });
 
   it('renders player registration form and submits new player', async () => {
-    const user = userEvent.setup();
-
     const tournamentsPayload = {
       tournaments: [
         {
@@ -71,7 +76,6 @@ describe('TournamentList - player registration', () => {
         },
       ],
     };
-    const tournamentsPromise = Promise.resolve(tournamentsPayload);
     const tournamentDetailsPromise = Promise.resolve({
       ...tournamentsPayload.tournaments[0],
       logoUrl: null,
@@ -79,19 +83,26 @@ describe('TournamentList - player registration', () => {
     });
     const fetchResponse = {
       ok: true,
-      json: vi.fn(() => tournamentsPromise),
+      json: vi.fn(async () => tournamentsPayload),
     };
     const fetchDetailsResponse = {
       ok: true,
-      json: vi.fn(() => tournamentDetailsPromise),
+      json: vi.fn(async () => tournamentDetailsPromise),
     };
+    const fetchResponsePromise = Promise.resolve(fetchResponse);
+    const fetchDetailsPromise = Promise.resolve(fetchDetailsResponse);
     (globalThis.fetch as any)
-      .mockResolvedValueOnce(fetchResponse)
-      .mockResolvedValueOnce(fetchDetailsResponse);
+      .mockReturnValueOnce(fetchResponsePromise)
+      .mockReturnValueOnce(fetchDetailsPromise);
+
+    render(<TournamentList />);
+
+    await waitFor(() => {
+      expect(fetchResponse.json).toHaveBeenCalled();
+    });
 
     await act(async () => {
-      render(<TournamentList />);
-      await tournamentsPromise;
+      await Promise.resolve();
     });
 
     await waitFor(() => {
@@ -105,11 +116,7 @@ describe('TournamentList - player registration', () => {
     mockFetchPoolStages.mockResolvedValueOnce([]);
     mockFetchBrackets.mockResolvedValueOnce([]);
 
-    await user.click(screen.getByRole('button', { name: /edit/i }));
-
-    await act(async () => {
-      await initialPlayersPromise;
-    });
+    fireEvent.click(screen.getByRole('button', { name: /edit/i }));
 
     await screen.findByText(/player registration/i);
     await waitFor(() => {
@@ -117,15 +124,15 @@ describe('TournamentList - player registration', () => {
       expect(screen.queryByText(/loading players/i)).not.toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText(/first name/i), 'Grace');
-    await user.type(screen.getByLabelText(/last name/i), 'Hopper');
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Grace' } });
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Hopper' } });
 
     const registerPromise = Promise.resolve(undefined);
     const refreshPlayersPromise = Promise.resolve([]);
     mockRegisterPlayer.mockReturnValueOnce(registerPromise);
     mockFetchPlayers.mockReturnValueOnce(refreshPlayersPromise);
 
-    await user.click(screen.getByRole('button', { name: /add player/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add player/i }));
 
     await act(async () => {
       await registerPromise;

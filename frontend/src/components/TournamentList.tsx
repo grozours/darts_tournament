@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
+import { useI18n } from '../i18n';
 import { TournamentFormat, DurationType, SkillLevel, BracketType, BracketStatus, StageStatus, AssignmentType } from '@shared/types';
 import {
   updateTournament,
@@ -28,6 +29,8 @@ import {
   type PoolAssignmentPayload,
 } from '../services/tournamentService';
 
+type Translator = ReturnType<typeof useI18n>['t'];
+
 interface Tournament {
   id: string;
   name: string;
@@ -54,7 +57,147 @@ type EditFormState = {
   targetCount: string;
 };
 
-function TournamentList() {
+type PlayerListProps = {
+  players: TournamentPlayer[];
+  playersLoading: boolean;
+  t: Translator;
+  onEdit: (player: TournamentPlayer) => void;
+  onRemove: (playerId: string) => void;
+};
+
+type SignatureListProps = {
+  players: TournamentPlayer[];
+  playersLoading: boolean;
+  t: Translator;
+  checkingInPlayerId: string | null;
+  onToggleCheckIn: (player: TournamentPlayer) => void;
+};
+
+const getPlayerActionLabel = (params: {
+  isRegistering: boolean;
+  isAutoFilling: boolean;
+  isEditing: boolean;
+  t: Translator;
+}) => {
+  if (params.isRegistering || params.isAutoFilling) {
+    return params.t('edit.saving');
+  }
+  if (params.isEditing) {
+    return params.t('edit.saveChanges');
+  }
+  return params.t('edit.addPlayer');
+};
+
+const getCheckInLabel = (
+  player: TournamentPlayer,
+  checkingInPlayerId: string | null,
+  t: Translator
+) => {
+  if (checkingInPlayerId === player.playerId) {
+    return t('edit.saving');
+  }
+  if (player.checkedIn) {
+    return t('edit.undo');
+  }
+  return t('edit.confirmCheckIn');
+};
+
+const RegistrationPlayersList = ({ players, playersLoading, t, onEdit, onRemove }: PlayerListProps) => {
+  if (playersLoading) {
+    return <p className="text-sm text-slate-400">{t('edit.loadingPlayers')}</p>;
+  }
+
+  if (players.length === 0) {
+    return <p className="text-sm text-slate-400">{t('edit.noPlayersRegistered')}</p>;
+  }
+
+  return (
+    <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
+      {players.map((player) => (
+        <div
+          key={player.playerId}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/50 px-4 py-2 text-sm"
+        >
+          <div>
+            <p className="text-slate-100">{player.name}</p>
+            <p className="text-xs text-slate-500">
+              {player.email || t('edit.noEmail')}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {player.skillLevel && (
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
+                {player.skillLevel}
+              </span>
+            )}
+            <button
+              onClick={() => onEdit(player)}
+              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+            >
+              {t('edit.edit')}
+            </button>
+            <button
+              onClick={() => onRemove(player.playerId)}
+              className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
+            >
+              {t('edit.remove')}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const SignaturePlayersList = ({
+  players,
+  playersLoading,
+  t,
+  checkingInPlayerId,
+  onToggleCheckIn,
+}: SignatureListProps) => {
+  if (playersLoading) {
+    return <p className="text-sm text-slate-400">{t('edit.loadingPlayers')}</p>;
+  }
+
+  if (players.length === 0) {
+    return <p className="text-sm text-slate-400">{t('edit.noPlayersRegistered')}</p>;
+  }
+
+  return (
+    <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
+      {players.map((player) => (
+        <div
+          key={player.playerId}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/50 px-4 py-2 text-sm"
+        >
+          <div>
+            <p className="text-slate-100">{player.name}</p>
+            <p className="text-xs text-slate-500">
+              {player.email || t('edit.noEmail')}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {player.checkedIn && (
+              <span className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs text-emerald-200">
+                {t('edit.present')}
+              </span>
+            )}
+            <button
+              onClick={() => onToggleCheckIn(player)}
+              disabled={checkingInPlayerId === player.playerId}
+              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-60"
+            >
+              {getCheckInLabel(player, checkingInPlayerId, t)}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+function TournamentList() { // NOSONAR
   const {
     enabled: authEnabled,
     isAuthenticated,
@@ -62,6 +205,25 @@ function TournamentList() {
     loginWithRedirect,
     getAccessTokenSilently,
   } = useOptionalAuth();
+  const { t } = useI18n();
+  const getStatusLabel = (scope: 'stage' | 'bracket', status: string) => {
+    if (scope === 'stage') {
+      const stageMap: Record<string, string> = {
+        NOT_STARTED: t('status.stage.not_started'),
+        EDITION: t('status.stage.edition'),
+        IN_PROGRESS: t('status.stage.in_progress'),
+        COMPLETED: t('status.stage.completed'),
+      };
+      return stageMap[status] ?? status;
+    }
+
+    const bracketMap: Record<string, string> = {
+      NOT_STARTED: t('status.bracket.not_started'),
+      IN_PROGRESS: t('status.bracket.in_progress'),
+      COMPLETED: t('status.bracket.completed'),
+    };
+    return bracketMap[status] ?? status;
+  };
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,41 +273,41 @@ function TournamentList() {
 
   const formatOptions = useMemo(
     () => [
-      { value: TournamentFormat.SINGLE, label: 'Single' },
-      { value: TournamentFormat.DOUBLE, label: 'Double' },
-      { value: TournamentFormat.TEAM_4_PLAYER, label: 'Team (4 players)' },
+      { value: TournamentFormat.SINGLE, label: t('format.single') },
+      { value: TournamentFormat.DOUBLE, label: t('format.double') },
+      { value: TournamentFormat.TEAM_4_PLAYER, label: t('format.team4') },
     ],
-    []
+    [t]
   );
 
   const durationOptions = useMemo(
     () => [
-      { value: DurationType.HALF_DAY_MORNING, label: 'Half day morning' },
-      { value: DurationType.HALF_DAY_AFTERNOON, label: 'Half day afternoon' },
-      { value: DurationType.HALF_DAY_NIGHT, label: 'Half day night' },
-      { value: DurationType.FULL_DAY, label: 'Full day' },
-      { value: DurationType.TWO_DAY, label: 'Two day' },
+      { value: DurationType.HALF_DAY_MORNING, label: t('duration.halfDayMorning') },
+      { value: DurationType.HALF_DAY_AFTERNOON, label: t('duration.halfDayAfternoon') },
+      { value: DurationType.HALF_DAY_NIGHT, label: t('duration.halfDayNight') },
+      { value: DurationType.FULL_DAY, label: t('duration.fullDay') },
+      { value: DurationType.TWO_DAY, label: t('duration.twoDay') },
     ],
-    []
+    [t]
   );
 
   const skillLevelOptions = useMemo(
     () => [
-      { value: SkillLevel.BEGINNER, label: 'Beginner' },
-      { value: SkillLevel.INTERMEDIATE, label: 'Intermediate' },
-      { value: SkillLevel.ADVANCED, label: 'Advanced' },
-      { value: SkillLevel.EXPERT, label: 'Expert' },
+      { value: SkillLevel.BEGINNER, label: t('skill.beginner') },
+      { value: SkillLevel.INTERMEDIATE, label: t('skill.intermediate') },
+      { value: SkillLevel.ADVANCED, label: t('skill.advanced') },
+      { value: SkillLevel.EXPERT, label: t('skill.expert') },
     ],
-    []
+    [t]
   );
 
   const statusFilter = useMemo(() => {
-    if (typeof window === 'undefined') return 'ALL';
-    const params = new URLSearchParams(window.location.search);
+    if (globalThis.window === undefined) return 'ALL';
+    const params = new URLSearchParams(globalThis.window.location.search);
     return params.get('status')?.toUpperCase() || 'ALL';
   }, []);
 
-  const normalizeStatus = (status?: string) => {
+  const normalizeStatus = useCallback((status?: string) => {
     if (!status) return '';
     const normalized = status.trim().toUpperCase();
     switch (normalized) {
@@ -159,9 +321,38 @@ function TournamentList() {
       default:
         return normalized;
     }
-  };
+  }, []);
 
   const normalizedStatusFilter = statusFilter === 'ALL' ? 'ALL' : normalizeStatus(statusFilter);
+
+  const groupedTournaments = useMemo(() => {
+    const statusLabels: Record<string, string> = {
+      DRAFT: t('tournaments.draft'),
+      OPEN: t('tournaments.open'),
+      SIGNATURE: t('tournaments.signature'),
+      LIVE: t('tournaments.live'),
+      FINISHED: t('tournaments.finished'),
+    };
+
+    if (statusFilter !== 'ALL') {
+      const normalizedStatus = normalizedStatusFilter;
+      const title = statusLabels[normalizedStatus] ?? t('tournaments.hub');
+      const items = tournaments.filter(
+        (tournament) => normalizeStatus(tournament.status) === normalizedStatus
+      );
+
+      return [{ title, status: normalizedStatus, items }];
+    }
+
+    const statuses = ['DRAFT', 'OPEN', 'SIGNATURE', 'LIVE', 'FINISHED'] as const;
+    return statuses.map((status) => ({
+      title: statusLabels[status],
+      status,
+      items: tournaments.filter(
+        (tournament) => normalizeStatus(tournament.status) === status
+      ),
+    }));
+  }, [tournaments, statusFilter, normalizedStatusFilter, normalizeStatus, t]);
 
   const toLocalInput = (value?: string) => {
     if (!value) return '';
@@ -173,7 +364,7 @@ function TournamentList() {
     )}:${pad(date.getMinutes())}`;
   };
 
-  const fetchTournaments = async () => {
+  const fetchTournaments = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -193,21 +384,13 @@ function TournamentList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authEnabled, getAccessTokenSilently]);
 
   useEffect(() => {
     if (!authEnabled || isAuthenticated) {
       fetchTournaments();
     }
-  }, [authEnabled, isAuthenticated]);
-
-  useEffect(() => {
-    if (!editingTournament) return;
-    const normalizedStatus = normalizeStatus(editingTournament.status);
-    if (normalizedStatus === 'OPEN' || normalizedStatus === 'SIGNATURE') {
-      void fetchPlayers(editingTournament.id);
-    }
-  }, [editingTournament]);
+  }, [authEnabled, isAuthenticated, fetchTournaments]);
 
   const createTournament = async () => {
     const name = prompt('Tournament name:');
@@ -330,7 +513,7 @@ function TournamentList() {
     });
   };
 
-  const fetchPlayers = async (tournamentId: string) => {
+  const fetchPlayers = useCallback(async (tournamentId: string) => {
     setPlayersLoading(true);
     setPlayersError(null);
     try {
@@ -339,11 +522,19 @@ function TournamentList() {
       setPlayers(data);
     } catch (err) {
       console.error('Error fetching players:', err);
-      setPlayersError('Failed to load players');
+      setPlayersError(t('edit.error.failedLoadPlayers'));
     } finally {
       setPlayersLoading(false);
     }
-  };
+  }, [authEnabled, getAccessTokenSilently, t]);
+
+  useEffect(() => {
+    if (!editingTournament) return;
+    const normalizedStatus = normalizeStatus(editingTournament.status);
+    if (normalizedStatus === 'OPEN' || normalizedStatus === 'SIGNATURE') {
+      void fetchPlayers(editingTournament.id);
+    }
+  }, [editingTournament, fetchPlayers, normalizeStatus]);
 
   const fetchTournamentDetails = async (tournamentId: string) => {
     try {
@@ -374,7 +565,7 @@ function TournamentList() {
       setLogoFile(null);
       fetchTournaments();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to upload logo');
+      setEditError(err instanceof Error ? err.message : t('edit.error.failedUploadLogo'));
     } finally {
       setIsUploadingLogo(false);
     }
@@ -390,7 +581,7 @@ function TournamentList() {
       setNewPoolStage((current) => ({ ...current, stageNumber: nextStageNumber }));
     } catch (err) {
       console.error('Error fetching pool stages:', err);
-      setPoolStagesError(err instanceof Error ? err.message : 'Failed to load pool stages');
+      setPoolStagesError(err instanceof Error ? err.message : t('edit.error.failedLoadPoolStages'));
     }
   };
 
@@ -402,14 +593,73 @@ function TournamentList() {
       setBrackets(data);
     } catch (err) {
       console.error('Error fetching brackets:', err);
-      setBracketsError(err instanceof Error ? err.message : 'Failed to load brackets');
+      setBracketsError(err instanceof Error ? err.message : t('edit.error.failedLoadBrackets'));
     }
+  };
+
+  const updatePoolStageField = useCallback(
+    (stageId: string, updater: (stage: PoolStageConfig) => PoolStageConfig) => {
+      setPoolStages((current) =>
+        current.map((item) => (item.id === stageId ? updater(item) : item))
+      );
+    },
+    []
+  );
+
+  const handlePoolStageNumberChange = (stageId: string, value: number) => {
+    updatePoolStageField(stageId, (item) => ({ ...item, stageNumber: value }));
+  };
+
+  const handlePoolStageNameChange = (stageId: string, value: string) => {
+    updatePoolStageField(stageId, (item) => ({ ...item, name: value }));
+  };
+
+  const handlePoolStagePoolCountChange = (stageId: string, value: number) => {
+    updatePoolStageField(stageId, (item) => ({ ...item, poolCount: value }));
+  };
+
+  const handlePoolStagePlayersPerPoolChange = (stageId: string, value: number) => {
+    updatePoolStageField(stageId, (item) => ({ ...item, playersPerPool: value }));
+  };
+
+  const handlePoolStageAdvanceCountChange = (stageId: string, value: number) => {
+    updatePoolStageField(stageId, (item) => ({ ...item, advanceCount: value }));
+  };
+
+  const handlePoolStageStatusChange = (stage: PoolStageConfig, nextStatus: string) => {
+    updatePoolStageField(stage.id, (item) => ({ ...item, status: nextStatus }));
+    savePoolStage({ ...stage, status: nextStatus });
+  };
+
+  const updateBracketField = useCallback(
+    (bracketId: string, updater: (bracket: BracketConfig) => BracketConfig) => {
+      setBrackets((current) =>
+        current.map((item) => (item.id === bracketId ? updater(item) : item))
+      );
+    },
+    []
+  );
+
+  const handleBracketNameChange = (bracketId: string, value: string) => {
+    updateBracketField(bracketId, (item) => ({ ...item, name: value }));
+  };
+
+  const handleBracketTypeChange = (bracketId: string, value: string) => {
+    updateBracketField(bracketId, (item) => ({ ...item, bracketType: value }));
+  };
+
+  const handleBracketRoundsChange = (bracketId: string, value: number) => {
+    updateBracketField(bracketId, (item) => ({ ...item, totalRounds: value }));
+  };
+
+  const handleBracketStatusChange = (bracketId: string, value: string) => {
+    updateBracketField(bracketId, (item) => ({ ...item, status: value }));
   };
 
   const addPoolStage = async () => {
     if (!editingTournament) return;
     if (!newPoolStage.name.trim()) {
-      setPoolStagesError('Stage name is required');
+      setPoolStagesError(t('edit.error.stageNameRequired'));
       return;
     }
     setPoolStagesError(null);
@@ -419,7 +669,7 @@ function TournamentList() {
       await loadPoolStages(editingTournament.id);
       setNewPoolStage((current) => ({ ...current, name: '' }));
     } catch (err) {
-      setPoolStagesError(err instanceof Error ? err.message : 'Failed to add pool stage');
+      setPoolStagesError(err instanceof Error ? err.message : t('edit.error.failedAddPoolStage'));
     }
   };
 
@@ -438,7 +688,7 @@ function TournamentList() {
       }, token);
       await loadPoolStages(editingTournament.id);
     } catch (err) {
-      setPoolStagesError(err instanceof Error ? err.message : 'Failed to update pool stage');
+      setPoolStagesError(err instanceof Error ? err.message : t('edit.error.failedUpdatePoolStage'));
     }
   };
 
@@ -451,7 +701,7 @@ function TournamentList() {
       await deletePoolStage(editingTournament.id, stageId, token);
       await loadPoolStages(editingTournament.id);
     } catch (err) {
-      setPoolStagesError(err instanceof Error ? err.message : 'Failed to delete pool stage');
+      setPoolStagesError(err instanceof Error ? err.message : t('edit.error.failedDeletePoolStage'));
     }
   };
 
@@ -477,7 +727,7 @@ function TournamentList() {
       });
       setPoolStageAssignments(initialAssignments);
     } catch (err) {
-      setPoolStageEditError(err instanceof Error ? err.message : 'Failed to load pool assignments');
+      setPoolStageEditError(err instanceof Error ? err.message : t('edit.error.failedLoadPoolAssignments'));
     }
   };
 
@@ -508,7 +758,7 @@ function TournamentList() {
       const assignments: PoolAssignmentPayload[] = [];
       Object.entries(poolStageAssignments).forEach(([poolId, playerIds]) => {
         playerIds
-          .filter((playerId) => playerId)
+          .filter(Boolean)
           .forEach((playerId, index) => {
             assignments.push({
               poolId,
@@ -523,7 +773,7 @@ function TournamentList() {
       await updatePoolAssignments(editingTournament.id, editingPoolStage.id, assignments, token);
       closePoolStageAssignments();
     } catch (err) {
-      setPoolStageEditError(err instanceof Error ? err.message : 'Failed to update pool assignments');
+      setPoolStageEditError(err instanceof Error ? err.message : t('edit.error.failedUpdatePoolAssignments'));
     } finally {
       setIsSavingAssignments(false);
     }
@@ -532,7 +782,7 @@ function TournamentList() {
   const addBracket = async () => {
     if (!editingTournament) return;
     if (!newBracket.name.trim()) {
-      setBracketsError('Bracket name is required');
+      setBracketsError(t('edit.error.bracketNameRequired'));
       return;
     }
     setBracketsError(null);
@@ -542,7 +792,7 @@ function TournamentList() {
       await loadBrackets(editingTournament.id);
       setNewBracket((current) => ({ ...current, name: '' }));
     } catch (err) {
-      setBracketsError(err instanceof Error ? err.message : 'Failed to add bracket');
+      setBracketsError(err instanceof Error ? err.message : t('edit.error.failedAddBracket'));
     }
   };
 
@@ -559,7 +809,7 @@ function TournamentList() {
       }, token);
       await loadBrackets(editingTournament.id);
     } catch (err) {
-      setBracketsError(err instanceof Error ? err.message : 'Failed to update bracket');
+      setBracketsError(err instanceof Error ? err.message : t('edit.error.failedUpdateBracket'));
     }
   };
 
@@ -572,7 +822,7 @@ function TournamentList() {
       await deleteBracket(editingTournament.id, bracketId, token);
       await loadBrackets(editingTournament.id);
     } catch (err) {
-      setBracketsError(err instanceof Error ? err.message : 'Failed to delete bracket');
+      setBracketsError(err instanceof Error ? err.message : t('edit.error.failedDeleteBracket'));
     }
   };
 
@@ -608,7 +858,7 @@ function TournamentList() {
       await fetchPlayers(editingTournament.id);
     } catch (err) {
       console.error('Error registering player:', err);
-      setPlayersError(err instanceof Error ? err.message : 'Failed to register player');
+      setPlayersError(err instanceof Error ? err.message : t('edit.error.failedRegisterPlayer'));
     } finally {
       setIsRegisteringPlayer(false);
     }
@@ -662,7 +912,7 @@ function TournamentList() {
       uniqueRegistrations.push({
         firstName,
         lastName,
-        email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(/\s+/g, '')}@example.com`,
+        email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replaceAll(/\s+/g, '')}@example.com`,
       });
     }
 
@@ -675,7 +925,7 @@ function TournamentList() {
       await fetchPlayers(editingTournament.id);
     } catch (err) {
       console.error('Error auto-filling players:', err);
-      setPlayersError(err instanceof Error ? err.message : 'Failed to auto-fill players');
+      setPlayersError(err instanceof Error ? err.message : t('edit.error.failedAutoFillPlayers'));
     } finally {
       setIsAutoFillingPlayers(false);
     }
@@ -731,7 +981,7 @@ function TournamentList() {
       cancelEditPlayer();
     } catch (err) {
       console.error('Error updating player:', err);
-      setPlayersError(err instanceof Error ? err.message : 'Failed to update player');
+      setPlayersError(err instanceof Error ? err.message : t('edit.error.failedUpdatePlayer'));
     } finally {
       setIsRegisteringPlayer(false);
     }
@@ -747,7 +997,7 @@ function TournamentList() {
       await fetchPlayers(editingTournament.id);
     } catch (err) {
       console.error('Error removing player:', err);
-      setPlayersError(err instanceof Error ? err.message : 'Failed to remove player');
+      setPlayersError(err instanceof Error ? err.message : t('edit.error.failedRemovePlayer'));
     }
   };
 
@@ -766,7 +1016,7 @@ function TournamentList() {
       await fetchPlayers(editingTournament.id);
     } catch (err) {
       console.error('Error updating check-in:', err);
-      setPlayersError(err instanceof Error ? err.message : 'Failed to update check-in');
+      setPlayersError(err instanceof Error ? err.message : t('edit.error.failedUpdateCheckIn'));
     } finally {
       setCheckingInPlayerId(null);
     }
@@ -787,7 +1037,7 @@ function TournamentList() {
       await fetchPlayers(editingTournament.id);
     } catch (err) {
       console.error('Error confirming all players:', err);
-      setPlayersError(err instanceof Error ? err.message : 'Failed to confirm all players');
+      setPlayersError(err instanceof Error ? err.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {
       setIsConfirmingAll(false);
     }
@@ -796,7 +1046,7 @@ function TournamentList() {
   const saveEdit = async () => {
     if (!editingTournament || !editForm) return;
     if (!editForm.name.trim()) {
-      setEditError('Name is required');
+      setEditError(t('edit.error.nameRequired'));
       return;
     }
 
@@ -820,7 +1070,7 @@ function TournamentList() {
       closeEdit();
       fetchTournaments();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to update tournament');
+      setEditError(err instanceof Error ? err.message : t('edit.error.failedUpdateTournament'));
     } finally {
       setIsSaving(false);
     }
@@ -829,7 +1079,7 @@ function TournamentList() {
   const openRegistration = async () => {
     if (!editingTournament) return;
     if (normalizeStatus(editingTournament.status) === 'OPEN') {
-      setEditError('Registration is already open for this tournament.');
+      setEditError(t('edit.error.registrationAlreadyOpen'));
       return;
     }
     setIsSaving(true);
@@ -840,7 +1090,7 @@ function TournamentList() {
       closeEdit();
       fetchTournaments();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to open registration');
+      setEditError(err instanceof Error ? err.message : t('edit.error.failedOpenRegistration'));
     } finally {
       setIsSaving(false);
     }
@@ -849,7 +1099,7 @@ function TournamentList() {
   const moveToSignature = async () => {
     if (!editingTournament) return;
     if (normalizeStatus(editingTournament.status) !== 'OPEN') {
-      setEditError('Tournament must be open to move to signature.');
+      setEditError(t('edit.error.mustBeOpenToSignature'));
       return;
     }
     setIsSaving(true);
@@ -860,7 +1110,7 @@ function TournamentList() {
       closeEdit();
       fetchTournaments();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to move to signature');
+      setEditError(err instanceof Error ? err.message : t('edit.error.failedMoveToSignature'));
     } finally {
       setIsSaving(false);
     }
@@ -869,11 +1119,11 @@ function TournamentList() {
   const moveToLive = async () => {
     if (!editingTournament) return;
     if (normalizeStatus(editingTournament.status) !== 'SIGNATURE') {
-      setEditError('Tournament must be in signature to start live.');
+      setEditError(t('edit.error.mustBeSignatureToLive'));
       return;
     }
     if (players.length === 0 || !players.every((player) => player.checkedIn)) {
-      setEditError('All players must be confirmed before starting live.');
+      setEditError(t('edit.error.allPlayersMustBeConfirmed'));
       return;
     }
 
@@ -885,11 +1135,22 @@ function TournamentList() {
       closeEdit();
       fetchTournaments();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to start live');
+      setEditError(err instanceof Error ? err.message : t('edit.error.failedStartLive'));
     } finally {
       setIsSaving(false);
     }
   };
+
+  const playerActionLabel = useMemo(
+    () =>
+      getPlayerActionLabel({
+        isRegistering: isRegisteringPlayer,
+        isAutoFilling: isAutoFillingPlayers,
+        isEditing: Boolean(editingPlayerId),
+        t,
+      }),
+    [editingPlayerId, isAutoFillingPlayers, isRegisteringPlayer, t]
+  );
 
   const renderCard = (tournament: Tournament) => (
     <div
@@ -911,11 +1172,11 @@ function TournamentList() {
 
       <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
         <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-          <p className="text-xs uppercase tracking-widest text-slate-500">Players</p>
+          <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.players')}</p>
           <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
         </div>
         <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-          <p className="text-xs uppercase tracking-widest text-slate-500">Status</p>
+          <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
           <p className="mt-2 text-lg font-semibold text-white">{tournament.status}</p>
         </div>
       </div>
@@ -926,20 +1187,20 @@ function TournamentList() {
             href={`/?view=live&tournamentId=${tournament.id}`}
             className="rounded-full border border-emerald-500/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300"
           >
-            View live
+            {t('tournaments.viewLive')}
           </a>
         )}
         <button
           onClick={() => openEdit(tournament)}
           className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
         >
-          Edit
+          {t('tournaments.edit')}
         </button>
         <button
           onClick={() => deleteTournament(tournament.id)}
           className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
         >
-          Delete
+          {t('tournaments.delete')}
         </button>
       </div>
     </div>
@@ -952,7 +1213,7 @@ function TournamentList() {
           <div className="h-10 w-10 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
           <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
         </div>
-        <span className="ml-3 text-slate-300">Checking session...</span>
+        <span className="ml-3 text-slate-300">{t('auth.checkingSession')}</span>
       </div>
     );
   }
@@ -960,15 +1221,15 @@ function TournamentList() {
   if (authEnabled && !isAuthenticated) {
     return (
       <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-        <h3 className="text-xl font-semibold text-white">Sign in to view tournaments</h3>
+        <h3 className="text-xl font-semibold text-white">{t('auth.signInToViewTournaments')}</h3>
         <p className="mt-2 text-sm text-slate-300">
-          Your tournaments are protected. Please sign in to continue.
+          {t('auth.protectedContinue')}
         </p>
         <button
           onClick={() => loginWithRedirect()}
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
         >
-          Sign in
+          {t('auth.signIn')}
         </button>
       </div>
     );
@@ -981,7 +1242,7 @@ function TournamentList() {
           <div className="h-10 w-10 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
           <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
         </div>
-        <span className="ml-3 text-slate-300">Loading tournaments...</span>
+        <span className="ml-3 text-slate-300">{t('tournaments.loading')}</span>
       </div>
     );
   }
@@ -994,7 +1255,7 @@ function TournamentList() {
           onClick={fetchTournaments}
           className="inline-flex items-center gap-2 rounded-full bg-rose-500/80 px-5 py-2 text-sm font-semibold text-white transition hover:bg-rose-500"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -1004,98 +1265,43 @@ function TournamentList() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Tournament hub</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('tournaments.hub')}</p>
           <h2 className="text-2xl font-semibold text-white mt-2">
-            Tournaments <span className="text-slate-400">({tournaments.length})</span>
+            {t('tournaments.hub')} <span className="text-slate-400">({tournaments.length})</span>
           </h2>
         </div>
         <button
           onClick={createTournament}
           className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
         >
-          + Create Tournament
+          + {t('tournaments.create')}
         </button>
       </div>
 
       {tournaments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
-          <p className="text-lg font-semibold text-white">No tournaments yet</p>
-          <p className="mt-2">Create your first tournament to start tracking matches and standings.</p>
+          <p className="text-lg font-semibold text-white">{t('tournaments.none')}</p>
+          <p className="mt-2">{t('tournaments.none.subtitle')}</p>
         </div>
       ) : (
         <div className="space-y-8">
-          {statusFilter === 'ALL' ? (
-            ([
-              { title: 'Draft tournaments', status: 'DRAFT' },
-              { title: 'Registration open', status: 'OPEN' },
-              { title: 'Signature phase', status: 'SIGNATURE' },
-              { title: 'Live tournaments', status: 'LIVE' },
-              { title: 'Finished tournaments', status: 'FINISHED' },
-            ] as const).map((group) => {
-              const groupItems = tournaments.filter(
-                (tournament) => normalizeStatus(tournament.status) === group.status
-              );
-
-              return (
-                <div key={group.status} className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">{group.title}</h3>
-                    <span className="text-sm text-slate-400">{groupItems.length}</span>
-                  </div>
-                  {groupItems.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
-                      No tournaments in this category yet.
-                    </div>
-                  ) : (
-                    <div className="grid gap-6 lg:grid-cols-2">
-                      {groupItems.map(renderCard)}
-                    </div>
-                  )}
+          {groupedTournaments.map((group) => (
+            <div key={group.status} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">{group.title}</h3>
+                <span className="text-sm text-slate-400">{group.items.length}</span>
+              </div>
+              {group.items.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
+                  {t('common.noCategory')}
                 </div>
-              );
-            })
-          ) : (
-            (() => {
-              const filteredTournaments = tournaments.filter(
-                (tournament) => normalizeStatus(tournament.status) === normalizedStatusFilter
-              );
-
-              return (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">
-                      {(() => {
-                        switch (normalizedStatusFilter) {
-                          case 'DRAFT':
-                            return 'Draft tournaments';
-                          case 'OPEN':
-                            return 'Registration open';
-                          case 'SIGNATURE':
-                            return 'Signature phase';
-                          case 'LIVE':
-                            return 'Live tournaments';
-                          case 'FINISHED':
-                            return 'Finished tournaments';
-                          default:
-                            return 'Tournaments';
-                        }
-                      })()}
-                    </h3>
-                    <span className="text-sm text-slate-400">{filteredTournaments.length}</span>
-                  </div>
-                  {filteredTournaments.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
-                      No tournaments in this category yet.
-                    </div>
-                  ) : (
-                    <div className="grid gap-6 lg:grid-cols-2">
-                      {filteredTournaments.map(renderCard)}
-                    </div>
-                  )}
+              ) : (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {group.items.map(renderCard)}
                 </div>
-              );
-            })()
-          )}
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -1103,19 +1309,19 @@ function TournamentList() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-6">
           <div className="flex w-full max-w-2xl max-h-[85vh] flex-col rounded-3xl border border-slate-800/70 bg-slate-900 p-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Edit tournament</h3>
+              <h3 className="text-lg font-semibold text-white">{t('edit.title')}</h3>
               <button
                 onClick={closeEdit}
                 className="text-sm text-slate-400 hover:text-white"
               >
-                Close
+                {t('edit.close')}
               </button>
             </div>
 
             <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-1">
               <div className="grid gap-4 md:grid-cols-2">
               <label className="text-sm text-slate-300">
-                Name
+                {t('edit.name')}
                 <input
                   type="text"
                   value={editForm.name}
@@ -1124,7 +1330,7 @@ function TournamentList() {
                 />
               </label>
               <label className="text-sm text-slate-300">
-                Format
+                {t('edit.format')}
                 <select
                   value={editForm.format}
                   onChange={(e) => setEditForm({ ...editForm, format: e.target.value })}
@@ -1138,7 +1344,7 @@ function TournamentList() {
                 </select>
               </label>
               <label className="text-sm text-slate-300">
-                Duration type
+                {t('edit.durationType')}
                 <select
                   value={editForm.durationType}
                   onChange={(e) => setEditForm({ ...editForm, durationType: e.target.value })}
@@ -1152,7 +1358,7 @@ function TournamentList() {
                 </select>
               </label>
               <label className="text-sm text-slate-300">
-                Participants
+                {t('edit.participants')}
                 <input
                   type="number"
                   value={editForm.totalParticipants}
@@ -1161,7 +1367,7 @@ function TournamentList() {
                 />
               </label>
               <label className="text-sm text-slate-300">
-                Start time
+                {t('edit.startTime')}
                 <input
                   type="datetime-local"
                   value={editForm.startTime}
@@ -1170,7 +1376,7 @@ function TournamentList() {
                 />
               </label>
               <label className="text-sm text-slate-300">
-                End time
+                {t('edit.endTime')}
                 <input
                   type="datetime-local"
                   value={editForm.endTime}
@@ -1179,7 +1385,7 @@ function TournamentList() {
                 />
               </label>
               <label className="text-sm text-slate-300">
-                Target count
+                {t('edit.targetCount')}
                 <input
                   type="number"
                   value={editForm.targetCount}
@@ -1190,20 +1396,20 @@ function TournamentList() {
               </div>
 
               <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
-                <h4 className="text-base font-semibold text-white">Tournament details</h4>
+                <h4 className="text-base font-semibold text-white">{t('edit.details')}</h4>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-slate-500">Status</p>
+                    <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
                     <p className="mt-2 text-sm text-slate-200">{editingTournament.status}</p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-slate-500">Historical flag</p>
+                    <p className="text-xs uppercase tracking-widest text-slate-500">{t('edit.historicalFlag')}</p>
                     <p className="mt-2 text-sm text-slate-200">
-                      {editingTournament.historicalFlag ? 'Yes' : 'No'}
+                      {editingTournament.historicalFlag ? t('common.yes') : t('common.no')}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-slate-500">Created</p>
+                    <p className="text-xs uppercase tracking-widest text-slate-500">{t('edit.created')}</p>
                     <p className="mt-2 text-sm text-slate-200">
                       {editingTournament.createdAt
                         ? new Date(editingTournament.createdAt).toLocaleString()
@@ -1211,7 +1417,7 @@ function TournamentList() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-slate-500">Completed</p>
+                    <p className="text-xs uppercase tracking-widest text-slate-500">{t('edit.completed')}</p>
                     <p className="mt-2 text-sm text-slate-200">
                       {editingTournament.completedAt
                         ? new Date(editingTournament.completedAt).toLocaleString()
@@ -1221,17 +1427,17 @@ function TournamentList() {
                 </div>
 
                 <div className="mt-5">
-                  <p className="text-xs uppercase tracking-widest text-slate-500">Logo</p>
+                  <p className="text-xs uppercase tracking-widest text-slate-500">{t('edit.logo')}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-4">
                     {editingTournament.logoUrl ? (
                       <img
                         src={editingTournament.logoUrl}
-                        alt="Tournament logo"
+                        alt={t('edit.logoAlt')}
                         className="h-16 w-16 rounded-xl border border-slate-700 object-cover"
                       />
                     ) : (
                       <div className="grid h-16 w-16 place-items-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500">
-                        No logo
+                        {t('edit.noLogo')}
                       </div>
                     )}
                     <div className="flex flex-wrap items-center gap-2">
@@ -1246,7 +1452,7 @@ function TournamentList() {
                         disabled={!logoFile || isUploadingLogo}
                         className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-60"
                       >
-                        {isUploadingLogo ? 'Uploading...' : 'Upload logo'}
+                        {isUploadingLogo ? t('edit.uploading') : t('edit.uploadLogo')}
                       </button>
                     </div>
                   </div>
@@ -1255,12 +1461,12 @@ function TournamentList() {
 
               <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h4 className="text-base font-semibold text-white">Pool stages</h4>
+                  <h4 className="text-base font-semibold text-white">{t('edit.poolStages')}</h4>
                   <button
                     onClick={() => editingTournament && loadPoolStages(editingTournament.id)}
                     className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
                   >
-                    Refresh
+                    {t('common.refresh')}
                   </button>
                 </div>
                 {poolStagesError && (
@@ -1268,93 +1474,53 @@ function TournamentList() {
                 )}
                 <div className="mt-4 space-y-3">
                   {poolStages.length === 0 ? (
-                    <p className="text-sm text-slate-400">No pool stages yet.</p>
+                    <p className="text-sm text-slate-400">{t('edit.noPoolStages')}</p>
                   ) : (
                     poolStages.map((stage) => (
                       <div key={stage.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-4">
                         <div className="grid gap-3 md:grid-cols-5">
                           <label className="text-xs text-slate-400">
-                            Stage #
+                            {t('edit.stageNumber')}
                             <input
                               type="number"
                               value={stage.stageNumber}
-                              onChange={(e) =>
-                                setPoolStages((current) =>
-                                  current.map((item) =>
-                                    item.id === stage.id
-                                      ? { ...item, stageNumber: Number(e.target.value) }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handlePoolStageNumberChange(stage.id, Number(e.target.value))}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
                           <label className="text-xs text-slate-400 md:col-span-2">
-                            Name
+                            {t('edit.name')}
                             <input
                               type="text"
                               value={stage.name}
-                              onChange={(e) =>
-                                setPoolStages((current) =>
-                                  current.map((item) =>
-                                    item.id === stage.id
-                                      ? { ...item, name: e.target.value }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handlePoolStageNameChange(stage.id, e.target.value)}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
                           <label className="text-xs text-slate-400">
-                            Pools
+                            {t('edit.pools')}
                             <input
                               type="number"
                               value={stage.poolCount}
-                              onChange={(e) =>
-                                setPoolStages((current) =>
-                                  current.map((item) =>
-                                    item.id === stage.id
-                                      ? { ...item, poolCount: Number(e.target.value) }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handlePoolStagePoolCountChange(stage.id, Number(e.target.value))}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
                           <label className="text-xs text-slate-400">
-                            Per pool
+                            {t('edit.perPool')}
                             <input
                               type="number"
                               value={stage.playersPerPool}
-                              onChange={(e) =>
-                                setPoolStages((current) =>
-                                  current.map((item) =>
-                                    item.id === stage.id
-                                      ? { ...item, playersPerPool: Number(e.target.value) }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handlePoolStagePlayersPerPoolChange(stage.id, Number(e.target.value))}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
                           <label className="text-xs text-slate-400">
-                            Advance
+                            {t('edit.advance')}
                             <input
                               type="number"
                               value={stage.advanceCount}
-                              onChange={(e) =>
-                                setPoolStages((current) =>
-                                  current.map((item) =>
-                                    item.id === stage.id
-                                      ? { ...item, advanceCount: Number(e.target.value) }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handlePoolStageAdvanceCountChange(stage.id, Number(e.target.value))}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
@@ -1362,24 +1528,12 @@ function TournamentList() {
                         <div className="mt-3 flex flex-wrap justify-end gap-2">
                           <select
                             value={stage.status}
-                            onChange={(e) =>
-                              (() => {
-                                const nextStatus = e.target.value;
-                                setPoolStages((current) =>
-                                  current.map((item) =>
-                                    item.id === stage.id
-                                      ? { ...item, status: nextStatus }
-                                      : item
-                                  )
-                                );
-                                void savePoolStage({ ...stage, status: nextStatus });
-                              })()
-                            }
+                            onChange={(e) => handlePoolStageStatusChange(stage, e.target.value)}
                             className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
                           >
                             {Object.values(StageStatus).map((status) => (
                               <option key={status} value={status}>
-                                {status}
+                                {getStatusLabel('stage', status)}
                               </option>
                             ))}
                           </select>
@@ -1388,19 +1542,19 @@ function TournamentList() {
                             disabled={stage.status !== StageStatus.EDITION}
                             className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            Edit players
+                            {t('edit.editPlayers')}
                           </button>
                           <button
                             onClick={() => savePoolStage(stage)}
                             className="rounded-full border border-cyan-500/60 px-3 py-1 text-xs text-cyan-200 hover:border-cyan-300"
                           >
-                            Save
+                            {t('common.save')}
                           </button>
                           <button
                             onClick={() => removePoolStage(stage.id)}
                             className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
                           >
-                            Delete
+                            {t('common.delete')}
                           </button>
                         </div>
                       </div>
@@ -1410,7 +1564,7 @@ function TournamentList() {
 
                 <div className="mt-5 grid gap-3 md:grid-cols-5">
                   <label className="text-xs text-slate-400">
-                    Stage #
+                    {t('edit.stageNumber')}
                     <input
                       type="number"
                       value={newPoolStage.stageNumber}
@@ -1424,7 +1578,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-xs text-slate-400 md:col-span-2">
-                    Name
+                    {t('edit.name')}
                     <input
                       type="text"
                       value={newPoolStage.name}
@@ -1438,7 +1592,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-xs text-slate-400">
-                    Pools
+                    {t('edit.pools')}
                     <input
                       type="number"
                       value={newPoolStage.poolCount}
@@ -1452,7 +1606,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-xs text-slate-400">
-                    Per pool
+                    {t('edit.perPool')}
                     <input
                       type="number"
                       value={newPoolStage.playersPerPool}
@@ -1466,7 +1620,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-xs text-slate-400">
-                    Advance
+                    {t('edit.advance')}
                     <input
                       type="number"
                       value={newPoolStage.advanceCount}
@@ -1486,19 +1640,19 @@ function TournamentList() {
                     disabled={!newPoolStage.name.trim()}
                     className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400"
                   >
-                    Add stage
+                    {t('edit.addStage')}
                   </button>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h4 className="text-base font-semibold text-white">Brackets</h4>
+                  <h4 className="text-base font-semibold text-white">{t('edit.brackets')}</h4>
                   <button
                     onClick={() => editingTournament && loadBrackets(editingTournament.id)}
                     className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
                   >
-                    Refresh
+                    {t('common.refresh')}
                   </button>
                 </div>
                 {bracketsError && (
@@ -1506,41 +1660,25 @@ function TournamentList() {
                 )}
                 <div className="mt-4 space-y-3">
                   {brackets.length === 0 ? (
-                    <p className="text-sm text-slate-400">No brackets yet.</p>
+                    <p className="text-sm text-slate-400">{t('edit.noBrackets')}</p>
                   ) : (
                     brackets.map((bracket) => (
                       <div key={bracket.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-4">
                         <div className="grid gap-3 md:grid-cols-4">
                           <label className="text-xs text-slate-400 md:col-span-2">
-                            Name
+                            {t('edit.name')}
                             <input
                               type="text"
                               value={bracket.name}
-                              onChange={(e) =>
-                                setBrackets((current) =>
-                                  current.map((item) =>
-                                    item.id === bracket.id
-                                      ? { ...item, name: e.target.value }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handleBracketNameChange(bracket.id, e.target.value)}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
                           <label className="text-xs text-slate-400">
-                            Type
+                            {t('edit.type')}
                             <select
                               value={bracket.bracketType}
-                              onChange={(e) =>
-                                setBrackets((current) =>
-                                  current.map((item) =>
-                                    item.id === bracket.id
-                                      ? { ...item, bracketType: e.target.value }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handleBracketTypeChange(bracket.id, e.target.value)}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             >
                               {Object.values(BracketType).map((type) => (
@@ -1551,19 +1689,11 @@ function TournamentList() {
                             </select>
                           </label>
                           <label className="text-xs text-slate-400">
-                            Rounds
+                            {t('edit.rounds')}
                             <input
                               type="number"
                               value={bracket.totalRounds}
-                              onChange={(e) =>
-                                setBrackets((current) =>
-                                  current.map((item) =>
-                                    item.id === bracket.id
-                                      ? { ...item, totalRounds: Number(e.target.value) }
-                                      : item
-                                  )
-                                )
-                              }
+                              onChange={(e) => handleBracketRoundsChange(bracket.id, Number(e.target.value))}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
@@ -1571,20 +1701,12 @@ function TournamentList() {
                         <div className="mt-3 flex flex-wrap justify-end gap-2">
                           <select
                             value={bracket.status}
-                            onChange={(e) =>
-                              setBrackets((current) =>
-                                current.map((item) =>
-                                  item.id === bracket.id
-                                    ? { ...item, status: e.target.value }
-                                    : item
-                                )
-                              )
-                            }
+                            onChange={(e) => handleBracketStatusChange(bracket.id, e.target.value)}
                             className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
                           >
                             {Object.values(BracketStatus).map((status) => (
                               <option key={status} value={status}>
-                                {status}
+                                {getStatusLabel('bracket', status)}
                               </option>
                             ))}
                           </select>
@@ -1592,13 +1714,13 @@ function TournamentList() {
                             onClick={() => saveBracket(bracket)}
                             className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs text-emerald-200 hover:border-emerald-300"
                           >
-                            Save
+                            {t('common.save')}
                           </button>
                           <button
                             onClick={() => removeBracket(bracket.id)}
                             className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
                           >
-                            Delete
+                            {t('common.delete')}
                           </button>
                         </div>
                       </div>
@@ -1608,7 +1730,7 @@ function TournamentList() {
 
                 <div className="mt-5 grid gap-3 md:grid-cols-4">
                   <label className="text-xs text-slate-400 md:col-span-2">
-                    Name
+                    {t('edit.name')}
                     <input
                       type="text"
                       value={newBracket.name}
@@ -1622,7 +1744,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-xs text-slate-400">
-                    Type
+                    {t('edit.type')}
                     <select
                       value={newBracket.bracketType}
                       onChange={(e) =>
@@ -1641,7 +1763,7 @@ function TournamentList() {
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">
-                    Rounds
+                    {t('edit.rounds')}
                     <input
                       type="number"
                       value={newBracket.totalRounds}
@@ -1661,7 +1783,7 @@ function TournamentList() {
                     disabled={!newBracket.name.trim()}
                     className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
                   >
-                    Add bracket
+                    {t('edit.addBracket')}
                   </button>
                 </div>
               </div>
@@ -1670,22 +1792,22 @@ function TournamentList() {
               <div className="mt-8 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-base font-semibold text-white">Player registration</h4>
+                    <h4 className="text-base font-semibold text-white">{t('edit.playerRegistration')}</h4>
                     <p className="text-sm text-slate-400">
-                      {players.length} of {editingTournament.totalParticipants} spots filled
+                      {players.length} {t('edit.spotsFilled.of')} {editingTournament.totalParticipants} {t('edit.spotsFilled.spotsFilled')}
                     </p>
                   </div>
                   <button
                     onClick={() => fetchPlayers(editingTournament.id)}
                     className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500"
                   >
-                    Refresh
+                    {t('common.refresh')}
                   </button>
                 </div>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className="text-sm text-slate-300">
-                    First name
+                    {t('edit.firstName')}
                     <input
                       type="text"
                       value={playerForm.firstName}
@@ -1694,7 +1816,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-sm text-slate-300">
-                    Last name
+                    {t('edit.lastName')}
                     <input
                       type="text"
                       value={playerForm.lastName}
@@ -1703,7 +1825,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-sm text-slate-300">
-                    Email
+                    {t('edit.email')}
                     <input
                       type="email"
                       value={playerForm.email || ''}
@@ -1712,7 +1834,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-sm text-slate-300">
-                    Phone
+                    {t('edit.phone')}
                     <input
                       type="text"
                       value={playerForm.phone || ''}
@@ -1721,7 +1843,7 @@ function TournamentList() {
                     />
                   </label>
                   <label className="text-sm text-slate-300 md:col-span-2">
-                    Skill level
+                    {t('edit.skillLevel')}
                     <select
                       value={playerForm.skillLevel || ''}
                       onChange={(e) =>
@@ -1732,7 +1854,7 @@ function TournamentList() {
                       }
                       className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
                     >
-                      <option value="">Select level (optional)</option>
+                      <option value="">{t('edit.selectSkillLevelOptional')}</option>
                       {skillLevelOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -1750,7 +1872,7 @@ function TournamentList() {
                       onClick={cancelEditPlayer}
                       className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
                     >
-                      Cancel edit
+                      {t('edit.cancelEdit')}
                     </button>
                   )}
                   <button
@@ -1758,63 +1880,26 @@ function TournamentList() {
                     disabled={isRegisteringPlayer || isAutoFillingPlayers}
                     className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500 disabled:opacity-60"
                   >
-                    {isAutoFillingPlayers ? 'Filling...' : 'Auto-fill players'}
+                    {isAutoFillingPlayers ? t('edit.filling') : t('edit.autoFillPlayers')}
                   </button>
                   <button
                     onClick={editingPlayerId ? savePlayerEdit : registerPlayer}
                     disabled={isRegisteringPlayer || isAutoFillingPlayers}
                     className="rounded-full bg-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-60"
                   >
-                    {isRegisteringPlayer || isAutoFillingPlayers
-                      ? 'Saving...'
-                      : editingPlayerId
-                      ? 'Save changes'
-                      : 'Add player'}
+                    {playerActionLabel}
                   </button>
                 </div>
 
                 <div className="mt-6 space-y-2">
-                  <h5 className="text-sm font-semibold text-slate-200">Registered players</h5>
-                  {playersLoading ? (
-                    <p className="text-sm text-slate-400">Loading players...</p>
-                  ) : players.length === 0 ? (
-                    <p className="text-sm text-slate-400">No players registered yet.</p>
-                  ) : (
-                    <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
-                      {players.map((player) => (
-                        <div
-                          key={player.playerId}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/50 px-4 py-2 text-sm"
-                        >
-                          <div>
-                            <p className="text-slate-100">{player.name}</p>
-                            <p className="text-xs text-slate-500">
-                              {player.email || 'No email'}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {player.skillLevel && (
-                              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-                                {player.skillLevel}
-                              </span>
-                            )}
-                            <button
-                              onClick={() => startEditPlayer(player)}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => removePlayer(player.playerId)}
-                              className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <h5 className="text-sm font-semibold text-slate-200">{t('edit.registeredPlayers')}</h5>
+                  <RegistrationPlayersList
+                    players={players}
+                    playersLoading={playersLoading}
+                    t={t}
+                    onEdit={startEditPlayer}
+                    onRemove={removePlayer}
+                  />
                 </div>
               </div>
             )}
@@ -1823,24 +1908,24 @@ function TournamentList() {
               <div className="mt-8 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-base font-semibold text-white">Signature check-in</h4>
+                    <h4 className="text-base font-semibold text-white">{t('edit.signatureCheckIn')}</h4>
                     <p className="text-sm text-slate-400">
-                      Confirm presence for all registered players
+                      {t('edit.confirmPresence')}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={confirmAllPlayers}
-                      disabled={isConfirmingAll || players.length === 0 || players.every((player) => player.checkedIn)}
+                      disabled={isConfirmingAll || players.every((player) => player.checkedIn)}
                       className="rounded-full border border-emerald-500/70 px-4 py-1.5 text-xs font-semibold text-emerald-200 hover:border-emerald-300 disabled:opacity-60"
                     >
-                      {isConfirmingAll ? 'Confirming...' : 'Confirm all'}
+                      {isConfirmingAll ? t('edit.confirming') : t('edit.confirmAll')}
                     </button>
                     <button
                       onClick={() => fetchPlayers(editingTournament.id)}
                       className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500"
                     >
-                      Refresh
+                      {t('common.refresh')}
                     </button>
                   </div>
                 </div>
@@ -1848,46 +1933,14 @@ function TournamentList() {
                 {playersError && <p className="mt-3 text-sm text-rose-300">{playersError}</p>}
 
                 <div className="mt-6 space-y-2">
-                  <h5 className="text-sm font-semibold text-slate-200">Registered players</h5>
-                  {playersLoading ? (
-                    <p className="text-sm text-slate-400">Loading players...</p>
-                  ) : players.length === 0 ? (
-                    <p className="text-sm text-slate-400">No players registered yet.</p>
-                  ) : (
-                    <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
-                      {players.map((player) => (
-                        <div
-                          key={player.playerId}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/50 px-4 py-2 text-sm"
-                        >
-                          <div>
-                            <p className="text-slate-100">{player.name}</p>
-                            <p className="text-xs text-slate-500">
-                              {player.email || 'No email'}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {player.checkedIn && (
-                              <span className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs text-emerald-200">
-                                Present
-                              </span>
-                            )}
-                            <button
-                              onClick={() => togglePlayerCheckIn(player)}
-                              disabled={checkingInPlayerId === player.playerId}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-60"
-                            >
-                              {checkingInPlayerId === player.playerId
-                                ? 'Saving...'
-                                : player.checkedIn
-                                ? 'Undo'
-                                : '✓ Confirm'}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <h5 className="text-sm font-semibold text-slate-200">{t('edit.registeredPlayers')}</h5>
+                  <SignaturePlayersList
+                    players={players}
+                    playersLoading={playersLoading}
+                    t={t}
+                    checkingInPlayerId={checkingInPlayerId}
+                    onToggleCheckIn={togglePlayerCheckIn}
+                  />
                 </div>
               </div>
             )}
@@ -1902,7 +1955,7 @@ function TournamentList() {
                 onClick={closeEdit}
                 className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               {normalizeStatus(editingTournament.status) === 'OPEN' && (
                 <button
@@ -1910,7 +1963,7 @@ function TournamentList() {
                   disabled={isSaving}
                   className="rounded-full border border-indigo-500/70 px-4 py-2 text-sm font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
                 >
-                  Move to signature
+                  {t('edit.moveToSignature')}
                 </button>
               )}
               {normalizeStatus(editingTournament.status) === 'SIGNATURE' && (
@@ -1923,7 +1976,7 @@ function TournamentList() {
                   }
                   className="rounded-full border border-emerald-500/70 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
                 >
-                  Start live
+                  {t('edit.startLive')}
                 </button>
               )}
               <button
@@ -1932,15 +1985,15 @@ function TournamentList() {
                 className="rounded-full border border-cyan-500/70 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
               >
                 {normalizeStatus(editingTournament.status) === 'OPEN'
-                  ? 'Registration open'
-                  : 'Open registration'}
+                  ? t('edit.registrationOpen')
+                  : t('edit.openRegistration')}
               </button>
               <button
                 onClick={saveEdit}
                 disabled={isSaving}
                 className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
               >
-                {isSaving ? 'Saving...' : 'Save changes'}
+                {isSaving ? t('edit.saving') : t('edit.saveChanges')}
               </button>
             </div>
           </div>
@@ -1952,7 +2005,7 @@ function TournamentList() {
           <div className="flex w-full max-w-3xl max-h-[85vh] flex-col rounded-3xl border border-slate-800/70 bg-slate-900 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">Pool players</h3>
+                <h3 className="text-lg font-semibold text-white">{t('edit.poolPlayersTitle')}</h3>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500 mt-1">
                   {editingPoolStage.name}
                 </p>
@@ -1961,7 +2014,7 @@ function TournamentList() {
                 onClick={closePoolStageAssignments}
                 className="text-sm text-slate-400 hover:text-white"
               >
-                Close
+                {t('edit.close')}
               </button>
             </div>
 
@@ -1971,28 +2024,29 @@ function TournamentList() {
 
             <div className="mt-5 flex-1 space-y-4 overflow-y-auto pr-1">
               {poolStagePools.length === 0 ? (
-                <p className="text-sm text-slate-400">No pools available for this stage.</p>
+                <p className="text-sm text-slate-400">{t('edit.noPoolsAvailable')}</p>
               ) : (
                 poolStagePools.map((pool) => (
                   <div key={pool.id} className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold text-white">{pool.name}</p>
-                        <p className="text-xs text-slate-500">Pool #{pool.poolNumber}</p>
+                        <p className="text-xs text-slate-500">{t('edit.poolNumber')} {pool.poolNumber}</p>
                       </div>
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {Array.from({ length: editingPoolStage.playersPerPool }).map((_, index) => {
+                      {Array.from({ length: editingPoolStage.playersPerPool }, (_, slot) => slot + 1).map((slotNumber) => {
+                        const index = slotNumber - 1;
                         const value = poolStageAssignments[pool.id]?.[index] || '';
                         return (
-                          <label key={`${pool.id}-${index}`} className="text-xs text-slate-400">
-                            Slot {index + 1}
+                          <label key={`${pool.id}-slot-${slotNumber}`} className="text-xs text-slate-400">
+                            {t('edit.slot')} {slotNumber}
                             <select
                               value={value}
                               onChange={(e) => updatePoolStageAssignment(pool.id, index, e.target.value)}
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             >
-                              <option value="">Unassigned</option>
+                              <option value="">{t('edit.unassigned')}</option>
                               {poolStagePlayers.map((player) => {
                                 const label = player.name || `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim() || player.playerId;
                                 return (
@@ -2016,14 +2070,14 @@ function TournamentList() {
                 onClick={closePoolStageAssignments}
                 className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200 hover:border-slate-500"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={savePoolStageAssignments}
                 disabled={isSavingAssignments}
                 className="rounded-full border border-emerald-500/60 px-4 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-300 disabled:opacity-60"
               >
-                {isSavingAssignments ? 'Saving...' : 'Save assignments'}
+                {isSavingAssignments ? t('edit.saving') : t('edit.saveAssignments')}
               </button>
             </div>
           </div>

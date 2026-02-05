@@ -3,11 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import logger from '../utils/logger';
 
 // Extend the Request interface to include correlationId
-declare global {
-  namespace Express {
-    interface Request {
-      correlationId?: string;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    correlationId?: string;
   }
 }
 
@@ -40,7 +38,7 @@ export const correlationIdMiddleware = (
       path: req.path,
       query: req.query,
       userAgent: req.headers['user-agent'],
-      ip: req.ip || req.connection.remoteAddress,
+      ip: req.ip || req.socket.remoteAddress,
       metadata: {
         requestStart: new Date().toISOString(),
       }
@@ -54,26 +52,27 @@ export const correlationIdMiddleware = (
  * Logger instance with correlation ID context
  */
 export const createContextLogger = (req: Request) => {
+  type LogMeta = Record<string, unknown>;
   return {
-    error: (message: string, meta?: any) => {
+    error: (message: string, meta?: LogMeta) => {
       logger.error(message, {
         correlationId: req.correlationId,
         ...meta,
       });
     },
-    warn: (message: string, meta?: any) => {
+    warn: (message: string, meta?: LogMeta) => {
       logger.warn(message, {
         correlationId: req.correlationId,
         ...meta,
       });
     },
-    info: (message: string, meta?: any) => {
+    info: (message: string, meta?: LogMeta) => {
       logger.info(message, {
         correlationId: req.correlationId,
         ...meta,
       });
     },
-    debug: (message: string, meta?: any) => {
+    debug: (message: string, meta?: LogMeta) => {
       logger.debug(message, {
         correlationId: req.correlationId,
         ...meta,

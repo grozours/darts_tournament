@@ -183,7 +183,7 @@ export async function fetchTournamentPlayers(
 export async function fetchTournamentLiveView(
   tournamentId: string,
   token?: string
-): Promise<any> {
+): Promise<unknown> {
   const response = await fetch(`/api/tournaments/${tournamentId}/live`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });

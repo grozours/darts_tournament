@@ -29,6 +29,9 @@
       "@shared/*": ["../shared/src/*"]
     }
   },
+  "references": [
+    { "path": "./tests" }
+  ],
   "include": [
     "src/**/*",
     "../shared/src/**/*"

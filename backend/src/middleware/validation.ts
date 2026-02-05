@@ -24,37 +24,45 @@ export const validate = (schema: {
   query?: ZodSchema;
   params?: ZodSchema;
 }) => {
+  const parseRequest = (req: Request): void => {
+    if (schema.body && req.body) {
+      req.body = schema.body.parse(req.body);
+    }
+
+    if (schema.query && req.query) {
+      req.query = schema.query.parse(req.query);
+    }
+
+    if (schema.params && req.params) {
+      req.params = schema.params.parse(req.params);
+    }
+  };
+
+  const buildValidationError = (error: ZodError): AppError => {
+    const formattedError = new AppError(
+      error.errors && error.errors.length > 0 && error.errors[0]
+        ? error.errors[0].message
+        : 'Validation failed',
+      400,
+      'VALIDATION_ERROR'
+    );
+    const details = error.errors.map(err => ({
+      field: err.path.join('.'),
+      message: err.message,
+      value: 'received' in err ? (err as { received?: unknown }).received : undefined,
+    }));
+    (formattedError as AppError & { details?: unknown }).details = details;
+    return formattedError;
+  };
+
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
-      // Validate request body
-      if (schema.body && req.body) {
-        req.body = schema.body.parse(req.body);
-      }
-
-      // Validate query parameters
-      if (schema.query && req.query) {
-        req.query = schema.query.parse(req.query);
-      }
-
-      // Validate path parameters
-      if (schema.params && req.params) {
-        req.params = schema.params.parse(req.params);
-      }
+      parseRequest(req);
 
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const formattedError = new AppError(
-          error.errors && error.errors.length > 0 && error.errors[0] ? error.errors[0].message : 'Validation failed',
-          400,
-          'VALIDATION_ERROR'
-        );
-        (formattedError as any).details = error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message,
-          value: (err as any).received || undefined,
-        }));
-        next(formattedError);
+        next(buildValidationError(error));
       } else {
         next(error);
       }

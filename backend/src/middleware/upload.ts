@@ -1,7 +1,7 @@
 import multer, { StorageEngine } from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { Request } from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
+import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/environment';
 import { AppError } from './errorHandler';
 
@@ -77,7 +77,7 @@ export const uploadMultipleFiles = (fieldName: string, maxCount: number = 5) =>
   upload.array(fieldName, maxCount);
 
 // File validation middleware (additional checks after multer)
-export const validateUploadedFile = (req: Request, res: any, next: any): void => {
+export const validateUploadedFile = (req: Request, res: Response, next: NextFunction): void => {
   const file = req.file;
   
   if (!file) {
@@ -125,7 +125,7 @@ export const getFileUrl = (filename: string): string => {
 };
 
 // File type validation for logos specifically
-export const validateLogoFile = (req: Request, res: any, next: any): void => {
+export const validateLogoFile = (req: Request, res: Response, next: NextFunction): void => {
   const file = req.file;
   
   if (!file) {

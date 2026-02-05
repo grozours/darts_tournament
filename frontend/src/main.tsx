@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { OptionalAuthProvider } from './auth/optionalAuth';
+import { I18nProvider } from './i18n';
 import './index.css';
 
 // Get the root element
@@ -18,12 +19,14 @@ const auth0Audience = import.meta.env.VITE_AUTH0_AUDIENCE as string | undefined;
 
 root.render(
   <StrictMode>
-    <OptionalAuthProvider
-      domain={auth0Domain}
-      clientId={auth0ClientId}
-      audience={auth0Audience}
-    >
-      <App />
-    </OptionalAuthProvider>
+    <I18nProvider>
+      <OptionalAuthProvider
+        domain={auth0Domain}
+        clientId={auth0ClientId}
+        audience={auth0Audience}
+      >
+        <App />
+      </OptionalAuthProvider>
+    </I18nProvider>
   </StrictMode>
 );

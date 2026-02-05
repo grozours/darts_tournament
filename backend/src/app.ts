@@ -1,8 +1,8 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
-import { createServer } from 'http';
+import path from 'node:path';
+import { createServer, type Server as HttpServer } from 'node:http';
 import { Server as SocketServer } from 'socket.io';
 import morgan from 'morgan';
 import { config } from './config/environment';
@@ -18,7 +18,7 @@ import logger, { stream } from './utils/logger';
 import tournamentRoutes from './routes/tournaments';
 class App {
   public app: Express;
-  public server: any;
+  public server: HttpServer;
   public io: SocketServer;
 
   constructor() {

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import path from 'node:path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -15,6 +15,7 @@ export default defineConfig({
   server: {
     port: 5173, // Standard Vite port
     host: true,
+    allowedHosts: ['darts.bzhtech.eu'],
     proxy: {
       '/api': {
         target: 'http://backend:3000', // Docker service name

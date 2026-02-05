@@ -69,37 +69,39 @@ export const sanitizeMiddleware = (
   next: NextFunction
 ): void => {
   // Basic sanitization for common XSS patterns
-  const sanitizeValue = (value: any): any => {
+  const sanitizeValue = (value: unknown): unknown => {
     if (typeof value === 'string') {
       return value
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/javascript:/gi, '')
-        .replace(/on\w+=/gi, '');
+        .replaceAll(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replaceAll(/javascript:/gi, '')
+        .replaceAll(/on\w+=/gi, '');
     }
     return value;
   };
 
-  const sanitizeObject = (obj: any): any => {
-    if (obj && typeof obj === 'object') {
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          obj[key] = sanitizeObject(obj[key]);
-        }
-      }
-    } else {
-      obj = sanitizeValue(obj);
+  const sanitizeObject = (obj: unknown): unknown => {
+    if (Array.isArray(obj)) {
+      return obj.map((item) => sanitizeObject(item));
     }
-    return obj;
+    if (obj && typeof obj === 'object') {
+      const record = obj as Record<string, unknown>;
+      const result: Record<string, unknown> = {};
+      Object.keys(record).forEach((key) => {
+        result[key] = sanitizeObject(record[key]);
+      });
+      return result;
+    }
+    return sanitizeValue(obj);
   };
 
   if (req.body) {
-    req.body = sanitizeObject({ ...req.body });
+    req.body = sanitizeObject({ ...req.body }) as typeof req.body;
   }
   if (req.query) {
-    req.query = sanitizeObject({ ...req.query });
+    req.query = sanitizeObject({ ...req.query }) as typeof req.query;
   }
   if (req.params) {
-    req.params = sanitizeObject({ ...req.params });
+    req.params = sanitizeObject({ ...req.params }) as typeof req.params;
   }
 
   next();

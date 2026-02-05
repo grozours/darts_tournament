@@ -1,17 +1,21 @@
-import { useOptionalAuth } from "./auth/optionalAuth";
 import TournamentList from "./components/TournamentList";
 import RegistrationPlayers from "./components/RegistrationPlayers";
 import LiveTournament from "./components/LiveTournament";
+import { useI18n } from './i18n';
 
 function App() {
-  const {
-    enabled: authEnabled,
-    isAuthenticated,
-  } = useOptionalAuth();
+  const { lang, toggleLang, t } = useI18n();
 
-  const view = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('view')
+  const view = globalThis.window
+    ? new URLSearchParams(globalThis.window.location.search).get('view')
     : null;
+
+  let mainContent = <TournamentList />;
+  if (view === 'players') {
+    mainContent = <RegistrationPlayers />;
+  } else if (view === 'live' || view === 'pool-stages' || view === 'brackets') {
+    mainContent = <LiveTournament />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -29,54 +33,59 @@ function App() {
                 🎯
               </a>
               <a className="text-sm font-semibold tracking-wide hover:text-white" href="/">
-                Darts Hub
+                {t('app.title')}
               </a>
             </div>
 
             <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
-                Registration players
-              </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=DRAFT">
-                Drafts
+                {t('nav.drafts')}
               </a>
               <a
                 className="rounded-md px-2 py-1 hover:bg-slate-800"
                 href="/?status=OPEN"
               >
-                Open
+                {t('nav.open')}
               </a>
               <a
                 className="rounded-md px-2 py-1 hover:bg-slate-800"
                 href="/?status=SIGNATURE"
               >
-                Signature
+                {t('nav.signature')}
               </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=LIVE">
-                Live
+                {t('nav.live')}
+              </a>
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=pool-stages">
+                {t('nav.poolStagesRunning')}
+              </a>
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=brackets">
+                {t('nav.bracketsRunning')}
               </a>
               <a
                 className="rounded-md px-2 py-1 hover:bg-slate-800"
                 href="/?status=FINISHED"
               >
-                Finished
+                {t('nav.finished')}
               </a>
             </nav>
 
             <div className="ml-auto" />
+            <button
+              onClick={toggleLang}
+              className="rounded-md px-2 py-1 hover:bg-slate-800"
+              aria-label="Toggle language"
+              title={lang === 'en' ? 'Français' : 'English'}
+            >
+              {lang === 'en' ? '🇫🇷' : '🇬🇧'}
+            </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-16">
         <section className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
-          {view === 'players' ? (
-            <RegistrationPlayers />
-          ) : view === 'live' ? (
-            <LiveTournament />
-          ) : (
-            <TournamentList />
-          )}
+          {mainContent}
         </section>
       </main>
     </div>

@@ -2,27 +2,38 @@ import { Server as SocketServer, Socket } from 'socket.io';
 import { redis } from '../config/redis';
 import { config } from '../config/environment';
 
+type PlayerSummary = {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  [key: string]: unknown;
+};
+
+type ScorePayload = Record<string, unknown>;
+type PoolAssignmentPayload = Record<string, unknown>;
+type SchedulePayload = Record<string, unknown>;
+
 // WebSocket events per constitution real-time requirements
 export interface WebSocketEvents {
   // Tournament events
   'tournament:updated': (data: { tournamentId: string; status: string }) => void;
-  'tournament:player-registered': (data: { tournamentId: string; player: any }) => void;
+  'tournament:player-registered': (data: { tournamentId: string; player: PlayerSummary }) => void;
   
   // Match events
   'match:started': (data: { matchId: string; tournamentId: string }) => void;
-  'match:score-updated': (data: { matchId: string; tournamentId: string; score: any }) => void;
-  'match:completed': (data: { matchId: string; tournamentId: string; winner: any }) => void;
+  'match:score-updated': (data: { matchId: string; tournamentId: string; score: ScorePayload }) => void;
+  'match:completed': (data: { matchId: string; tournamentId: string; winner: PlayerSummary }) => void;
   
   // Target events
   'target:available': (data: { targetId: string; tournamentId: string }) => void;
   'target:in-use': (data: { targetId: string; matchId: string; tournamentId: string }) => void;
   
   // Pool events
-  'pool:assigned': (data: { tournamentId: string; poolAssignments: any[] }) => void;
+  'pool:assigned': (data: { tournamentId: string; poolAssignments: PoolAssignmentPayload[] }) => void;
   
   // Schedule events
-  'schedule:generated': (data: { tournamentId: string; schedule: any }) => void;
-  'schedule:updated': (data: { tournamentId: string; changes: any }) => void;
+  'schedule:generated': (data: { tournamentId: string; schedule: SchedulePayload }) => void;
+  'schedule:updated': (data: { tournamentId: string; changes: SchedulePayload }) => void;
   
   // Error events
   'error': (data: { message: string; code?: string }) => void;
@@ -127,7 +138,7 @@ export const setupWebSocketServer = (io: SocketServer): void => {
 
 // WebSocket event emitters for use in services
 export class WebSocketService {
-  private io: SocketServer;
+  private readonly io: SocketServer;
 
   constructor(io: SocketServer) {
     this.io = io;
@@ -151,7 +162,7 @@ export class WebSocketService {
     }
   }
 
-  async emitPlayerRegistered(tournamentId: string, player: any): Promise<void> {
+  async emitPlayerRegistered(tournamentId: string, player: PlayerSummary): Promise<void> {
     try {
       this.io.to(`tournament-${tournamentId}`).emit('tournament:player-registered', { 
         tournamentId, 
@@ -165,7 +176,7 @@ export class WebSocketService {
   }
 
   // Match events per <2s constitution requirement
-  async emitMatchScoreUpdated(matchId: string, tournamentId: string, score: any): Promise<void> {
+  async emitMatchScoreUpdated(matchId: string, tournamentId: string, score: ScorePayload): Promise<void> {
     try {
       const startTime = Date.now();
       
@@ -186,7 +197,7 @@ export class WebSocketService {
     }
   }
 
-  async emitMatchCompleted(matchId: string, tournamentId: string, winner: any): Promise<void> {
+  async emitMatchCompleted(matchId: string, tournamentId: string, winner: PlayerSummary): Promise<void> {
     try {
       this.io.to(`tournament-${tournamentId}`).emit('match:completed', { 
         matchId, 
@@ -215,7 +226,7 @@ export class WebSocketService {
   }
 
   // Pool assignment events
-  async emitPoolAssigned(tournamentId: string, poolAssignments: any[]): Promise<void> {
+  async emitPoolAssigned(tournamentId: string, poolAssignments: PoolAssignmentPayload[]): Promise<void> {
     try {
       this.io.to(`tournament-${tournamentId}`).emit('pool:assigned', { 
         tournamentId, 
@@ -229,7 +240,7 @@ export class WebSocketService {
   }
 
   // Schedule events
-  async emitScheduleGenerated(tournamentId: string, schedule: any): Promise<void> {
+  async emitScheduleGenerated(tournamentId: string, schedule: SchedulePayload): Promise<void> {
     try {
       this.io.to(`tournament-${tournamentId}`).emit('schedule:generated', { 
         tournamentId, 

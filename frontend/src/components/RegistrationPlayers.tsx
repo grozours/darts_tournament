@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TournamentFormat } from '@shared/types';
 import { useOptionalAuth } from '../auth/optionalAuth';
 import { fetchTournamentPlayers, type TournamentPlayer } from '../services/tournamentService';
+import { useI18n } from '../i18n';
 
 interface TournamentSummary {
   id: string;
@@ -11,18 +12,8 @@ interface TournamentSummary {
   totalParticipants: number;
 }
 
-const formatSections = [
-  {
-    title: 'Double tournaments',
-    format: TournamentFormat.DOUBLE,
-  },
-  {
-    title: 'Team tournaments',
-    format: TournamentFormat.TEAM_4_PLAYER,
-  },
-] as const;
-
 function RegistrationPlayers() {
+  const { t } = useI18n();
   const {
     enabled: authEnabled,
     isAuthenticated,
@@ -36,13 +27,27 @@ function RegistrationPlayers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const formatSections = useMemo(
+    () => [
+      {
+        title: t('registration.double'),
+        format: TournamentFormat.DOUBLE,
+      },
+      {
+        title: t('registration.team'),
+        format: TournamentFormat.TEAM_4_PLAYER,
+      },
+    ],
+    [t]
+  );
+
   const visibleTournaments = useMemo(() => {
     return tournaments.filter((tournament) =>
       formatSections.some((section) => section.format === tournament.format)
     );
-  }, [tournaments]);
+  }, [formatSections, tournaments]);
 
-  const fetchRegistrationPlayers = async () => {
+  const fetchRegistrationPlayers = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -79,13 +84,13 @@ function RegistrationPlayers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authEnabled, formatSections, getAccessTokenSilently]);
 
   useEffect(() => {
     if (!authEnabled || isAuthenticated) {
       fetchRegistrationPlayers();
     }
-  }, [authEnabled, isAuthenticated]);
+  }, [authEnabled, isAuthenticated, fetchRegistrationPlayers]);
 
   if (authLoading) {
     return (
@@ -94,7 +99,7 @@ function RegistrationPlayers() {
           <div className="h-10 w-10 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
           <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
         </div>
-        <span className="ml-3 text-slate-300">Checking session...</span>
+        <span className="ml-3 text-slate-300">{t('auth.checkingSession')}</span>
       </div>
     );
   }
@@ -102,15 +107,15 @@ function RegistrationPlayers() {
   if (authEnabled && !isAuthenticated) {
     return (
       <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-        <h3 className="text-xl font-semibold text-white">Sign in to view registration players</h3>
+        <h3 className="text-xl font-semibold text-white">{t('auth.signInToViewRegistrationPlayers')}</h3>
         <p className="mt-2 text-sm text-slate-300">
-          Player registration lists are protected. Please sign in to continue.
+          {t('auth.protectedContinue')}
         </p>
         <button
           onClick={() => loginWithRedirect()}
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
         >
-          Sign in
+          {t('auth.signIn')}
         </button>
       </div>
     );
@@ -123,7 +128,7 @@ function RegistrationPlayers() {
           <div className="h-10 w-10 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
           <div className="absolute inset-0 rounded-full border border-cyan-400/20" />
         </div>
-        <span className="ml-3 text-slate-300">Loading registration players...</span>
+        <span className="ml-3 text-slate-300">{t('registration.loading')}</span>
       </div>
     );
   }
@@ -136,7 +141,7 @@ function RegistrationPlayers() {
           onClick={fetchRegistrationPlayers}
           className="inline-flex items-center gap-2 rounded-full bg-rose-500/80 px-5 py-2 text-sm font-semibold text-white transition hover:bg-rose-500"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -146,21 +151,21 @@ function RegistrationPlayers() {
     <div className="space-y-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Registration players</p>
-          <h2 className="text-2xl font-semibold text-white mt-2">Double & team signups</h2>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('registration.title')}</p>
+          <h2 className="text-2xl font-semibold text-white mt-2">{t('registration.subtitle')}</h2>
         </div>
         <button
           onClick={fetchRegistrationPlayers}
           className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
         >
-          Refresh
+          {t('common.refresh')}
         </button>
       </div>
 
       {visibleTournaments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
-          <p className="text-lg font-semibold text-white">No registration players yet</p>
-          <p className="mt-2">Open registration for double or team tournaments to see players here.</p>
+          <p className="text-lg font-semibold text-white">{t('registration.none')}</p>
+          <p className="mt-2">{t('registration.none.subtitle')}</p>
         </div>
       ) : (
         <div className="space-y-10">
@@ -177,7 +182,7 @@ function RegistrationPlayers() {
                 </div>
                 {sectionTournaments.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
-                    No tournaments in this category yet.
+                    {t('common.noCategory')}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -193,7 +198,7 @@ function RegistrationPlayers() {
                             <div>
                               <h4 className="text-lg font-semibold text-white">{tournament.name}</h4>
                               <p className="text-sm text-slate-400">
-                                {players.length} of {tournament.totalParticipants} players
+                                {players.length} / {tournament.totalParticipants} {t('registration.playersCount')}
                               </p>
                             </div>
                             <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
