@@ -36,6 +36,9 @@ export const getVisibleLiveViews = (viewMode: LiveViewMode, views: LiveViewLike[
   if (isBracketsView(viewMode)) {
     return views.filter(hasActiveBrackets);
   }
+  if (viewMode === 'live') {
+    return views;
+  }
   return views;
 };
 

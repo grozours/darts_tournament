@@ -899,7 +899,36 @@ function TournamentList() { // NOSONAR
       { firstName: 'Skyler', lastName: 'Wright' },
     ];
 
+    const sampleSurnames = [
+      'Falcon',
+      'Viper',
+      'Atlas',
+      'Nova',
+      'Phoenix',
+      'Storm',
+      'Onyx',
+      'Comet',
+      'Raptor',
+      'Blaze',
+      'Echo',
+      'Summit',
+    ];
+
+    const sampleTeams = [
+      'Team Rocket',
+      'Crimson Arrows',
+      'Night Owls',
+      'Blue Barrage',
+      'Golden Bulls',
+      'Emerald Strike',
+      'Northern Lights',
+      'Silver Foxes',
+    ];
+
     const pickRandomName = () => sampleNames[Math.floor(Math.random() * sampleNames.length)];
+    const pickRandomSurname = () => sampleSurnames[Math.floor(Math.random() * sampleSurnames.length)];
+    const pickRandomTeam = () => sampleTeams[Math.floor(Math.random() * sampleTeams.length)];
+    const pickRandomPhone = () => `0${Math.floor(100000000 + Math.random() * 900000000)}`;
     const existingNames = new Set(players.map((player) => player.name.toLowerCase()));
     const uniqueRegistrations: CreatePlayerPayload[] = [];
     let attempts = 0;
@@ -917,10 +946,16 @@ function TournamentList() { // NOSONAR
       }
 
       existingNames.add(fullName);
+      const isTeamFormat = editingTournament.format === TournamentFormat.DOUBLE
+        || editingTournament.format === TournamentFormat.TEAM_4_PLAYER;
+
       uniqueRegistrations.push({
         firstName,
         lastName,
+        surname: pickRandomSurname(),
+        teamName: isTeamFormat ? pickRandomTeam() : undefined,
         email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replaceAll(/\s+/g, '')}@example.com`,
+        phone: pickRandomPhone(),
       });
     }
 

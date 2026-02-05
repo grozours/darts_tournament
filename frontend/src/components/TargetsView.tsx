@@ -19,6 +19,7 @@ interface LiveViewMatch {
   status: string;
   playerMatches?: Array<{
     player?: {
+      id?: string;
       firstName: string;
       lastName: string;
       surname?: string | null;
@@ -96,11 +97,59 @@ type MatchQueueItem = {
 
 const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
   const items: MatchQueueItem[] = [];
+  const activePlayerKeys = new Set<string>();
+
+  const getPlayerIdentity = (player?: { id?: string; firstName: string; lastName: string; teamName?: string | null }) => {
+    if (!player) return null;
+    if (player.id) return `id:${player.id}`;
+    if (player.teamName) return `team:${player.teamName}`;
+    return `name:${player.firstName} ${player.lastName}`.trim();
+  };
+
+  const collectActivePlayers = (match: LiveViewMatch) => {
+    for (const pm of match.playerMatches ?? []) {
+      const key = getPlayerIdentity(pm.player);
+      if (key) {
+        activePlayerKeys.add(key);
+      }
+    }
+  };
+
+  for (const stage of view.poolStages ?? []) {
+    for (const pool of stage.pools ?? []) {
+      for (const match of pool.matches ?? []) {
+        if (match.status === 'IN_PROGRESS') {
+          collectActivePlayers(match);
+        }
+      }
+    }
+  }
+
+  for (const bracket of view.brackets ?? []) {
+    for (const match of bracket.matches ?? []) {
+      if (match.status === 'IN_PROGRESS') {
+        collectActivePlayers(match);
+      }
+    }
+  }
+
+  const isMatchBlocked = (match: LiveViewMatch) => {
+    for (const pm of match.playerMatches ?? []) {
+      const key = getPlayerIdentity(pm.player);
+      if (key && activePlayerKeys.has(key)) {
+        return true;
+      }
+    }
+    return false;
+  };
   for (const stage of view.poolStages ?? []) {
     if (stage.pools == null) continue;
     for (const pool of stage.pools ?? []) {
       for (const match of pool.matches ?? []) {
         if (match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.status === 'IN_PROGRESS') {
+          continue;
+        }
+        if (isMatchBlocked(match)) {
           continue;
         }
         const players = (match.playerMatches ?? [])

@@ -8,16 +8,18 @@ import { useI18n } from './i18n';
 function App() {
   const { lang, toggleLang, t } = useI18n();
 
-  const view = globalThis.window
-    ? new URLSearchParams(globalThis.window.location.search).get('view')
+  const params = globalThis.window
+    ? new URLSearchParams(globalThis.window.location.search)
     : null;
+  const view = params?.get('view') ?? null;
+  const status = params?.get('status') ?? null;
 
   let mainContent = <TournamentList />;
   if (view === 'players') {
     mainContent = <PlayersView />;
   } else if (view === 'registration-players') {
     mainContent = <RegistrationPlayers />;
-  } else if (view === 'live' || view === 'pool-stages' || view === 'brackets') {
+  } else if (view === 'live' || view === 'pool-stages' || view === 'brackets' || status === 'LIVE') {
     mainContent = <LiveTournament />;
   } else if (view === 'targets') {
     mainContent = <TargetsView />;
@@ -47,22 +49,31 @@ function App() {
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
                 {t('nav.players')}
               </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=DRAFT">
-                {t('nav.drafts')}
-              </a>
-              <a
-                className="rounded-md px-2 py-1 hover:bg-slate-800"
-                href="/?status=OPEN"
-              >
-                {t('nav.open')}
-              </a>
-              <a
-                className="rounded-md px-2 py-1 hover:bg-slate-800"
-                href="/?status=SIGNATURE"
-              >
-                {t('nav.signature')}
-              </a>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=LIVE">
+              <div className="relative group">
+                <button
+                  type="button"
+                  className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center gap-2"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >
+                  Manage
+                  <span aria-hidden="true">▾</span>
+                </button>
+                <div className="absolute left-0 top-full z-10 pt-2 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+                  <div className="min-w-[10rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
+                    <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
+                      {t('nav.drafts')}
+                    </a>
+                    <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=OPEN">
+                      {t('nav.open')}
+                    </a>
+                    <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=SIGNATURE">
+                      {t('nav.signature')}
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="https://darts.bzhtech.eu/?status=live">
                 {t('nav.live')}
               </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=pool-stages">

@@ -23,6 +23,7 @@ module.exports = {
     },
   },
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
+  globalTeardown: '<rootDir>/tests/teardown.ts',
   moduleNameMapper: {
     '^uuid$': '<rootDir>/tests/fixtures/uuid.ts',
     '^@/(.*)$': '<rootDir>/src/$1',

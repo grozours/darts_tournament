@@ -26,5 +26,5 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Cleanup
+  // Cleanup handled in Jest globalTeardown.
 });
