@@ -16,6 +16,25 @@ npm-debug.log*
 .env.*
 !.env.example
 
+# Secrets & credentials
+.sonar-token
+.envrc
+.npmrc
+.pypirc
+.netrc
+.aws/
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.crt
+*.csr
+*.der
+*.gpg
+*.asc
+
 # Runtime/PID files
 *.pid
 .backend.pid
