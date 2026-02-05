@@ -51,8 +51,11 @@ export enum SkillLevel {
 export interface Player {
   id: string;
   tournamentId: string;
+  personId?: string;
   firstName: string;
   lastName: string;
+  surname?: string;
+  teamName?: string;
   email?: string;
   phone?: string;
   skillLevel?: SkillLevel;
@@ -158,6 +161,7 @@ export interface Target {
   id: string;
   tournamentId: string;
   targetNumber: number;
+  targetCode: string;
   name?: string;
   status: TargetStatus;
   currentMatchId?: string;
@@ -246,6 +250,8 @@ export interface CreateTournamentRequest {
 export interface CreatePlayerRequest {
   firstName: string;
   lastName: string;
+  surname?: string;
+  teamName?: string;
   email?: string;
   phone?: string;
   skillLevel?: SkillLevel;

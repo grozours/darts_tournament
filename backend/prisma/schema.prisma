@@ -42,8 +42,11 @@ model Tournament {
 model Player {
   id                String         @id @default(uuid())
   tournamentId      String         @map("tournament_id")
+  personId          String?        @map("person_id")
   firstName         String         @map("first_name") @db.VarChar(50)
   lastName          String         @map("last_name") @db.VarChar(50)
+  surname           String?        @db.VarChar(50)
+  teamName          String?        @map("team_name") @db.VarChar(100)
   email             String?        @db.VarChar(255)
   phone             String?        @db.VarChar(20)
   skillLevel        SkillLevel?    @map("skill_level")
@@ -53,6 +56,7 @@ model Player {
 
   // Relationships
   tournament        Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person            Person?        @relation(fields: [personId], references: [id], onDelete: SetNull)
   poolAssignments   PoolAssignment[]
   playerMatches     PlayerMatch[]
   bracketEntries    BracketEntry[]
@@ -62,6 +66,21 @@ model Player {
   @@unique([tournamentId, email])
   @@unique([tournamentId, firstName, lastName])
   @@map("players")
+}
+
+model Person {
+  id         String   @id @default(uuid())
+  firstName  String   @map("first_name") @db.VarChar(50)
+  lastName   String   @map("last_name") @db.VarChar(50)
+  email      String?  @db.VarChar(255)
+  phone      String?  @db.VarChar(20)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  players    Player[]
+
+  @@unique([email, phone])
+  @@map("persons")
 }
 
 // Pool Stage Entity
@@ -166,6 +185,7 @@ model Target {
   id             String        @id @default(uuid())
   tournamentId   String        @map("tournament_id")
   targetNumber   Int           @map("target_number")
+  targetCode     String        @map("target_code") @db.VarChar(50)
   name           String?       @db.VarChar(50)
   status         TargetStatus  @default(AVAILABLE)
   currentMatchId String?       @map("current_match_id")
@@ -178,6 +198,7 @@ model Target {
   scheduledMatches ScheduledMatch[]
 
   @@unique([tournamentId, targetNumber])
+  @@unique([tournamentId, targetCode])
   @@map("targets")
 }
 

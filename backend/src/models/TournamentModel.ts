@@ -12,6 +12,7 @@ import {
   AssignmentType,
   Player,
   SkillLevel,
+  TargetStatus,
 } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 
@@ -28,6 +29,9 @@ const logModelError = (context: string, error: unknown) => {
 
 const liveViewArgs = {
   include: {
+    targets: {
+      orderBy: { targetNumber: 'asc' },
+    },
     poolStages: {
       orderBy: { stageNumber: 'asc' },
       include: {
@@ -80,6 +84,62 @@ export class TournamentModel {
     this.prisma = prisma;
   }
 
+  async findPersonByEmailAndPhone(email: string, phone: string) {
+    try {
+      return await this.prisma.person.findUnique({
+        where: {
+          email_phone: {
+            email,
+            phone,
+          },
+        },
+      });
+    } catch (error) {
+      logModelError('findPersonByEmailAndPhone', error);
+      throw new AppError('Failed to fetch person', 500, 'PERSON_FETCH_FAILED');
+    }
+  }
+
+  async createPerson(data: { firstName: string; lastName: string; email?: string | null; phone?: string | null }) {
+    try {
+      return await this.prisma.person.create({
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email || null,
+          phone: data.phone || null,
+        },
+      });
+    } catch (error) {
+      logModelError('createPerson', error);
+      throw new AppError('Failed to create person', 500, 'PERSON_CREATE_FAILED');
+    }
+  }
+
+  async updatePerson(
+    personId: string,
+    data: { firstName?: string; lastName?: string; email?: string | null; phone?: string | null }
+  ) {
+    try {
+      return await this.prisma.person.update({
+        where: { id: personId },
+        data,
+      });
+    } catch (error) {
+      logModelError('updatePerson', error);
+      throw new AppError('Failed to update person', 500, 'PERSON_UPDATE_FAILED');
+    }
+  }
+
+  async getPlayerById(playerId: string) {
+    try {
+      return await this.prisma.player.findUnique({ where: { id: playerId } });
+    } catch (error) {
+      logModelError('getPlayerById', error);
+      throw new AppError('Failed to fetch player', 500, 'PLAYER_FETCH_FAILED');
+    }
+  }
+
   /**
    * Create a new tournament
    */
@@ -109,6 +169,15 @@ export class TournamentModel {
         },
       });
 
+      if (tournamentData.targetCount > 0) {
+        const targets = Array.from({ length: tournamentData.targetCount }, (_, index) => ({
+          tournamentId: tournament.id,
+          targetNumber: index + 1,
+          targetCode: `target${index + 1}`,
+        }));
+        await this.prisma.target.createMany({ data: targets });
+      }
+
       return this.mapToTournament(tournament);
     } catch (error) {
       logModelError('create', error);
@@ -126,6 +195,33 @@ export class TournamentModel {
         'TOURNAMENT_CREATE_FAILED'
       );
     }
+  }
+
+  async getMaxTargetNumber(tournamentId: string): Promise<number> {
+    try {
+      const target = await this.prisma.target.findFirst({
+        where: { tournamentId },
+        orderBy: { targetNumber: 'desc' },
+        select: { targetNumber: true },
+      });
+      return target?.targetNumber ?? 0;
+    } catch (error) {
+      logModelError('getMaxTargetNumber', error);
+      return 0;
+    }
+  }
+
+  async createTargetsForTournament(tournamentId: string, startNumber: number, count: number) {
+    if (count <= 0) return;
+    const targets = Array.from({ length: count }, (_, index) => {
+      const targetNumber = startNumber + index;
+      return {
+        tournamentId,
+        targetNumber,
+        targetCode: `target${targetNumber}`,
+      };
+    });
+    await this.prisma.target.createMany({ data: targets, skipDuplicates: true });
   }
 
   /**
@@ -521,6 +617,30 @@ export class TournamentModel {
     }
   }
 
+  async getMatchPoolStageId(matchId: string): Promise<string | null> {
+    try {
+      const match = await this.prisma.match.findUnique({
+        where: { id: matchId },
+        select: { pool: { select: { poolStageId: true } } },
+      });
+      return match?.pool?.poolStageId ?? null;
+    } catch (error) {
+      logModelError('getMatchPoolStageId', error);
+      return null;
+    }
+  }
+
+  async getTargetById(targetId: string) {
+    try {
+      return await this.prisma.target.findUnique({
+        where: { id: targetId },
+      });
+    } catch (error) {
+      logModelError('getTargetById', error);
+      throw new AppError('Failed to fetch target', 500, 'TARGET_FETCH_FAILED');
+    }
+  }
+
   async updateMatchStatus(
     matchId: string,
     status: MatchStatus,
@@ -549,6 +669,79 @@ export class TournamentModel {
         500,
         'MATCH_STATUS_UPDATE_FAILED'
       );
+    }
+  }
+
+  async startMatchWithTarget(matchId: string, targetId: string, startedAt: Date) {
+    try {
+      return await this.prisma.$transaction([
+        this.prisma.match.update({
+          where: { id: matchId },
+          data: {
+            status: MatchStatus.IN_PROGRESS,
+            startedAt,
+            targetId,
+          },
+        }),
+        this.prisma.target.update({
+          where: { id: targetId },
+          data: {
+            status: TargetStatus.IN_USE,
+            currentMatchId: matchId,
+            lastUsedAt: startedAt,
+          },
+        }),
+      ]);
+    } catch (error) {
+      logModelError('startMatchWithTarget', error);
+      throw new AppError('Failed to start match', 500, 'MATCH_START_FAILED');
+    }
+  }
+
+  async finishMatchAndReleaseTarget(
+    matchId: string,
+    targetId: string,
+    status: MatchStatus,
+    timestamps: { startedAt?: Date | null; completedAt?: Date | null }
+  ) {
+    try {
+      return await this.prisma.$transaction([
+        this.prisma.match.update({
+          where: { id: matchId },
+          data: {
+            status,
+            ...(timestamps.startedAt !== undefined && { startedAt: timestamps.startedAt }),
+            ...(timestamps.completedAt !== undefined && { completedAt: timestamps.completedAt }),
+          },
+        }),
+        this.prisma.target.update({
+          where: { id: targetId },
+          data: {
+            status: TargetStatus.AVAILABLE,
+            currentMatchId: null,
+            lastUsedAt: timestamps.completedAt ?? new Date(),
+          },
+        }),
+      ]);
+    } catch (error) {
+      logModelError('finishMatchAndReleaseTarget', error);
+      throw new AppError('Failed to finish match', 500, 'MATCH_FINISH_FAILED');
+    }
+  }
+
+  async setTargetAvailable(targetId: string, completedAt?: Date | null) {
+    try {
+      return await this.prisma.target.update({
+        where: { id: targetId },
+        data: {
+          status: TargetStatus.AVAILABLE,
+          currentMatchId: null,
+          lastUsedAt: completedAt ?? new Date(),
+        },
+      });
+    } catch (error) {
+      logModelError('setTargetAvailable', error);
+      throw new AppError('Failed to update target', 500, 'TARGET_UPDATE_FAILED');
     }
   }
 
@@ -970,8 +1163,11 @@ export class TournamentModel {
   async createPlayer(
     tournamentId: string,
     playerData: {
+      personId?: string | null;
       firstName: string;
       lastName: string;
+      surname?: string;
+      teamName?: string;
       email?: string;
       phone?: string;
       skillLevel?: SkillLevel;
@@ -981,8 +1177,11 @@ export class TournamentModel {
       const player = await this.prisma.player.create({
         data: {
           tournamentId,
+          personId: playerData.personId || null,
           firstName: playerData.firstName,
           lastName: playerData.lastName,
+          surname: playerData.surname || null,
+          teamName: playerData.teamName || null,
           email: playerData.email || null,
           phone: playerData.phone || null,
           skillLevel: playerData.skillLevel || null,
@@ -1097,8 +1296,11 @@ export class TournamentModel {
    */
   async getParticipants(tournamentId: string): Promise<Array<{
     playerId: string;
+    personId?: string;
     firstName: string;
     lastName: string;
+    surname?: string | null;
+    teamName?: string | null;
     name: string;
     email: string | null;
     phone: string | null;
@@ -1110,8 +1312,11 @@ export class TournamentModel {
       type ParticipantRow = Prisma.PlayerGetPayload<{
         select: {
           id: true;
+          personId: true;
           firstName: true;
           lastName: true;
+          surname: true;
+          teamName: true;
           email: true;
           phone: true;
           skillLevel: true;
@@ -1127,8 +1332,11 @@ export class TournamentModel {
         },
         select: {
           id: true,
+          personId: true,
           firstName: true,
           lastName: true,
+          surname: true,
+          teamName: true,
           email: true,
           phone: true,
           skillLevel: true,
@@ -1142,8 +1350,11 @@ export class TournamentModel {
 
       return participants.map((player) => ({
         playerId: player.id,
+        ...(player.personId ? { personId: player.personId } : {}),
         firstName: player.firstName,
         lastName: player.lastName,
+        ...(player.surname ? { surname: player.surname } : {}),
+        ...(player.teamName ? { teamName: player.teamName } : {}),
         name: `${player.firstName} ${player.lastName}`,
         email: player.email,
         phone: player.phone,
@@ -1203,8 +1414,11 @@ export class TournamentModel {
     tournamentId: string,
     playerId: string,
     updateData: {
+      personId?: string | null;
       firstName?: string;
       lastName?: string;
+      surname?: string | null;
+      teamName?: string | null;
       email?: string | null;
       phone?: string | null;
       skillLevel?: SkillLevel | null;
@@ -1351,8 +1565,11 @@ export class TournamentModel {
     return {
       id: prismaResult.id,
       tournamentId: prismaResult.tournamentId,
+      ...(prismaResult.personId ? { personId: prismaResult.personId } : {}),
       firstName: prismaResult.firstName,
       lastName: prismaResult.lastName,
+      ...(prismaResult.surname ? { surname: prismaResult.surname } : {}),
+      ...(prismaResult.teamName ? { teamName: prismaResult.teamName } : {}),
       ...(prismaResult.email ? { email: prismaResult.email } : {}),
       ...(prismaResult.phone ? { phone: prismaResult.phone } : {}),
       ...(prismaResult.skillLevel

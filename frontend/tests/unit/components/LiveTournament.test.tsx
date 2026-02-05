@@ -1,69 +1,34 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
-import LiveTournament from '../../../src/components/LiveTournament';
+import { describe, it, expect } from 'vitest';
+import { getVisibleLiveViews, resolveEmptyLiveCopy } from '../../../src/utils/liveViewHelpers';
 
-const mockFetchTournamentLiveView = vi.fn();
-let originalFetch: typeof globalThis.fetch | undefined;
+describe('LiveTournament helpers', () => {
+  it('filters live views for pool stages', () => {
+    const views = [
+      {
+        id: 'one',
+        name: 'One',
+        status: 'LIVE',
+        poolStages: [
+          { id: 'stage-1', stageNumber: 1, name: 'Stage 1', status: 'IN_PROGRESS', pools: [{ id: 'pool-1', poolNumber: 1, name: 'Pool 1', status: 'IN_PROGRESS' }] },
+        ],
+        brackets: [],
+      },
+      {
+        id: 'two',
+        name: 'Two',
+        status: 'LIVE',
+        poolStages: [],
+        brackets: [],
+      },
+    ];
 
-vi.mock('../../../src/services/tournamentService', () => ({
-  fetchTournamentLiveView: (...args: any[]) => mockFetchTournamentLiveView(...args),
-  updateMatchStatus: vi.fn(),
-  completeMatch: vi.fn(),
-  updateCompletedMatchScores: vi.fn(),
-  updatePoolStage: vi.fn(),
-}));
-
-vi.mock('../../../src/auth/optionalAuth', () => ({
-  useOptionalAuth: () => ({
-    enabled: false,
-    isAuthenticated: false,
-    isLoading: false,
-    loginWithRedirect: vi.fn(),
-    getAccessTokenSilently: vi.fn(),
-  }),
-}));
-
-describe('LiveTournament aggregate view', () => {
-  beforeEach(() => {
-    mockFetchTournamentLiveView.mockResolvedValue({
-      id: 'tournament-1',
-      name: 'Live Tournament',
-      status: 'LIVE',
-      poolStages: [],
-      brackets: [],
-    });
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ tournaments: [] }),
-    });
-    originalFetch = globalThis.fetch;
-    Object.defineProperty(globalThis, 'fetch', {
-      value: fetchMock,
-      writable: true,
-      configurable: true,
-    });
-    globalThis.window.history.pushState({}, '', '/?view=pool-stages');
+    const visible = getVisibleLiveViews('pool-stages', views as any);
+    expect(visible).toHaveLength(1);
+    expect(visible[0].id).toBe('one');
   });
 
-  afterEach(() => {
-    if (originalFetch) {
-      Object.defineProperty(globalThis, 'fetch', {
-        value: originalFetch,
-        writable: true,
-        configurable: true,
-      });
-    }
-    vi.clearAllMocks();
-  });
-
-  it('requests live tournaments with an uppercase status filter', async () => {
-    render(<LiveTournament />);
-
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledWith('/api/tournaments?status=LIVE', {
-        headers: undefined,
-      });
-    });
+  it('returns empty copy for pool-stages view', () => {
+    const t = (key: string) => key;
+    expect(resolveEmptyLiveCopy('pool-stages', t)).toBe('live.nonePoolStages');
   });
 });

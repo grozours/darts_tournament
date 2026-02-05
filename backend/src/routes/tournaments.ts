@@ -164,6 +164,12 @@ const createPlayerSchema = {
       .min(2, 'Last name must be at least 2 characters long')
       .max(50, 'Last name cannot exceed 50 characters')
       .trim(),
+    surname: z.string()
+      .max(50, 'Surname cannot exceed 50 characters')
+      .optional(),
+    teamName: z.string()
+      .max(100, 'Team name cannot exceed 100 characters')
+      .optional(),
     email: z.string()
       .email('Invalid email address')
       .optional(),
@@ -189,6 +195,12 @@ const updatePlayerSchema = {
       .min(2, 'Last name must be at least 2 characters long')
       .max(50, 'Last name cannot exceed 50 characters')
       .trim(),
+    surname: z.string()
+      .max(50, 'Surname cannot exceed 50 characters')
+      .optional(),
+    teamName: z.string()
+      .max(100, 'Team name cannot exceed 100 characters')
+      .optional(),
     email: z.string()
       .email('Invalid email address')
       .optional(),
@@ -649,6 +661,7 @@ router.patch(
       status: z.nativeEnum(MatchStatus, {
         errorMap: () => ({ message: 'Invalid match status' }),
       }),
+      targetId: z.string().uuid('Invalid target ID').optional(),
     }),
   }),
   tournamentController.updateMatchStatus

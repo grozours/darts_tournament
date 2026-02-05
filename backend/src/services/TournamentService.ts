@@ -10,6 +10,7 @@ import {
   AssignmentType,
   PoolStatus,
   MatchStatus,
+  TargetStatus,
   CreatePlayerRequest,
   Player,
   SkillLevel,
@@ -18,6 +19,7 @@ import { AppError } from '../middleware/errorHandler';
 import { PrismaClient } from '@prisma/client';
 import TournamentLogger from '../utils/tournamentLogger';
 import { Request } from 'express';
+import { config } from '../config/environment';
 
 export interface CreateTournamentData {
   name: string;
@@ -64,6 +66,22 @@ export class TournamentService {
         'Last name must be at least 2 characters long',
         400,
         'INVALID_LAST_NAME'
+      );
+    }
+
+    if (data.surname && data.surname.trim().length > 50) {
+      throw new AppError(
+        'Surname must be less than 50 characters',
+        400,
+        'INVALID_SURNAME'
+      );
+    }
+
+    if (data.teamName && data.teamName.trim().length > 100) {
+      throw new AppError(
+        'Team name must be less than 100 characters',
+        400,
+        'INVALID_TEAM_NAME'
       );
     }
 
@@ -188,7 +206,86 @@ export class TournamentService {
       );
     }
 
+    await this.reconcileTargetAvailability(tournament);
+
     return tournament;
+  }
+
+  private async reconcileTargetAvailability(tournament: Tournament & Record<string, unknown>): Promise<void> {
+    const targets = (tournament as { targets?: Array<{ id: string; status?: TargetStatus; currentMatchId?: string | null; lastUsedAt?: Date | null }> }).targets ?? [];
+    if (!targets.length) {
+      return;
+    }
+
+    const matchStatusById = this.buildMatchStatusMap(tournament);
+
+    for (const target of targets) {
+      if (target.status !== TargetStatus.IN_USE) {
+        continue;
+      }
+
+      if (!target.currentMatchId) {
+        await this.tournamentModel.setTargetAvailable(target.id, null);
+        target.status = TargetStatus.AVAILABLE;
+        target.currentMatchId = null;
+        continue;
+      }
+
+      const matchStatus = matchStatusById.get(target.currentMatchId);
+      if (matchStatus === MatchStatus.IN_PROGRESS) {
+        continue;
+      }
+
+      let completedAt: Date | null | undefined;
+      if (!matchStatus) {
+        const match = await this.tournamentModel.getMatchById(target.currentMatchId);
+        completedAt = match?.completedAt ?? null;
+        if (match?.status === MatchStatus.IN_PROGRESS) {
+          continue;
+        }
+      }
+
+      await this.tournamentModel.setTargetAvailable(target.id, completedAt ?? null);
+      target.status = TargetStatus.AVAILABLE;
+      target.currentMatchId = null;
+    }
+  }
+
+  private buildMatchStatusMap(tournament: Tournament & Record<string, unknown>): Map<string, MatchStatus> {
+    const matchStatusById = new Map<string, MatchStatus>();
+    this.addMatchStatusFromPools(tournament, matchStatusById);
+    this.addMatchStatusFromBrackets(tournament, matchStatusById);
+    return matchStatusById;
+  }
+
+  private addMatchStatusFromPools(
+    tournament: Tournament & Record<string, unknown>,
+    matchStatusById: Map<string, MatchStatus>
+  ): void {
+    const poolStages = (tournament as { poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }> }).poolStages ?? [];
+    for (const stage of poolStages) {
+      for (const pool of stage.pools ?? []) {
+        for (const match of pool.matches ?? []) {
+          if (match?.id) {
+            matchStatusById.set(match.id, match.status);
+          }
+        }
+      }
+    }
+  }
+
+  private addMatchStatusFromBrackets(
+    tournament: Tournament & Record<string, unknown>,
+    matchStatusById: Map<string, MatchStatus>
+  ): void {
+    const brackets = (tournament as { brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }).brackets ?? [];
+    for (const bracket of brackets) {
+      for (const match of bracket.matches ?? []) {
+        if (match?.id) {
+          matchStatusById.set(match.id, match.status);
+        }
+      }
+    }
   }
 
   /**
@@ -229,7 +326,23 @@ export class TournamentService {
     const processedData = this.buildTournamentUpdateData(sanitizedUpdateData);
     await this.validateUpdateDates(id, processedData);
 
-    return await this.tournamentModel.update(id, processedData);
+    const existing = await this.tournamentModel.findById(id);
+    if (!existing) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    const updated = await this.tournamentModel.update(id, processedData);
+
+    if (
+      processedData.targetCount !== undefined &&
+      processedData.targetCount > existing.targetCount
+    ) {
+      const startNumber = await this.tournamentModel.getMaxTargetNumber(id) + 1;
+      const count = processedData.targetCount - existing.targetCount;
+      await this.tournamentModel.createTargetsForTournament(id, startNumber, count);
+    }
+
+    return updated;
   }
 
   /**
@@ -779,23 +892,25 @@ export class TournamentService {
         );
       }
 
-      // Check registration deadline (assuming registration closes 1 hour before start)
-      const now = new Date();
-      const registrationDeadline = new Date(tournament.startTime);
-      registrationDeadline.setHours(registrationDeadline.getHours() - 1);
-      
-      if (now > registrationDeadline) {
-        this.logger.validationError(
-          'REGISTRATION_DEADLINE_PASSED',
-          `Registration deadline passed for tournament: ${tournament.name}`,
-          tournamentId,
-          tournament.name
-        );
-        throw new AppError(
-          'Registration deadline has passed',
-          400,
-          'REGISTRATION_DEADLINE_PASSED'
-        );
+      if (config.auth.enabled) {
+        // Check registration deadline (assuming registration closes 1 hour before start)
+        const now = new Date();
+        const registrationDeadline = new Date(tournament.startTime);
+        registrationDeadline.setHours(registrationDeadline.getHours() - 1);
+
+        if (now > registrationDeadline) {
+          this.logger.validationError(
+            'REGISTRATION_DEADLINE_PASSED',
+            `Registration deadline passed for tournament: ${tournament.name}`,
+            tournamentId,
+            tournament.name
+          );
+          throw new AppError(
+            'Registration deadline has passed',
+            400,
+            'REGISTRATION_DEADLINE_PASSED'
+          );
+        }
       }
 
       // Check if player is already registered
@@ -890,22 +1005,24 @@ export class TournamentService {
         );
       }
 
-      const now = new Date();
-      const registrationDeadline = new Date(tournament.startTime);
-      registrationDeadline.setHours(registrationDeadline.getHours() - 1);
+      if (config.auth.enabled) {
+        const now = new Date();
+        const registrationDeadline = new Date(tournament.startTime);
+        registrationDeadline.setHours(registrationDeadline.getHours() - 1);
 
-      if (now > registrationDeadline) {
-        this.logger.validationError(
-          'REGISTRATION_DEADLINE_PASSED',
-          `Registration deadline passed for tournament: ${tournament.name}`,
-          tournamentId,
-          tournament.name
-        );
-        throw new AppError(
-          'Registration deadline has passed',
-          400,
-          'REGISTRATION_DEADLINE_PASSED'
-        );
+        if (now > registrationDeadline) {
+          this.logger.validationError(
+            'REGISTRATION_DEADLINE_PASSED',
+            `Registration deadline passed for tournament: ${tournament.name}`,
+            tournamentId,
+            tournament.name
+          );
+          throw new AppError(
+            'Registration deadline has passed',
+            400,
+            'REGISTRATION_DEADLINE_PASSED'
+          );
+        }
       }
 
       const currentParticipants = await this.tournamentModel.getParticipantCount(tournamentId);
@@ -923,28 +1040,7 @@ export class TournamentService {
         );
       }
 
-      const playerPayload: {
-        firstName: string;
-        lastName: string;
-        email?: string;
-        phone?: string;
-        skillLevel?: SkillLevel;
-      } = {
-        firstName: playerData.firstName.trim(),
-        lastName: playerData.lastName.trim(),
-      };
-
-      if (playerData.email?.trim()) {
-        playerPayload.email = playerData.email.trim();
-      }
-
-      if (playerData.phone?.trim()) {
-        playerPayload.phone = playerData.phone.trim();
-      }
-
-      if (playerData.skillLevel) {
-        playerPayload.skillLevel = playerData.skillLevel;
-      }
+      const playerPayload = await this.buildPlayerPayload(playerData);
 
       const player = await this.tournamentModel.createPlayer(tournamentId, playerPayload);
 
@@ -965,6 +1061,73 @@ export class TournamentService {
       }
       throw error;
     }
+  }
+
+  private async buildPlayerPayload(playerData: CreatePlayerRequest) {
+    const payload: {
+      personId?: string | null;
+      firstName: string;
+      lastName: string;
+      surname?: string;
+      teamName?: string;
+      email?: string;
+      phone?: string;
+      skillLevel?: SkillLevel;
+    } = {
+      firstName: playerData.firstName.trim(),
+      lastName: playerData.lastName.trim(),
+    };
+
+    payload.personId = await this.resolvePersonId(payload.firstName, payload.lastName, playerData.email, playerData.phone);
+
+    if (playerData.surname?.trim()) {
+      payload.surname = playerData.surname.trim();
+    }
+
+    if (playerData.teamName?.trim()) {
+      payload.teamName = playerData.teamName.trim();
+    }
+
+    if (playerData.email?.trim()) {
+      payload.email = playerData.email.trim();
+    }
+
+    if (playerData.phone?.trim()) {
+      payload.phone = playerData.phone.trim();
+    }
+
+    if (playerData.skillLevel) {
+      payload.skillLevel = playerData.skillLevel;
+    }
+
+    return payload;
+  }
+
+  private async resolvePersonId(
+    firstName: string,
+    lastName: string,
+    email?: string,
+    phone?: string
+  ): Promise<string> {
+    const normalizedEmail = email?.trim() || null;
+    const normalizedPhone = phone?.trim() || null;
+    if (normalizedEmail && normalizedPhone) {
+      const existingPerson = await this.tournamentModel.findPersonByEmailAndPhone(
+        normalizedEmail,
+        normalizedPhone
+      );
+      if (existingPerson) {
+        return existingPerson.id;
+      }
+    }
+
+    const createdPerson = await this.tournamentModel.createPerson({
+      firstName,
+      lastName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+    });
+    return createdPerson.id;
   }
 
   /**
@@ -1027,7 +1190,7 @@ export class TournamentService {
     }
 
     if (
-      ![TournamentStatus.DRAFT, TournamentStatus.OPEN].includes(
+      ![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE, TournamentStatus.LIVE].includes(
         tournament.status
       )
     ) {
@@ -1038,9 +1201,22 @@ export class TournamentService {
       );
     }
 
+    const player = await this.tournamentModel.getPlayerById(playerId);
+    if (player?.personId) {
+      await this.tournamentModel.updatePerson(player.personId, {
+        firstName: updateData.firstName.trim(),
+        lastName: updateData.lastName.trim(),
+        email: updateData.email?.trim() || null,
+        phone: updateData.phone?.trim() || null,
+      });
+    }
+
     return await this.tournamentModel.updatePlayer(tournamentId, playerId, {
+      personId: player?.personId ?? null,
       firstName: updateData.firstName.trim(),
       lastName: updateData.lastName.trim(),
+      surname: updateData.surname?.trim() || null,
+      teamName: updateData.teamName?.trim() || null,
       email: updateData.email?.trim() || null,
       phone: updateData.phone?.trim() || null,
       skillLevel: updateData.skillLevel ?? null,
@@ -1132,7 +1308,11 @@ export class TournamentService {
       );
     }
 
-    return await this.tournamentModel.createPoolStage(tournamentId, data);
+    const poolStage = await this.tournamentModel.createPoolStage(tournamentId, data);
+    if (poolStage.poolCount > 0) {
+      await this.tournamentModel.createPoolsForStage(poolStage.id, poolStage.poolCount);
+    }
+    return poolStage;
   }
 
   async updatePoolStage(
@@ -1332,7 +1512,8 @@ export class TournamentService {
   async updateMatchStatus(
     tournamentId: string,
     matchId: string,
-    status: MatchStatus
+    status: MatchStatus,
+    targetId?: string
   ): Promise<void> {
     this.validateUUID(tournamentId);
     this.validateUUID(matchId);
@@ -1347,27 +1528,24 @@ export class TournamentService {
       throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
     }
 
-    const currentStatus = match.status as MatchStatus;
-    const validTransitions: Record<MatchStatus, MatchStatus[]> = {
-      [MatchStatus.SCHEDULED]: [MatchStatus.IN_PROGRESS, MatchStatus.CANCELLED],
-      [MatchStatus.IN_PROGRESS]: [MatchStatus.COMPLETED, MatchStatus.CANCELLED],
-      [MatchStatus.COMPLETED]: [],
-      [MatchStatus.CANCELLED]: [],
-    };
-
-    if (!validTransitions[currentStatus].includes(status)) {
-      throw new AppError(
-        `Invalid match status transition from ${currentStatus} to ${status}`,
-        400,
-        'INVALID_MATCH_STATUS_TRANSITION'
-      );
-    }
+    this.ensureValidMatchTransition(match.status as MatchStatus, status);
 
     const now = new Date();
     const timestamps: { startedAt?: Date | null; completedAt?: Date | null } = {};
 
-    if (status === MatchStatus.IN_PROGRESS && !match.startedAt) {
-      timestamps.startedAt = now;
+    if (status === MatchStatus.IN_PROGRESS) {
+      const targetToUse = await this.ensureTargetForMatchStart(match, targetId, tournamentId);
+
+      if (!match.startedAt) {
+        timestamps.startedAt = now;
+      }
+
+      if (match.poolId) {
+        await this.ensurePoolStageInProgress(matchId);
+      }
+
+      await this.tournamentModel.startMatchWithTarget(matchId, targetToUse, timestamps.startedAt ?? now);
+      return;
     }
 
     if (status === MatchStatus.COMPLETED || status === MatchStatus.CANCELLED) {
@@ -1375,9 +1553,99 @@ export class TournamentService {
       if (!match.startedAt && status === MatchStatus.COMPLETED) {
         timestamps.startedAt = now;
       }
+
+      if (match.targetId) {
+        await this.tournamentModel.finishMatchAndReleaseTarget(
+          matchId,
+          match.targetId,
+          status,
+          timestamps
+        );
+        return;
+      }
     }
 
     await this.tournamentModel.updateMatchStatus(matchId, status, timestamps);
+  }
+
+  private ensureValidMatchTransition(currentStatus: MatchStatus, nextStatus: MatchStatus) {
+    const validTransitions: Record<MatchStatus, MatchStatus[]> = {
+      [MatchStatus.SCHEDULED]: [MatchStatus.IN_PROGRESS, MatchStatus.CANCELLED],
+      [MatchStatus.IN_PROGRESS]: [MatchStatus.COMPLETED, MatchStatus.CANCELLED],
+      [MatchStatus.COMPLETED]: [],
+      [MatchStatus.CANCELLED]: [],
+    };
+
+    if (!validTransitions[currentStatus].includes(nextStatus)) {
+      throw new AppError(
+        `Invalid match status transition from ${currentStatus} to ${nextStatus}`,
+        400,
+        'INVALID_MATCH_STATUS_TRANSITION'
+      );
+    }
+  }
+
+  private async ensureTargetForMatchStart(
+    match: Awaited<ReturnType<TournamentModel['getMatchById']>>,
+    targetId: string | undefined,
+    tournamentId: string
+  ): Promise<string> {
+    if (!match?.targetId && !targetId) {
+      throw new AppError('Target must be selected before starting a match', 400, 'TARGET_REQUIRED');
+    }
+
+    const targetToUse = match?.targetId ?? targetId;
+    if (!targetToUse) {
+      throw new AppError('Target must be selected before starting a match', 400, 'TARGET_REQUIRED');
+    }
+
+    const target = await this.tournamentModel.getTargetById(targetToUse);
+    if (target?.tournamentId !== tournamentId) {
+      throw new AppError('Target not found', 404, 'TARGET_NOT_FOUND');
+    }
+
+    if (target.status === TargetStatus.IN_USE) {
+      await this.releaseStaleTargetUsage(target);
+    } else if (target.status !== TargetStatus.AVAILABLE) {
+      throw new AppError('Target is not available', 400, 'TARGET_NOT_AVAILABLE');
+    }
+
+    return targetToUse;
+  }
+
+  private async releaseStaleTargetUsage(target: { id: string; currentMatchId?: string | null }): Promise<void> {
+    if (!target.currentMatchId) {
+      await this.tournamentModel.setTargetAvailable(target.id, null);
+      return;
+    }
+
+    const currentMatch = await this.tournamentModel.getMatchById(target.currentMatchId);
+    if (currentMatch?.status === MatchStatus.IN_PROGRESS) {
+      throw new AppError('Target is not available', 400, 'TARGET_NOT_AVAILABLE');
+    }
+
+    if (currentMatch && (currentMatch.status === MatchStatus.COMPLETED || currentMatch.status === MatchStatus.CANCELLED)) {
+      await this.tournamentModel.finishMatchAndReleaseTarget(
+        target.currentMatchId,
+        target.id,
+        currentMatch.status as MatchStatus,
+        { completedAt: currentMatch.completedAt ?? new Date() }
+      );
+      return;
+    }
+
+    await this.tournamentModel.setTargetAvailable(target.id, null);
+  }
+
+  private async ensurePoolStageInProgress(matchId: string): Promise<void> {
+    const poolStageId = await this.tournamentModel.getMatchPoolStageId(matchId);
+    if (!poolStageId) {
+      return;
+    }
+    const poolStage = await this.tournamentModel.getPoolStageById(poolStageId);
+    if (poolStage && poolStage.status !== StageStatus.IN_PROGRESS) {
+      await this.tournamentModel.updatePoolStage(poolStageId, { status: StageStatus.IN_PROGRESS });
+    }
   }
 
   async completeMatch(
@@ -1446,6 +1714,15 @@ export class TournamentService {
     }
 
     await this.tournamentModel.completeMatch(matchId, resultScores, winnerId, timestamps);
+
+    if (match.targetId) {
+      await this.tournamentModel.finishMatchAndReleaseTarget(
+        matchId,
+        match.targetId,
+        MatchStatus.COMPLETED,
+        timestamps
+      );
+    }
   }
 
   async updateCompletedMatchScores(
@@ -1506,6 +1783,18 @@ export class TournamentService {
     }));
 
     await this.tournamentModel.updateMatchScores(matchId, resultScores, winnerId);
+
+    if (match.targetId) {
+      const target = await this.tournamentModel.getTargetById(match.targetId);
+      if (target?.currentMatchId === matchId && target.status === TargetStatus.IN_USE) {
+        await this.tournamentModel.finishMatchAndReleaseTarget(
+          matchId,
+          match.targetId,
+          MatchStatus.COMPLETED,
+          { completedAt: new Date() }
+        );
+      }
+    }
   }
 
   private async assignPlayersToPools(

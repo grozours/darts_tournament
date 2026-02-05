@@ -266,6 +266,8 @@ function TournamentList() { // NOSONAR
   const [playerForm, setPlayerForm] = useState<CreatePlayerPayload>({
     firstName: '',
     lastName: '',
+    surname: '',
+    teamName: '',
     email: '',
     phone: '',
     skillLevel: undefined,
@@ -397,8 +399,8 @@ function TournamentList() { // NOSONAR
     if (!name) return;
 
     try {
-      const startTime = new Date(Date.now() + 60 * 60 * 1000);
-      const endTime = new Date(Date.now() + 5 * 60 * 60 * 1000);
+      const startTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      const endTime = new Date(Date.now() + 6 * 60 * 60 * 1000);
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch('/api/tournaments', {
         method: 'POST',
@@ -507,6 +509,8 @@ function TournamentList() { // NOSONAR
     setPlayerForm({
       firstName: '',
       lastName: '',
+      surname: '',
+      teamName: '',
       email: '',
       phone: '',
       skillLevel: undefined,
@@ -842,6 +846,8 @@ function TournamentList() { // NOSONAR
         {
           firstName: playerForm.firstName.trim(),
           lastName: playerForm.lastName.trim(),
+          surname: playerForm.surname?.trim() || undefined,
+          teamName: playerForm.teamName?.trim() || undefined,
           email: playerForm.email?.trim() || undefined,
           phone: playerForm.phone?.trim() || undefined,
           skillLevel: playerForm.skillLevel,
@@ -851,6 +857,8 @@ function TournamentList() { // NOSONAR
       setPlayerForm({
         firstName: '',
         lastName: '',
+        surname: '',
+        teamName: '',
         email: '',
         phone: '',
         skillLevel: undefined,
@@ -936,6 +944,8 @@ function TournamentList() { // NOSONAR
     setPlayerForm({
       firstName: player.firstName || player.name.split(' ')[0] || '',
       lastName: player.lastName || player.name.split(' ').slice(1).join(' ') || '',
+      surname: player.surname || '',
+      teamName: player.teamName || '',
       email: player.email || '',
       phone: player.phone || '',
       skillLevel: player.skillLevel,
@@ -948,6 +958,8 @@ function TournamentList() { // NOSONAR
     setPlayerForm({
       firstName: '',
       lastName: '',
+      surname: '',
+      teamName: '',
       email: '',
       phone: '',
       skillLevel: undefined,
@@ -971,6 +983,8 @@ function TournamentList() { // NOSONAR
         {
           firstName: playerForm.firstName.trim(),
           lastName: playerForm.lastName.trim(),
+          surname: playerForm.surname?.trim() || undefined,
+          teamName: playerForm.teamName?.trim() || undefined,
           email: playerForm.email?.trim() || undefined,
           phone: playerForm.phone?.trim() || undefined,
           skillLevel: playerForm.skillLevel,
@@ -1824,6 +1838,27 @@ function TournamentList() { // NOSONAR
                       className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
                     />
                   </label>
+                  <label className="text-sm text-slate-300">
+                    {t('edit.surname')}
+                    <input
+                      type="text"
+                      value={playerForm.surname || ''}
+                      onChange={(e) => setPlayerForm({ ...playerForm, surname: e.target.value })}
+                      className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  {(editingTournament.format === TournamentFormat.DOUBLE
+                    || editingTournament.format === TournamentFormat.TEAM_4_PLAYER) && (
+                    <label className="text-sm text-slate-300">
+                      {t('edit.teamName')}
+                      <input
+                        type="text"
+                        value={playerForm.teamName || ''}
+                        onChange={(e) => setPlayerForm({ ...playerForm, teamName: e.target.value })}
+                        className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                  )}
                   <label className="text-sm text-slate-300">
                     {t('edit.email')}
                     <input

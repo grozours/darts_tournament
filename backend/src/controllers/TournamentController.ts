@@ -734,8 +734,13 @@ export class TournamentController {
   updateMatchStatus = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id, matchId } = req.params as { id: string; matchId: string };
-      const { status } = req.body as { status: string };
-      await this.getTournamentService(req).updateMatchStatus(id, matchId, status as MatchStatus);
+      const { status, targetId } = req.body as { status: string; targetId?: string };
+      await this.getTournamentService(req).updateMatchStatus(
+        id,
+        matchId,
+        status as MatchStatus,
+        targetId
+      );
       res.status(204).send();
     } catch (error) {
       if (error instanceof AppError) {

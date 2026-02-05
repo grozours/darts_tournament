@@ -123,6 +123,8 @@ export const commonSchemas = {
   createPlayer: z.object({
     firstName: z.string().min(1, 'First name is required').max(50, 'First name must be less than 50 characters'),
     lastName: z.string().min(1, 'Last name is required').max(50, 'Last name must be less than 50 characters'),
+    surname: z.string().max(50, 'Surname must be less than 50 characters').optional(),
+    teamName: z.string().max(100, 'Team name must be less than 100 characters').optional(),
     email: z.string().email('Invalid email address').max(255).optional(),
     phone: z.string().max(20, 'Phone number must be less than 20 characters').optional(),
     skillLevel: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT']).optional(),

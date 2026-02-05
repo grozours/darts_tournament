@@ -1,6 +1,8 @@
 import TournamentList from "./components/TournamentList";
 import RegistrationPlayers from "./components/RegistrationPlayers";
+import PlayersView from "./components/PlayersView";
 import LiveTournament from "./components/LiveTournament";
+import TargetsView from "./components/TargetsView";
 import { useI18n } from './i18n';
 
 function App() {
@@ -12,9 +14,13 @@ function App() {
 
   let mainContent = <TournamentList />;
   if (view === 'players') {
+    mainContent = <PlayersView />;
+  } else if (view === 'registration-players') {
     mainContent = <RegistrationPlayers />;
   } else if (view === 'live' || view === 'pool-stages' || view === 'brackets') {
     mainContent = <LiveTournament />;
+  } else if (view === 'targets') {
+    mainContent = <TargetsView />;
   }
 
   return (
@@ -38,6 +44,9 @@ function App() {
             </div>
 
             <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
+                {t('nav.players')}
+              </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=DRAFT">
                 {t('nav.drafts')}
               </a>
@@ -61,6 +70,9 @@ function App() {
               </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=brackets">
                 {t('nav.bracketsRunning')}
+              </a>
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=targets">
+                {t('nav.targets')}
               </a>
               <a
                 className="rounded-md px-2 py-1 hover:bg-slate-800"

@@ -18,6 +18,8 @@ export interface CreateTournamentResponse {
 export interface CreatePlayerPayload {
   firstName: string;
   lastName: string;
+  surname?: string;
+  teamName?: string;
   email?: string;
   phone?: string;
   skillLevel?: SkillLevel;
@@ -25,8 +27,11 @@ export interface CreatePlayerPayload {
 
 export interface TournamentPlayer {
   playerId: string;
+  personId?: string;
   firstName?: string;
   lastName?: string;
+  surname?: string;
+  teamName?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -185,6 +190,7 @@ export async function fetchTournamentLiveView(
   token?: string
 ): Promise<unknown> {
   const response = await fetch(`/api/tournaments/${tournamentId}/live`, {
+    cache: 'no-store',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 
@@ -363,6 +369,7 @@ export async function updateMatchStatus(
   tournamentId: string,
   matchId: string,
   status: string,
+  targetId?: string,
   token?: string
 ): Promise<void> {
   const response = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/status`, {
@@ -371,7 +378,7 @@ export async function updateMatchStatus(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...(targetId ? { targetId } : {}) }),
   });
 
   if (!response.ok) {
