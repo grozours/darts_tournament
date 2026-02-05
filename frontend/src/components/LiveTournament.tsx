@@ -391,7 +391,7 @@ function LiveTournament() {
 
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const response = await fetch('/api/tournaments?status=live', {
+      const response = await fetch('/api/tournaments?status=LIVE', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!response.ok) {

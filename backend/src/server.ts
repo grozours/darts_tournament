@@ -16,12 +16,16 @@ process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) =>
 // Start the application
 const app = new App();
 
-try {
-  await app.start();
-} catch (error) {
-  console.error('❌ Failed to start application:', error);
-  process.exit(1);
-}
+const startServer = async () => {
+  try {
+    await app.start();
+  } catch (error) {
+    console.error('❌ Failed to start application:', error);
+    process.exit(1);
+  }
+};
+
+void startServer();
 
 // Export for testing
 export default app;

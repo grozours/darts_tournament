@@ -97,6 +97,8 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "3001:3001"
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:3000
     env_file:
       - ./frontend/.env
     volumes:
