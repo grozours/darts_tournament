@@ -211,8 +211,14 @@ export class TournamentService {
     return tournament;
   }
 
-  private async reconcileTargetAvailability(tournament: Tournament & Record<string, unknown>): Promise<void> {
-    const targets = (tournament as { targets?: Array<{ id: string; status?: TargetStatus; currentMatchId?: string | null; lastUsedAt?: Date | null }> }).targets ?? [];
+  private async reconcileTargetAvailability(
+    tournament: Tournament & {
+      targets?: Array<{ id: string; status?: TargetStatus; currentMatchId?: string | null; lastUsedAt?: Date | null }>;
+      poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }>;
+      brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }>;
+    }
+  ): Promise<void> {
+    const targets = tournament.targets ?? [];
     if (!targets.length) {
       return;
     }
@@ -251,7 +257,12 @@ export class TournamentService {
     }
   }
 
-  private buildMatchStatusMap(tournament: Tournament & Record<string, unknown>): Map<string, MatchStatus> {
+  private buildMatchStatusMap(
+    tournament: Tournament & {
+      poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }>;
+      brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }>;
+    }
+  ): Map<string, MatchStatus> {
     const matchStatusById = new Map<string, MatchStatus>();
     this.addMatchStatusFromPools(tournament, matchStatusById);
     this.addMatchStatusFromBrackets(tournament, matchStatusById);
@@ -259,10 +270,10 @@ export class TournamentService {
   }
 
   private addMatchStatusFromPools(
-    tournament: Tournament & Record<string, unknown>,
+    tournament: { poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }> },
     matchStatusById: Map<string, MatchStatus>
   ): void {
-    const poolStages = (tournament as { poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }> }).poolStages ?? [];
+    const poolStages = tournament.poolStages ?? [];
     for (const stage of poolStages) {
       for (const pool of stage.pools ?? []) {
         for (const match of pool.matches ?? []) {
@@ -275,10 +286,10 @@ export class TournamentService {
   }
 
   private addMatchStatusFromBrackets(
-    tournament: Tournament & Record<string, unknown>,
+    tournament: { brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> },
     matchStatusById: Map<string, MatchStatus>
   ): void {
-    const brackets = (tournament as { brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }).brackets ?? [];
+    const brackets = tournament.brackets ?? [];
     for (const bracket of brackets) {
       for (const match of bracket.matches ?? []) {
         if (match?.id) {
