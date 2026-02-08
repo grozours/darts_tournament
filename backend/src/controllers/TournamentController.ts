@@ -560,6 +560,33 @@ export class TournamentController {
   };
 
   /**
+   * Get orphan players (no tournament)
+   * GET /api/tournaments/players/orphans
+   */
+  getOrphanPlayers = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const players = await this.getTournamentService(req).getOrphanParticipants();
+      res.json({ players, totalCount: players.length });
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Get pool stages
    * GET /api/tournaments/:id/pool-stages
    */

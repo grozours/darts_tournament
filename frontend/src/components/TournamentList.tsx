@@ -510,7 +510,7 @@ function TournamentList() { // NOSONAR
     }));
   }, [tournaments, statusFilter, normalizedStatusFilter, normalizeStatus, t]);
 
-  const toLocalInput = (value?: string) => {
+  const toLocalInput = useCallback((value?: string) => {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
@@ -518,7 +518,7 @@ function TournamentList() { // NOSONAR
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
       date.getHours()
     )}:${pad(date.getMinutes())}`;
-  };
+  }, []);
 
   const fetchTournaments = useCallback(async () => {
     setLoading(true);
@@ -547,74 +547,6 @@ function TournamentList() { // NOSONAR
       fetchTournaments();
     }
   }, [authEnabled, isAuthenticated, fetchTournaments]);
-
-  const openEdit = (tournament: Tournament, options?: { skipNavigation?: boolean }) => {
-    if (!options?.skipNavigation && !isEditPage) {
-      const query = new URLSearchParams({ view: 'edit-tournament', tournamentId: tournament.id });
-      globalThis.window?.location.assign(`/?${query.toString()}`);
-      return;
-    }
-    setEditingTournament(tournament);
-    setEditForm({
-      name: tournament.name || '',
-      format: tournament.format || TournamentFormat.SINGLE,
-      durationType: tournament.durationType || DurationType.FULL_DAY,
-      startTime: toLocalInput(tournament.startTime),
-      endTime: toLocalInput(tournament.endTime),
-      totalParticipants: String(tournament.totalParticipants ?? 0),
-      targetCount: String(tournament.targetCount ?? 0),
-    });
-    setEditError(null);
-    setPlayersError(null);
-    if (['OPEN', 'SIGNATURE'].includes(normalizeStatus(tournament.status))) {
-      void fetchPlayers(tournament.id);
-    } else {
-      setPlayers([]);
-    }
-    void fetchTournamentDetails(tournament.id);
-    void loadPoolStages(tournament.id);
-    void loadBrackets(tournament.id);
-  };
-
-  useEffect(() => {
-    if (!isEditPage || !editTournamentId) return;
-    if (editingTournament?.id === editTournamentId) return;
-    const loadTournamentForEdit = async () => {
-      setEditLoading(true);
-      setEditLoadError(null);
-      try {
-        const token = authEnabled ? await getAccessTokenSilently() : undefined;
-        const response = await fetch(`/api/tournaments/${editTournamentId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!response.ok) {
-          throw new Error('Failed to load tournament');
-        }
-        const data = await response.json();
-        openEdit({
-          id: data.id ?? editTournamentId,
-          name: data.name ?? '',
-          logoUrl: data.logoUrl ?? data.logo_url ?? undefined,
-          format: data.format ?? TournamentFormat.SINGLE,
-          totalParticipants: data.totalParticipants ?? data.total_participants ?? 0,
-          status: data.status ?? 'DRAFT',
-          durationType: data.durationType ?? data.duration_type ?? DurationType.FULL_DAY,
-          startTime: data.startTime ?? data.start_time ?? undefined,
-          endTime: data.endTime ?? data.end_time ?? undefined,
-          targetCount: data.targetCount ?? data.target_count ?? 0,
-          createdAt: data.createdAt ?? data.created_at ?? undefined,
-          completedAt: data.completedAt ?? data.completed_at ?? undefined,
-          historicalFlag: data.historicalFlag ?? data.historical_flag ?? undefined,
-        }, { skipNavigation: true });
-      } catch (err) {
-        setEditLoadError(err instanceof Error ? err.message : 'Failed to load tournament');
-      } finally {
-        setEditLoading(false);
-      }
-    };
-    void loadTournamentForEdit();
-  }, [authEnabled, editTournamentId, editingTournament?.id, getAccessTokenSilently, isEditPage, openEdit]);
-
 
   const deleteTournament = async (id: string) => {
     if (!confirm('Are you sure you want to delete this tournament?')) return;
@@ -705,7 +637,7 @@ function TournamentList() { // NOSONAR
     }
   }, [editingTournament, fetchPlayers, normalizeStatus]);
 
-  const fetchTournamentDetails = async (tournamentId: string) => {
+  const fetchTournamentDetails = useCallback(async (tournamentId: string) => {
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
@@ -719,7 +651,7 @@ function TournamentList() { // NOSONAR
     } catch (err) {
       console.error('Error fetching tournament details:', err);
     }
-  };
+  }, [authEnabled, getAccessTokenSilently]);
 
   const uploadLogo = async () => {
     if (!editingTournament || !logoFile) return;
@@ -740,7 +672,7 @@ function TournamentList() { // NOSONAR
     }
   };
 
-  const loadPoolStages = async (tournamentId: string) => {
+  const loadPoolStages = useCallback(async (tournamentId: string) => {
     setPoolStagesError(null);
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
@@ -752,9 +684,9 @@ function TournamentList() { // NOSONAR
       console.error('Error fetching pool stages:', err);
       setPoolStagesError(err instanceof Error ? err.message : t('edit.error.failedLoadPoolStages'));
     }
-  };
+  }, [authEnabled, getAccessTokenSilently, t]);
 
-  const loadBrackets = async (tournamentId: string) => {
+  const loadBrackets = useCallback(async (tournamentId: string) => {
     setBracketsError(null);
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
@@ -764,7 +696,74 @@ function TournamentList() { // NOSONAR
       console.error('Error fetching brackets:', err);
       setBracketsError(err instanceof Error ? err.message : t('edit.error.failedLoadBrackets'));
     }
-  };
+  }, [authEnabled, getAccessTokenSilently, t]);
+
+  const openEdit = useCallback((tournament: Tournament, options?: { skipNavigation?: boolean }) => {
+    if (!options?.skipNavigation && !isEditPage) {
+      const query = new URLSearchParams({ view: 'edit-tournament', tournamentId: tournament.id });
+      globalThis.window?.location.assign(`/?${query.toString()}`);
+      return;
+    }
+    setEditingTournament(tournament);
+    setEditForm({
+      name: tournament.name || '',
+      format: tournament.format || TournamentFormat.SINGLE,
+      durationType: tournament.durationType || DurationType.FULL_DAY,
+      startTime: toLocalInput(tournament.startTime),
+      endTime: toLocalInput(tournament.endTime),
+      totalParticipants: String(tournament.totalParticipants ?? 0),
+      targetCount: String(tournament.targetCount ?? 0),
+    });
+    setEditError(null);
+    setPlayersError(null);
+    if (['OPEN', 'SIGNATURE'].includes(normalizeStatus(tournament.status))) {
+      void fetchPlayers(tournament.id);
+    } else {
+      setPlayers([]);
+    }
+    void fetchTournamentDetails(tournament.id);
+    void loadPoolStages(tournament.id);
+    void loadBrackets(tournament.id);
+  }, [fetchPlayers, fetchTournamentDetails, isEditPage, loadBrackets, loadPoolStages, normalizeStatus, toLocalInput]);
+
+  useEffect(() => {
+    if (!isEditPage || !editTournamentId) return;
+    if (editingTournament?.id === editTournamentId) return;
+    const loadTournamentForEdit = async () => {
+      setEditLoading(true);
+      setEditLoadError(null);
+      try {
+        const token = authEnabled ? await getAccessTokenSilently() : undefined;
+        const response = await fetch(`/api/tournaments/${editTournamentId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) {
+          throw new Error('Failed to load tournament');
+        }
+        const data = await response.json();
+        openEdit({
+          id: data.id ?? editTournamentId,
+          name: data.name ?? '',
+          logoUrl: data.logoUrl ?? data.logo_url ?? undefined,
+          format: data.format ?? TournamentFormat.SINGLE,
+          totalParticipants: data.totalParticipants ?? data.total_participants ?? 0,
+          status: data.status ?? 'DRAFT',
+          durationType: data.durationType ?? data.duration_type ?? DurationType.FULL_DAY,
+          startTime: data.startTime ?? data.start_time ?? undefined,
+          endTime: data.endTime ?? data.end_time ?? undefined,
+          targetCount: data.targetCount ?? data.target_count ?? 0,
+          createdAt: data.createdAt ?? data.created_at ?? undefined,
+          completedAt: data.completedAt ?? data.completed_at ?? undefined,
+          historicalFlag: data.historicalFlag ?? data.historical_flag ?? undefined,
+        }, { skipNavigation: true });
+      } catch (err) {
+        setEditLoadError(err instanceof Error ? err.message : 'Failed to load tournament');
+      } finally {
+        setEditLoading(false);
+      }
+    };
+    void loadTournamentForEdit();
+  }, [authEnabled, editTournamentId, editingTournament?.id, getAccessTokenSilently, isEditPage, openEdit]);
 
   const updatePoolStageField = useCallback(
     (stageId: string, updater: (stage: PoolStageConfig) => PoolStageConfig) => {

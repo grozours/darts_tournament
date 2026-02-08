@@ -1112,6 +1112,7 @@ export class TournamentModel {
       bracketType: BracketType;
       totalRounds: number;
       status: BracketStatus;
+      completedAt: Date | null;
     }>
   ) {
     try {
@@ -1550,6 +1551,84 @@ export class TournamentModel {
         'Failed to fetch tournament participants',
         500,
         'PARTICIPANTS_FETCH_FAILED'
+      );
+    }
+  }
+
+  async getOrphanParticipants(): Promise<Array<{
+    playerId: string;
+    personId?: string;
+    firstName: string;
+    lastName: string;
+    surname?: string | null;
+    teamName?: string | null;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    skillLevel: SkillLevel | null;
+    registeredAt: Date;
+    checkedIn: boolean;
+  }>> {
+    try {
+      type ParticipantRow = Prisma.PlayerGetPayload<{
+        select: {
+          id: true;
+          personId: true;
+          firstName: true;
+          lastName: true;
+          surname: true;
+          teamName: true;
+          email: true;
+          phone: true;
+          skillLevel: true;
+          registeredAt: true;
+          checkedIn: true;
+        };
+      }>;
+
+      const participants: ParticipantRow[] = await this.prisma.player.findMany({
+        where: {
+          tournamentId: null,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          personId: true,
+          firstName: true,
+          lastName: true,
+          surname: true,
+          teamName: true,
+          email: true,
+          phone: true,
+          skillLevel: true,
+          registeredAt: true,
+          checkedIn: true,
+        },
+        orderBy: {
+          registeredAt: 'asc',
+        },
+      });
+
+      return participants.map((player) => ({
+        playerId: player.id,
+        ...(player.personId ? { personId: player.personId } : {}),
+        firstName: player.firstName,
+        lastName: player.lastName,
+        ...(player.surname ? { surname: player.surname } : {}),
+        ...(player.teamName ? { teamName: player.teamName } : {}),
+        name: `${player.firstName} ${player.lastName}`,
+        email: player.email,
+        phone: player.phone,
+        skillLevel: player.skillLevel as SkillLevel | null,
+        registeredAt: player.registeredAt,
+        checkedIn: player.checkedIn,
+      }));
+    } catch (error) {
+      logModelError('getOrphanParticipants', error);
+      throw new AppError(
+        'Failed to fetch orphan participants',
+        500,
+        'ORPHAN_PARTICIPANTS_FETCH_FAILED'
       );
     }
   }

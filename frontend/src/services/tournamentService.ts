@@ -185,6 +185,20 @@ export async function fetchTournamentPlayers(
   return data.players || [];
 }
 
+export async function fetchOrphanPlayers(token?: string): Promise<TournamentPlayer[]> {
+  const response = await fetch('/api/tournaments/players/orphans', {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to fetch orphan players');
+  }
+
+  const data = await response.json();
+  return data.players || [];
+}
+
 export async function fetchTournamentLiveView(
   tournamentId: string,
   token?: string

@@ -1536,6 +1536,10 @@ export class TournamentService {
     return await this.tournamentModel.getParticipants(tournamentId);
   }
 
+  async getOrphanParticipants(): Promise<Awaited<ReturnType<TournamentModel['getOrphanParticipants']>>> {
+    return await this.tournamentModel.getOrphanParticipants();
+  }
+
   /**
    * Pool stage configuration
    */
@@ -1659,9 +1663,14 @@ export class TournamentService {
         continue;
       }
 
+      const [firstId, secondId] = playerIds;
+      if (!firstId || !secondId) {
+        continue;
+      }
+
       const winnerFirst = Math.random() < 0.5;
-      const winnerId = winnerFirst ? playerIds[0] : playerIds[1];
-      const loserId = winnerFirst ? playerIds[1] : playerIds[0];
+      const winnerId = winnerFirst ? firstId : secondId;
+      const loserId = winnerFirst ? secondId : firstId;
       const winnerScore = randomInt(1, 5);
       const loserScore = randomInt(0, winnerScore - 1);
 

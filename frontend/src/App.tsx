@@ -82,7 +82,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=live">
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=LIVE">
                 {t('nav.live')}
               </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=pool-stages">

@@ -61,6 +61,7 @@ describe('TournamentList - player registration', () => {
   });
 
   it('renders player registration form and submits new player', async () => {
+    window.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
     const tournamentsPayload = {
       tournaments: [
         {
@@ -109,14 +110,10 @@ describe('TournamentList - player registration', () => {
       expect(screen.queryByText(/loading tournaments/i)).not.toBeInTheDocument();
     });
 
-    await screen.findByText(/registration open tournament/i);
-
     const initialPlayersPromise = Promise.resolve([]);
     mockFetchPlayers.mockReturnValueOnce(initialPlayersPromise);
     mockFetchPoolStages.mockResolvedValueOnce([]);
     mockFetchBrackets.mockResolvedValueOnce([]);
-
-    fireEvent.click(screen.getByRole('button', { name: /edit/i }));
 
     await screen.findByText(/player registration/i);
     await waitFor(() => {

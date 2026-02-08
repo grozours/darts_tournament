@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
 import { useI18n } from '../i18n';
 import { TournamentFormat, SkillLevel } from '@shared/types';
-import { fetchTournamentPlayers, updateTournamentPlayer, type TournamentPlayer } from '../services/tournamentService';
+import { fetchTournamentPlayers, fetchOrphanPlayers, updateTournamentPlayer, removeTournamentPlayer, type TournamentPlayer } from '../services/tournamentService';
 
 interface TournamentSummary {
   id: string;
@@ -12,9 +12,9 @@ interface TournamentSummary {
 }
 
 interface PlayerRecord extends TournamentPlayer {
-  tournamentId: string;
+  tournamentId: string | null;
   tournamentName: string;
-  tournamentFormat: TournamentFormat | string;
+  tournamentFormat: TournamentFormat | string | null;
 }
 
 const buildPlayerLabel = (player: PlayerRecord) => {
@@ -44,6 +44,7 @@ function PlayersView() {
     skillLevel: '' as SkillLevel | '',
   });
   const [saving, setSaving] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const fetchTournaments = useCallback(async (token?: string): Promise<TournamentSummary[]> => {
     const response = await fetch(
@@ -74,7 +75,14 @@ function PlayersView() {
           }));
         })
       );
-      setPlayers(playerLists.flat());
+      const orphanPlayers = await fetchOrphanPlayers(token);
+      const orphanMapped = orphanPlayers.map((player) => ({
+        ...player,
+        tournamentId: null,
+        tournamentName: t('players.orphanTournament'),
+        tournamentFormat: '—',
+      }));
+      setPlayers([...playerLists.flat(), ...orphanMapped]);
     } catch (err) {
       console.error('Error loading players view:', err);
       setError(err instanceof Error ? err.message : t('players.error'));
@@ -91,7 +99,9 @@ function PlayersView() {
     const term = search.trim().toLowerCase();
     const byTournament = selectedTournamentId === 'ALL'
       ? players
-      : players.filter((player) => player.tournamentId === selectedTournamentId);
+      : selectedTournamentId === 'ORPHAN'
+        ? players.filter((player) => player.tournamentId == null)
+        : players.filter((player) => player.tournamentId === selectedTournamentId);
     if (!term) return byTournament;
     return byTournament.filter((player) => {
       const haystack = [
@@ -119,8 +129,12 @@ function PlayersView() {
         unique.set(player.tournamentId, player.tournamentName);
       }
     });
-    return Array.from(unique.entries()).map(([id, name]) => ({ id, name }));
-  }, [players]);
+    const options = Array.from(unique.entries()).map(([id, name]) => ({ id, name }));
+    if (players.some((player) => player.tournamentId == null)) {
+      options.push({ id: 'ORPHAN', name: t('players.orphanTournament') });
+    }
+    return options;
+  }, [players, t]);
 
   const startEdit = (player: PlayerRecord) => {
     setEditingPlayerId(player.playerId);
@@ -149,6 +163,9 @@ function PlayersView() {
   };
 
   const saveEdit = async (player: PlayerRecord) => {
+    if (!player.tournamentId) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -180,6 +197,29 @@ function PlayersView() {
       setError(err instanceof Error ? err.message : t('players.error'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteAllPlayers = async () => {
+    const deletablePlayers = filteredPlayers.filter((player) => player.tournamentId);
+    if (deletablePlayers.length === 0) return;
+    if (!confirm(t('players.deleteAllConfirm'))) return;
+    setDeletingAll(true);
+    setError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const deletions = deletablePlayers.map((player) =>
+        removeTournamentPlayer(player.tournamentId as string, player.playerId, token)
+      );
+      for (const task of deletions) {
+        await task;
+      }
+      await loadPlayers();
+    } catch (err) {
+      console.error('Error deleting players:', err);
+      setError(err instanceof Error ? err.message : t('players.error'));
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -216,12 +256,21 @@ function PlayersView() {
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('players.title')}</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">{t('players.subtitle')}</h2>
         </div>
-        <button
-          onClick={loadPlayers}
-          className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
-        >
-          {t('common.refresh')}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={deleteAllPlayers}
+            disabled={filteredPlayers.length === 0 || deletingAll}
+            className="rounded-full border border-rose-500/60 px-4 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-60"
+          >
+            {deletingAll ? t('players.deletingAll') : t('players.deleteAll')}
+          </button>
+          <button
+            onClick={loadPlayers}
+            className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+          >
+            {t('common.refresh')}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -258,6 +307,7 @@ function PlayersView() {
             const showTeamName =
               player.tournamentFormat === TournamentFormat.DOUBLE
               || player.tournamentFormat === TournamentFormat.TEAM_4_PLAYER;
+            const canEdit = Boolean(player.tournamentId);
             return (
               <div key={player.playerId} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -276,7 +326,8 @@ function PlayersView() {
                   {!isEditing && (
                     <button
                       onClick={() => startEdit(player)}
-                      className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                      disabled={!canEdit}
+                      className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500 disabled:opacity-60"
                     >
                       {t('edit.edit')}
                     </button>

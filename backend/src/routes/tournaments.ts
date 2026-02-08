@@ -371,6 +371,13 @@ router.delete(
 );
 
 /**
+ * @route   GET /api/tournaments/players/orphans
+ * @desc    Get orphan players (no tournament)
+ * @access  Public
+ */
+router.get('/players/orphans', tournamentController.getOrphanPlayers);
+
+/**
  * @route   GET /api/tournaments/:id/participants
  * @desc    Get tournament participants
  * @access  Public

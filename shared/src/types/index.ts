@@ -50,7 +50,7 @@ export enum SkillLevel {
 
 export interface Player {
   id: string;
-  tournamentId: string;
+  tournamentId: string | null;
   personId?: string;
   firstName: string;
   lastName: string;

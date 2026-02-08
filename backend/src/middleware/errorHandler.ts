@@ -162,6 +162,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
+  void _next;
   const { statusCode, message, code, details } = resolveErrorContext(error);
 
   // Log error per constitution logging requirements
