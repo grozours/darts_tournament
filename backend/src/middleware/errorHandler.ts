@@ -155,13 +155,13 @@ const resolveErrorContext = (error: Error | AppError | ZodError): ErrorContext =
 };
 
 // Error handler middleware per constitution requirements
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (
   error: Error | AppError | ZodError,
   req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
-  void _next;
   const { statusCode, message, code, details } = resolveErrorContext(error);
 
   // Log error per constitution logging requirements

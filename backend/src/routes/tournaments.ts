@@ -448,6 +448,22 @@ router.patch(
 );
 
 /**
+ * @route   POST /api/tournaments/:id/pool-stages/:stageId/complete
+ * @desc    Complete pool stage with random scores
+ * @access  Public
+ */
+router.post(
+  '/:id/pool-stages/:stageId/complete',
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      stageId: z.string().uuid('Invalid pool stage ID'),
+    }),
+  }),
+  tournamentController.completePoolStageWithScores
+);
+
+/**
  * @route   DELETE /api/tournaments/:id/pool-stages/:stageId
  * @desc    Delete pool stage
  * @access  Public

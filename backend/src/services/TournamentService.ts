@@ -93,6 +93,48 @@ export class TournamentService {
       );
     }
   }
+
+  private async ensureUniqueSurname(
+    tournamentId: string,
+    surname: string,
+    excludePlayerId?: string
+  ): Promise<void> {
+    const trimmed = surname.trim();
+    if (!trimmed) return;
+    const existing = await this.tournamentModel.findPlayerBySurname(
+      tournamentId,
+      trimmed,
+      excludePlayerId
+    );
+    if (existing) {
+      throw new AppError(
+        'Surname is already used by another player in this tournament',
+        400,
+        'DUPLICATE_SURNAME'
+      );
+    }
+  }
+
+  private async ensureUniqueTeamName(
+    tournamentId: string,
+    teamName: string,
+    excludePlayerId?: string
+  ): Promise<void> {
+    const trimmed = teamName.trim();
+    if (!trimmed) return;
+    const existing = await this.tournamentModel.findPlayerByTeamName(
+      tournamentId,
+      trimmed,
+      excludePlayerId
+    );
+    if (existing) {
+      throw new AppError(
+        'Team name is already used by another player in this tournament',
+        400,
+        'DUPLICATE_TEAM_NAME'
+      );
+    }
+  }
   /**
    * Create a new tournament with validation
    */
@@ -198,7 +240,7 @@ export class TournamentService {
       );
     }
 
-    if (tournament.status !== TournamentStatus.LIVE) {
+    if (tournament.status !== TournamentStatus.LIVE && tournament.status !== TournamentStatus.FINISHED) {
       throw new AppError(
         'Tournament is not live',
         400,
@@ -206,7 +248,9 @@ export class TournamentService {
       );
     }
 
-    await this.reconcileTargetAvailability(tournament);
+    if (tournament.status === TournamentStatus.LIVE) {
+      await this.reconcileTargetAvailability(tournament);
+    }
 
     return tournament;
   }
@@ -638,7 +682,7 @@ export class TournamentService {
         await this.handlePoolStageInProgress(tournamentId, stageId, updatedStage);
         break;
       case StageStatus.COMPLETED:
-        await this.handlePoolStageCompleted(stageId, completedAt ?? new Date());
+        await this.handlePoolStageCompleted(tournamentId, stageId, completedAt ?? new Date());
         break;
       default:
         break;
@@ -707,9 +751,190 @@ export class TournamentService {
     await this.createPoolMatchesForStage(tournamentId, stageId);
   }
 
-  private async handlePoolStageCompleted(stageId: string, completedAt: Date): Promise<void> {
+  private async handlePoolStageCompleted(
+    tournamentId: string,
+    stageId: string,
+    completedAt: Date
+  ): Promise<void> {
     await this.tournamentModel.completeMatchesForStage(stageId, completedAt);
     await this.tournamentModel.completePoolsForStage(stageId, completedAt);
+    await this.populateBracketsForStage(tournamentId, stageId);
+  }
+
+  private buildPlayerLabel(player?: { firstName?: string | null; lastName?: string | null }) {
+    const first = player?.firstName ?? '';
+    const last = player?.lastName ?? '';
+    return `${first} ${last}`.trim();
+  }
+
+  private buildPoolStandings(pool: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>[number]) {
+    const rows = new Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>();
+
+    const ensureRow = (player?: { id?: string; firstName?: string | null; lastName?: string | null }) => {
+      if (!player?.id) return;
+      if (!rows.has(player.id)) {
+        rows.set(player.id, {
+          playerId: player.id,
+          name: this.buildPlayerLabel(player),
+          legsWon: 0,
+          legsLost: 0,
+        });
+      }
+    };
+
+    for (const assignment of pool.assignments ?? []) {
+      ensureRow(assignment.player);
+    }
+
+    for (const match of pool.matches ?? []) {
+      if (match.status !== MatchStatus.COMPLETED) continue;
+      const playerMatches = match.playerMatches ?? [];
+      for (const pm of playerMatches) {
+        ensureRow(pm.player);
+      }
+      for (const pm of playerMatches) {
+        if (!pm.player?.id) continue;
+        const row = rows.get(pm.player.id);
+        if (!row) continue;
+        row.legsWon += pm.scoreTotal ?? pm.legsWon ?? 0;
+        let opponentTotal = 0;
+        for (const other of playerMatches) {
+          if (other.player?.id && other.player.id !== pm.player.id) {
+            opponentTotal += other.scoreTotal ?? other.legsWon ?? 0;
+          }
+        }
+        row.legsLost += opponentTotal;
+      }
+    }
+
+    const sorted = Array.from(rows.values()).sort((a, b) => {
+      if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
+      if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
+      return a.name.localeCompare(b.name);
+    });
+
+    return sorted.map((row, index) => ({
+      ...row,
+      position: index + 1,
+    }));
+  }
+
+  private async populateBracket(
+    tournamentId: string,
+    bracketId: string,
+    entries: Array<{ playerId: string; seedNumber: number }>
+  ): Promise<void> {
+    await this.tournamentModel.deleteMatchesForBracket(bracketId);
+    await this.tournamentModel.deleteBracketEntriesForBracket(bracketId);
+
+    const payload = entries.map((entry) => ({
+      bracketId,
+      playerId: entry.playerId,
+      seedNumber: entry.seedNumber,
+      currentRound: 1,
+    }));
+    await this.tournamentModel.createBracketEntries(payload);
+
+    if (entries.length < 2) {
+      await this.tournamentModel.updateBracket(bracketId, { status: BracketStatus.NOT_STARTED });
+      return;
+    }
+
+    const ordered = [...entries].sort((a, b) => a.seedNumber - b.seedNumber);
+    const playerIds = ordered.map((entry) => entry.playerId);
+    const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+    let matchNumber = 1;
+    for (let left = 0, right = playerIds.length - 1; left < right; left += 1, right -= 1) {
+      const first = playerIds[left];
+      const second = playerIds[right];
+      if (!first || !second) continue;
+      matches.push({
+        roundNumber: 1,
+        matchNumber,
+        playerIds: [first, second],
+      });
+      matchNumber += 1;
+    }
+
+    await this.tournamentModel.createBracketMatches(tournamentId, bracketId, matches);
+    await this.tournamentModel.updateBracket(bracketId, { status: BracketStatus.IN_PROGRESS });
+  }
+
+  private async populateBracketsForStage(tournamentId: string, stageId: string): Promise<void> {
+    const stage = await this.tournamentModel.getPoolStageById(stageId);
+    if (!stage || stage.tournamentId !== tournamentId) {
+      return;
+    }
+
+    const stages = await this.tournamentModel.getPoolStages(tournamentId);
+    const maxStageNumber = stages.reduce((max, item) => Math.max(max, item.stageNumber), stage.stageNumber);
+    if (stage.stageNumber !== maxStageNumber) {
+      return;
+    }
+
+    const brackets = await this.tournamentModel.getBrackets(tournamentId);
+    if (brackets.length === 0) {
+      return;
+    }
+
+    const pools = await this.tournamentModel.getPoolsWithMatchesForStage(stageId);
+    const winners: Array<{ playerId: string; seedKey: string; poolNumber: number; position: number }> = [];
+    const losers: Array<{ playerId: string; seedKey: string; poolNumber: number; position: number }> = [];
+
+    for (const pool of pools) {
+      const standings = this.buildPoolStandings(pool);
+      standings.forEach((row, index) => {
+        const entry = {
+          playerId: row.playerId,
+          seedKey: `${pool.poolNumber}-${row.position}`,
+          poolNumber: pool.poolNumber,
+          position: row.position,
+        };
+        if (index < stage.advanceCount) {
+          winners.push(entry);
+        } else {
+          losers.push(entry);
+        }
+      });
+    }
+
+    const sortByPool = (a: { poolNumber: number; position: number }, b: { poolNumber: number; position: number }) => {
+      if (a.poolNumber !== b.poolNumber) return a.poolNumber - b.poolNumber;
+      return a.position - b.position;
+    };
+
+    const uniqueByPlayer = (entries: Array<{ playerId: string; poolNumber: number; position: number }>) => {
+      const seen = new Set<string>();
+      return entries.filter((entry) => {
+        if (seen.has(entry.playerId)) return false;
+        seen.add(entry.playerId);
+        return true;
+      });
+    };
+
+    const winnerList = uniqueByPlayer([...winners].sort(sortByPool));
+    const loserList = uniqueByPlayer([...losers].sort(sortByPool));
+
+    const winnerEntries = winnerList.map((entry, index) => ({
+      playerId: entry.playerId,
+      seedNumber: index + 1,
+    }));
+
+    const loserEntries = loserList.map((entry, index) => ({
+      playerId: entry.playerId,
+      seedNumber: index + 1,
+    }));
+
+    const winnerBracket = brackets.find((bracket) => /winner/i.test(bracket.name)) ?? brackets[0];
+    const loserBracket = brackets.find((bracket) => /loser/i.test(bracket.name));
+
+    if (winnerBracket) {
+      await this.populateBracket(tournamentId, winnerBracket.id, winnerEntries);
+    }
+
+    if (loserBracket) {
+      await this.populateBracket(tournamentId, loserBracket.id, loserEntries);
+    }
   }
 
   private sanitizeName(name: string): string {
@@ -1051,6 +1276,18 @@ export class TournamentService {
         );
       }
 
+      if (playerData.surname?.trim()) {
+        await this.ensureUniqueSurname(tournamentId, playerData.surname);
+      }
+
+      if (
+        playerData.teamName?.trim() &&
+        (tournament.format === TournamentFormat.DOUBLE ||
+          tournament.format === TournamentFormat.TEAM_4_PLAYER)
+      ) {
+        await this.ensureUniqueTeamName(tournamentId, playerData.teamName);
+      }
+
       const playerPayload = await this.buildPlayerPayload(playerData);
 
       const player = await this.tournamentModel.createPlayer(tournamentId, playerPayload);
@@ -1222,6 +1459,18 @@ export class TournamentService {
       });
     }
 
+    if (updateData.surname?.trim()) {
+      await this.ensureUniqueSurname(tournamentId, updateData.surname, playerId);
+    }
+
+    if (
+      updateData.teamName?.trim() &&
+      (tournament.format === TournamentFormat.DOUBLE ||
+        tournament.format === TournamentFormat.TEAM_4_PLAYER)
+    ) {
+      await this.ensureUniqueTeamName(tournamentId, updateData.teamName, playerId);
+    }
+
     return await this.tournamentModel.updatePlayer(tournamentId, playerId, {
       personId: player?.personId ?? null,
       firstName: updateData.firstName.trim(),
@@ -1355,6 +1604,94 @@ export class TournamentService {
     );
 
     return updatedStage;
+  }
+
+  async completePoolStageWithRandomScores(
+    tournamentId: string,
+    stageId: string
+  ): Promise<void> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(stageId);
+    await this.getEditableTournamentForPoolStage(tournamentId);
+
+    const stage = await this.tournamentModel.getPoolStageById(stageId);
+    if (!stage || stage.tournamentId !== tournamentId) {
+      throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+    }
+
+    if (stage.status === StageStatus.COMPLETED) {
+      await this.populateBracketsForStage(tournamentId, stageId);
+      return;
+    }
+
+    if (stage.status !== StageStatus.IN_PROGRESS) {
+      throw new AppError(
+        'Pool stage must be in progress to complete',
+        400,
+        'POOL_STAGE_NOT_IN_PROGRESS'
+      );
+    }
+
+    const matches = await this.tournamentModel.getMatchesForPoolStage(stageId);
+    const invalidMatch = matches.find((match) => (match.playerMatches?.length ?? 0) < 2);
+    if (invalidMatch) {
+      throw new AppError(
+        'Pool stage has matches without two players',
+        400,
+        'POOL_STAGE_MATCH_INCOMPLETE'
+      );
+    }
+
+    const now = new Date();
+    const randomInt = (min: number, max: number) =>
+      Math.floor(Math.random() * (max - min + 1)) + min;
+
+    for (const match of matches) {
+      if (match.status === MatchStatus.COMPLETED || match.status === MatchStatus.CANCELLED) {
+        continue;
+      }
+
+      const playerIds = (match.playerMatches || [])
+        .map((pm) => pm.playerId)
+        .filter((id): id is string => Boolean(id));
+
+      if (playerIds.length < 2) {
+        continue;
+      }
+
+      const winnerFirst = Math.random() < 0.5;
+      const winnerId = winnerFirst ? playerIds[0] : playerIds[1];
+      const loserId = winnerFirst ? playerIds[1] : playerIds[0];
+      const winnerScore = randomInt(1, 5);
+      const loserScore = randomInt(0, winnerScore - 1);
+
+      const scores = [
+        { playerId: winnerId, scoreTotal: winnerScore, isWinner: true },
+        { playerId: loserId, scoreTotal: loserScore, isWinner: false },
+      ];
+      const timestamps: { startedAt?: Date | null; completedAt?: Date | null } = {
+        startedAt: match.startedAt ?? now,
+        completedAt: now,
+      };
+
+      await this.tournamentModel.completeMatch(match.id, scores, winnerId, timestamps);
+
+      if (match.targetId) {
+        await this.tournamentModel.finishMatchAndReleaseTarget(
+          match.id,
+          match.targetId,
+          MatchStatus.COMPLETED,
+          timestamps
+        );
+      }
+    }
+
+    await this.tournamentModel.completePoolsForStage(stageId, now);
+    await this.tournamentModel.updatePoolStage(stageId, {
+      status: StageStatus.COMPLETED,
+      completedAt: now,
+    });
+    await this.populateBracketsForStage(tournamentId, stageId);
   }
 
   private buildRoundRobinSchedule(playerIds: string[]) {
@@ -1734,6 +2071,8 @@ export class TournamentService {
         timestamps
       );
     }
+
+    await this.advanceBracketIfReady(matchId, tournamentId);
   }
 
   async updateCompletedMatchScores(
@@ -1806,6 +2145,92 @@ export class TournamentService {
         );
       }
     }
+
+    await this.advanceBracketIfReady(matchId, tournamentId);
+  }
+
+  private async advanceBracketIfReady(matchId: string, tournamentId: string): Promise<void> {
+    const match = await this.tournamentModel.getMatchById(matchId);
+    if (!match?.bracketId) {
+      return;
+    }
+
+    const bracket = await this.tournamentModel.getBracketById(match.bracketId);
+    if (!bracket || bracket.tournamentId !== tournamentId) {
+      return;
+    }
+
+    const roundNumber = match.roundNumber || 1;
+    const roundMatches = await this.tournamentModel.getBracketMatchesByRound(bracket.id, roundNumber);
+    const allCompleted = roundMatches.length > 0
+      && roundMatches.every((item) => item.status === MatchStatus.COMPLETED);
+
+    if (!allCompleted) {
+      return;
+    }
+
+    if (roundNumber >= bracket.totalRounds) {
+      await this.tournamentModel.updateBracket(bracket.id, {
+        status: BracketStatus.COMPLETED,
+        completedAt: new Date(),
+      });
+      await this.tryFinishTournament(tournamentId);
+      return;
+    }
+
+    const nextRound = roundNumber + 1;
+    const nextRoundCount = await this.tournamentModel.getBracketMatchCountByRound(bracket.id, nextRound);
+    if (nextRoundCount > 0) {
+      await this.tournamentModel.updateBracket(bracket.id, { status: BracketStatus.IN_PROGRESS });
+      return;
+    }
+
+    const winners = roundMatches
+      .sort((a, b) => a.matchNumber - b.matchNumber)
+      .map((item) => item.winnerId)
+      .filter((id): id is string => Boolean(id));
+
+    if (winners.length < 2) {
+      return;
+    }
+
+    const nextMatches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+    let matchNumber = 1;
+    for (let i = 0; i < winners.length; i += 2) {
+      const first = winners[i];
+      const second = winners[i + 1];
+      if (!first || !second) {
+        continue;
+      }
+      nextMatches.push({
+        roundNumber: nextRound,
+        matchNumber,
+        playerIds: [first, second],
+      });
+      matchNumber += 1;
+    }
+
+    await this.tournamentModel.createBracketMatches(tournamentId, bracket.id, nextMatches);
+    await this.tournamentModel.updateBracket(bracket.id, { status: BracketStatus.IN_PROGRESS });
+  }
+
+  private async tryFinishTournament(tournamentId: string): Promise<void> {
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament || tournament.status !== TournamentStatus.LIVE) {
+      return;
+    }
+
+    const poolStages = await this.tournamentModel.getPoolStages(tournamentId);
+    const brackets = await this.tournamentModel.getBrackets(tournamentId);
+
+    const poolsComplete = poolStages.length === 0
+      || poolStages.every((stage) => stage.status === StageStatus.COMPLETED);
+    const bracketsComplete = brackets.length === 0
+      || brackets.every((bracket) => bracket.status === BracketStatus.COMPLETED);
+
+    if (poolsComplete && bracketsComplete) {
+      await this.transitionTournamentStatus(tournamentId, TournamentStatus.FINISHED);
+    }
   }
 
   private async assignPlayersToPools(
@@ -1817,8 +2242,13 @@ export class TournamentService {
     const pools = await this.tournamentModel.getPoolsForStage(stageId);
     if (pools.length === 0) return;
 
+    const stage = await this.tournamentModel.getPoolStageById(stageId);
+    if (!stage) return;
+
     const players = await this.tournamentModel.getActivePlayersForTournament(tournamentId);
     if (players.length === 0) return;
+
+    const opponentMap = await this.buildOpponentMap(tournamentId, stage.stageNumber);
 
     const skillScore: Record<string, number> = {
       EXPERT: 4,
@@ -1842,25 +2272,111 @@ export class TournamentService {
     const capacity = poolCount * playersPerPool;
     const selected = shuffled.slice(0, capacity);
     const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
+    const poolState = pools.map((pool) => ({ pool, players: [] as string[] }));
 
-    let poolIndex = 0;
     for (let i = 0; i < selected.length; i += 1) {
-      const pool = pools[poolIndex % pools.length];
       const player = selected[i];
-      if (!pool || !player) {
-        poolIndex += 1;
-        continue;
-      }
+      if (!player) continue;
+      const chosenPoolState = this.pickPoolForPlayer(
+        player.id,
+        poolState,
+        playersPerPool,
+        opponentMap
+      );
+      if (!chosenPoolState) continue;
+
+      chosenPoolState.players.push(player.id);
       assignments.push({
-        poolId: pool.id,
+        poolId: chosenPoolState.pool.id,
         playerId: player.id,
         assignmentType: AssignmentType.SEEDED,
         seedNumber: i + 1,
       });
-      poolIndex += 1;
     }
 
     await this.tournamentModel.createPoolAssignments(assignments);
+  }
+
+  private async buildOpponentMap(
+    tournamentId: string,
+    stageNumber: number
+  ): Promise<Map<string, Set<string>>> {
+    const opponentMap = new Map<string, Set<string>>();
+    if (stageNumber <= 1) {
+      return opponentMap;
+    }
+
+    const opponentPairs = await this.tournamentModel.getOpponentPairsBeforeStage(
+      tournamentId,
+      stageNumber
+    );
+    for (const [first, second] of opponentPairs) {
+      if (!opponentMap.has(first)) {
+        opponentMap.set(first, new Set());
+      }
+      if (!opponentMap.has(second)) {
+        opponentMap.set(second, new Set());
+      }
+      opponentMap.get(first)?.add(second);
+      opponentMap.get(second)?.add(first);
+    }
+
+    return opponentMap;
+  }
+
+  private countOpponentConflicts(
+    playerId: string,
+    poolPlayers: string[],
+    opponentMap: Map<string, Set<string>>
+  ): number {
+    const opponents = opponentMap.get(playerId);
+    if (!opponents || opponents.size === 0) {
+      return 0;
+    }
+    let conflicts = 0;
+    for (const existing of poolPlayers) {
+      if (opponents.has(existing)) {
+        conflicts += 1;
+      }
+    }
+    return conflicts;
+  }
+
+  private pickPoolForPlayer(
+    playerId: string,
+    poolState: Array<{ pool: { id: string }; players: string[] }>,
+    playersPerPool: number,
+    opponentMap: Map<string, Set<string>>
+  ) {
+    let best: { state: typeof poolState[number]; conflicts: number } | null = null;
+
+    for (const state of poolState) {
+      if (state.players.length >= playersPerPool) continue;
+      const conflicts = this.countOpponentConflicts(playerId, state.players, opponentMap);
+
+      if (!best || this.isBetterPoolCandidate(conflicts, state.players.length, best)) {
+        best = { state, conflicts };
+      }
+    }
+
+    return best?.state ?? poolState.find((state) => state.players.length < playersPerPool);
+  }
+
+  private isBetterPoolCandidate(
+    conflicts: number,
+    size: number,
+    best: { state: { players: string[] }; conflicts: number }
+  ): boolean {
+    if (conflicts !== best.conflicts) {
+      return conflicts < best.conflicts;
+    }
+
+    const bestSize = best.state.players.length;
+    if (size !== bestSize) {
+      return size < bestSize;
+    }
+
+    return Math.random() < 0.5;
   }
 
   /**

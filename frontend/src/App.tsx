@@ -3,6 +3,7 @@ import RegistrationPlayers from "./components/RegistrationPlayers";
 import PlayersView from "./components/PlayersView";
 import LiveTournament from "./components/LiveTournament";
 import TargetsView from "./components/TargetsView";
+import CreateTournamentPage from "./components/tournaments/CreateTournamentPage";
 import { useI18n } from './i18n';
 
 function App() {
@@ -23,6 +24,8 @@ function App() {
     mainContent = <LiveTournament />;
   } else if (view === 'targets') {
     mainContent = <TargetsView />;
+  } else if (view === 'create-tournament') {
+    mainContent = <CreateTournamentPage />;
   }
 
   return (
@@ -56,11 +59,17 @@ function App() {
                   aria-haspopup="true"
                   aria-expanded="false"
                 >
-                  Manage
+                  Manage{' '}
                   <span aria-hidden="true">▾</span>
                 </button>
                 <div className="absolute left-0 top-full z-10 pt-2 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
                   <div className="min-w-[10rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
+                    <a
+                      className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
+                      href="/?view=create-tournament"
+                    >
+                      {t('tournaments.create')}
+                    </a>
                     <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
                       {t('nav.drafts')}
                     </a>
@@ -73,7 +82,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="https://darts.bzhtech.eu/?status=live">
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=live">
                 {t('nav.live')}
               </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=pool-stages">

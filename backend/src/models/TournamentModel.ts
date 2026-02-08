@@ -492,6 +492,50 @@ export class TournamentModel {
     }
   }
 
+  async getPoolsWithMatchesForStage(stageId: string) {
+    try {
+      return await this.prisma.pool.findMany({
+        where: { poolStageId: stageId },
+        orderBy: { poolNumber: 'asc' },
+        include: {
+          assignments: {
+            orderBy: { assignedAt: 'asc' },
+            include: { player: true },
+          },
+          matches: {
+            orderBy: { matchNumber: 'asc' },
+            include: {
+              playerMatches: { include: { player: true } },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      logModelError('getPoolsWithMatchesForStage', error);
+      throw new AppError(
+        'Failed to fetch pools',
+        500,
+        'POOLS_FETCH_FAILED'
+      );
+    }
+  }
+
+  async getMatchesForPoolStage(stageId: string) {
+    try {
+      return await this.prisma.match.findMany({
+        where: { pool: { poolStageId: stageId } },
+        include: { playerMatches: true },
+      });
+    } catch (error) {
+      logModelError('getMatchesForPoolStage', error);
+      throw new AppError(
+        'Failed to fetch pool stage matches',
+        500,
+        'POOL_STAGE_MATCH_FETCH_FAILED'
+      );
+    }
+  }
+
   async getPoolAssignmentCountForStage(stageId: string): Promise<number> {
     try {
       return await this.prisma.poolAssignment.count({
@@ -500,6 +544,46 @@ export class TournamentModel {
     } catch (error) {
       logModelError('getPoolAssignmentCountForStage', error);
       return 0;
+    }
+  }
+
+  async getOpponentPairsBeforeStage(tournamentId: string, stageNumber: number): Promise<Array<[string, string]>> {
+    try {
+      const matches = await this.prisma.match.findMany({
+        where: {
+          tournamentId,
+          pool: { poolStage: { stageNumber: { lt: stageNumber } } },
+        },
+        select: {
+          playerMatches: {
+            select: { playerId: true },
+          },
+        },
+      });
+
+      const pairs: Array<[string, string]> = [];
+      for (const match of matches) {
+        const ids = match.playerMatches.map((pm) => pm.playerId).filter((id): id is string => Boolean(id));
+        if (ids.length < 2) continue;
+        for (let i = 0; i < ids.length; i += 1) {
+          for (let j = i + 1; j < ids.length; j += 1) {
+            const first = ids[i];
+            const second = ids[j];
+            if (first && second) {
+              pairs.push([first, second]);
+            }
+          }
+        }
+      }
+
+      return pairs;
+    } catch (error) {
+      logModelError('getOpponentPairsBeforeStage', error);
+      throw new AppError(
+        'Failed to fetch opponent pairs',
+        500,
+        'OPPONENT_PAIRS_FETCH_FAILED'
+      );
     }
   }
 
@@ -524,6 +608,37 @@ export class TournamentModel {
     await this.prisma.poolAssignment.createMany({
       data: assignments,
       skipDuplicates: true,
+    });
+  }
+
+  async createBracketEntries(entries: Array<{ bracketId: string; playerId: string; seedNumber: number; currentRound: number }>) {
+    if (entries.length === 0) return;
+    await this.prisma.bracketEntry.createMany({
+      data: entries,
+      skipDuplicates: true,
+    });
+  }
+
+  async deleteBracketEntriesForBracket(bracketId: string) {
+    await this.prisma.bracketEntry.deleteMany({
+      where: { bracketId },
+    });
+  }
+
+  async getMatchCountForBracket(bracketId: string): Promise<number> {
+    try {
+      return await this.prisma.match.count({
+        where: { bracketId },
+      });
+    } catch (error) {
+      logModelError('getMatchCountForBracket', error);
+      return 0;
+    }
+  }
+
+  async deleteMatchesForBracket(bracketId: string) {
+    await this.prisma.match.deleteMany({
+      where: { bracketId },
     });
   }
 
@@ -557,6 +672,39 @@ export class TournamentModel {
           data: {
             tournamentId,
             poolId,
+            roundNumber: match.roundNumber,
+            matchNumber: match.matchNumber,
+            playerMatches: {
+              create: [
+                {
+                  playerId: match.playerIds[0],
+                  playerPosition: 1,
+                },
+                {
+                  playerId: match.playerIds[1],
+                  playerPosition: 2,
+                },
+              ],
+            },
+          },
+        })
+      )
+    );
+  }
+
+  async createBracketMatches(
+    tournamentId: string,
+    bracketId: string,
+    matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>
+  ): Promise<void> {
+    if (matches.length === 0) return;
+
+    await this.prisma.$transaction(
+      matches.map((match) =>
+        this.prisma.match.create({
+          data: {
+            tournamentId,
+            bracketId,
             roundNumber: match.roundNumber,
             matchNumber: match.matchNumber,
             playerMatches: {
@@ -614,6 +762,40 @@ export class TournamentModel {
         500,
         'MATCH_FETCH_FAILED'
       );
+    }
+  }
+
+  async getBracketById(bracketId: string) {
+    try {
+      return await this.prisma.bracket.findUnique({
+        where: { id: bracketId },
+      });
+    } catch (error) {
+      logModelError('getBracketById', error);
+      throw new AppError('Failed to fetch bracket', 500, 'BRACKET_FETCH_FAILED');
+    }
+  }
+
+  async getBracketMatchesByRound(bracketId: string, roundNumber: number) {
+    try {
+      return await this.prisma.match.findMany({
+        where: { bracketId, roundNumber },
+        orderBy: { matchNumber: 'asc' },
+      });
+    } catch (error) {
+      logModelError('getBracketMatchesByRound', error);
+      throw new AppError('Failed to fetch bracket matches', 500, 'BRACKET_MATCH_FETCH_FAILED');
+    }
+  }
+
+  async getBracketMatchCountByRound(bracketId: string, roundNumber: number): Promise<number> {
+    try {
+      return await this.prisma.match.count({
+        where: { bracketId, roundNumber },
+      });
+    } catch (error) {
+      logModelError('getBracketMatchCountByRound', error);
+      return 0;
     }
   }
 
@@ -1456,6 +1638,34 @@ export class TournamentModel {
         'PLAYER_UPDATE_FAILED'
       );
     }
+  }
+
+  async findPlayerBySurname(
+    tournamentId: string,
+    surname: string,
+    excludePlayerId?: string
+  ) {
+    return this.prisma.player.findFirst({
+      where: {
+        tournamentId,
+        surname: { equals: surname, mode: 'insensitive' },
+        ...(excludePlayerId ? { id: { not: excludePlayerId } } : {}),
+      },
+    });
+  }
+
+  async findPlayerByTeamName(
+    tournamentId: string,
+    teamName: string,
+    excludePlayerId?: string
+  ) {
+    return this.prisma.player.findFirst({
+      where: {
+        tournamentId,
+        teamName: { equals: teamName, mode: 'insensitive' },
+        ...(excludePlayerId ? { id: { not: excludePlayerId } } : {}),
+      },
+    });
   }
 
   /**

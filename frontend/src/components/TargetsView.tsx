@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
 import { useI18n } from '../i18n';
-import { fetchTournamentLiveView, updateMatchStatus } from '../services/tournamentService';
+import { completeMatch, fetchTournamentLiveView, updateMatchStatus } from '../services/tournamentService';
 
 interface LiveViewTarget {
   id: string;
@@ -25,6 +25,9 @@ interface LiveViewMatch {
       surname?: string | null;
       teamName?: string | null;
     };
+    playerPosition?: number;
+    scoreTotal?: number;
+    legsWon?: number;
   }>;
   targetId?: string | null;
   target?: {
@@ -71,8 +74,18 @@ type TargetMatchInfo = {
   players: string[];
 };
 
-const getTargetLabel = (target: LiveViewTarget) =>
-  target.targetCode || target.name || `#${target.targetNumber}`;
+const formatTargetLabel = (value: string, t: ReturnType<typeof useI18n>['t']) => {
+  const match = /^target\s*(\d+)$/i.exec(value.trim());
+  if (match) {
+    return `${t('targets.target')} ${match[1]}`;
+  }
+  return value;
+};
+
+const getTargetLabel = (target: LiveViewTarget, t: ReturnType<typeof useI18n>['t']) => {
+  const base = target.targetCode || target.name || `#${target.targetNumber}`;
+  return formatTargetLabel(base, t);
+};
 
 const getPlayerLabel = (player?: { firstName: string; lastName: string; surname?: string | null; teamName?: string | null }) => {
   if (!player) return '';
@@ -82,41 +95,129 @@ const getPlayerLabel = (player?: { firstName: string; lastName: string; surname?
 };
 
 type MatchQueueItem = {
+  source: 'pool' | 'bracket';
   matchId: string;
+  poolId: string;
   stageNumber: number;
   stageName: string;
   poolNumber: number;
   poolName: string;
+  bracketName?: string;
   matchNumber: number;
   roundNumber: number;
   status: string;
   targetCode?: string;
   targetNumber?: number;
   players: string[];
+  blocked: boolean;
 };
 
-const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
-  const items: MatchQueueItem[] = [];
-  const activePlayerKeys = new Set<string>();
+type PoolQueue = {
+  poolId: string;
+  stageNumber: number;
+  poolNumber: number;
+  progress: number;
+  matches: MatchQueueItem[];
+};
 
-  const getPlayerIdentity = (player?: { id?: string; firstName: string; lastName: string; teamName?: string | null }) => {
-    if (!player) return null;
-    if (player.id) return `id:${player.id}`;
-    if (player.teamName) return `team:${player.teamName}`;
-    return `name:${player.firstName} ${player.lastName}`.trim();
-  };
+type ActiveMatchScorePanelProps = {
+  match: LiveViewMatch;
+  matchScores: Record<string, Record<string, string>>;
+  updatingMatchId: string | null;
+  t: ReturnType<typeof useI18n>['t'];
+  onScoreChange: (matchId: string, playerId: string, value: string) => void;
+  onCompleteMatch: (match: LiveViewMatch) => void;
+};
 
-  const collectActivePlayers = (match: LiveViewMatch) => {
-    for (const pm of match.playerMatches ?? []) {
-      const key = getPlayerIdentity(pm.player);
-      if (key) {
-        activePlayerKeys.add(key);
-      }
+const ActiveMatchScorePanel = ({
+  match,
+  matchScores,
+  updatingMatchId,
+  t,
+  onScoreChange,
+  onCompleteMatch,
+}: ActiveMatchScorePanelProps) => (
+  <div className="mt-3 space-y-2">
+    <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.finalScore')}</p>
+    <div className="grid gap-2 sm:grid-cols-2">
+      {(match.playerMatches ?? []).map((pm) => (
+        <label key={`${match.id}-${pm.playerPosition ?? pm.player?.id}`} className="text-xs text-slate-300">
+          <span className="block text-slate-400">
+            {pm.player?.firstName} {pm.player?.lastName}
+          </span>
+          <input
+            type="number"
+            min={0}
+            value={matchScores[match.id]?.[pm.player?.id || ''] || ''}
+            onChange={(e) => onScoreChange(match.id, pm.player?.id || '', e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+          />
+        </label>
+      ))}
+    </div>
+    <button
+      onClick={() => onCompleteMatch(match)}
+      disabled={updatingMatchId === match.id}
+      className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
+    >
+      {updatingMatchId === match.id ? t('live.savingMatch') : t('live.completeMatch')}
+    </button>
+  </div>
+);
+
+const sortPoolMatches = (queue: PoolQueue) => {
+  const statusWeight = (status: string) => (status === 'IN_PROGRESS' ? 0 : 1);
+  queue.matches.sort((a, b) => {
+    if (a.blocked !== b.blocked) {
+      return a.blocked ? 1 : -1;
     }
+    if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
+    if (statusWeight(a.status) !== statusWeight(b.status)) {
+      return statusWeight(a.status) - statusWeight(b.status);
+    }
+    return a.matchNumber - b.matchNumber;
+  });
+};
+
+const interleavePools = (queues: PoolQueue[]) => {
+  const ordered: MatchQueueItem[] = [];
+  const comparePools = (a: PoolQueue, b: PoolQueue) => {
+    if (a.progress !== b.progress) return a.progress - b.progress;
+    if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
+    return a.poolNumber - b.poolNumber;
   };
 
-  for (const stage of view.poolStages ?? []) {
+  while (queues.some((queue) => queue.matches.length > 0)) {
+    const nextPool = [...queues]
+      .filter((queue) => queue.matches.length > 0)
+      .sort(comparePools)[0];
+    if (!nextPool) break;
+    const nextMatch = nextPool.matches.shift();
+    if (!nextMatch) break;
+    ordered.push(nextMatch);
+    nextPool.progress += 1;
+  }
+
+  return ordered;
+};
+
+const buildPoolQueues = (
+  poolStages: LiveViewPoolStage[],
+  collectActivePlayers: (match: LiveViewMatch) => void
+): PoolQueue[] => {
+  const poolQueues: PoolQueue[] = [];
+  for (const stage of poolStages) {
     for (const pool of stage.pools ?? []) {
+      const completedOrInProgress = (pool.matches ?? []).filter(
+        (match) => match.status === 'COMPLETED' || match.status === 'IN_PROGRESS'
+      ).length;
+      poolQueues.push({
+        poolId: pool.id,
+        stageNumber: stage.stageNumber,
+        poolNumber: pool.poolNumber,
+        progress: completedOrInProgress,
+        matches: [],
+      });
       for (const match of pool.matches ?? []) {
         if (match.status === 'IN_PROGRESS') {
           collectActivePlayers(match);
@@ -124,66 +225,158 @@ const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
       }
     }
   }
+  return poolQueues;
+};
 
-  for (const bracket of view.brackets ?? []) {
-    for (const match of bracket.matches ?? []) {
-      if (match.status === 'IN_PROGRESS') {
-        collectActivePlayers(match);
-      }
+const buildQueueItems = (
+  view: LiveViewData,
+  poolQueues: PoolQueue[],
+  isMatchBlocked: (match: LiveViewMatch) => boolean,
+  getPlayerLabelFn: (player?: { firstName: string; lastName: string; surname?: string | null; teamName?: string | null }) => string,
+  options?: { ignoreBlocking?: boolean }
+) => {
+  const shouldQueueMatch = (match: LiveViewMatch) => {
+    if (match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.status === 'IN_PROGRESS') {
+      return false;
     }
-  }
-
-  const isMatchBlocked = (match: LiveViewMatch) => {
-    for (const pm of match.playerMatches ?? []) {
-      const key = getPlayerIdentity(pm.player);
-      if (key && activePlayerKeys.has(key)) {
-        return true;
-      }
+    if (options?.ignoreBlocking) {
+      return true;
     }
-    return false;
+    return !isMatchBlocked(match);
   };
+
+  const createQueueItem = (stage: LiveViewPoolStage, pool: LiveViewPool, match: LiveViewMatch) => {
+    const blocked = isMatchBlocked(match);
+    const players = (match.playerMatches ?? [])
+      .map((pm) => getPlayerLabelFn(pm.player))
+      .filter(Boolean);
+
+    return {
+      source: 'pool',
+      matchId: match.id,
+      poolId: pool.id,
+      stageNumber: stage.stageNumber,
+      stageName: stage.name,
+      poolNumber: pool.poolNumber,
+      poolName: pool.name,
+      matchNumber: match.matchNumber,
+      roundNumber: match.roundNumber,
+      status: match.status,
+      targetCode: match.target?.targetCode,
+      targetNumber: match.target?.targetNumber,
+      players,
+      blocked,
+    };
+  };
+
+  const buildPoolItems = (stage: LiveViewPoolStage, pool: LiveViewPool, poolQueue?: PoolQueue) => {
+    const poolItems: MatchQueueItem[] = [];
+    for (const match of pool.matches ?? []) {
+      if (!shouldQueueMatch(match)) {
+        continue;
+      }
+      const nextItem = createQueueItem(stage, pool, match);
+      poolItems.push(nextItem);
+      if (poolQueue) {
+        poolQueue.matches.push(nextItem);
+      }
+    }
+    return poolItems;
+  };
+
+  const items: MatchQueueItem[] = [];
   for (const stage of view.poolStages ?? []) {
     if (stage.pools == null) continue;
     for (const pool of stage.pools ?? []) {
-      for (const match of pool.matches ?? []) {
-        if (match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.status === 'IN_PROGRESS') {
-          continue;
+      const poolQueue = poolQueues.find((queue) => queue.poolId === pool.id);
+      items.push(...buildPoolItems(stage, pool, poolQueue));
+    }
+  }
+  return items;
+};
+
+const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
+  const getPlayerIdentity = (player?: { id?: string; firstName: string; lastName: string; teamName?: string | null }) => {
+    if (!player) return null;
+    if (player.id) return `id:${player.id}`;
+    if (player.teamName) return `team:${player.teamName}`;
+    return `name:${player.firstName} ${player.lastName}`.trim();
+  };
+
+  const buildQueue = (options?: { ignoreBlocking?: boolean }) => {
+    const items: MatchQueueItem[] = [];
+    const activePlayerKeys = new Set<string>();
+    const poolQueues: PoolQueue[] = [];
+
+    const collectActivePlayers = (match: LiveViewMatch) => {
+      for (const pm of match.playerMatches ?? []) {
+        const key = getPlayerIdentity(pm.player);
+        if (key) {
+          activePlayerKeys.add(key);
         }
-        if (isMatchBlocked(match)) {
+      }
+    };
+
+    poolQueues.push(...buildPoolQueues(view.poolStages ?? [], collectActivePlayers));
+
+    for (const bracket of view.brackets ?? []) {
+      for (const match of bracket.matches ?? []) {
+        if (match.status === 'IN_PROGRESS') {
+          collectActivePlayers(match);
+        }
+      }
+    }
+
+    const isMatchBlocked = (match: LiveViewMatch) => {
+      for (const pm of match.playerMatches ?? []) {
+        const key = getPlayerIdentity(pm.player);
+        if (key && activePlayerKeys.has(key)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    items.push(...buildQueueItems(view, poolQueues, isMatchBlocked, getPlayerLabel, options));
+    for (const queue of poolQueues) {
+      sortPoolMatches(queue);
+    }
+    const ordered = interleavePools(poolQueues);
+    const poolItems = ordered.length > 0 ? ordered : items;
+
+    const bracketItems: MatchQueueItem[] = [];
+    for (const bracket of view.brackets ?? []) {
+      for (const match of bracket.matches ?? []) {
+        if (match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.status === 'IN_PROGRESS') {
           continue;
         }
         const players = (match.playerMatches ?? [])
           .map((pm) => getPlayerLabel(pm.player))
           .filter(Boolean);
-
-        items.push({
+        bracketItems.push({
+          source: 'bracket',
           matchId: match.id,
-          stageNumber: stage.stageNumber,
-          stageName: stage.name,
-          poolNumber: pool.poolNumber,
-          poolName: pool.name,
+          poolId: '',
+          stageNumber: 0,
+          stageName: '',
+          poolNumber: 0,
+          poolName: '',
+          bracketName: bracket.name,
           matchNumber: match.matchNumber,
           roundNumber: match.roundNumber,
           status: match.status,
           targetCode: match.target?.targetCode,
           targetNumber: match.target?.targetNumber,
           players,
+          blocked: false,
         });
       }
     }
-  }
 
-  const statusWeight = (status: string) => (status === 'IN_PROGRESS' ? 0 : 1);
+    return [...poolItems, ...bracketItems];
+  };
 
-  return items.sort((a, b) => {
-    if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
-    if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
-    if (statusWeight(a.status) !== statusWeight(b.status)) {
-      return statusWeight(a.status) - statusWeight(b.status);
-    }
-    if (a.poolNumber !== b.poolNumber) return a.poolNumber - b.poolNumber;
-    return a.matchNumber - b.matchNumber;
-  });
+  return buildQueue({ ignoreBlocking: true });
 };
 
 const getSurnameList = (players: string[]) =>
@@ -223,6 +416,7 @@ const addMatchInfo = (
 const buildMatchMaps = (liveView: LiveViewData | null, t: ReturnType<typeof useI18n>['t']) => {
   const byTargetId = new Map<string, TargetMatchInfo>();
   const byId = new Map<string, TargetMatchInfo>();
+  const matchDetailsById = new Map<string, LiveViewMatch>();
   const stageLabel = t('targets.stageLabel');
   const poolLabel = t('targets.poolLabel');
   const matchLabel = t('targets.matchLabel');
@@ -231,6 +425,7 @@ const buildMatchMaps = (liveView: LiveViewData | null, t: ReturnType<typeof useI
   for (const stage of liveView?.poolStages ?? []) {
     for (const pool of stage.pools ?? []) {
       for (const match of pool.matches ?? []) {
+        matchDetailsById.set(match.id, match);
         addMatchInfo(
           byTargetId,
           byId,
@@ -243,6 +438,7 @@ const buildMatchMaps = (liveView: LiveViewData | null, t: ReturnType<typeof useI
 
   for (const bracket of liveView?.brackets ?? []) {
     for (const match of bracket.matches ?? []) {
+      matchDetailsById.set(match.id, match);
       addMatchInfo(
         byTargetId,
         byId,
@@ -252,7 +448,7 @@ const buildMatchMaps = (liveView: LiveViewData | null, t: ReturnType<typeof useI
     }
   }
 
-  return { matchByTargetId: byTargetId, matchById: byId };
+  return { matchByTargetId: byTargetId, matchById: byId, matchDetailsById };
 };
 
 function TargetsView() {
@@ -270,6 +466,8 @@ function TargetsView() {
   const [error, setError] = useState<string | null>(null);
   const [matchSelectionByTarget, setMatchSelectionByTarget] = useState<Record<string, string>>({});
   const [startingMatchId, setStartingMatchId] = useState<string | null>(null);
+  const [updatingMatchId, setUpdatingMatchId] = useState<string | null>(null);
+  const [matchScores, setMatchScores] = useState<Record<string, Record<string, string>>>({});
 
   const fetchLiveViews = useCallback(async (token?: string): Promise<LiveViewData[]> => {
     if (tournamentId) {
@@ -377,6 +575,48 @@ function TargetsView() {
     }
   };
 
+  const handleScoreChange = (matchId: string, playerId: string, value: string) => {
+    setMatchScores((current) => ({
+      ...current,
+      [matchId]: current[matchId]
+        ? { ...current[matchId], [playerId]: value }
+        : { [playerId]: value },
+    }));
+  };
+
+  const handleCompleteMatch = async (match: LiveViewMatch) => {
+    if (!selectedView) return;
+    if (!match.playerMatches || match.playerMatches.length < 2) {
+      setError('Match does not have enough players to complete.');
+      return;
+    }
+
+    const scoresForMatch = matchScores[match.id] || {};
+    const scores = match.playerMatches.map((pm) => ({
+      playerId: pm.player?.id || '',
+      scoreTotal: Number(scoresForMatch[pm.player?.id || ''] ?? ''),
+    }));
+
+    if (scores.some((score) => !score.playerId || Number.isNaN(score.scoreTotal))) {
+      setError('Please enter valid scores for all players.');
+      return;
+    }
+
+    setUpdatingMatchId(match.id);
+    setError(null);
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      await completeMatch(selectedView.id, match.id, scores, token);
+      await loadTargets();
+    } catch (err) {
+      console.error('Error completing match:', err);
+      setError(err instanceof Error ? err.message : t('targets.error'));
+      await loadTargets({ silent: true });
+    } finally {
+      setUpdatingMatchId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -445,7 +685,7 @@ function TargetsView() {
       {selectedView && (() => {
         const queue = buildMatchQueue(selectedView).slice(0, 5);
         const targets = (selectedView.targets ?? []).slice().sort((a, b) => a.targetNumber - b.targetNumber);
-        const { matchByTargetId, matchById } = buildMatchMaps(selectedView, t);
+        const { matchByTargetId, matchById, matchDetailsById } = buildMatchMaps(selectedView, t);
         if (targets.length === 0) {
           return (
             <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
@@ -467,12 +707,17 @@ function TargetsView() {
                 const isInUse = Boolean(activeMatchInfo)
                   || (hasCurrentMatch && !isCompletedOrCancelled)
                   || (isTargetMarkedInUse && !isCompletedOrCancelled);
+                const activeMatchId = activeMatchInfo?.matchId ?? target.currentMatchId ?? undefined;
+                const activeMatch = activeMatchId ? matchDetailsById.get(activeMatchId) : undefined;
                 const selectedMatchId = matchSelectionByTarget[target.id] || '';
-                const canStart = !isInUse && selectedMatchId.length > 0 && startingMatchId !== selectedMatchId;
+                const canStart =
+                  !isInUse &&
+                  selectedMatchId.length > 0 &&
+                  startingMatchId !== selectedMatchId;
                 return (
                   <div key={target.id} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-lg font-semibold text-white">{getTargetLabel(target)}</h3>
+                      <h3 className="text-lg font-semibold text-white">{getTargetLabel(target, t)}</h3>
                       <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
                         isInUse ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200'
                       }`}>
@@ -499,6 +744,16 @@ function TargetsView() {
                             {target.currentMatchId ?? t('targets.unknownPlayers')}
                           </p>
                         )}
+                        {activeMatch?.status === 'IN_PROGRESS' && (
+                          <ActiveMatchScorePanel
+                            match={activeMatch}
+                            matchScores={matchScores}
+                            updatingMatchId={updatingMatchId}
+                            t={t}
+                            onScoreChange={handleScoreChange}
+                            onCompleteMatch={handleCompleteMatch}
+                          />
+                        )}
                       </div>
                     ) : (
                       <div className="mt-3 space-y-2">
@@ -512,7 +767,10 @@ function TargetsView() {
                             <option value="">{t('targets.selectMatch')}</option>
                             {queue.map((item) => (
                               <option key={item.matchId} value={item.matchId}>
-                                {t('live.queue.stageLabel')} {item.stageNumber} · {getSurnameList(item.players) || t('targets.unknownPlayers')}
+                                {item.source === 'pool'
+                                  ? `${t('live.queue.stageLabel')} ${item.stageNumber} · ${t('live.queue.poolLabel')} ${item.poolNumber}`
+                                  : `${t('targets.bracketLabel')} ${item.bracketName ?? ''}`}
+                                {` · ${getSurnameList(item.players) || t('targets.unknownPlayers')}`}
                               </option>
                             ))}
                           </select>
@@ -543,11 +801,17 @@ function TargetsView() {
               ) : (
                 <div className="space-y-2">
                   {queue.map((item) => (
-                    <div key={`${item.stageNumber}-${item.poolNumber}-${item.matchNumber}`} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
+                    <div key={`${item.source}-${item.matchId}`} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-200">
-                        <span>
-                          {t('live.queue.stageLabel')} {item.stageNumber}: {item.stageName} · {t('live.queue.poolLabel')} {item.poolNumber}
-                        </span>
+                        {item.source === 'pool' ? (
+                          <span>
+                            {t('live.queue.stageLabel')} {item.stageNumber}: {item.stageName} · {t('live.queue.poolLabel')} {item.poolNumber}
+                          </span>
+                        ) : (
+                          <span>
+                            {t('targets.bracketLabel')} {item.bracketName ?? ''}
+                          </span>
+                        )}
                         <span className="text-xs text-slate-400">{item.status}</span>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">

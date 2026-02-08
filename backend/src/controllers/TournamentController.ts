@@ -644,6 +644,34 @@ export class TournamentController {
   };
 
   /**
+   * Complete pool stage with random scores
+   * POST /api/tournaments/:id/pool-stages/:stageId/complete
+   */
+  completePoolStageWithScores = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, stageId } = req.params as { id: string; stageId: string };
+      await this.getTournamentService(req).completePoolStageWithRandomScores(id, stageId);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Delete pool stage
    * DELETE /api/tournaments/:id/pool-stages/:stageId
    */

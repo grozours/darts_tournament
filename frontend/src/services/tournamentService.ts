@@ -365,6 +365,22 @@ export async function updatePoolStage(
   return response.json();
 }
 
+export async function completePoolStageWithScores(
+  tournamentId: string,
+  stageId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}/complete`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to complete pool stage');
+  }
+}
+
 export async function updateMatchStatus(
   tournamentId: string,
   matchId: string,

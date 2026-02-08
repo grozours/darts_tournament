@@ -1,4 +1,5 @@
 export type LiveViewMode = string | null;
+export type LiveViewStatus = string | null;
 
 type PoolStageLike = {
   status?: string;
@@ -19,22 +20,26 @@ export const isPoolStagesView = (viewMode: LiveViewMode) => viewMode === 'pool-s
 
 export const isBracketsView = (viewMode: LiveViewMode) => viewMode === 'brackets';
 
-export const hasActivePoolStages = (view: LiveViewLike) =>
-  (view.poolStages || []).some(
-    (stage) => stage.status === 'IN_PROGRESS' && (stage.pools?.length || 0) > 0
+export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewStatus) => {
+  const targetStatus = viewStatus === 'FINISHED' ? 'COMPLETED' : 'IN_PROGRESS';
+  return (view.poolStages || []).some(
+    (stage) => stage.status === targetStatus && (stage.pools?.length || 0) > 0
   );
+};
 
-export const hasActiveBrackets = (view: LiveViewLike) =>
-  (view.brackets || []).some(
-    (bracket) => bracket.status === 'IN_PROGRESS' && (bracket.matches?.length || 0) > 0
+export const hasActiveBrackets = (view: LiveViewLike, viewStatus?: LiveViewStatus) => {
+  const targetStatus = viewStatus === 'FINISHED' ? 'COMPLETED' : 'IN_PROGRESS';
+  return (view.brackets || []).some(
+    (bracket) => bracket.status === targetStatus && (bracket.matches?.length || 0) > 0
   );
+};
 
-export const getVisibleLiveViews = (viewMode: LiveViewMode, views: LiveViewLike[]) => {
+export const getVisibleLiveViews = (viewMode: LiveViewMode, views: LiveViewLike[], viewStatus?: LiveViewStatus) => {
   if (isPoolStagesView(viewMode)) {
-    return views.filter(hasActivePoolStages);
+    return views.filter((view) => hasActivePoolStages(view, viewStatus));
   }
   if (isBracketsView(viewMode)) {
-    return views.filter(hasActiveBrackets);
+    return views.filter((view) => hasActiveBrackets(view, viewStatus));
   }
   if (viewMode === 'live') {
     return views;
@@ -42,12 +47,12 @@ export const getVisibleLiveViews = (viewMode: LiveViewMode, views: LiveViewLike[
   return views;
 };
 
-export const resolveEmptyLiveCopy = (viewMode: LiveViewMode, t: (key: string) => string) => {
+export const resolveEmptyLiveCopy = (viewMode: LiveViewMode, t: (key: string) => string, viewStatus?: LiveViewStatus) => {
   if (isBracketsView(viewMode)) {
-    return t('live.noneBrackets');
+    return viewStatus === 'FINISHED' ? t('live.noneBrackets') : t('live.noneBrackets');
   }
   if (isPoolStagesView(viewMode)) {
-    return t('live.nonePoolStages');
+    return viewStatus === 'FINISHED' ? t('live.nonePoolStages') : t('live.nonePoolStages');
   }
   return t('live.none');
 };

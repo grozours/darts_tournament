@@ -303,126 +303,156 @@ export default function TournamentForm({
       aria-label="Create Tournament"
       noValidate
       onSubmit={handleSubmit}
-      className="space-y-4"
+      className="space-y-6"
     >
-      <div>
-        <label htmlFor="tournament-name">Tournament Name</label>
-        <input
-          id="tournament-name"
-          type="text"
-          required
-          value={formState.name}
-          onChange={(event) => setField('name', event.target.value)}
-          onBlur={() => handleBlur('name')}
-        />
-        {errors.name && <p role="alert">{errors.name}</p>}
-      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-3">
+          <label htmlFor="tournament-name" className="text-sm text-slate-300">Tournament Name</label>
+          <input
+            id="tournament-name"
+            type="text"
+            required
+            value={formState.name}
+            onChange={(event) => setField('name', event.target.value)}
+            onBlur={() => handleBlur('name')}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            placeholder="Open Championship"
+          />
+          {errors.name && <p role="alert" className="text-xs text-rose-300">{errors.name}</p>}
+        </div>
 
-      <div>
-        <label htmlFor="tournament-format">Format</label>
-        <select
-          id="tournament-format"
-          required
-          value={formState.format}
-          onChange={(event) => setField('format', event.target.value)}
-        >
-          <option value="" disabled>
-            Select format
-          </option>
-          {formatOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+        <div className="space-y-3">
+          <label htmlFor="tournament-format" className="text-sm text-slate-300">Format</label>
+          <select
+            id="tournament-format"
+            required
+            value={formState.format}
+            onChange={(event) => setField('format', event.target.value)}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+          >
+            <option value="" disabled>
+              Select format
             </option>
-          ))}
-        </select>
-        {errors.format && <p role="alert">{errors.format}</p>}
-      </div>
+            {formatOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.format && <p role="alert" className="text-xs text-rose-300">{errors.format}</p>}
+        </div>
 
-      <div>
-        <label htmlFor="duration-type">Duration Type</label>
-        <select
-          id="duration-type"
-          value={formState.durationType}
-          onChange={(event) => setField('durationType', event.target.value)}
-        >
-          <option value="" disabled>
-            Select duration
-          </option>
-          {durationOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+        <div className="space-y-3">
+          <label htmlFor="duration-type" className="text-sm text-slate-300">Duration Type</label>
+          <select
+            id="duration-type"
+            value={formState.durationType}
+            onChange={(event) => setField('durationType', event.target.value)}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+          >
+            <option value="" disabled>
+              Select duration
             </option>
-          ))}
-        </select>
-        {errors.durationType && <p role="alert">{errors.durationType}</p>}
+            {durationOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.durationType && <p role="alert" className="text-xs text-rose-300">{errors.durationType}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="total-participants" className="text-sm text-slate-300">Total Participants</label>
+          <input
+            id="total-participants"
+            type="number"
+            value={formState.totalParticipants}
+            onChange={(event) => setField('totalParticipants', event.target.value)}
+            onBlur={() => handleBlur('totalParticipants')}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            min={2}
+          />
+          {errors.totalParticipants && (
+            <p role="alert" className="text-xs text-rose-300">{errors.totalParticipants}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="start-time" className="text-sm text-slate-300">Start Time</label>
+          <input
+            id="start-time"
+            type="datetime-local"
+            value={formState.startTime}
+            onChange={(event) => setField('startTime', event.target.value)}
+            onBlur={() => handleBlur('startTime')}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+          />
+          {errors.startTime && <p role="alert" className="text-xs text-rose-300">{errors.startTime}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="end-time" className="text-sm text-slate-300">End Time</label>
+          <input
+            id="end-time"
+            type="datetime-local"
+            value={formState.endTime}
+            onChange={(event) => setField('endTime', event.target.value)}
+            onBlur={() => handleBlur('endTime')}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+          />
+          {errors.endTime && <p role="alert" className="text-xs text-rose-300">{errors.endTime}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="target-count" className="text-sm text-slate-300">Target Count</label>
+          <input
+            id="target-count"
+            type="number"
+            value={formState.targetCount}
+            onChange={(event) => setField('targetCount', event.target.value)}
+            onBlur={() => handleBlur('targetCount')}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            min={1}
+          />
+          {errors.targetCount && <p role="alert" className="text-xs text-rose-300">{errors.targetCount}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="tournament-logo" className="text-sm text-slate-300">Tournament Logo</label>
+          <input
+            id="tournament-logo"
+            type="file"
+            onChange={handleLogoChange}
+            className="block w-full rounded-lg border border-dashed border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300 file:mr-4 file:rounded-full file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-100"
+          />
+          {errors.logo && <p role="alert" className="text-xs text-rose-300">{errors.logo}</p>}
+          {logoPreview && (
+            <img
+              src={logoPreview}
+              alt="Logo preview"
+              aria-label="Logo preview"
+              className="mt-3 h-16 w-16 rounded-full border border-slate-800 object-cover"
+            />
+          )}
+        </div>
       </div>
 
-      <div>
-        <label htmlFor="start-time">Start Time</label>
-        <input
-          id="start-time"
-          type="datetime-local"
-          value={formState.startTime}
-          onChange={(event) => setField('startTime', event.target.value)}
-          onBlur={() => handleBlur('startTime')}
-        />
-        {errors.startTime && <p role="alert">{errors.startTime}</p>}
-      </div>
+      {errors.submit && <p role="alert" className="text-sm text-rose-300">{errors.submit}</p>}
 
-      <div>
-        <label htmlFor="end-time">End Time</label>
-        <input
-          id="end-time"
-          type="datetime-local"
-          value={formState.endTime}
-          onChange={(event) => setField('endTime', event.target.value)}
-          onBlur={() => handleBlur('endTime')}
-        />
-        {errors.endTime && <p role="alert">{errors.endTime}</p>}
-      </div>
-
-      <div>
-        <label htmlFor="total-participants">Total Participants</label>
-        <input
-          id="total-participants"
-          type="number"
-          value={formState.totalParticipants}
-          onChange={(event) => setField('totalParticipants', event.target.value)}
-          onBlur={() => handleBlur('totalParticipants')}
-        />
-        {errors.totalParticipants && (
-          <p role="alert">{errors.totalParticipants}</p>
-        )}
-      </div>
-
-      <div>
-        <label htmlFor="target-count">Target Count</label>
-        <input
-          id="target-count"
-          type="number"
-          value={formState.targetCount}
-          onChange={(event) => setField('targetCount', event.target.value)}
-          onBlur={() => handleBlur('targetCount')}
-        />
-        {errors.targetCount && <p role="alert">{errors.targetCount}</p>}
-      </div>
-
-      <div>
-        <label htmlFor="tournament-logo">Tournament Logo</label>
-        <input id="tournament-logo" type="file" onChange={handleLogoChange} />
-        {errors.logo && <p role="alert">{errors.logo}</p>}
-        {logoPreview && (
-          <img src={logoPreview} alt="Logo preview" aria-label="Logo preview" />
-        )}
-      </div>
-
-      {errors.submit && <p role="alert">{errors.submit}</p>}
-
-      <div className="flex gap-2">
-        <button type="submit" disabled={isBusy}>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="submit"
+          disabled={isBusy}
+          className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+        >
           {isBusy ? 'Creating...' : 'Create Tournament'}
         </button>
-        <button type="button" onClick={onCancel}>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-full border border-slate-700 px-5 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500"
+        >
           Cancel
         </button>
       </div>

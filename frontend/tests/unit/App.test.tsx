@@ -28,7 +28,7 @@ describe('Home page', () => {
     });
 
     expect(
-      screen.getByRole('button', { name: /create tournament/i })
+      screen.getByRole('link', { name: /create tournament/i })
     ).toBeInTheDocument();
   });
 });

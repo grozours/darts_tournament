@@ -206,6 +206,10 @@ function TournamentList() { // NOSONAR
     getAccessTokenSilently,
   } = useOptionalAuth();
   const { t } = useI18n();
+  const params = globalThis.window ? new URLSearchParams(globalThis.window.location.search) : null;
+  const view = params?.get('view') ?? null;
+  const editTournamentId = params?.get('tournamentId') ?? null;
+  const isEditPage = view === 'edit-tournament';
   const getStatusLabel = (scope: 'stage' | 'bracket', status: string) => {
     if (scope === 'stage') {
       const stageMap: Record<string, string> = {
@@ -224,9 +228,154 @@ function TournamentList() { // NOSONAR
     };
     return bracketMap[status] ?? status;
   };
+
+  const shuffleArray = <T,>(items: T[]): T[] => {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const buildCandidates = (bases: string[], modifiers: string[]) => {
+    const candidates = new Set<string>();
+    for (const base of bases) {
+      candidates.add(base);
+      for (const modifier of modifiers) {
+        candidates.add(`${base} ${modifier}`);
+        candidates.add(`${modifier} ${base}`);
+      }
+    }
+    return Array.from(candidates);
+  };
+
+  const buildExistingPlayerSets = (playersList: TournamentPlayer[]) => {
+    const existingNames = new Set(playersList.map((player) => player.name.toLowerCase()));
+    const existingSurnames = new Set(
+      playersList
+        .map((player) => player.surname?.toLowerCase())
+        .filter((value): value is string => Boolean(value))
+    );
+    const existingTeamNames = new Set(
+      playersList
+        .map((player) => player.teamName?.toLowerCase())
+        .filter((value): value is string => Boolean(value))
+    );
+    return { existingNames, existingSurnames, existingTeamNames };
+  };
+
+  const buildCandidateLastNames = (names: string[], modifiers: string[]) => {
+    const candidateLastNames = new Set(names);
+    for (const lastName of names) {
+      for (const modifier of modifiers) {
+        candidateLastNames.add(`${lastName}-${modifier}`);
+      }
+    }
+    return candidateLastNames;
+  };
+
+  const buildNamePairs = (
+    firstNames: string[],
+    lastNames: Iterable<string>
+  ): Array<{ firstName: string; lastName: string }> => {
+    const pairs: Array<{ firstName: string; lastName: string }> = [];
+    for (const firstName of firstNames) {
+      for (const lastName of lastNames) {
+        pairs.push({ firstName, lastName });
+      }
+    }
+    return pairs;
+  };
+
+  const buildRegistrations = (params: {
+    remainingSlots: number;
+    isTeamFormat: boolean;
+    existingNames: Set<string>;
+    shuffledPairs: Array<{ firstName: string; lastName: string }>;
+    shuffledSurnames: string[];
+    shuffledTeams: string[];
+  }): CreatePlayerPayload[] => {
+    const registrations: CreatePlayerPayload[] = [];
+    let surnameIndex = 0;
+    let teamIndex = 0;
+
+    for (const pair of params.shuffledPairs) {
+      if (registrations.length >= params.remainingSlots) {
+        break;
+      }
+      const fullName = `${pair.firstName} ${pair.lastName}`.toLowerCase();
+      if (params.existingNames.has(fullName)) {
+        continue;
+      }
+      params.existingNames.add(fullName);
+      registrations.push({
+        firstName: pair.firstName,
+        lastName: pair.lastName,
+        surname: params.shuffledSurnames[surnameIndex],
+        teamName: params.isTeamFormat ? params.shuffledTeams[teamIndex] : undefined,
+        email: `${pair.firstName.toLowerCase()}.${pair.lastName.toLowerCase()}@example.com`,
+        phone: `0${Math.floor(100000000 + Math.random() * 900000000)}`,
+      });
+      surnameIndex += 1;
+      if (params.isTeamFormat) {
+        teamIndex += 1;
+      }
+    }
+
+    return registrations;
+  };
+
+  const buildAutoFillRegistrations = (params: {
+    remainingSlots: number;
+    players: TournamentPlayer[];
+    isTeamFormat: boolean;
+    sampleFirstNames: string[];
+    sampleLastNames: string[];
+    lastNameModifiers: string[];
+    sampleSurnames: string[];
+    sampleTeams: string[];
+    teamModifiers: string[];
+  }): { registrations: CreatePlayerPayload[]; error?: string } => {
+    const { existingNames, existingSurnames, existingTeamNames } = buildExistingPlayerSets(params.players);
+    const candidateLastNames = buildCandidateLastNames(params.sampleLastNames, params.lastNameModifiers);
+    const surnameCandidates = buildCandidates(params.sampleSurnames, params.lastNameModifiers)
+      .filter((surname) => !existingSurnames.has(surname.toLowerCase()));
+    const teamCandidates = buildCandidates(params.sampleTeams, params.teamModifiers)
+      .filter((team) => !existingTeamNames.has(team.toLowerCase()));
+
+    if (surnameCandidates.length < params.remainingSlots) {
+      return { registrations: [], error: 'Not enough unique surnames to fill remaining slots.' };
+    }
+    if (params.isTeamFormat && teamCandidates.length < params.remainingSlots) {
+      return { registrations: [], error: 'Not enough unique team names to fill remaining slots.' };
+    }
+
+    const shuffledPairs = shuffleArray(buildNamePairs(params.sampleFirstNames, candidateLastNames));
+    const shuffledSurnames = shuffleArray(surnameCandidates);
+    const shuffledTeams = shuffleArray(teamCandidates);
+
+    const registrations = buildRegistrations({
+      remainingSlots: params.remainingSlots,
+      isTeamFormat: params.isTeamFormat,
+      existingNames,
+      shuffledPairs,
+      shuffledSurnames,
+      shuffledTeams,
+    });
+
+    if (registrations.length < params.remainingSlots) {
+      return { registrations: [], error: 'Not enough unique names to fill remaining slots.' };
+    }
+
+    return { registrations };
+  };
+
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editLoadError, setEditLoadError] = useState<string | null>(null);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
@@ -325,6 +474,11 @@ function TournamentList() { // NOSONAR
     }
   }, []);
 
+  const normalizeStageStatus = useCallback((status?: string) => {
+    if (!status) return '';
+    return status.trim().toUpperCase();
+  }, []);
+
   const normalizedStatusFilter = statusFilter === 'ALL' ? 'ALL' : normalizeStatus(statusFilter);
 
   const groupedTournaments = useMemo(() => {
@@ -394,65 +548,12 @@ function TournamentList() { // NOSONAR
     }
   }, [authEnabled, isAuthenticated, fetchTournaments]);
 
-  const createTournament = async () => {
-    const name = prompt('Tournament name:');
-    if (!name) return;
-
-    try {
-      const startTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
-      const endTime = new Date(Date.now() + 6 * 60 * 60 * 1000);
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const response = await fetch('/api/tournaments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name,
-          format: 'SINGLE',
-          durationType: 'HALF_DAY_MORNING',
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          totalParticipants: 8,
-          targetCount: 4,
-        }),
-      });
-
-      if (response.ok) {
-        fetchTournaments();
-      } else {
-        const message = await response.text();
-        alert(message || 'Failed to create tournament');
-      }
-    } catch (err) {
-      console.error('Error creating tournament:', err);
-      alert('Failed to create tournament');
+  const openEdit = (tournament: Tournament, options?: { skipNavigation?: boolean }) => {
+    if (!options?.skipNavigation && !isEditPage) {
+      const query = new URLSearchParams({ view: 'edit-tournament', tournamentId: tournament.id });
+      globalThis.window?.location.assign(`/?${query.toString()}`);
+      return;
     }
-  };
-
-  const deleteTournament = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this tournament?')) return;
-
-    try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const response = await fetch(`/api/tournaments/${id}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-
-      if (response.ok) {
-        fetchTournaments();
-      } else {
-        alert('Failed to delete tournament');
-      }
-    } catch (err) {
-      console.error('Error deleting tournament:', err);
-      alert('Failed to delete tournament');
-    }
-  };
-
-  const openEdit = (tournament: Tournament) => {
     setEditingTournament(tournament);
     setEditForm({
       name: tournament.name || '',
@@ -473,6 +574,67 @@ function TournamentList() { // NOSONAR
     void fetchTournamentDetails(tournament.id);
     void loadPoolStages(tournament.id);
     void loadBrackets(tournament.id);
+  };
+
+  useEffect(() => {
+    if (!isEditPage || !editTournamentId) return;
+    if (editingTournament?.id === editTournamentId) return;
+    const loadTournamentForEdit = async () => {
+      setEditLoading(true);
+      setEditLoadError(null);
+      try {
+        const token = authEnabled ? await getAccessTokenSilently() : undefined;
+        const response = await fetch(`/api/tournaments/${editTournamentId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) {
+          throw new Error('Failed to load tournament');
+        }
+        const data = await response.json();
+        openEdit({
+          id: data.id ?? editTournamentId,
+          name: data.name ?? '',
+          logoUrl: data.logoUrl ?? data.logo_url ?? undefined,
+          format: data.format ?? TournamentFormat.SINGLE,
+          totalParticipants: data.totalParticipants ?? data.total_participants ?? 0,
+          status: data.status ?? 'DRAFT',
+          durationType: data.durationType ?? data.duration_type ?? DurationType.FULL_DAY,
+          startTime: data.startTime ?? data.start_time ?? undefined,
+          endTime: data.endTime ?? data.end_time ?? undefined,
+          targetCount: data.targetCount ?? data.target_count ?? 0,
+          createdAt: data.createdAt ?? data.created_at ?? undefined,
+          completedAt: data.completedAt ?? data.completed_at ?? undefined,
+          historicalFlag: data.historicalFlag ?? data.historical_flag ?? undefined,
+        }, { skipNavigation: true });
+      } catch (err) {
+        setEditLoadError(err instanceof Error ? err.message : 'Failed to load tournament');
+      } finally {
+        setEditLoading(false);
+      }
+    };
+    void loadTournamentForEdit();
+  }, [authEnabled, editTournamentId, editingTournament?.id, getAccessTokenSilently, isEditPage, openEdit]);
+
+
+  const deleteTournament = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this tournament?')) return;
+
+    try {
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const response = await fetch(`/api/tournaments/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (response.ok) {
+        fetchTournaments();
+      } else {
+        alert('Failed to delete tournament');
+      }
+    } catch (err) {
+      console.error('Error deleting tournament:', err);
+      alert('Failed to delete tournament');
+    }
   };
 
   const closeEdit = () => {
@@ -515,6 +677,9 @@ function TournamentList() { // NOSONAR
       phone: '',
       skillLevel: undefined,
     });
+    if (isEditPage) {
+      globalThis.window?.location.assign('/?status=DRAFT');
+    }
   };
 
   const fetchPlayers = useCallback(async (tournamentId: string) => {
@@ -884,19 +1049,57 @@ function TournamentList() { // NOSONAR
     setIsAutoFillingPlayers(true);
     setPlayersError(null);
 
-    const sampleNames = [
-      { firstName: 'Alex', lastName: 'Morgan' },
-      { firstName: 'Jamie', lastName: 'Lee' },
-      { firstName: 'Taylor', lastName: 'Jordan' },
-      { firstName: 'Casey', lastName: 'Nguyen' },
-      { firstName: 'Jordan', lastName: 'Patel' },
-      { firstName: 'Morgan', lastName: 'Santos' },
-      { firstName: 'Riley', lastName: 'Chen' },
-      { firstName: 'Cameron', lastName: 'Brooks' },
-      { firstName: 'Drew', lastName: 'Fischer' },
-      { firstName: 'Avery', lastName: 'Lopez' },
-      { firstName: 'Parker', lastName: 'Kim' },
-      { firstName: 'Skyler', lastName: 'Wright' },
+    const sampleFirstNames = [
+      'Alex',
+      'Jamie',
+      'Taylor',
+      'Casey',
+      'Jordan',
+      'Morgan',
+      'Riley',
+      'Cameron',
+      'Drew',
+      'Avery',
+      'Parker',
+      'Skyler',
+      'Quinn',
+      'Reese',
+      'Rowan',
+      'Emerson',
+    ];
+
+    const sampleLastNames = [
+      'Morgan',
+      'Lee',
+      'Jordan',
+      'Nguyen',
+      'Patel',
+      'Santos',
+      'Chen',
+      'Brooks',
+      'Fischer',
+      'Lopez',
+      'Kim',
+      'Wright',
+      'Martin',
+      'Garcia',
+      'Singh',
+      'Bennett',
+    ];
+
+    const lastNameModifiers = [
+      'River',
+      'Stone',
+      'Fox',
+      'Bear',
+      'Hawk',
+      'Vale',
+      'Wood',
+      'Field',
+      'Hill',
+      'Cross',
+      'Lane',
+      'Grove',
     ];
 
     const sampleSurnames = [
@@ -912,6 +1115,10 @@ function TournamentList() { // NOSONAR
       'Blaze',
       'Echo',
       'Summit',
+      'Orion',
+      'Lynx',
+      'Cobalt',
+      'Aurora',
     ];
 
     const sampleTeams = [
@@ -923,40 +1130,44 @@ function TournamentList() { // NOSONAR
       'Emerald Strike',
       'Northern Lights',
       'Silver Foxes',
+      'Shadow League',
+      'Solar Union',
+      'Iron Guild',
+      'Riverguard',
     ];
 
-    const pickRandomName = () => sampleNames[Math.floor(Math.random() * sampleNames.length)];
-    const pickRandomSurname = () => sampleSurnames[Math.floor(Math.random() * sampleSurnames.length)];
-    const pickRandomTeam = () => sampleTeams[Math.floor(Math.random() * sampleTeams.length)];
-    const pickRandomPhone = () => `0${Math.floor(100000000 + Math.random() * 900000000)}`;
-    const existingNames = new Set(players.map((player) => player.name.toLowerCase()));
-    const uniqueRegistrations: CreatePlayerPayload[] = [];
-    let attempts = 0;
+    const teamModifiers = [
+      'United',
+      'Crew',
+      'Alliance',
+      'Legends',
+      'Rangers',
+      'Strikers',
+      'Raiders',
+      'Guard',
+      'Wolves',
+      'Falcons',
+      'Knights',
+      'Stars',
+    ];
+    const isTeamFormat = editingTournament.format === TournamentFormat.DOUBLE
+      || editingTournament.format === TournamentFormat.TEAM_4_PLAYER;
+    const { registrations: uniqueRegistrations, error } = buildAutoFillRegistrations({
+      remainingSlots,
+      players,
+      isTeamFormat,
+      sampleFirstNames,
+      sampleLastNames,
+      lastNameModifiers,
+      sampleSurnames,
+      sampleTeams,
+      teamModifiers,
+    });
 
-    while (uniqueRegistrations.length < remainingSlots && attempts < remainingSlots * 10) {
-      attempts += 1;
-      const baseName = pickRandomName();
-      const suffix = String(Math.floor(Math.random() * 900) + 100);
-      const firstName = baseName.firstName;
-      const lastName = `${baseName.lastName} ${suffix}`;
-      const fullName = `${firstName} ${lastName}`.toLowerCase();
-
-      if (existingNames.has(fullName)) {
-        continue;
-      }
-
-      existingNames.add(fullName);
-      const isTeamFormat = editingTournament.format === TournamentFormat.DOUBLE
-        || editingTournament.format === TournamentFormat.TEAM_4_PLAYER;
-
-      uniqueRegistrations.push({
-        firstName,
-        lastName,
-        surname: pickRandomSurname(),
-        teamName: isTeamFormat ? pickRandomTeam() : undefined,
-        email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replaceAll(/\s+/g, '')}@example.com`,
-        phone: pickRandomPhone(),
-      });
+    if (error) {
+      setPlayersError(error);
+      setIsAutoFillingPlayers(false);
+      return;
     }
 
     try {
@@ -1136,6 +1347,10 @@ function TournamentList() { // NOSONAR
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       await updateTournamentStatus(editingTournament.id, 'OPEN', token);
+      if (isEditPage) {
+        globalThis.window?.location.assign('/?status=OPEN');
+        return;
+      }
       closeEdit();
       fetchTournaments();
     } catch (err) {
@@ -1156,6 +1371,10 @@ function TournamentList() { // NOSONAR
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       await updateTournamentStatus(editingTournament.id, 'SIGNATURE', token);
+      if (isEditPage) {
+        globalThis.window?.location.assign('/?status=SIGNATURE');
+        return;
+      }
       closeEdit();
       fetchTournaments();
     } catch (err) {
@@ -1181,6 +1400,10 @@ function TournamentList() { // NOSONAR
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       await updateTournamentStatus(editingTournament.id, 'LIVE', token);
+      if (isEditPage) {
+        globalThis.window?.location.assign('/?status=live');
+        return;
+      }
       closeEdit();
       fetchTournaments();
     } catch (err) {
@@ -1231,6 +1454,18 @@ function TournamentList() { // NOSONAR
       </div>
 
       <div className="mt-6 flex justify-end gap-2">
+        <a
+          href={`/?view=pool-stages&tournamentId=${tournament.id}${normalizeStatus(tournament.status) === 'FINISHED' ? '&status=FINISHED' : ''}`}
+          className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+        >
+          {t('nav.poolStagesShort')}
+        </a>
+        <a
+          href={`/?view=brackets&tournamentId=${tournament.id}${normalizeStatus(tournament.status) === 'FINISHED' ? '&status=FINISHED' : ''}`}
+          className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+        >
+          {t('nav.bracketsShort')}
+        </a>
         {normalizeStatus(tournament.status) === 'LIVE' && (
           <a
             href={`/?view=live&tournamentId=${tournament.id}`}
@@ -1284,7 +1519,7 @@ function TournamentList() { // NOSONAR
     );
   }
 
-  if (loading) {
+  if (!isEditPage && loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="relative">
@@ -1296,7 +1531,7 @@ function TournamentList() { // NOSONAR
     );
   }
 
-  if (error) {
+  if (!isEditPage && error) {
     return (
       <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center">
         <div className="text-rose-200 mb-4">Error: {error}</div>
@@ -1312,22 +1547,63 @@ function TournamentList() { // NOSONAR
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('tournaments.hub')}</p>
-          <h2 className="text-2xl font-semibold text-white mt-2">
-            {t('tournaments.hub')} <span className="text-slate-400">({tournaments.length})</span>
-          </h2>
+      {isEditPage ? (
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('edit.title')}</p>
+            <h2 className="text-2xl font-semibold text-white mt-2">
+              {t('edit.title')}
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {editingTournament && (
+              <a
+                href={`/?view=brackets&tournamentId=${editingTournament.id}`}
+                className="rounded-full border border-amber-400/70 px-4 py-2 text-xs font-semibold text-amber-200 hover:border-amber-300"
+              >
+                {t('nav.bracketsRunning')}
+              </a>
+            )}
+            {editingTournament && (
+              <a
+                href={`/?view=brackets&tournamentId=${editingTournament.id}&status=FINISHED`}
+                className="rounded-full border border-slate-600/80 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+              >
+                {t('nav.bracketsFinished')}
+              </a>
+            )}
+            <a
+              href="/?status=DRAFT"
+              className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+            >
+              {t('common.cancel')}
+            </a>
+          </div>
         </div>
-        <button
-          onClick={createTournament}
-          className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
-        >
-          + {t('tournaments.create')}
-        </button>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('tournaments.hub')}</p>
+            <h2 className="text-2xl font-semibold text-white mt-2">
+              {t('tournaments.hub')} <span className="text-slate-400">({tournaments.length})</span>
+            </h2>
+          </div>
+        </div>
+      )}
 
-      {tournaments.length === 0 ? (
+      {isEditPage && editLoadError && (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+          {editLoadError}
+        </div>
+      )}
+      {isEditPage && editLoading && (
+        <div className="flex items-center gap-3 text-sm text-slate-300">
+          <div className="h-4 w-4 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
+          {t('tournaments.loading')}
+        </div>
+      )}
+
+      {!isEditPage && (tournaments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
           <p className="text-lg font-semibold text-white">{t('tournaments.none')}</p>
           <p className="mt-2">{t('tournaments.none.subtitle')}</p>
@@ -1352,11 +1628,17 @@ function TournamentList() { // NOSONAR
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {editingTournament && editForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-6">
-          <div className="flex w-full max-w-2xl max-h-[85vh] flex-col rounded-3xl border border-slate-800/70 bg-slate-900 p-6">
+        <div
+          className={isEditPage
+            ? 'rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6'
+            : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-6'}
+        >
+          <div className={isEditPage
+            ? 'flex w-full max-w-5xl flex-col'
+            : 'flex w-full max-w-2xl max-h-[85vh] flex-col rounded-3xl border border-slate-800/70 bg-slate-900 p-6'}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">{t('edit.title')}</h3>
               <button
@@ -1588,7 +1870,7 @@ function TournamentList() { // NOSONAR
                           </select>
                           <button
                             onClick={() => openPoolStageAssignments(stage)}
-                            disabled={stage.status !== StageStatus.EDITION}
+                            disabled={normalizeStageStatus(stage.status) !== StageStatus.EDITION}
                             className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {t('edit.editPlayers')}
@@ -2049,15 +2331,17 @@ function TournamentList() { // NOSONAR
                   {t('edit.startLive')}
                 </button>
               )}
-              <button
-                onClick={openRegistration}
-                disabled={isSaving || normalizeStatus(editingTournament.status) === 'OPEN'}
-                className="rounded-full border border-cyan-500/70 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
-              >
-                {normalizeStatus(editingTournament.status) === 'OPEN'
-                  ? t('edit.registrationOpen')
-                  : t('edit.openRegistration')}
-              </button>
+              {normalizeStatus(editingTournament.status) !== 'LIVE' && (
+                <button
+                  onClick={openRegistration}
+                  disabled={isSaving || normalizeStatus(editingTournament.status) === 'OPEN'}
+                  className="rounded-full border border-cyan-500/70 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
+                >
+                  {normalizeStatus(editingTournament.status) === 'OPEN'
+                    ? t('edit.registrationOpen')
+                    : t('edit.openRegistration')}
+                </button>
+              )}
               <button
                 onClick={saveEdit}
                 disabled={isSaving}
@@ -2108,6 +2392,17 @@ function TournamentList() { // NOSONAR
                       {Array.from({ length: editingPoolStage.playersPerPool }, (_, slot) => slot + 1).map((slotNumber) => {
                         const index = slotNumber - 1;
                         const value = poolStageAssignments[pool.id]?.[index] || '';
+                        const assignedPlayerIds = new Set(
+                          Object.values(poolStageAssignments)
+                            .flat()
+                            .filter(Boolean)
+                        );
+                        if (value) {
+                          assignedPlayerIds.delete(value);
+                        }
+                        const availablePlayers = poolStagePlayers.filter(
+                          (player) => !assignedPlayerIds.has(player.playerId)
+                        );
                         return (
                           <label key={`${pool.id}-slot-${slotNumber}`} className="text-xs text-slate-400">
                             {t('edit.slot')} {slotNumber}
@@ -2117,7 +2412,7 @@ function TournamentList() { // NOSONAR
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             >
                               <option value="">{t('edit.unassigned')}</option>
-                              {poolStagePlayers.map((player) => {
+                              {availablePlayers.map((player) => {
                                 const label = player.name || `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim() || player.playerId;
                                 return (
                                   <option key={player.playerId} value={player.playerId}>

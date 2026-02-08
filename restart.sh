@@ -4,7 +4,7 @@
 # Usage: ./restart.sh [backend|frontend|both|stop|status|logs]
 
 PROJECT_ROOT="/home/tangi/darts_tournament"
-COMPOSE_CMD="docker compose"
+COMPOSE_CMD=()
 BACKEND_PORT=3000
 FRONTEND_PORT=3001
 
@@ -32,11 +32,30 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Detect Docker Compose command
+init_compose_cmd() {
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        COMPOSE_CMD=(docker compose)
+        return 0
+    fi
+
+    if command -v docker-compose >/dev/null 2>&1; then
+        COMPOSE_CMD=(docker-compose)
+        return 0
+    fi
+
+    print_error "Docker Compose is not available. Install Docker Desktop or docker-compose."
+    exit 1
+}
+
 # Function to start backend
 start_backend() {
     print_status "Starting backend container..."
     cd "$PROJECT_ROOT" || return 1
-    $COMPOSE_CMD up -d --build backend
+    if ! "${COMPOSE_CMD[@]}" up -d --build backend; then
+        print_error "Failed to start backend"
+        return 1
+    fi
     print_success "Backend started"
     print_status "Backend URL: http://localhost:$BACKEND_PORT"
 }
@@ -45,7 +64,10 @@ start_backend() {
 start_frontend() {
     print_status "Starting frontend container..."
     cd "$PROJECT_ROOT" || return 1
-    $COMPOSE_CMD up -d --build frontend
+    if ! "${COMPOSE_CMD[@]}" up -d --build frontend; then
+        print_error "Failed to start frontend"
+        return 1
+    fi
     print_success "Frontend started"
     print_status "Frontend URL: http://localhost:$FRONTEND_PORT"
 }
@@ -73,7 +95,10 @@ check_status() {
 stop_services() {
     print_status "Stopping services..."
     cd "$PROJECT_ROOT" || return 1
-    $COMPOSE_CMD down
+    if ! "${COMPOSE_CMD[@]}" down; then
+        print_error "Failed to stop services"
+        return 1
+    fi
     print_success "All containers stopped"
 }
 
@@ -83,11 +108,11 @@ show_logs() {
     case $service in
         "backend")
             print_status "Backend logs (last 50 lines):"
-            $COMPOSE_CMD logs --tail=50 backend
+            "${COMPOSE_CMD[@]}" logs --tail=50 backend
             ;;
         "frontend")
             print_status "Frontend logs (last 50 lines):"
-            $COMPOSE_CMD logs --tail=50 frontend
+            "${COMPOSE_CMD[@]}" logs --tail=50 frontend
             ;;
         *)
             print_error "Invalid service. Use 'backend' or 'frontend'"
@@ -98,6 +123,8 @@ show_logs() {
 # Create log directories if they don't exist
 mkdir -p "$PROJECT_ROOT/backend/logs"
 mkdir -p "$PROJECT_ROOT/frontend/logs"
+
+init_compose_cmd
 case "${1:-both}" in
     "backend")
         print_status "🔄 Restarting backend only..."
@@ -110,7 +137,10 @@ case "${1:-both}" in
     "both")
         print_status "🔄 Restarting both backend and frontend..."
         cd "$PROJECT_ROOT" || exit 1
-        $COMPOSE_CMD up -d --build
+        if ! "${COMPOSE_CMD[@]}" up -d --build; then
+            print_error "Failed to start services"
+            exit 1
+        fi
         print_success "Services started"
         check_status
         ;;
