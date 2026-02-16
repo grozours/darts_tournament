@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
-import { fetchTournamentLiveView, updateMatchStatus, completeMatch, updateCompletedMatchScores, updatePoolStage, completePoolStageWithScores, deletePoolStage } from '../services/tournamentService';
+import SignInPanel from '../auth/SignInPanel';
+import { fetchTournamentLiveView, updateMatchStatus, completeMatch, updateCompletedMatchScores, updatePoolStage, completePoolStageWithScores, deletePoolStage, completeBracketRoundWithScores } from '../services/tournamentService';
 import { useI18n } from '../i18n';
 import {
   getVisibleLiveViews,
@@ -147,9 +148,11 @@ const filterBracketsForView = (viewMode: LiveViewMode, viewStatus: LiveViewStatu
   if (!isBracketsView(viewMode)) {
     return bracketList;
   }
-  const targetStatus = viewStatus === 'FINISHED' ? 'COMPLETED' : 'IN_PROGRESS';
+  if (viewStatus !== 'FINISHED') {
+    return bracketList;
+  }
   return bracketList.filter(
-    (bracket) => bracket.status === targetStatus && (bracket.matches?.length || 0) > 0
+    (bracket) => bracket.status === 'COMPLETED' && (bracket.matches?.length || 0) > 0
   );
 };
 
@@ -343,9 +346,27 @@ const getHasLoserBracket = (brackets?: LiveViewBracket[]) =>
       bracket.name.toLowerCase().includes('loser')
   );
 
-const getMatchTargetLabel = (target?: LiveViewMatch['target'] | null) => {
+const formatTargetLabel = (value: string, t: ReturnType<typeof useI18n>['t']) => {
+  const match = /^target\s*(\d+)$/i.exec(value.trim());
+  if (match) {
+    return `${t('targets.target')} ${match[1]}`;
+  }
+  return value;
+};
+
+const getMatchTargetLabel = (target: LiveViewMatch['target'] | null | undefined, t: ReturnType<typeof useI18n>['t']) => {
   if (!target) return null;
-  return target.targetCode || target.name || (target.targetNumber ? `#${target.targetNumber}` : null);
+  const base = target.targetCode || target.name || (target.targetNumber ? `#${target.targetNumber}` : null);
+  return base ? formatTargetLabel(base, t) : null;
+};
+
+const getBracketRoundLabel = (roundNumber: number, totalRounds: number, t: ReturnType<typeof useI18n>['t']) => {
+  const distance = totalRounds - roundNumber;
+  if (distance === 0) return t('live.round.final');
+  if (distance === 1) return t('live.round.semiFinal');
+  if (distance === 2) return t('live.round.quarterFinal');
+  if (distance === 3) return t('live.round.roundOf16');
+  return `${t('live.queue.roundLabel')} ${roundNumber}`;
 };
 
 const getPoolStageStats = (stages: LiveViewPoolStage[]) => {
@@ -434,8 +455,8 @@ const sortLeaderboardRows = (rows: Map<string, PoolLeaderboardRow>) => {
   return sorted;
 };
 
-const getTargetLabel = (target: LiveViewTarget) =>
-  target.targetCode || target.name || `#${target.targetNumber}`;
+const getTargetLabel = (target: LiveViewTarget, t: ReturnType<typeof useI18n>['t']) =>
+  formatTargetLabel(target.targetCode || target.name || `#${target.targetNumber}`, t);
 
 const addMatchStatusFromPools = (view: LiveViewData, matchStatusById: Map<string, string>) => {
   for (const stage of view.poolStages ?? []) {
@@ -488,15 +509,28 @@ const renderLiveTournamentGate = (params: {
   authLoading: boolean;
   authEnabled: boolean;
   isAuthenticated: boolean;
+  authError?: Error;
   tournamentId: string | null;
   requireTournamentId: boolean;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onSignIn: () => void;
   t: ReturnType<typeof useI18n>['t'];
 }) => {
-  const { authLoading, authEnabled, isAuthenticated, tournamentId, requireTournamentId, loading, error, onRetry, onSignIn, t } = params;
+  const { authLoading, authEnabled, isAuthenticated, authError, tournamentId, requireTournamentId, loading, error, onRetry, t } = params;
+  const hasRecentAuthCallback = (() => {
+    if (globalThis.window === undefined) return false;
+    const params = new URLSearchParams(globalThis.window.location.search);
+    if (params.has('code') || params.has('state')) return true;
+    try {
+      const stored = globalThis.window.sessionStorage.getItem('auth0:callback');
+      if (!stored) return false;
+      const timestamp = Number(stored);
+      return Number.isFinite(timestamp) && Date.now() - timestamp < 2 * 60 * 1000;
+    } catch {
+      return false;
+    }
+  })();
 
   if (authLoading) {
     return (
@@ -510,19 +544,36 @@ const renderLiveTournamentGate = (params: {
     );
   }
 
+  if (authEnabled && authError) {
+    return (
+      <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center">
+        <div className="text-rose-200 mb-2">{t('auth.signInFailed')}</div>
+        <div className="text-xs text-rose-100/80 space-y-1">
+          <div><strong>Error:</strong> {authError.message}</div>
+          {authError.name && <div><strong>Type:</strong> {authError.name}</div>}
+          {(authError as any).error && <div><strong>Code:</strong> {(authError as any).error}</div>}
+          {(authError as any).error_description && (
+            <div><strong>Description:</strong> {(authError as any).error_description}</div>
+          )}
+        </div>
+        <div className="mt-4 text-xs text-rose-100/60">Check browser console for detailed logs</div>
+      </div>
+    );
+  }
+
   if (authEnabled && !isAuthenticated) {
     return (
-      <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-        <h3 className="text-xl font-semibold text-white">{t('auth.signInToViewLive')}</h3>
-        <p className="mt-2 text-sm text-slate-300">
-          {t('auth.protectedContinue')}
-        </p>
-        <button
-          onClick={onSignIn}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
-        >
-          {t('auth.signIn')}
-        </button>
+      <div className="space-y-4">
+        {hasRecentAuthCallback && (
+          <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+            <div className="text-amber-200 mb-2">{t('auth.signInFailed')}</div>
+            <div className="text-xs text-amber-100/80">Auth callback detected but session not established.</div>
+          </div>
+        )}
+        <SignInPanel
+          title={t('auth.signInToViewLive')}
+          description={t('auth.protectedContinue')}
+        />
       </div>
     );
   }
@@ -602,8 +653,8 @@ function LiveTournament() {
     enabled: authEnabled,
     isAuthenticated,
     isLoading: authLoading,
-    loginWithRedirect,
     getAccessTokenSilently,
+    error: authError,
   } = useOptionalAuth();
 
   const viewMode = useMemo(() => {
@@ -633,6 +684,7 @@ function LiveTournament() {
   const [updatingMatchId, setUpdatingMatchId] = useState<string | null>(null);
   const [matchScores, setMatchScores] = useState<Record<string, Record<string, string>>>({});
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+  const [updatingRoundKey, setUpdatingRoundKey] = useState<string | null>(null);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageStatusDrafts, setStageStatusDrafts] = useState<Record<string, string>>({});
   const [stagePoolCountDrafts, setStagePoolCountDrafts] = useState<Record<string, string>>({});
@@ -650,6 +702,17 @@ function LiveTournament() {
   }, [liveViews]);
 
   const visibleLiveViews = getVisibleLiveViews(viewMode, liveViews, viewStatus);
+
+  // Helper to safely get access token, falling back to undefined if it fails
+  const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
+    if (!authEnabled) return undefined;
+    try {
+      return await getAccessTokenSilently();
+    } catch (err) {
+      console.warn('Failed to get access token, proceeding without auth:', err);
+      return undefined;
+    }
+  }, [authEnabled, getAccessTokenSilently]);
 
   useEffect(() => {
     if (viewMode === 'live') {
@@ -683,7 +746,7 @@ function LiveTournament() {
     setError(null);
 
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const data = (await fetchTournamentLiveView(tournamentId, token)) as LiveViewData;
       setLiveViews([data]);
     } catch (err) {
@@ -694,7 +757,7 @@ function LiveTournament() {
         setLoading(false);
       }
     }
-  }, [authEnabled, getAccessTokenSilently, tournamentId]);
+  }, [authEnabled, getSafeAccessToken, tournamentId]);
 
   const loadAggregateLiveViews = useCallback(async (options?: { showLoader?: boolean }) => {
     const showLoader = options?.showLoader ?? true;
@@ -704,7 +767,7 @@ function LiveTournament() {
     setError(null);
 
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const statusParam = (viewStatus ?? 'LIVE').toUpperCase();
       const response = await fetch(`/api/tournaments?status=${encodeURIComponent(statusParam)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -729,7 +792,7 @@ function LiveTournament() {
         setLoading(false);
       }
     }
-  }, [authEnabled, getAccessTokenSilently, viewStatus]);
+  }, [authEnabled, getSafeAccessToken, viewStatus]);
 
   const reloadLiveViews = useCallback((options?: { showLoader?: boolean }) => {
     if (isAggregateView) {
@@ -750,7 +813,7 @@ function LiveTournament() {
     setUpdatingMatchId(matchKey);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateMatchStatus(matchTournamentId, matchId, status, targetId, token);
       await reloadLiveViews({ showLoader: false });
       if (status === 'IN_PROGRESS' || status === 'COMPLETED' || status === 'CANCELLED') {
@@ -801,8 +864,9 @@ function LiveTournament() {
     setUpdatingMatchId(matchKey);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await completeMatch(matchTournamentId, match.id, scores, token);
+      setUpdatingMatchId(null);
       await reloadLiveViews({ showLoader: false });
     } catch (err) {
       console.error('Error completing match:', err);
@@ -848,8 +912,9 @@ function LiveTournament() {
     setUpdatingMatchId(matchKey);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateCompletedMatchScores(matchTournamentId, match.id, scores, token);
+      setUpdatingMatchId(null);
       await reloadLiveViews({ showLoader: false });
       setEditingMatchId(null);
     } catch (err) {
@@ -874,6 +939,30 @@ function LiveTournament() {
       ...current,
       [stage.id]: stage.playersPerPool == null ? '' : String(stage.playersPerPool),
     }));
+  };
+
+  const handleCompleteBracketRound = async (matchTournamentId: string, bracket: LiveViewBracket) => {
+    const activeMatches = (bracket.matches || [])
+      .filter((match) => match.status !== 'COMPLETED' && match.status !== 'CANCELLED');
+    if (activeMatches.length === 0) {
+      setError('No matches available to complete in this bracket round.');
+      return;
+    }
+
+    const roundNumber = Math.min(...activeMatches.map((match) => match.roundNumber || 1));
+    const roundKey = `${matchTournamentId}:${bracket.id}:${roundNumber}`;
+    setUpdatingRoundKey(roundKey);
+    setError(null);
+    try {
+      const token = await getSafeAccessToken();
+      await completeBracketRoundWithScores(matchTournamentId, bracket.id, roundNumber, token);
+      await reloadLiveViews({ showLoader: false });
+    } catch (err) {
+      console.error('Error completing bracket round:', err);
+      setError(err instanceof Error ? err.message : 'Failed to complete bracket round');
+    } finally {
+      setUpdatingRoundKey(null);
+    }
   };
 
   const handleStageStatusChange = (stageId: string, status: string) => {
@@ -906,7 +995,7 @@ function LiveTournament() {
     setUpdatingStageId(stage.id);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updatePoolStage(
         stageTournamentId,
         stage.id,
@@ -938,7 +1027,7 @@ function LiveTournament() {
     setUpdatingStageId(stage.id);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await deletePoolStage(stageTournamentId, stage.id, token);
       await reloadLiveViews({ showLoader: false });
     } catch (err) {
@@ -956,7 +1045,7 @@ function LiveTournament() {
     setUpdatingStageId(stage.id);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await completePoolStageWithScores(stageTournamentId, stage.id, token);
       await reloadLiveViews({ showLoader: false });
     } catch (err) {
@@ -1006,15 +1095,13 @@ function LiveTournament() {
     authLoading,
     authEnabled,
     isAuthenticated,
+    authError,
     tournamentId,
     requireTournamentId: !isAggregateView,
     loading,
     error,
     onRetry: () => {
       void reloadLiveViews();
-    },
-    onSignIn: () => {
-      void loginWithRedirect();
     },
     t,
   });
@@ -1204,7 +1291,7 @@ function LiveTournament() {
                 <option value="">{t('live.queue.targetLabel')}</option>
                 {availableTargets.map((target) => (
                   <option key={target.id} value={target.id}>
-                    {getTargetLabel(target)}
+                    {getTargetLabel(target, t)}
                   </option>
                 ))}
               </select>
@@ -1300,9 +1387,9 @@ function LiveTournament() {
               <span className="text-slate-200">Match {match.matchNumber} · Round {match.roundNumber}</span>
               <span className="text-xs text-slate-400">{getStatusLabel('match', match.status)}</span>
             </div>
-            {match.status === 'IN_PROGRESS' && getMatchTargetLabel(match.target) && (
+            {match.status === 'IN_PROGRESS' && getMatchTargetLabel(match.target, t) && (
               <p className="mt-1 text-xs text-slate-400">
-                {t('live.queue.targetLabel')}: {getMatchTargetLabel(match.target)}
+                {t('live.queue.targetLabel')}: {getMatchTargetLabel(match.target, t)}
               </p>
             )}
             {renderMatchStatusSection(matchTournamentId, match)}
@@ -1453,7 +1540,7 @@ function LiveTournament() {
                     <>
                       <span>·</span>
                       <span>
-                        {t('live.queue.targetLabel')} {item.targetCode ?? `#${item.targetNumber}`}
+                        {t('live.queue.targetLabel')} {formatTargetLabel(item.targetCode ?? `#${item.targetNumber}`, t)}
                       </span>
                     </>
                   )}
@@ -1471,7 +1558,7 @@ function LiveTournament() {
                       <option value="">{t('live.queue.targetLabel')}</option>
                       {availableTargets.map((target) => (
                         <option key={target.id} value={target.id}>
-                          {getTargetLabel(target)}
+                          {getTargetLabel(target, t)}
                         </option>
                       ))}
                     </select>
@@ -1530,27 +1617,26 @@ function LiveTournament() {
     const round1Count = roundMap.get(1)?.length ?? 0;
     const inferredSize = Math.max(entryCount, round1Count * 2, 2);
     const bracketSize = 2 ** Math.ceil(Math.log2(inferredSize));
-    const totalRounds = bracket.totalRounds || Math.max(1, Math.log2(bracketSize));
+    const inferredRounds = Math.max(1, Math.log2(bracketSize));
+    const totalRounds = Math.max(bracket.totalRounds || 0, inferredRounds);
 
     const rounds: Array<{ roundNumber: number; matches: BracketMatchSlot[] }> = [];
     for (let roundNumber = 1; roundNumber <= totalRounds; roundNumber += 1) {
       const expectedMatches = Math.max(1, Math.floor(bracketSize / (2 ** roundNumber)));
       const roundMatches = [...(roundMap.get(roundNumber) ?? [])]
         .sort((a, b) => a.matchNumber - b.matchNumber);
-      const slots: BracketMatchSlot[] = [];
-      for (let index = 0; index < expectedMatches; index += 1) {
-        const match = roundMatches[index];
-        if (match) {
-          slots.push(match);
-        } else {
-          slots.push({
-            id: `placeholder-${bracket.id}-${roundNumber}-${index}`,
-            matchNumber: index + 1,
-            roundNumber,
-            status: 'SCHEDULED',
-            playerMatches: [],
-            isPlaceholder: true,
-          } as BracketMatchSlot);
+      const slots: BracketMatchSlot[] = Array.from({ length: expectedMatches }, (_, index) => ({
+        id: `placeholder-${bracket.id}-${roundNumber}-${index}`,
+        matchNumber: index + 1,
+        roundNumber,
+        status: 'SCHEDULED',
+        playerMatches: [],
+        isPlaceholder: true,
+      } as BracketMatchSlot));
+      for (const match of roundMatches) {
+        const slotIndex = match.matchNumber - 1;
+        if (slotIndex >= 0 && slotIndex < slots.length) {
+          slots[slotIndex] = match as BracketMatchSlot;
         }
       }
       rounds.push({ roundNumber, matches: slots });
@@ -1582,7 +1668,7 @@ function LiveTournament() {
               <option value="">{t('live.queue.targetLabel')}</option>
               {availableTargets.map((target) => (
                 <option key={target.id} value={target.id}>
-                  {getTargetLabel(target)}
+                  {getTargetLabel(target, t)}
                 </option>
               ))}
             </select>
@@ -1676,34 +1762,47 @@ function LiveTournament() {
   const renderBracketCard = (
     matchTournamentId: string,
     match: BracketMatchSlot,
-    options: { showConnector: boolean; connectorSide: 'left' | 'right'; tone: ReturnType<typeof getBracketTone> }
+    options: {
+      showConnector: boolean;
+      connectorSide: 'left' | 'right';
+      tone: ReturnType<typeof getBracketTone>;
+      isFinal?: boolean;
+    }
   ) => (
     <div className="relative">
       <div
         className={`rounded-xl border px-3 py-2 text-xs shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${options.tone.card}`}
-        style={{ minHeight: 160, width: 200 }}
+        style={{ minHeight: 220, width: 200 }}
       >
         <div className={`flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.3em] ${options.tone.accent}`}>
           <span>{t('live.queue.matchLabel')} {match.matchNumber}</span>
           <span>{getStatusLabel('match', match.status)}</span>
         </div>
         <div className="mt-3 space-y-2">
-          {(match.playerMatches && match.playerMatches.length > 0
-            ? match.playerMatches
-            : [{ playerPosition: 1 }, { playerPosition: 2 }]
-          ).map((pm) => (
-            <div
-              key={`${match.id}-${pm.playerPosition}`}
-              className={`flex items-center justify-between rounded-lg border px-3 py-2 ${options.tone.row}`}
-            >
-              <span className={pm.player?.id === match.winner?.id ? options.tone.winner : options.tone.accent}>
-                {getBracketPlayerLabel(pm)}
-              </span>
-              <span className={options.tone.accent}>
-                {pm.scoreTotal ?? pm.legsWon ?? '-'}
-              </span>
-            </div>
-          ))}
+          {[1, 2].map((position) => {
+            const pm = match.playerMatches?.find((item) => item.playerPosition === position) || { playerPosition: position };
+            return (
+              <div
+                key={`${match.id}-${position}`}
+                className={`flex items-center justify-between rounded-lg border px-3 py-2 ${options.tone.row}`}
+              >
+                  <span className={pm.player?.id === match.winner?.id ? options.tone.winner : options.tone.accent}>
+                    {getBracketPlayerLabel(pm)}
+                    {options.isFinal && match.status === 'COMPLETED' && pm.player?.id === match.winner?.id && (
+                      <span className="ml-1">🏆</span>
+                    )}
+                    {!options.isFinal && match.status === 'COMPLETED' && pm.player?.id === match.winner?.id && (
+                      <span className="ml-2 text-[10px] font-semibold text-emerald-300">
+                        {t('live.winnerShort')}
+                      </span>
+                    )}
+                  </span>
+                <span className={options.tone.accent}>
+                  {pm.scoreTotal ?? pm.legsWon ?? '-'}
+                </span>
+              </div>
+            );
+          })}
         </div>
         {renderBracketMatchActions(matchTournamentId, match)}
       </div>
@@ -1727,15 +1826,19 @@ function LiveTournament() {
     const finalRound = rounds[rounds.length - 1];
     const earlyRounds = rounds.slice(0, -1);
     const bracketGap = 40;
-    const bracketCardHeight = 160;
+    const bracketCardHeight = 220;
     const baseStep = (bracketCardHeight + bracketGap) / 2;
     const columnHeight = (Math.pow(2, totalRounds) - 2) * baseStep + bracketCardHeight;
+    const showWinnerColumn = (finalRound?.matches?.length ?? 0) === 1;
+    const finalLeftOffset = /loser/i.test(bracket.name) ? -60 : -80;
+    const roundsToRender = showWinnerColumn ? earlyRounds : rounds;
 
     const renderRoundColumn = (round: { roundNumber: number; matches: BracketMatchSlot[] }, index: number) => {
       const tone = getBracketTone(index, totalRounds);
       const cardWidth = 200;
       const connectorGap = 18;
-      const connectorX = cardWidth + 6;
+      const leftOffset = round.roundNumber > 2 ? -40 : round.roundNumber > 1 ? -22 : 0;
+      const connectorX = cardWidth + 6 + leftOffset;
       const connectorToNext = connectorGap + 8;
       const positions = round.matches.map((_, matchIndex) => {
         const roundIndex = Math.max(1, round.roundNumber);
@@ -1744,17 +1847,18 @@ function LiveTournament() {
       return (
         <div key={`${bracket.id}-round-${round.roundNumber}`} className="min-w-[220px]">
           <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
-            {t('live.queue.roundLabel')} {round.roundNumber}
+            {getBracketRoundLabel(round.roundNumber, totalRounds, t)}
           </p>
           <div className="relative mt-5" style={{ height: Math.max(260, columnHeight) }}>
             {round.matches.map((match, matchIndex) => {
               const top = positions[matchIndex] ?? 0;
               return (
-              <div key={match.id} className="absolute left-0" style={{ top }}>
+              <div key={match.id} className="absolute" style={{ top, left: leftOffset }}>
                 {renderBracketCard(matchTournamentId, match, {
                   showConnector: true,
                   connectorSide: 'right',
                   tone,
+                  isFinal: round.roundNumber === totalRounds,
                 })}
               </div>
             );
@@ -1807,29 +1911,36 @@ function LiveTournament() {
       <div className="mt-6 overflow-x-auto pb-6">
         <div className="flex min-w-[960px] items-start gap-12">
           <div className="flex gap-12">
-            {earlyRounds.map((round, index) => renderRoundColumn(round, index))}
+            {roundsToRender.map((round, index) => renderRoundColumn(round, index))}
           </div>
-
-          <div className="flex min-w-[220px] flex-col items-center gap-4 pt-6">
-            <div className="flex items-center gap-2 text-amber-300">
-              <span className="text-[11px] uppercase tracking-[0.4em]">Winner</span>
-              <span aria-hidden="true">🏆</span>
-            </div>
-            {finalRound?.matches?.[0] && (
-              <div className="relative min-w-[200px]" style={{ height: Math.max(260, columnHeight) }}>
-                <div
-                  className="absolute left-0"
-                  style={{ top: (Math.max(260, columnHeight) - 160) / 2 }}
-                >
-                  {renderBracketCard(matchTournamentId, finalRound.matches[0], {
-                    showConnector: false,
-                    connectorSide: 'right',
-                    tone: getBracketTone(totalRounds - 1, totalRounds),
-                  })}
-                </div>
+          {showWinnerColumn && (
+            <div className="flex min-w-[220px] flex-col items-center gap-4 pt-6">
+              <div className="flex items-center gap-2 text-amber-300" style={{ marginLeft: finalLeftOffset }}>
+                <span className="text-[11px] uppercase tracking-[0.4em]">
+                  {getBracketRoundLabel(totalRounds, totalRounds, t)}
+                </span>
+                <span aria-hidden="true">🏆</span>
               </div>
-            )}
-          </div>
+              {finalRound?.matches?.[0] && (
+                <div className="relative min-w-[200px]" style={{ height: Math.max(260, columnHeight) }}>
+                  <div
+                    className="absolute"
+                    style={{
+                      top: (Math.max(260, columnHeight) - bracketCardHeight) / 2,
+                      left: finalLeftOffset,
+                    }}
+                  >
+                    {renderBracketCard(matchTournamentId, finalRound.matches[0], {
+                      showConnector: false,
+                      connectorSide: 'right',
+                      tone: getBracketTone(totalRounds - 1, totalRounds),
+                      isFinal: true,
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1887,9 +1998,21 @@ function LiveTournament() {
               <h4 className="text-lg font-semibold text-white">{activeBracket.name}</h4>
               <p className="text-sm text-slate-400">{activeBracket.bracketType} · {getStatusLabel('bracket', activeBracket.status)}</p>
             </div>
-            <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-              {activeBracket.entries?.length || 0} entries
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleCompleteBracketRound(tournamentId, activeBracket)}
+                disabled={updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false}
+                className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
+              >
+                {updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`)
+                  ? t('live.completingRound')
+                  : t('live.completeRound')}
+              </button>
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
+                {activeBracket.entries?.length || 0} entries
+              </span>
+            </div>
           </div>
 
           <div className="mt-4">

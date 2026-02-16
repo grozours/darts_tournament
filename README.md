@@ -94,12 +94,16 @@ cd ../frontend
 cp .env.example .env
 ```
 
-Set your Auth0 credentials in frontend/.env to enable Google/Facebook login:
+Set your Auth0 credentials in frontend/.env to enable Google/Facebook/Instagram login:
 
 ```env
 VITE_AUTH0_DOMAIN=your-tenant.eu.auth0.com
 VITE_AUTH0_CLIENT_ID=your_client_id
 # Optional: VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
+# Optional: override connection names if you changed them in Auth0
+VITE_AUTH0_CONNECTION_GOOGLE=google-oauth2
+VITE_AUTH0_CONNECTION_FACEBOOK=facebook
+VITE_AUTH0_CONNECTION_INSTAGRAM=instagram
 ```
 
 Backend Auth0 (optional):

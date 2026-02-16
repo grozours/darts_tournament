@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TournamentFormat } from '@shared/types';
 import { useOptionalAuth } from '../auth/optionalAuth';
+import SignInPanel from '../auth/SignInPanel';
 import { fetchTournamentPlayers, type TournamentPlayer } from '../services/tournamentService';
 import { useI18n } from '../i18n';
 
@@ -18,7 +19,6 @@ function RegistrationPlayers() {
     enabled: authEnabled,
     isAuthenticated,
     isLoading: authLoading,
-    loginWithRedirect,
     getAccessTokenSilently,
   } = useOptionalAuth();
 
@@ -47,12 +47,23 @@ function RegistrationPlayers() {
     );
   }, [formatSections, tournaments]);
 
+  // Helper to safely get access token, falling back to undefined if it fails
+  const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
+    if (!authEnabled) return undefined;
+    try {
+      return await getAccessTokenSilently();
+    } catch (err) {
+      console.warn('Failed to get access token, proceeding without auth:', err);
+      return undefined;
+    }
+  }, [authEnabled, getAccessTokenSilently]);
+
   const fetchRegistrationPlayers = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const response = await fetch('/api/tournaments?status=OPEN&limit=100', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -84,7 +95,7 @@ function RegistrationPlayers() {
     } finally {
       setLoading(false);
     }
-  }, [authEnabled, formatSections, getAccessTokenSilently]);
+  }, [formatSections, getSafeAccessToken]);
 
   useEffect(() => {
     if (!authEnabled || isAuthenticated) {
@@ -106,18 +117,10 @@ function RegistrationPlayers() {
 
   if (authEnabled && !isAuthenticated) {
     return (
-      <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-        <h3 className="text-xl font-semibold text-white">{t('auth.signInToViewRegistrationPlayers')}</h3>
-        <p className="mt-2 text-sm text-slate-300">
-          {t('auth.protectedContinue')}
-        </p>
-        <button
-          onClick={() => loginWithRedirect()}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
-        >
-          {t('auth.signIn')}
-        </button>
-      </div>
+      <SignInPanel
+        title={t('auth.signInToViewRegistrationPlayers')}
+        description={t('auth.protectedContinue')}
+      />
     );
   }
 

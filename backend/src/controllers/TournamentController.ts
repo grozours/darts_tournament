@@ -875,6 +875,35 @@ export class TournamentController {
   };
 
   /**
+   * Complete bracket round with random scores
+   * PATCH /api/tournaments/:id/brackets/:bracketId/rounds/:roundNumber/complete
+   */
+  completeBracketRoundWithScores = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id, bracketId } = req.params as { id: string; bracketId: string };
+      const roundNumber = Number((req.params as { roundNumber?: string }).roundNumber);
+      await this.getTournamentService(req).completeBracketRoundWithRandomScores(id, bracketId, roundNumber);
+      res.status(204).send();
+    } catch (error) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: {
+            message: error.message,
+            code: error.code,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            message: 'Internal server error',
+            code: 'INTERNAL_SERVER_ERROR',
+          },
+        });
+      }
+    }
+  };
+
+  /**
    * Get brackets
    * GET /api/tournaments/:id/brackets
    */

@@ -17,6 +17,19 @@ const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN as string | undefined;
 const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID as string | undefined;
 const auth0Audience = import.meta.env.VITE_AUTH0_AUDIENCE as string | undefined;
 
+console.log('[main.tsx] 🚀 Starting application with Auth0 config:', {
+  domain: auth0Domain || '(not set)',
+  clientId: auth0ClientId ? `${auth0ClientId.substring(0, 8)}...` : '(not set)',
+  audience: auth0Audience || '(not set)',
+  hasAll: !!(auth0Domain && auth0ClientId && auth0Audience),
+});
+
+if (!auth0Audience) {
+  console.warn('[main.tsx] ⚠️ VITE_AUTH0_AUDIENCE is not set!');
+  console.warn('[main.tsx] ⚠️ Access tokens will NOT contain email claim!');
+  console.warn('[main.tsx] ⚠️ Admin authentication will fail!');
+}
+
 root.render(
   <StrictMode>
     <I18nProvider>

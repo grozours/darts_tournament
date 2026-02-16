@@ -292,7 +292,8 @@ export default function TournamentForm({
       onSubmit(result);
     } catch (error) {
       console.error('Failed to create tournament', error);
-      setErrors((prev) => ({ ...prev, submit: 'Failed to create tournament' }));
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create tournament';
+      setErrors((prev) => ({ ...prev, submit: errorMessage }));
     } finally {
       setIsSubmitting(false);
     }

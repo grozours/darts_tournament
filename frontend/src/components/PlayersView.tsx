@@ -46,6 +46,17 @@ function PlayersView() {
   const [saving, setSaving] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
 
+  // Helper to safely get access token, falling back to undefined if it fails
+  const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
+    if (!authEnabled) return undefined;
+    try {
+      return await getAccessTokenSilently();
+    } catch (err) {
+      console.warn('Failed to get access token, proceeding without auth:', err);
+      return undefined;
+    }
+  }, [authEnabled, getAccessTokenSilently]);
+
   const fetchTournaments = useCallback(async (token?: string): Promise<TournamentSummary[]> => {
     const response = await fetch(
       '/api/tournaments',
@@ -62,7 +73,7 @@ function PlayersView() {
     setLoading(true);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const tournaments = await fetchTournaments(token);
       const playerLists = await Promise.all(
         tournaments.map(async (tournament) => {
@@ -89,7 +100,7 @@ function PlayersView() {
     } finally {
       setLoading(false);
     }
-  }, [authEnabled, fetchTournaments, getAccessTokenSilently, t]);
+  }, [fetchTournaments, getSafeAccessToken, t]);
 
   useEffect(() => {
     loadPlayers();
@@ -169,7 +180,7 @@ function PlayersView() {
     setSaving(true);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const payload = {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
@@ -207,7 +218,7 @@ function PlayersView() {
     setDeletingAll(true);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const deletions = deletablePlayers.map((player) =>
         removeTournamentPlayer(player.tournamentId as string, player.playerId, token)
       );

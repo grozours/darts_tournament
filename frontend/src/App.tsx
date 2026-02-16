@@ -4,10 +4,13 @@ import PlayersView from "./components/PlayersView";
 import LiveTournament from "./components/LiveTournament";
 import TargetsView from "./components/TargetsView";
 import CreateTournamentPage from "./components/tournaments/CreateTournamentPage";
+import AccountView from "./components/AccountView";
 import { useI18n } from './i18n';
+import { useOptionalAuth } from './auth/optionalAuth';
 
 function App() {
   const { lang, toggleLang, t } = useI18n();
+  const { isAuthenticated } = useOptionalAuth();
 
   const params = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
@@ -26,6 +29,8 @@ function App() {
     mainContent = <TargetsView />;
   } else if (view === 'create-tournament') {
     mainContent = <CreateTournamentPage />;
+  } else if (view === 'account') {
+    mainContent = <AccountView />;
   }
 
   return (
@@ -82,7 +87,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=LIVE">
+              <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=live">
                 {t('nav.live')}
               </a>
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=pool-stages">
@@ -100,6 +105,14 @@ function App() {
               >
                 {t('nav.finished')}
               </a>
+              {isAuthenticated && (
+                <a
+                  className="rounded-md px-2 py-1 hover:bg-slate-800 text-emerald-400"
+                  href="/?view=account"
+                >
+                  {t('nav.account')}
+                </a>
+              )}
             </nav>
 
             <div className="ml-auto" />

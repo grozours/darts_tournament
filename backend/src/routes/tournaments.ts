@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import TournamentController from '../controllers/TournamentController';
 import { validate } from '../middleware/validation';
 import { uploadTournamentLogo } from '../middleware/upload';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 import { z } from 'zod';
 import { TournamentFormat, DurationType, TournamentStatus, SkillLevel, MatchStatus } from '../../../shared/src/types';
 
@@ -260,10 +261,12 @@ router.get(
 /**
  * @route   POST /api/tournaments
  * @desc    Create a new tournament
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/',
+  requireAuth,
+  requireAdmin,
   validate(createTournamentSchema),
   tournamentController.createTournament
 );
@@ -293,10 +296,12 @@ router.get(
 /**
  * @route   PUT /api/tournaments/:id
  * @desc    Update tournament
- * @access  Public
+ * @access  Admin only
  */
 router.put(
   '/:id',
+  requireAuth,
+  requireAdmin,
   validate(uuidSchema),
   validate(updateTournamentSchema),
   tournamentController.updateTournament
@@ -305,10 +310,12 @@ router.put(
 /**
  * @route   DELETE /api/tournaments/:id
  * @desc    Delete tournament
- * @access  Public
+ * @access  Admin only
  */
 router.delete(
   '/:id',
+  requireAuth,
+  requireAdmin,
   validate(uuidSchema),
   tournamentController.deleteTournament
 );
@@ -316,10 +323,12 @@ router.delete(
 /**
  * @route   POST /api/tournaments/:id/logo
  * @desc    Upload tournament logo
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/logo',
+  requireAuth,
+  requireAdmin,
   validate(uuidSchema),
   uploadTournamentLogo,
   tournamentController.uploadTournamentLogo
@@ -357,10 +366,12 @@ router.post(
 /**
  * @route   DELETE /api/tournaments/:id/register/:playerId
  * @desc    Unregister player from tournament
- * @access  Public
+ * @access  Admin only
  */
 router.delete(
   '/:id/register/:playerId',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -413,10 +424,12 @@ router.get(
 /**
  * @route   POST /api/tournaments/:id/pool-stages
  * @desc    Create pool stage
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/pool-stages',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({ id: z.string().uuid('Invalid tournament ID') }),
     body: z.object({
@@ -433,10 +446,12 @@ router.post(
 /**
  * @route   PATCH /api/tournaments/:id/pool-stages/:stageId
  * @desc    Update pool stage
- * @access  Public
+ * @access  Admin only
  */
 router.patch(
   '/:id/pool-stages/:stageId',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -457,10 +472,12 @@ router.patch(
 /**
  * @route   POST /api/tournaments/:id/pool-stages/:stageId/complete
  * @desc    Complete pool stage with random scores
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/pool-stages/:stageId/complete',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -476,8 +493,8 @@ router.post(
  * @access  Public
  */
 router.delete(
-  '/:id/pool-stages/:stageId',
-  validate({
+  '/:id/pool-stages/:stageId',  requireAuth,
+  requireAdmin,  validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
       stageId: z.string().uuid('Invalid pool stage ID'),
@@ -542,10 +559,12 @@ router.get(
 /**
  * @route   POST /api/tournaments/:id/brackets
  * @desc    Create bracket
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/brackets',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({ id: z.string().uuid('Invalid tournament ID') }),
     body: z.object({
@@ -560,10 +579,12 @@ router.post(
 /**
  * @route   PATCH /api/tournaments/:id/brackets/:bracketId
  * @desc    Update bracket
- * @access  Public
+ * @access  Admin only
  */
 router.patch(
   '/:id/brackets/:bracketId',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -585,8 +606,8 @@ router.patch(
  * @access  Public
  */
 router.delete(
-  '/:id/brackets/:bracketId',
-  validate({
+  '/:id/brackets/:bracketId',  requireAuth,
+  requireAdmin,  validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
       bracketId: z.string().uuid('Invalid bracket ID'),
@@ -639,10 +660,12 @@ router.patch(
 /**
  * @route   DELETE /api/tournaments/:id/players/:playerId
  * @desc    Remove player from tournament
- * @access  Public
+ * @access  Admin only
  */
 router.delete(
   '/:id/players/:playerId',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -671,10 +694,12 @@ router.get(
 /**
  * @route   PATCH /api/tournaments/:id/matches/:matchId/status
  * @desc    Update match status
- * @access  Public
+ * @access  Admin only
  */
 router.patch(
   '/:id/matches/:matchId/status',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -693,10 +718,12 @@ router.patch(
 /**
  * @route   PATCH /api/tournaments/:id/matches/:matchId/complete
  * @desc    Complete match with final scores
- * @access  Public
+ * @access  Admin only
  */
 router.patch(
   '/:id/matches/:matchId/complete',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -717,10 +744,12 @@ router.patch(
 /**
  * @route   PATCH /api/tournaments/:id/matches/:matchId/scores
  * @desc    Update scores for a completed match
- * @access  Public
+ * @access  Admin only
  */
 router.patch(
   '/:id/matches/:matchId/scores',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -739,12 +768,33 @@ router.patch(
 );
 
 /**
+ * @route   PATCH /api/tournaments/:id/brackets/:bracketId/rounds/:roundNumber/complete
+ * @desc    Complete a bracket round with random scores
+ * @access  Admin only
+ */
+router.patch(
+  '/:id/brackets/:bracketId/rounds/:roundNumber/complete',
+  requireAuth,
+  requireAdmin,
+  validate({
+    params: z.object({
+      id: z.string().uuid('Invalid tournament ID'),
+      bracketId: z.string().uuid('Invalid bracket ID'),
+      roundNumber: z.coerce.number().int().min(1, 'Round number must be at least 1'),
+    }),
+  }),
+  tournamentController.completeBracketRoundWithScores
+);
+
+/**
  * @route   PATCH /api/tournaments/:id/status
  * @desc    Update tournament status
- * @access  Public
+ * @access  Admin only
  */
 router.patch(
   '/:id/status',
+  requireAuth,
+  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),
@@ -760,10 +810,12 @@ router.patch(
 /**
  * @route   POST /api/tournaments/:id/open-registration
  * @desc    Open tournament registration
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/open-registration',
+  requireAuth,
+  requireAdmin,
   validate(uuidSchema),
   tournamentController.openTournamentRegistration
 );
@@ -771,10 +823,12 @@ router.post(
 /**
  * @route   POST /api/tournaments/:id/start
  * @desc    Start tournament
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/start',
+  requireAuth,
+  requireAdmin,
   validate(uuidSchema),
   tournamentController.startTournament
 );
@@ -782,10 +836,12 @@ router.post(
 /**
  * @route   POST /api/tournaments/:id/complete
  * @desc    Complete tournament
- * @access  Public
+ * @access  Admin only
  */
 router.post(
   '/:id/complete',
+  requireAuth,
+  requireAdmin,
   validate(uuidSchema),
   tournamentController.completeTournament
 );

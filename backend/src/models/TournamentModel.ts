@@ -725,6 +725,35 @@ export class TournamentModel {
     );
   }
 
+  async createBracketMatchWithSlots(
+    tournamentId: string,
+    bracketId: string,
+    roundNumber: number,
+    matchNumber: number,
+    players: Array<{ playerId: string; playerPosition: number }>
+  ): Promise<void> {
+    if (players.length === 0) return;
+    try {
+      await this.prisma.match.create({
+        data: {
+          tournamentId,
+          bracketId,
+          roundNumber,
+          matchNumber,
+          playerMatches: {
+            create: players.map((player) => ({
+              playerId: player.playerId,
+              playerPosition: player.playerPosition,
+            })),
+          },
+        },
+      });
+    } catch (error) {
+      logModelError('createBracketMatchWithSlots', error);
+      throw new AppError('Failed to create bracket match', 500, 'BRACKET_MATCH_CREATE_FAILED');
+    }
+  }
+
   async updatePoolStatuses(poolIds: string[], status: PoolStatus): Promise<void> {
     if (poolIds.length === 0) return;
     await this.prisma.pool.updateMany({
@@ -788,6 +817,19 @@ export class TournamentModel {
     }
   }
 
+  async getBracketMatchesByRoundWithPlayers(bracketId: string, roundNumber: number) {
+    try {
+      return await this.prisma.match.findMany({
+        where: { bracketId, roundNumber },
+        orderBy: { matchNumber: 'asc' },
+        include: { playerMatches: true },
+      });
+    } catch (error) {
+      logModelError('getBracketMatchesByRoundWithPlayers', error);
+      throw new AppError('Failed to fetch bracket matches', 500, 'BRACKET_MATCH_FETCH_FAILED');
+    }
+  }
+
   async getBracketMatchCountByRound(bracketId: string, roundNumber: number): Promise<number> {
     try {
       return await this.prisma.match.count({
@@ -796,6 +838,70 @@ export class TournamentModel {
     } catch (error) {
       logModelError('getBracketMatchCountByRound', error);
       return 0;
+    }
+  }
+
+  async getBracketEntryCount(bracketId: string): Promise<number> {
+    try {
+      return await this.prisma.bracketEntry.count({
+        where: { bracketId },
+      });
+    } catch (error) {
+      logModelError('getBracketEntryCount', error);
+      return 0;
+    }
+  }
+
+  async setBracketMatchPlayers(matchId: string, playerIds: [string, string]) {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.playerMatch.deleteMany({
+          where: { matchId },
+        }),
+        this.prisma.playerMatch.createMany({
+          data: [
+            {
+              matchId,
+              playerId: playerIds[0],
+              playerPosition: 1,
+            },
+            {
+              matchId,
+              playerId: playerIds[1],
+              playerPosition: 2,
+            },
+          ],
+        }),
+      ]);
+    } catch (error) {
+      logModelError('setBracketMatchPlayers', error);
+      throw new AppError('Failed to seed bracket match players', 500, 'BRACKET_MATCH_SEED_FAILED');
+    }
+  }
+
+  async setBracketMatchPlayerPosition(matchId: string, playerId: string, playerPosition: number) {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.playerMatch.deleteMany({
+          where: {
+            matchId,
+            OR: [
+              { playerPosition },
+              { playerId },
+            ],
+          },
+        }),
+        this.prisma.playerMatch.create({
+          data: {
+            matchId,
+            playerId,
+            playerPosition,
+          },
+        }),
+      ]);
+    } catch (error) {
+      logModelError('setBracketMatchPlayerPosition', error);
+      throw new AppError('Failed to seed bracket match player', 500, 'BRACKET_MATCH_SEED_FAILED');
     }
   }
 

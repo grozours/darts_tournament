@@ -100,7 +100,9 @@ export async function createTournament(
   });
 
   if (!response.ok) {
-    throw new Error('Failed to create tournament');
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+    throw new Error(`Failed to create tournament: ${errorMessage}`);
   }
 
   return response.json();
@@ -456,6 +458,26 @@ export async function updateCompletedMatchScores(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Failed to update match scores');
+  }
+}
+
+export async function completeBracketRoundWithScores(
+  tournamentId: string,
+  bracketId: string,
+  roundNumber: number,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}/rounds/${roundNumber}/complete`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to complete bracket round');
   }
 }
 

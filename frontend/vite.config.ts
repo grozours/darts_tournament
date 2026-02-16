@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173, // Standard Vite port
       host: true,
-      allowedHosts: ['127.0.0.1'],
+      allowedHosts: ['127.0.0.1', 'darts.bzhtech.eu'],
       proxy: {
         '/api': {
           target: apiTarget,

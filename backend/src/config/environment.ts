@@ -49,6 +49,7 @@ interface Config {
     issuerBaseURL: string;
     audience: string;
     enabled: boolean;
+    adminEmails: string[];
   };
 }
 
@@ -100,6 +101,9 @@ const config: Config = {
     enabled:
       process.env.AUTH_ENABLED === 'true' &&
       Boolean(process.env.AUTH_ISSUER_BASE_URL && process.env.AUTH_AUDIENCE),
+    adminEmails: process.env.AUTH_ADMIN_EMAILS
+      ? process.env.AUTH_ADMIN_EMAILS.split(',').map(email => email.trim().toLowerCase())
+      : [],
   },
 };
 

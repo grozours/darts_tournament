@@ -12,10 +12,11 @@ import { errorHandler } from './middleware/errorHandler';
 import { securityMiddleware } from './middleware/security';
 import { validationMiddleware } from './middleware/validation';
 import { correlationIdMiddleware } from './middleware/correlationId';
-import { requireAuth } from './middleware/auth';
+import { optionalAuth } from './middleware/auth';
 import { setupWebSocketServer } from './websocket/server';
 import logger, { stream } from './utils/logger';
 import tournamentRoutes from './routes/tournaments';
+import authRoutes from './routes/auth';
 class App {
   public app: Express;
   public server: HttpServer;
@@ -102,7 +103,7 @@ class App {
 
   private initializeRoutes(): void {
     const authMiddleware = config.auth.enabled
-      ? requireAuth
+      ? optionalAuth
       : (req: Request, res: Response, next: NextFunction) => next();
 
     // Health check endpoint
@@ -125,6 +126,7 @@ class App {
 
     // API routes will be added here
     this.app.use('/api/tournaments', authMiddleware, tournamentRoutes);
+    this.app.use('/api/auth', authMiddleware, authRoutes);
     
     this.app.get('/api', authMiddleware, (req: Request, res: Response) => {
       res.json({

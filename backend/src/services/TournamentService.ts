@@ -835,8 +835,16 @@ export class TournamentService {
     }));
     await this.tournamentModel.createBracketEntries(payload);
 
+    const nextPowerOfTwo = (value: number) => {
+      let result = 1;
+      while (result < value) result *= 2;
+      return result;
+    };
+    const bracketSize = Math.max(2, nextPowerOfTwo(entries.length));
+    const totalRounds = Math.max(1, Math.log2(bracketSize));
+
     if (entries.length < 2) {
-      await this.tournamentModel.updateBracket(bracketId, { status: BracketStatus.NOT_STARTED });
+      await this.tournamentModel.updateBracket(bracketId, { status: BracketStatus.NOT_STARTED, totalRounds });
       return;
     }
 
@@ -857,7 +865,7 @@ export class TournamentService {
     }
 
     await this.tournamentModel.createBracketMatches(tournamentId, bracketId, matches);
-    await this.tournamentModel.updateBracket(bracketId, { status: BracketStatus.IN_PROGRESS });
+    await this.tournamentModel.updateBracket(bracketId, { status: BracketStatus.IN_PROGRESS, totalRounds });
   }
 
   private async populateBracketsForStage(tournamentId: string, stageId: string): Promise<void> {
@@ -878,8 +886,8 @@ export class TournamentService {
     }
 
     const pools = await this.tournamentModel.getPoolsWithMatchesForStage(stageId);
-    const winners: Array<{ playerId: string; seedKey: string; poolNumber: number; position: number }> = [];
-    const losers: Array<{ playerId: string; seedKey: string; poolNumber: number; position: number }> = [];
+    const winners: Array<{ playerId: string; seedKey: string; poolNumber: number; position: number; legsWon: number; legsLost: number; name: string }> = [];
+    const losers: Array<{ playerId: string; seedKey: string; poolNumber: number; position: number; legsWon: number; legsLost: number; name: string }> = [];
 
     for (const pool of pools) {
       const standings = this.buildPoolStandings(pool);
@@ -889,6 +897,9 @@ export class TournamentService {
           seedKey: `${pool.poolNumber}-${row.position}`,
           poolNumber: pool.poolNumber,
           position: row.position,
+          legsWon: row.legsWon,
+          legsLost: row.legsLost,
+          name: row.name,
         };
         if (index < stage.advanceCount) {
           winners.push(entry);
@@ -915,12 +926,38 @@ export class TournamentService {
     const winnerList = uniqueByPlayer([...winners].sort(sortByPool));
     const loserList = uniqueByPlayer([...losers].sort(sortByPool));
 
-    const winnerEntries = winnerList.map((entry, index) => ({
+    const isPowerOfTwo = (value: number) => value > 0 && (value & (value - 1)) === 0;
+    const nextPowerOfTwo = (value: number) => {
+      let result = 1;
+      while (result < value) result *= 2;
+      return result;
+    };
+    const totalEntries = winnerList.length + loserList.length;
+    let targetWinnerCount = winnerList.length;
+    for (let target = nextPowerOfTwo(winnerList.length); target <= totalEntries; target *= 2) {
+      if (isPowerOfTwo(totalEntries - target)) {
+        targetWinnerCount = target;
+        break;
+      }
+    }
+
+    const rankedLosers = [...loserList].sort((a, b) => {
+      if (a.position !== b.position) return a.position - b.position;
+      if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
+      if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
+      return a.name.localeCompare(b.name);
+    });
+    const promoteCount = Math.max(0, targetWinnerCount - winnerList.length);
+    const promoted = rankedLosers.slice(0, promoteCount);
+    const promotedIds = new Set(promoted.map((entry) => entry.playerId));
+    const remainingLosers = loserList.filter((entry) => !promotedIds.has(entry.playerId));
+
+    const winnerEntries = [...winnerList, ...promoted].map((entry, index) => ({
       playerId: entry.playerId,
       seedNumber: index + 1,
     }));
 
-    const loserEntries = loserList.map((entry, index) => ({
+    const loserEntries = remainingLosers.map((entry, index) => ({
       playerId: entry.playerId,
       seedNumber: index + 1,
     }));
@@ -1703,6 +1740,94 @@ export class TournamentService {
     await this.populateBracketsForStage(tournamentId, stageId);
   }
 
+  async completeBracketRoundWithRandomScores(
+    tournamentId: string,
+    bracketId: string,
+    roundNumber: number
+  ): Promise<void> {
+    this.validateUUID(tournamentId);
+    this.validateUUID(bracketId);
+
+    const tournament = await this.tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    const bracket = await this.tournamentModel.getBracketById(bracketId);
+    if (!bracket || bracket.tournamentId !== tournamentId) {
+      throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
+    }
+
+    if (!Number.isInteger(roundNumber) || roundNumber < 1) {
+      throw new AppError('Invalid round number', 400, 'BRACKET_ROUND_INVALID');
+    }
+
+    const matches = await this.tournamentModel.getBracketMatchesByRoundWithPlayers(bracketId, roundNumber);
+    if (matches.length === 0) {
+      throw new AppError('Bracket round not found', 404, 'BRACKET_ROUND_NOT_FOUND');
+    }
+
+    const invalidMatch = matches.find((match) => (match.playerMatches?.length ?? 0) < 2);
+    if (invalidMatch) {
+      throw new AppError(
+        'Bracket round has matches without two players',
+        400,
+        'BRACKET_ROUND_MATCH_INCOMPLETE'
+      );
+    }
+
+    const now = new Date();
+    const randomInt = (min: number, max: number) =>
+      Math.floor(Math.random() * (max - min + 1)) + min;
+
+    for (const match of matches) {
+      if (match.status === MatchStatus.COMPLETED || match.status === MatchStatus.CANCELLED) {
+        continue;
+      }
+
+      const playerIds = (match.playerMatches || [])
+        .map((pm) => pm.playerId)
+        .filter((id): id is string => Boolean(id));
+
+      if (playerIds.length < 2) {
+        continue;
+      }
+
+      const [firstId, secondId] = playerIds;
+      if (!firstId || !secondId) {
+        continue;
+      }
+
+      const winnerFirst = Math.random() < 0.5;
+      const winnerId = winnerFirst ? firstId : secondId;
+      const loserId = winnerFirst ? secondId : firstId;
+      const winnerScore = randomInt(1, 5);
+      const loserScore = randomInt(0, winnerScore - 1);
+
+      const scores = [
+        { playerId: winnerId, scoreTotal: winnerScore, isWinner: true },
+        { playerId: loserId, scoreTotal: loserScore, isWinner: false },
+      ];
+      const timestamps: { startedAt?: Date | null; completedAt?: Date | null } = {
+        startedAt: match.startedAt ?? now,
+        completedAt: now,
+      };
+
+      await this.tournamentModel.completeMatch(match.id, scores, winnerId, timestamps);
+
+      if (match.targetId) {
+        await this.tournamentModel.finishMatchAndReleaseTarget(
+          match.id,
+          match.targetId,
+          MatchStatus.COMPLETED,
+          timestamps
+        );
+      }
+
+      await this.advanceBracketIfReady(match.id, tournamentId);
+    }
+  }
+
   private buildRoundRobinSchedule(playerIds: string[]) {
     const players = [...playerIds];
     if (players.length < 2) {
@@ -2169,16 +2294,28 @@ export class TournamentService {
       return;
     }
 
-    const roundNumber = match.roundNumber || 1;
-    const roundMatches = await this.tournamentModel.getBracketMatchesByRound(bracket.id, roundNumber);
-    const allCompleted = roundMatches.length > 0
-      && roundMatches.every((item) => item.status === MatchStatus.COMPLETED);
-
-    if (!allCompleted) {
-      return;
+    const entryCount = await this.tournamentModel.getBracketEntryCount(bracket.id);
+    const nextPowerOfTwo = (value: number) => {
+      let result = 1;
+      while (result < value) result *= 2;
+      return result;
+    };
+    const bracketSize = Math.max(2, nextPowerOfTwo(entryCount));
+    const computedRounds = Math.max(1, Math.log2(bracketSize));
+    const totalRounds = Math.max(bracket.totalRounds || 0, computedRounds);
+    if (totalRounds !== bracket.totalRounds) {
+      await this.tournamentModel.updateBracket(bracket.id, { totalRounds });
     }
 
-    if (roundNumber >= bracket.totalRounds) {
+    const roundNumber = match.roundNumber || 1;
+    if (roundNumber >= totalRounds) {
+      const roundMatches = await this.tournamentModel.getBracketMatchesByRound(bracket.id, roundNumber);
+      const allCompleted = roundMatches.length > 0
+        && roundMatches.every((item) => item.status === MatchStatus.COMPLETED);
+
+      if (!allCompleted) {
+        return;
+      }
       await this.tournamentModel.updateBracket(bracket.id, {
         status: BracketStatus.COMPLETED,
         completedAt: new Date(),
@@ -2188,38 +2325,63 @@ export class TournamentService {
     }
 
     const nextRound = roundNumber + 1;
-    const nextRoundCount = await this.tournamentModel.getBracketMatchCountByRound(bracket.id, nextRound);
-    if (nextRoundCount > 0) {
+    const roundMatches = await this.tournamentModel.getBracketMatchesByRound(bracket.id, roundNumber);
+    const siblingMatchNumber = match.matchNumber % 2 === 1
+      ? match.matchNumber + 1
+      : match.matchNumber - 1;
+    const sibling = roundMatches.find((item) => item.matchNumber === siblingMatchNumber);
+
+    const nextRoundMatchNumber = Math.ceil(match.matchNumber / 2);
+    const nextRoundMatches = await this.tournamentModel.getBracketMatchesByRoundWithPlayers(bracket.id, nextRound);
+    const existingNextMatch = nextRoundMatches.find((item) => item.matchNumber === nextRoundMatchNumber);
+    const winnerId = match.winnerId;
+    if (!winnerId) {
+      return;
+    }
+
+    const playerPosition = match.matchNumber % 2 === 1 ? 1 : 2;
+
+    if (!sibling || sibling.status !== MatchStatus.COMPLETED || !sibling.winnerId) {
+      if (existingNextMatch) {
+        if (existingNextMatch.status === MatchStatus.SCHEDULED) {
+          await this.tournamentModel.setBracketMatchPlayerPosition(existingNextMatch.id, winnerId, playerPosition);
+        }
+        await this.tournamentModel.updateBracket(bracket.id, { status: BracketStatus.IN_PROGRESS });
+        return;
+      }
+
+      await this.tournamentModel.createBracketMatchWithSlots(
+        tournamentId,
+        bracket.id,
+        nextRound,
+        nextRoundMatchNumber,
+        [{ playerId: winnerId, playerPosition }]
+      );
       await this.tournamentModel.updateBracket(bracket.id, { status: BracketStatus.IN_PROGRESS });
       return;
     }
 
-    const winners = roundMatches
-      .sort((a, b) => a.matchNumber - b.matchNumber)
-      .map((item) => item.winnerId)
-      .filter((id): id is string => Boolean(id));
-
-    if (winners.length < 2) {
+    const firstMatch = match.matchNumber < sibling.matchNumber ? match : sibling;
+    const secondMatch = match.matchNumber < sibling.matchNumber ? sibling : match;
+    if (!firstMatch.winnerId || !secondMatch.winnerId) {
       return;
     }
 
-    const nextMatches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
-    let matchNumber = 1;
-    for (let i = 0; i < winners.length; i += 2) {
-      const first = winners[i];
-      const second = winners[i + 1];
-      if (!first || !second) {
-        continue;
+    if (existingNextMatch) {
+      if (existingNextMatch.status === MatchStatus.SCHEDULED && (existingNextMatch.playerMatches?.length ?? 0) < 2) {
+        await this.tournamentModel.setBracketMatchPlayers(existingNextMatch.id, [firstMatch.winnerId, secondMatch.winnerId]);
       }
-      nextMatches.push({
-        roundNumber: nextRound,
-        matchNumber,
-        playerIds: [first, second],
-      });
-      matchNumber += 1;
+      await this.tournamentModel.updateBracket(bracket.id, { status: BracketStatus.IN_PROGRESS });
+      return;
     }
 
-    await this.tournamentModel.createBracketMatches(tournamentId, bracket.id, nextMatches);
+    await this.tournamentModel.createBracketMatches(tournamentId, bracket.id, [
+      {
+        roundNumber: nextRound,
+        matchNumber: nextRoundMatchNumber,
+        playerIds: [firstMatch.winnerId, secondMatch.winnerId],
+      },
+    ]);
     await this.tournamentModel.updateBracket(bracket.id, { status: BracketStatus.IN_PROGRESS });
   }
 

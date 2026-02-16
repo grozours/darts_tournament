@@ -469,6 +469,17 @@ function TargetsView() {
   const [updatingMatchId, setUpdatingMatchId] = useState<string | null>(null);
   const [matchScores, setMatchScores] = useState<Record<string, Record<string, string>>>({});
 
+  // Helper to safely get access token, falling back to undefined if it fails
+  const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
+    if (!authEnabled) return undefined;
+    try {
+      return await getAccessTokenSilently();
+    } catch (err) {
+      console.warn('Failed to get access token, proceeding without auth:', err);
+      return undefined;
+    }
+  }, [authEnabled, getAccessTokenSilently]);
+
   const fetchLiveViews = useCallback(async (token?: string): Promise<LiveViewData[]> => {
     if (tournamentId) {
       const data = (await fetchTournamentLiveView(tournamentId, token)) as LiveViewData;
@@ -499,7 +510,7 @@ function TargetsView() {
       setError(null);
     }
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const views = await fetchLiveViews(token);
       setLiveViews(views);
     } catch (err) {
@@ -512,7 +523,7 @@ function TargetsView() {
         setLoading(false);
       }
     }
-  }, [authEnabled, fetchLiveViews, getAccessTokenSilently, t]);
+  }, [fetchLiveViews, getSafeAccessToken, t]);
 
   useEffect(() => {
     loadTargets();
@@ -550,7 +561,7 @@ function TargetsView() {
     setStartingMatchId(matchId);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const freshView = (await fetchTournamentLiveView(selectedView.id, token)) as LiveViewData;
       setLiveViews([freshView]);
       const freshTarget = freshView.targets?.find((target) => target.id === targetId);
@@ -605,7 +616,7 @@ function TargetsView() {
     setUpdatingMatchId(match.id);
     setError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await completeMatch(selectedView.id, match.id, scores, token);
       await loadTargets();
     } catch (err) {

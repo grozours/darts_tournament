@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
+import SignInPanel from '../auth/SignInPanel';
 import { useI18n } from '../i18n';
 import { TournamentFormat, DurationType, SkillLevel, BracketType, BracketStatus, StageStatus, AssignmentType } from '@shared/types';
 import {
@@ -202,7 +203,6 @@ function TournamentList() { // NOSONAR
     enabled: authEnabled,
     isAuthenticated,
     isLoading: authLoading,
-    loginWithRedirect,
     getAccessTokenSilently,
   } = useOptionalAuth();
   const { t } = useI18n();
@@ -520,27 +520,49 @@ function TournamentList() { // NOSONAR
     )}:${pad(date.getMinutes())}`;
   }, []);
 
+  // Helper to safely get access token, falling back to undefined if it fails
+  const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
+    if (!authEnabled) {
+      console.log('[TournamentList] Auth not enabled, skipping token');
+      return undefined;
+    }
+    try {
+      console.log('[TournamentList] Attempting to get access token...');
+      const token = await getAccessTokenSilently();
+      console.log('[TournamentList] Got access token successfully');
+      return token;
+    } catch (err) {
+      console.warn('[TournamentList] Failed to get access token, proceeding without auth:', err);
+      return undefined;
+    }
+  }, [authEnabled, getAccessTokenSilently]);
+
   const fetchTournaments = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
+      console.log('[TournamentList] Fetching tournaments, token:', token ? 'present' : 'none');
       const response = await fetch('/api/tournaments', {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
+      console.log('[TournamentList] Response status:', response.status, response.statusText);
       if (!response.ok) {
-        throw new Error('Failed to fetch tournaments');
+        const errorText = await response.text();
+        console.error('[TournamentList] Response error:', errorText);
+        throw new Error(`Failed to fetch tournaments: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
+      console.log('[TournamentList] Received tournaments:', data.tournaments?.length || 0);
       setTournaments(data.tournaments || []);
     } catch (err) {
-      console.error('Error fetching tournaments:', err);
+      console.error('[TournamentList] Error fetching tournaments:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tournaments');
     } finally {
       setLoading(false);
     }
-  }, [authEnabled, getAccessTokenSilently]);
+  }, [getSafeAccessToken]);
 
   useEffect(() => {
     if (!authEnabled || isAuthenticated) {
@@ -552,7 +574,7 @@ function TournamentList() { // NOSONAR
     if (!confirm('Are you sure you want to delete this tournament?')) return;
 
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const response = await fetch(`/api/tournaments/${id}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -618,7 +640,7 @@ function TournamentList() { // NOSONAR
     setPlayersLoading(true);
     setPlayersError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const data = await fetchTournamentPlayers(tournamentId, token);
       setPlayers(data);
     } catch (err) {
@@ -639,7 +661,7 @@ function TournamentList() { // NOSONAR
 
   const fetchTournamentDetails = useCallback(async (tournamentId: string) => {
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -658,7 +680,7 @@ function TournamentList() { // NOSONAR
     setIsUploadingLogo(true);
     setEditError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const result = await uploadTournamentLogo(editingTournament.id, logoFile, token);
       setEditingTournament((current) =>
         current ? { ...current, logoUrl: result?.logo_url || current.logoUrl } : current
@@ -675,7 +697,7 @@ function TournamentList() { // NOSONAR
   const loadPoolStages = useCallback(async (tournamentId: string) => {
     setPoolStagesError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const data = await fetchPoolStages(tournamentId, token);
       setPoolStages(data);
       const nextStageNumber = data.length > 0 ? Math.max(...data.map((s) => s.stageNumber)) + 1 : 1;
@@ -689,7 +711,7 @@ function TournamentList() { // NOSONAR
   const loadBrackets = useCallback(async (tournamentId: string) => {
     setBracketsError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const data = await fetchBrackets(tournamentId, token);
       setBrackets(data);
     } catch (err) {
@@ -733,7 +755,7 @@ function TournamentList() { // NOSONAR
       setEditLoading(true);
       setEditLoadError(null);
       try {
-        const token = authEnabled ? await getAccessTokenSilently() : undefined;
+        const token = await getSafeAccessToken();
         const response = await fetch(`/api/tournaments/${editTournamentId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -832,7 +854,7 @@ function TournamentList() { // NOSONAR
     }
     setPoolStagesError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await createPoolStage(editingTournament.id, newPoolStage, token);
       await loadPoolStages(editingTournament.id);
       setNewPoolStage((current) => ({ ...current, name: '' }));
@@ -845,7 +867,7 @@ function TournamentList() { // NOSONAR
     if (!editingTournament) return;
     setPoolStagesError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updatePoolStage(editingTournament.id, stage.id, {
         stageNumber: stage.stageNumber,
         name: stage.name,
@@ -865,7 +887,7 @@ function TournamentList() { // NOSONAR
     if (!confirm('Delete this pool stage?')) return;
     setPoolStagesError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await deletePoolStage(editingTournament.id, stageId, token);
       await loadPoolStages(editingTournament.id);
     } catch (err) {
@@ -881,7 +903,7 @@ function TournamentList() { // NOSONAR
     setPoolStagePlayers([]);
     setPoolStageAssignments({});
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const [playersData, poolsData] = await Promise.all([
         fetchTournamentPlayers(editingTournament.id, token),
         fetchPoolStagePools(editingTournament.id, stage.id, token),
@@ -937,7 +959,7 @@ function TournamentList() { // NOSONAR
           });
       });
 
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updatePoolAssignments(editingTournament.id, editingPoolStage.id, assignments, token);
       closePoolStageAssignments();
     } catch (err) {
@@ -955,7 +977,7 @@ function TournamentList() { // NOSONAR
     }
     setBracketsError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await createBracket(editingTournament.id, newBracket, token);
       await loadBrackets(editingTournament.id);
       setNewBracket((current) => ({ ...current, name: '' }));
@@ -968,7 +990,7 @@ function TournamentList() { // NOSONAR
     if (!editingTournament) return;
     setBracketsError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateBracket(editingTournament.id, bracket.id, {
         name: bracket.name,
         bracketType: bracket.bracketType,
@@ -986,7 +1008,7 @@ function TournamentList() { // NOSONAR
     if (!confirm('Delete this bracket?')) return;
     setBracketsError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await deleteBracket(editingTournament.id, bracketId, token);
       await loadBrackets(editingTournament.id);
     } catch (err) {
@@ -1004,7 +1026,7 @@ function TournamentList() { // NOSONAR
     setIsRegisteringPlayer(true);
     setPlayersError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await registerTournamentPlayer(
         editingTournament.id,
         {
@@ -1170,7 +1192,7 @@ function TournamentList() { // NOSONAR
     }
 
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       for (const registration of uniqueRegistrations) {
         await registerTournamentPlayer(editingTournament.id, registration, token);
       }
@@ -1221,7 +1243,7 @@ function TournamentList() { // NOSONAR
     setIsRegisteringPlayer(true);
     setPlayersError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateTournamentPlayer(
         editingTournament.id,
         editingPlayerId,
@@ -1251,7 +1273,7 @@ function TournamentList() { // NOSONAR
     if (!confirm('Remove this player from the tournament?')) return;
     setPlayersError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await removeTournamentPlayer(editingTournament.id, playerId, token);
       await fetchPlayers(editingTournament.id);
     } catch (err) {
@@ -1265,7 +1287,7 @@ function TournamentList() { // NOSONAR
     setCheckingInPlayerId(player.playerId);
     setPlayersError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateTournamentPlayerCheckIn(
         editingTournament.id,
         player.playerId,
@@ -1286,7 +1308,7 @@ function TournamentList() { // NOSONAR
     setIsConfirmingAll(true);
     setPlayersError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       const pendingPlayers = players.filter((player) => !player.checkedIn);
 
       for (const player of pendingPlayers) {
@@ -1312,7 +1334,7 @@ function TournamentList() { // NOSONAR
     setIsSaving(true);
     setEditError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateTournament(
         editingTournament.id,
         {
@@ -1344,7 +1366,7 @@ function TournamentList() { // NOSONAR
     setIsSaving(true);
     setEditError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateTournamentStatus(editingTournament.id, 'OPEN', token);
       if (isEditPage) {
         globalThis.window?.location.assign('/?status=OPEN');
@@ -1368,7 +1390,7 @@ function TournamentList() { // NOSONAR
     setIsSaving(true);
     setEditError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateTournamentStatus(editingTournament.id, 'SIGNATURE', token);
       if (isEditPage) {
         globalThis.window?.location.assign('/?status=SIGNATURE');
@@ -1397,7 +1419,7 @@ function TournamentList() { // NOSONAR
     setIsSaving(true);
     setEditError(null);
     try {
-      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const token = await getSafeAccessToken();
       await updateTournamentStatus(editingTournament.id, 'LIVE', token);
       if (isEditPage) {
         globalThis.window?.location.assign('/?status=live');
@@ -1503,18 +1525,10 @@ function TournamentList() { // NOSONAR
 
   if (authEnabled && !isAuthenticated) {
     return (
-      <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-        <h3 className="text-xl font-semibold text-white">{t('auth.signInToViewTournaments')}</h3>
-        <p className="mt-2 text-sm text-slate-300">
-          {t('auth.protectedContinue')}
-        </p>
-        <button
-          onClick={() => loginWithRedirect()}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
-        >
-          {t('auth.signIn')}
-        </button>
-      </div>
+      <SignInPanel
+        title={t('auth.signInToViewTournaments')}
+        description={t('auth.protectedContinue')}
+      />
     );
   }
 
