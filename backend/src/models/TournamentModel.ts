@@ -1049,6 +1049,23 @@ export class TournamentModel {
     }
   }
 
+  async getMatchDetailsForNotification(matchId: string) {
+    try {
+      return await this.prisma.match.findUnique({
+        where: { id: matchId },
+        include: {
+          target: true,
+          pool: { include: { poolStage: true } },
+          bracket: true,
+          playerMatches: { include: { player: true } },
+        },
+      });
+    } catch (error) {
+      logModelError('getMatchDetailsForNotification', error);
+      throw new AppError('Failed to fetch match details', 500, 'MATCH_DETAILS_FETCH_FAILED');
+    }
+  }
+
   async completeMatch(
     matchId: string,
     scores: Array<{ playerId: string; scoreTotal: number; isWinner: boolean }>,

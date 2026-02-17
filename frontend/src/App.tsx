@@ -3,6 +3,7 @@ import RegistrationPlayers from "./components/RegistrationPlayers";
 import PlayersView from "./components/PlayersView";
 import LiveTournament from "./components/LiveTournament";
 import TargetsView from "./components/TargetsView";
+import NotificationsView from "./components/NotificationsView";
 import CreateTournamentPage from "./components/tournaments/CreateTournamentPage";
 import AccountView from "./components/AccountView";
 import TournamentPlayersView from "./components/TournamentPlayersView";
@@ -32,6 +33,8 @@ function App() {
     mainContent = <LiveTournament />;
   } else if (view === 'targets') {
     mainContent = <TargetsView />;
+  } else if (view === 'notifications') {
+    mainContent = <NotificationsView />;
   } else if (view === 'create-tournament') {
     mainContent = <CreateTournamentPage />;
   } else if (view === 'account') {
@@ -127,6 +130,9 @@ function App() {
             </nav>
 
             <div className="ml-auto" />
+            <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=notifications">
+              {t('nav.notifications')}
+            </a>
             <button
               onClick={toggleLang}
               className="rounded-md px-2 py-1 hover:bg-slate-800"

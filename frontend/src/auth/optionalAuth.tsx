@@ -3,12 +3,29 @@ import { createContext, useContext, useMemo, useEffect, type ReactNode } from 'r
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react';
 import type { GetTokenSilentlyOptions, LogoutOptions, RedirectLoginOptions } from '@auth0/auth0-react';
 
+const isDebugAuth0 = import.meta.env.VITE_DEBUG_AUTH0 === 'true';
+const debugLog = (...args: unknown[]) => {
+  if (isDebugAuth0) {
+    console.log(...args);
+  }
+};
+const debugWarn = (...args: unknown[]) => {
+  if (isDebugAuth0) {
+    console.warn(...args);
+  }
+};
+const debugError = (...args: unknown[]) => {
+  if (isDebugAuth0) {
+    console.error(...args);
+  }
+};
+
 type OptionalAuthContextValue = {
   enabled: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   error?: Error;
-  user?: { name?: string; picture?: string };
+  user?: { name?: string; picture?: string; email?: string };
   loginWithRedirect: (options?: RedirectLoginOptions) => Promise<void>;
   logout: (options?: LogoutOptions) => void;
   getAccessTokenSilently: (options?: GetTokenSilentlyOptions) => Promise<string>;
@@ -47,7 +64,7 @@ function Auth0Bridge({ children }: Auth0BridgeProps) {
 
   // Log Auth0 state changes for debugging
   useEffect(() => {
-    console.log('[Auth0Bridge] State changed:', {
+    debugLog('[Auth0Bridge] State changed:', {
       isAuthenticated,
       isLoading,
       hasError: !!error,
@@ -58,8 +75,8 @@ function Auth0Bridge({ children }: Auth0BridgeProps) {
     });
 
     if (error) {
-      console.error('[Auth0Bridge] Auth0 error detected:', error);
-      console.error('[Auth0Bridge] Error details:', {
+      debugError('[Auth0Bridge] Auth0 error detected:', error);
+      debugError('[Auth0Bridge] Error details:', {
         name: error.name,
         message: error.message,
         stack: error.stack,
@@ -67,51 +84,51 @@ function Auth0Bridge({ children }: Auth0BridgeProps) {
         error_description: (error as any).error_description,
         state: (error as any).state,
       });
-      console.error('[Auth0Bridge] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      debugError('[Auth0Bridge] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     }
 
     if (isAuthenticated && user) {
-      console.log('[Auth0Bridge] 🔐 User authenticated successfully');
-      console.log('[Auth0Bridge] 👤 Full user object:', JSON.stringify(user, null, 2));
+      debugLog('[Auth0Bridge] 🔐 User authenticated successfully');
+      debugLog('[Auth0Bridge] 👤 Full user object:', JSON.stringify(user, null, 2));
       
       // Try to get and decode tokens
       (async () => {
         try {
-          console.log('[Auth0Bridge] 🎫 Fetching ID token claims...');
+          debugLog('[Auth0Bridge] 🎫 Fetching ID token claims...');
           const idTokenClaims = await getIdTokenClaims();
-          console.log('[Auth0Bridge] 🎫 ID Token Claims:', JSON.stringify(idTokenClaims, null, 2));
+          debugLog('[Auth0Bridge] 🎫 ID Token Claims:', JSON.stringify(idTokenClaims, null, 2));
           
-          console.log('[Auth0Bridge] 🔑 Fetching access token...');
+          debugLog('[Auth0Bridge] 🔑 Fetching access token...');
           const accessToken = await getAccessTokenSilently();
-          console.log('[Auth0Bridge] 🔑 Access token retrieved (length:', accessToken.length, ')');
+          debugLog('[Auth0Bridge] 🔑 Access token retrieved (length:', accessToken.length, ')');
           
           // Decode JWT (base64 decode the payload part)
           const parts = accessToken.split('.');
           if (parts.length === 3) {
             try {
               const payload = JSON.parse(atob(parts[1]));
-              console.log('[Auth0Bridge] 🔓 Decoded Access Token Payload:', JSON.stringify(payload, null, 2));
-              console.log('[Auth0Bridge] 📋 Access Token Claims:', Object.keys(payload));
+              debugLog('[Auth0Bridge] 🔓 Decoded Access Token Payload:', JSON.stringify(payload, null, 2));
+              debugLog('[Auth0Bridge] 📋 Access Token Claims:', Object.keys(payload));
               
               // Specifically check for email
               if (payload.email) {
-                console.log('[Auth0Bridge] ✅ Email found in access token:', payload.email);
+                debugLog('[Auth0Bridge] ✅ Email found in access token:', payload.email);
               } else {
-                console.warn('[Auth0Bridge] ⚠️ Email NOT found in access token');
-                console.warn('[Auth0Bridge] ⚠️ This will cause admin authentication to fail!');
-                console.warn('[Auth0Bridge] ⚠️ Please add email claim via Auth0 Action');
+                debugWarn('[Auth0Bridge] ⚠️ Email NOT found in access token');
+                debugWarn('[Auth0Bridge] ⚠️ This will cause admin authentication to fail!');
+                debugWarn('[Auth0Bridge] ⚠️ Please add email claim via Auth0 Action');
               }
               
               // Check for subject
               if (payload.sub) {
-                console.log('[Auth0Bridge] ✅ Subject ID in access token:', payload.sub);
+                debugLog('[Auth0Bridge] ✅ Subject ID in access token:', payload.sub);
               }
             } catch (decodeError) {
-              console.error('[Auth0Bridge] ❌ Failed to decode access token:', decodeError);
+              debugError('[Auth0Bridge] ❌ Failed to decode access token:', decodeError);
             }
           }
         } catch (tokenError) {
-          console.error('[Auth0Bridge] ❌ Failed to get tokens:', tokenError);
+          debugError('[Auth0Bridge] ❌ Failed to get tokens:', tokenError);
         }
       })();
     }
@@ -180,7 +197,7 @@ export function OptionalAuthProvider({
 
   const redirectUri = globalThis.window?.location.origin ?? '';
 
-  console.log('[OptionalAuthProvider] Initializing Auth0 with:', {
+  debugLog('[OptionalAuthProvider] Initializing Auth0 with:', {
     domain,
     clientId,
     audience: audience || '(not set)',
@@ -192,23 +209,23 @@ export function OptionalAuthProvider({
       domain={domain}
       clientId={clientId}
       onRedirectCallback={(appState) => {
-        console.log('[Auth0] 🔄 onRedirectCallback fired');
-        console.log('[Auth0] 📦 App state:', JSON.stringify(appState, null, 2));
-        console.log('[Auth0] 🌐 Current URL:', globalThis.window?.location.href);
+        debugLog('[Auth0] 🔄 onRedirectCallback fired');
+        debugLog('[Auth0] 📦 App state:', JSON.stringify(appState, null, 2));
+        debugLog('[Auth0] 🌐 Current URL:', globalThis.window?.location.href);
         
         try {
           const timestamp = Date.now();
           globalThis.window?.sessionStorage.setItem('auth0:callback', String(timestamp));
-          console.log('[Auth0] ✅ Set callback timestamp:', timestamp);
+          debugLog('[Auth0] ✅ Set callback timestamp:', timestamp);
         } catch (err) {
-          console.error('[Auth0] ❌ Failed to set sessionStorage:', err);
+          debugError('[Auth0] ❌ Failed to set sessionStorage:', err);
         }
         
         const url = new URL(globalThis.window?.location.href ?? '', globalThis.window?.location.origin);
         const hadCode = url.searchParams.has('code');
         const hadState = url.searchParams.has('state');
         
-        console.log('[Auth0] 🔍 URL parameters:', {
+        debugLog('[Auth0] 🔍 URL parameters:', {
           hadCode,
           hadState,
           allParams: Array.from(url.searchParams.entries()),
@@ -217,7 +234,7 @@ export function OptionalAuthProvider({
         url.searchParams.delete('code');
         url.searchParams.delete('state');
         globalThis.window?.history.replaceState({}, globalThis.document.title, url.toString());
-        console.log('[Auth0] 🧹 Cleaned URL:', url.toString());
+        debugLog('[Auth0] 🧹 Cleaned URL:', url.toString());
       }}
       authorizationParams={{
         redirect_uri: redirectUri,

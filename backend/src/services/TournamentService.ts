@@ -20,6 +20,7 @@ import { PrismaClient } from '@prisma/client';
 import TournamentLogger from '../utils/tournamentLogger';
 import { Request } from 'express';
 import { config } from '../config/environment';
+import { getWebSocketService } from '../websocket/server';
 
 export interface CreateTournamentData {
   name: string;
@@ -2032,6 +2033,7 @@ export class TournamentService {
       }
 
       await this.tournamentModel.startMatchWithTarget(matchId, targetToUse, timestamps.startedAt ?? now);
+      await this.emitMatchStartedNotification(tournament, matchId);
       return;
     }
 
@@ -2122,6 +2124,58 @@ export class TournamentService {
     }
 
     await this.tournamentModel.setTargetAvailable(target.id, null);
+  }
+
+  private async emitMatchStartedNotification(tournament: Tournament, matchId: string): Promise<void> {
+    const webSocketService = getWebSocketService();
+    if (!webSocketService) {
+      return;
+    }
+
+    const matchDetails = await this.tournamentModel.getMatchDetailsForNotification(matchId);
+    if (!matchDetails) {
+      return;
+    }
+
+    const players = (matchDetails.playerMatches ?? []).map((pm) => ({
+      id: pm.player?.id ?? pm.playerId,
+      firstName: pm.player?.firstName,
+      lastName: pm.player?.lastName,
+      surname: pm.player?.surname ?? undefined,
+      teamName: pm.player?.teamName ?? undefined,
+    }));
+
+    const matchPayload = matchDetails.pool
+      ? {
+          source: 'pool' as const,
+          matchNumber: matchDetails.matchNumber,
+          roundNumber: matchDetails.roundNumber,
+          stageNumber: matchDetails.pool.poolStage?.stageNumber,
+          poolNumber: matchDetails.pool.poolNumber,
+        }
+      : {
+          source: 'bracket' as const,
+          matchNumber: matchDetails.matchNumber,
+          roundNumber: matchDetails.roundNumber,
+          bracketName: matchDetails.bracket?.name ?? null,
+        };
+
+    await webSocketService.emitMatchStarted({
+      matchId,
+      tournamentId: tournament.id,
+      tournamentName: tournament.name,
+      startedAt: matchDetails.startedAt?.toISOString(),
+      target: matchDetails.target
+        ? {
+            id: matchDetails.target.id,
+            targetNumber: matchDetails.target.targetNumber,
+            targetCode: matchDetails.target.targetCode ?? undefined,
+            name: matchDetails.target.name ?? null,
+          }
+        : undefined,
+      match: matchPayload,
+      players,
+    });
   }
 
   private async ensurePoolStageInProgress(matchId: string): Promise<void> {

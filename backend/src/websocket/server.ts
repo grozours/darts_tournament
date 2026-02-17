@@ -6,7 +6,31 @@ type PlayerSummary = {
   id?: string;
   firstName?: string;
   lastName?: string;
+  surname?: string;
+  teamName?: string;
   [key: string]: unknown;
+};
+
+type MatchStartedPayload = {
+  matchId: string;
+  tournamentId: string;
+  tournamentName: string;
+  startedAt?: string;
+  target?: {
+    id: string;
+    targetNumber: number;
+    targetCode?: string;
+    name?: string | null;
+  };
+  match: {
+    source: 'pool' | 'bracket';
+    matchNumber: number;
+    roundNumber?: number | null;
+    stageNumber?: number;
+    poolNumber?: number;
+    bracketName?: string | null;
+  };
+  players: PlayerSummary[];
 };
 
 type ScorePayload = Record<string, unknown>;
@@ -20,7 +44,7 @@ export interface WebSocketEvents {
   'tournament:player-registered': (data: { tournamentId: string; player: PlayerSummary }) => void;
   
   // Match events
-  'match:started': (data: { matchId: string; tournamentId: string }) => void;
+  'match:started': (data: MatchStartedPayload) => void;
   'match:score-updated': (data: { matchId: string; tournamentId: string; score: ScorePayload }) => void;
   'match:completed': (data: { matchId: string; tournamentId: string; winner: PlayerSummary }) => void;
   
@@ -45,6 +69,7 @@ export interface WebSocketEvents {
 
 // WebSocket server setup per constitution real-time requirements
 export const setupWebSocketServer = (io: SocketServer): void => {
+  webSocketService = new WebSocketService(io);
   // Connection handling
   io.on('connection', (socket: Socket) => {
     console.log(`🔗 WebSocket client connected: ${socket.id}`);
@@ -136,6 +161,10 @@ export const setupWebSocketServer = (io: SocketServer): void => {
   console.log('🚀 WebSocket server initialized with real-time tournament support');
 };
 
+let webSocketService: WebSocketService | null = null;
+
+export const getWebSocketService = () => webSocketService;
+
 // WebSocket event emitters for use in services
 export class WebSocketService {
   private readonly io: SocketServer;
@@ -208,6 +237,16 @@ export class WebSocketService {
       console.log(`📡 Match completed event sent: ${matchId} -> winner: ${winner?.firstName}`);
     } catch (error) {
       console.error('Error emitting match completed event:', error);
+    }
+  }
+
+  async emitMatchStarted(payload: MatchStartedPayload): Promise<void> {
+    try {
+      this.io.to(`tournament-${payload.tournamentId}`).emit('match:started', payload);
+
+      console.log(`📡 Match started event sent: ${payload.matchId} -> target ${payload.target?.targetNumber ?? 'n/a'}`);
+    } catch (error) {
+      console.error('Error emitting match started event:', error);
     }
   }
 
