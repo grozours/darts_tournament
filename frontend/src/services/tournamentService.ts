@@ -590,3 +590,19 @@ export async function removeTournamentPlayer(
     throw new Error(message || 'Failed to remove player');
   }
 }
+
+export async function unregisterTournamentPlayer(
+  tournamentId: string,
+  playerId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/register/${playerId}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to unregister player');
+  }
+}

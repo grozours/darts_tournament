@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { config } from '../config/environment';
+import logger from '../utils/logger';
 
 // Custom error class per constitution error handling requirements
 export class AppError extends Error {
@@ -179,6 +180,18 @@ export const errorHandler = (
   };
 
   if (statusCode >= 500) {
+    logger.error('Server error', {
+      correlationId: (req as { correlationId?: string }).correlationId,
+      metadata: {
+        method: req.method,
+        url: req.originalUrl,
+        statusCode,
+        message,
+        code,
+        stack: error.stack,
+        name: error.name,
+      },
+    });
     console.error('❌ Server Error:', errorLog);
   } else {
     console.warn('⚠️  Client Error:', errorLog);

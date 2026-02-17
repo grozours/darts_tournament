@@ -3,6 +3,8 @@ import { TournamentService, TournamentFilters } from '../services/TournamentServ
 import { TournamentFormat, MatchStatus, TournamentStatus } from '../../../shared/src/types';
 import { AppError } from '../middleware/errorHandler';
 import { PrismaClient } from '@prisma/client';
+import logger from '../utils/logger';
+import { isAdmin } from '../middleware/auth';
 
 export class TournamentController {
   private readonly prisma: PrismaClient;
@@ -467,6 +469,54 @@ export class TournamentController {
     try {
       const { id, playerId } = req.params as { id: string; playerId: string };
 
+      // Check if user is admin or is removing their own registration
+      const userIsAdmin = isAdmin(req);
+      
+      if (!userIsAdmin) {
+        // Non-admin users can only remove their own registration
+        // Get the player's email and compare with authenticated user's email
+        const player = await this.getTournamentService(req).getPlayerById(playerId);
+        if (!player || player.tournamentId !== id) {
+          res.status(404).json({
+            error: {
+              message: 'Player not found for this tournament',
+              code: 'PLAYER_NOT_FOUND',
+            },
+          });
+          return;
+        }
+        
+        const payload = req.auth?.payload;
+        const userEmail = 
+          payload?.email || 
+          payload?.['https://darts-tournament.app/email'] ||
+          payload?.['https://your-domain.com/email'] ||
+          payload?.['http://your-domain.com/email'];
+        
+        if (!userEmail || typeof userEmail !== 'string') {
+          res.status(403).json({
+            error: {
+              message: 'Cannot verify user identity',
+              code: 'FORBIDDEN',
+            },
+          });
+          return;
+        }
+
+        const playerEmail = player?.email?.toLowerCase();
+        const authenticatedUserEmail = userEmail.toLowerCase();
+
+        if (playerEmail !== authenticatedUserEmail) {
+          res.status(403).json({
+            error: {
+              message: 'You can only unregister yourself from tournaments',
+              code: 'FORBIDDEN',
+            },
+          });
+          return;
+        }
+      }
+
       await this.getTournamentService(req).unregisterPlayer(id, playerId);
 
       res.json({
@@ -475,6 +525,21 @@ export class TournamentController {
         playerId,
       });
     } catch (error) {
+      logger.error('Unregister player failed', {
+        correlationId: (req as { correlationId?: string }).correlationId,
+        tournamentId: req.params?.id,
+        playerId: req.params?.playerId,
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          errorStack: error instanceof Error ? error.stack : undefined,
+        },
+      });
+      console.error('[unregisterPlayer] Failed to unregister player', {
+        tournamentId: req.params?.id,
+        playerId: req.params?.playerId,
+        error,
+      });
       if (error instanceof AppError) {
         res.status(error.statusCode).json({
           error: {

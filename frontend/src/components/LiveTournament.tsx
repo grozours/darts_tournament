@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
+import { useAdminStatus } from '../auth/useAdminStatus';
 import SignInPanel from '../auth/SignInPanel';
 import { fetchTournamentLiveView, updateMatchStatus, completeMatch, updateCompletedMatchScores, updatePoolStage, completePoolStageWithScores, deletePoolStage, completeBracketRoundWithScores } from '../services/tournamentService';
 import { useI18n } from '../i18n';
@@ -139,8 +140,10 @@ const filterPoolStagesForView = (viewMode: LiveViewMode, viewStatus: LiveViewSta
   if (!isPoolStagesView(viewMode)) {
     return stages;
   }
-  const targetStatus = viewStatus === 'FINISHED' ? 'COMPLETED' : 'IN_PROGRESS';
-  return stages.filter((stage) => stage.status === targetStatus && (stage.pools?.length || 0) > 0);
+  const allowedStatuses = viewStatus === 'FINISHED'
+    ? new Set(['COMPLETED'])
+    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
+  return stages.filter((stage) => allowedStatuses.has(stage.status) && (stage.pools?.length || 0) > 0);
 };
 
 const filterBracketsForView = (viewMode: LiveViewMode, viewStatus: LiveViewStatus, brackets?: LiveViewBracket[]) => {
@@ -487,23 +490,42 @@ const buildMatchStatusMap = (view: LiveViewData) => {
   return matchStatusById;
 };
 
-const getAvailableTargets = (view: LiveViewData) => {
-  const matchStatusById = buildMatchStatusMap(view);
-  return (view.targets || []).filter((target) => {
+const isTargetInUse = (target: LiveViewTarget, matchStatusById: Map<string, string>) => {
+  const normalizedStatus = (target.status ?? '').toUpperCase();
+  if (normalizedStatus !== 'IN_USE') {
+    return false;
+  }
+  if (!target.currentMatchId) {
+    return true;
+  }
+  const matchStatus = matchStatusById.get(target.currentMatchId);
+  return matchStatus !== 'COMPLETED' && matchStatus !== 'CANCELLED';
+};
+
+const buildInUseTargetNumbers = (views: LiveViewData[]) => {
+  const inUse = new Set<number>();
+  for (const view of views) {
+    const matchStatusById = buildMatchStatusMap(view);
+    for (const target of view.targets ?? []) {
+      if (isTargetInUse(target, matchStatusById)) {
+        inUse.add(target.targetNumber);
+      }
+    }
+  }
+  return inUse;
+};
+
+const getSharedAvailableTargets = (view: LiveViewData, inUseTargetNumbers: Set<number>) =>
+  (view.targets || []).filter((target) => {
     const normalizedStatus = (target.status ?? '').toUpperCase();
     if (normalizedStatus === 'MAINTENANCE') {
       return false;
     }
-    if (normalizedStatus !== 'IN_USE') {
-      return true;
+    if (inUseTargetNumbers.has(target.targetNumber)) {
+      return false;
     }
-    if (!target.currentMatchId) {
-      return true;
-    }
-    const matchStatus = matchStatusById.get(target.currentMatchId);
-    return matchStatus === 'COMPLETED' || matchStatus === 'CANCELLED';
+    return true;
   });
-};
 
 const renderLiveTournamentGate = (params: {
   authLoading: boolean;
@@ -656,6 +678,7 @@ function LiveTournament() {
     getAccessTokenSilently,
     error: authError,
   } = useOptionalAuth();
+  const { isAdmin } = useAdminStatus();
 
   const viewMode = useMemo(() => {
     if (globalThis.window === undefined) return null;
@@ -673,12 +696,16 @@ function LiveTournament() {
   }, []);
 
   const isAggregateView =
-    viewMode === 'live'
-    || viewMode === 'pool-stages'
-    || viewMode === 'brackets';
+    !tournamentId
+    && (
+      viewMode === 'live'
+      || viewMode === 'pool-stages'
+      || viewMode === 'brackets'
+    );
 
   const [liveViews, setLiveViews] = useState<LiveViewData[]>([]);
   const [selectedLiveTournamentId, setSelectedLiveTournamentId] = useState('ALL');
+  const [selectedPoolStagesTournamentId, setSelectedPoolStagesTournamentId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingMatchId, setUpdatingMatchId] = useState<string | null>(null);
@@ -693,15 +720,31 @@ function LiveTournament() {
   const [matchTargetSelections, setMatchTargetSelections] = useState<Record<string, string>>({});
   const [activeBracketByTournament, setActiveBracketByTournament] = useState<Record<string, string>>({});
 
+  const inUseTargetNumbers = useMemo(() => buildInUseTargetNumbers(liveViews), [liveViews]);
+
   const availableTargetsByTournament = useMemo(() => {
     const map = new Map<string, LiveViewTarget[]>();
     liveViews.forEach((view) => {
-      map.set(view.id, getAvailableTargets(view));
+      map.set(view.id, getSharedAvailableTargets(view, inUseTargetNumbers));
+    });
+    return map;
+  }, [liveViews, inUseTargetNumbers]);
+
+  const targetIdByTournamentAndNumber = useMemo(() => {
+    const map = new Map<string, Map<number, string>>();
+    liveViews.forEach((view) => {
+      const targetMap = new Map<number, string>();
+      (view.targets ?? []).forEach((target) => {
+        targetMap.set(target.targetNumber, target.id);
+      });
+      map.set(view.id, targetMap);
     });
     return map;
   }, [liveViews]);
 
   const visibleLiveViews = getVisibleLiveViews(viewMode, liveViews, viewStatus);
+  const isPoolStagesReadonly = !isAdmin && isPoolStagesView(viewMode);
+  const isBracketsReadonly = !isAdmin && isBracketsView(viewMode);
 
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
@@ -720,15 +763,27 @@ function LiveTournament() {
     }
   }, [viewMode, liveViews.length]);
 
+  useEffect(() => {
+    if (viewMode !== 'pool-stages' || tournamentId) {
+      return;
+    }
+    if (!selectedPoolStagesTournamentId && visibleLiveViews.length > 0) {
+      setSelectedPoolStagesTournamentId(visibleLiveViews[0].id);
+    }
+  }, [viewMode, tournamentId, visibleLiveViews, selectedPoolStagesTournamentId]);
+
   const displayedLiveViews = useMemo(() => {
     if (viewMode !== 'live') {
+      if (viewMode === 'pool-stages' && !tournamentId && selectedPoolStagesTournamentId) {
+        return visibleLiveViews.filter((view) => view.id === selectedPoolStagesTournamentId);
+      }
       return visibleLiveViews;
     }
     if (selectedLiveTournamentId === 'ALL') {
       return visibleLiveViews;
     }
     return visibleLiveViews.filter((view) => view.id === selectedLiveTournamentId);
-  }, [selectedLiveTournamentId, viewMode, visibleLiveViews]);
+  }, [selectedLiveTournamentId, selectedPoolStagesTournamentId, viewMode, visibleLiveViews, tournamentId]);
 
   const handleTargetSelectionChange = (matchKey: string, targetId: string) => {
     setMatchTargetSelections((current) => ({
@@ -802,6 +857,14 @@ function LiveTournament() {
   }, [isAggregateView, loadAggregateLiveViews, loadSingleLiveView]);
 
   const getMatchKey = (matchTournamentId: string, matchId: string) => `${matchTournamentId}:${matchId}`;
+
+  const getTargetIdForSelection = (matchTournamentId: string, targetNumberValue: string) => {
+    const parsedNumber = Number(targetNumberValue);
+    if (!Number.isFinite(parsedNumber)) {
+      return undefined;
+    }
+    return targetIdByTournamentAndNumber.get(matchTournamentId)?.get(parsedNumber);
+  };
 
   const handleMatchStatusUpdate = async (
     matchTournamentId: string,
@@ -1123,6 +1186,9 @@ function LiveTournament() {
   }
 
   const renderStageControls = (stageTournamentId: string, stage: LiveViewPoolStage) => {
+    if (isPoolStagesReadonly) {
+      return null;
+    }
     const isEditing = editingStageId === stage.id;
     if (!isEditing) {
       return (
@@ -1274,29 +1340,33 @@ function LiveTournament() {
   );
 
   const renderMatchStatusSection = (matchTournamentId: string, match: LiveViewMatch) => {
+    if (isPoolStagesReadonly) {
+      return null;
+    }
     switch (match.status) {
       case 'SCHEDULED':
         return (() => {
           const matchKey = getMatchKey(matchTournamentId, match.id);
           const availableTargets = availableTargetsByTournament.get(matchTournamentId) || [];
-          const selectedTargetId = matchTargetSelections[matchKey] || '';
-          const canStart = selectedTargetId.length > 0 && updatingMatchId !== matchKey;
+          const selectedTargetNumber = matchTargetSelections[matchKey] || '';
+          const selectedTargetId = getTargetIdForSelection(matchTournamentId, selectedTargetNumber);
+          const canStart = Boolean(selectedTargetId) && updatingMatchId !== matchKey;
           return (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <select
-                value={selectedTargetId}
+                value={selectedTargetNumber}
                 onChange={(e) => handleTargetSelectionChange(matchKey, e.target.value)}
                 className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
               >
                 <option value="">{t('live.queue.targetLabel')}</option>
                 {availableTargets.map((target) => (
-                  <option key={target.id} value={target.id}>
+                  <option key={target.id} value={String(target.targetNumber)}>
                     {getTargetLabel(target, t)}
                   </option>
                 ))}
               </select>
               <button
-                onClick={() => handleMatchStatusUpdate(matchTournamentId, match.id, 'IN_PROGRESS', selectedTargetId)}
+                onClick={() => selectedTargetId && handleMatchStatusUpdate(matchTournamentId, match.id, 'IN_PROGRESS', selectedTargetId)}
                 disabled={!canStart}
                 className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
               >
@@ -1502,7 +1572,7 @@ function LiveTournament() {
 
   const renderMatchQueueSection = (view: LiveViewData, stages: LiveViewPoolStage[]) => {
     const queue = buildMatchQueue(view, stages);
-    const availableTargets = availableTargetsByTournament.get(view.id) || [];
+    const showTournamentName = isAggregateView && visibleLiveViews.length > 1;
 
     return (
       <div className="space-y-4">
@@ -1518,8 +1588,10 @@ function LiveTournament() {
           <div className="space-y-3">
             {queue.map((item) => {
               const matchKey = getMatchKey(item.tournamentId, item.matchId);
-              const selectedTargetId = matchTargetSelections[matchKey] || '';
-              const canStart = item.status === 'SCHEDULED' && selectedTargetId.length > 0 && updatingMatchId !== matchKey;
+              const availableTargets = availableTargetsByTournament.get(item.tournamentId) || [];
+              const selectedTargetNumber = matchTargetSelections[matchKey] || '';
+              const selectedTargetId = getTargetIdForSelection(item.tournamentId, selectedTargetNumber);
+              const canStart = item.status === 'SCHEDULED' && Boolean(selectedTargetId) && updatingMatchId !== matchKey;
               return (
               <div key={item.matchId} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1528,6 +1600,9 @@ function LiveTournament() {
                   </div>
                   <span className="text-xs text-slate-400">{getStatusLabel('match', item.status)}</span>
                 </div>
+                {showTournamentName && (
+                  <div className="mt-1 text-xs text-slate-500">{item.tournamentName}</div>
+                )}
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                   <span>
                     {t('live.queue.matchLabel')} {item.matchNumber}
@@ -1548,22 +1623,22 @@ function LiveTournament() {
                 {item.players.length > 0 && (
                   <div className="mt-2 text-xs text-slate-300">{item.players.join(' · ')}</div>
                 )}
-                {item.status === 'SCHEDULED' && (
+                {item.status === 'SCHEDULED' && !isPoolStagesReadonly && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <select
-                      value={selectedTargetId}
+                      value={selectedTargetNumber}
                       onChange={(e) => handleTargetSelectionChange(matchKey, e.target.value)}
                       className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
                     >
                       <option value="">{t('live.queue.targetLabel')}</option>
                       {availableTargets.map((target) => (
-                        <option key={target.id} value={target.id}>
+                        <option key={target.id} value={String(target.targetNumber)}>
                           {getTargetLabel(target, t)}
                         </option>
                       ))}
                     </select>
                     <button
-                      onClick={() => handleMatchStatusUpdate(item.tournamentId, item.matchId, 'IN_PROGRESS', selectedTargetId)}
+                      onClick={() => selectedTargetId && handleMatchStatusUpdate(item.tournamentId, item.matchId, 'IN_PROGRESS', selectedTargetId)}
                       disabled={!canStart}
                       className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
                     >
@@ -1573,6 +1648,91 @@ function LiveTournament() {
                 )}
               </div>
             );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderGlobalMatchQueueSection = (views: LiveViewData[]) => {
+    const sortedViews = [...views].sort((a, b) => a.name.localeCompare(b.name));
+    const queue = sortedViews.flatMap((view) =>
+      buildMatchQueue(view, filterPoolStagesForView(viewMode, viewStatus, view.poolStages))
+    );
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-white">{t('live.queue.title')}</h3>
+          <span className="text-xs text-slate-400">{queue.length}</span>
+        </div>
+        {queue.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
+            {t('live.queue.empty')}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {queue.map((item) => {
+              const matchKey = getMatchKey(item.tournamentId, item.matchId);
+              const availableTargets = availableTargetsByTournament.get(item.tournamentId) || [];
+              const selectedTargetNumber = matchTargetSelections[matchKey] || '';
+              const selectedTargetId = getTargetIdForSelection(item.tournamentId, selectedTargetNumber);
+              const canStart = item.status === 'SCHEDULED' && Boolean(selectedTargetId) && updatingMatchId !== matchKey;
+              return (
+                <div key={`${item.tournamentId}-${item.matchId}`} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm text-slate-200">
+                      {t('live.queue.stageLabel')} {item.stageNumber}: {item.stageName} · {t('live.queue.poolLabel')} {item.poolNumber}
+                    </div>
+                    <span className="text-xs text-slate-400">{getStatusLabel('match', item.status)}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">{item.tournamentName}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                    <span>
+                      {t('live.queue.matchLabel')} {item.matchNumber}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      {t('live.queue.roundLabel')} {item.roundNumber}
+                    </span>
+                    {(item.targetCode || item.targetNumber) && (
+                      <>
+                        <span>·</span>
+                        <span>
+                          {t('live.queue.targetLabel')} {formatTargetLabel(item.targetCode ?? `#${item.targetNumber}`, t)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {item.players.length > 0 && (
+                    <div className="mt-2 text-xs text-slate-300">{item.players.join(' · ')}</div>
+                  )}
+                  {item.status === 'SCHEDULED' && !isPoolStagesReadonly && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <select
+                        value={selectedTargetNumber}
+                        onChange={(e) => handleTargetSelectionChange(matchKey, e.target.value)}
+                        className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
+                      >
+                        <option value="">{t('live.queue.targetLabel')}</option>
+                        {availableTargets.map((target) => (
+                          <option key={target.id} value={String(target.targetNumber)}>
+                            {getTargetLabel(target, t)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => selectedTargetId && handleMatchStatusUpdate(item.tournamentId, item.matchId, 'IN_PROGRESS', selectedTargetId)}
+                        disabled={!canStart}
+                        className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+                      >
+                        {updatingMatchId === matchKey ? t('live.startingMatch') : t('live.startMatch')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
             })}
           </div>
         )}
@@ -1646,6 +1806,9 @@ function LiveTournament() {
   };
 
   const renderBracketMatchActions = (matchTournamentId: string, match: BracketMatchSlot) => {
+    if (isBracketsReadonly) {
+      return null;
+    }
     if (match.isPlaceholder) {
       return null;
     }
@@ -1656,24 +1819,25 @@ function LiveTournament() {
           return null;
         }
         const availableTargets = availableTargetsByTournament.get(matchTournamentId) || [];
-        const selectedTargetId = matchTargetSelections[matchKey] || '';
-        const canStart = selectedTargetId.length > 0 && updatingMatchId !== matchKey;
+        const selectedTargetNumber = matchTargetSelections[matchKey] || '';
+        const selectedTargetId = getTargetIdForSelection(matchTournamentId, selectedTargetNumber);
+        const canStart = Boolean(selectedTargetId) && updatingMatchId !== matchKey;
         return (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select
-              value={selectedTargetId}
+              value={selectedTargetNumber}
               onChange={(e) => handleTargetSelectionChange(matchKey, e.target.value)}
               className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
             >
               <option value="">{t('live.queue.targetLabel')}</option>
               {availableTargets.map((target) => (
-                <option key={target.id} value={target.id}>
+                <option key={target.id} value={String(target.targetNumber)}>
                   {getTargetLabel(target, t)}
                 </option>
               ))}
             </select>
             <button
-              onClick={() => handleMatchStatusUpdate(matchTournamentId, match.id, 'IN_PROGRESS', selectedTargetId)}
+              onClick={() => selectedTargetId && handleMatchStatusUpdate(matchTournamentId, match.id, 'IN_PROGRESS', selectedTargetId)}
               disabled={!canStart}
               className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
             >
@@ -1971,25 +2135,27 @@ function LiveTournament() {
               {t('live.loserBracket')}: {hasLoserBracket ? t('common.yes') : t('common.no')}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {brackets.map((bracket) => (
-              <button
-                key={bracket.id}
-                type="button"
-                onClick={() => setActiveBracketByTournament((current) => ({
-                  ...current,
-                  [tournamentId]: bracket.id,
-                }))}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                  bracket.id === activeBracket.id
-                    ? 'border-amber-400/80 text-amber-200'
-                    : 'border-slate-700 text-slate-200 hover:border-slate-500'
-                }`}
-              >
-                {bracket.name}
-              </button>
-            ))}
-          </div>
+          {!isBracketsReadonly && (
+            <div className="flex flex-wrap gap-2">
+              {brackets.map((bracket) => (
+                <button
+                  key={bracket.id}
+                  type="button"
+                  onClick={() => setActiveBracketByTournament((current) => ({
+                    ...current,
+                    [tournamentId]: bracket.id,
+                  }))}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    bracket.id === activeBracket.id
+                      ? 'border-amber-400/80 text-amber-200'
+                      : 'border-slate-700 text-slate-200 hover:border-slate-500'
+                  }`}
+                >
+                  {bracket.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6">
@@ -1999,16 +2165,18 @@ function LiveTournament() {
               <p className="text-sm text-slate-400">{activeBracket.bracketType} · {getStatusLabel('bracket', activeBracket.status)}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleCompleteBracketRound(tournamentId, activeBracket)}
-                disabled={updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false}
-                className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
-              >
-                {updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`)
-                  ? t('live.completingRound')
-                  : t('live.completeRound')}
-              </button>
+              {!isBracketsReadonly && (
+                <button
+                  type="button"
+                  onClick={() => handleCompleteBracketRound(tournamentId, activeBracket)}
+                  disabled={updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false}
+                  className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
+                >
+                  {updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`)
+                    ? t('live.completingRound')
+                    : t('live.completeRound')}
+                </button>
+              )}
               <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
                 {activeBracket.entries?.length || 0} entries
               </span>
@@ -2024,6 +2192,8 @@ function LiveTournament() {
     );
   };
 
+  const showGlobalQueue = viewMode === 'live' && selectedLiveTournamentId === 'ALL' && visibleLiveViews.length > 1;
+
   const renderLiveView = (view: LiveViewData) => {
     const filteredPoolStages = filterPoolStagesForView(viewMode, viewStatus, view.poolStages);
     const filteredBrackets = filterBracketsForView(viewMode, viewStatus, view.brackets);
@@ -2036,7 +2206,7 @@ function LiveTournament() {
       <div key={view.id} className="space-y-10">
         {renderLiveViewHeader(view)}
         {showPools && renderPoolSummaryCards(poolStats, hasLoserBracket)}
-        {showPools && !isPoolStagesView(viewMode) && renderMatchQueueSection(view, filteredPoolStages)}
+        {showPools && !isPoolStagesView(viewMode) && !showGlobalQueue && renderMatchQueueSection(view, filteredPoolStages)}
         {showPools && renderPoolStagesSection(view.id, filteredPoolStages)}
         {showBrackets && renderBracketsSection(view.id, filteredBrackets, hasLoserBracket)}
       </div>
@@ -2065,6 +2235,26 @@ function LiveTournament() {
           </select>
         </div>
       )}
+      {viewMode === 'pool-stages' && !tournamentId && visibleLiveViews.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-xs uppercase tracking-widest text-slate-500" htmlFor="pool-stages-tournament-filter">
+            {t('live.selectTournament')}
+          </label>
+          <select
+            id="pool-stages-tournament-filter"
+            value={selectedPoolStagesTournamentId}
+            onChange={(event) => setSelectedPoolStagesTournamentId(event.target.value)}
+            className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
+          >
+            {visibleLiveViews.map((view) => (
+              <option key={view.id} value={view.id}>
+                {view.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {showGlobalQueue && renderGlobalMatchQueueSection(displayedLiveViews)}
       {displayedLiveViews.map(renderLiveView)}
     </div>
   );

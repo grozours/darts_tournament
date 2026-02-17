@@ -366,12 +366,11 @@ router.post(
 /**
  * @route   DELETE /api/tournaments/:id/register/:playerId
  * @desc    Unregister player from tournament
- * @access  Admin only
+ * @access  Authenticated users (can remove own registration) or Admin
  */
 router.delete(
   '/:id/register/:playerId',
   requireAuth,
-  requireAdmin,
   validate({
     params: z.object({
       id: z.string().uuid('Invalid tournament ID'),

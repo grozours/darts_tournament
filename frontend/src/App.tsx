@@ -5,12 +5,15 @@ import LiveTournament from "./components/LiveTournament";
 import TargetsView from "./components/TargetsView";
 import CreateTournamentPage from "./components/tournaments/CreateTournamentPage";
 import AccountView from "./components/AccountView";
+import TournamentPlayersView from "./components/TournamentPlayersView";
 import { useI18n } from './i18n';
 import { useOptionalAuth } from './auth/optionalAuth';
+import { useAdminStatus } from './auth/useAdminStatus';
 
 function App() {
   const { lang, toggleLang, t } = useI18n();
   const { isAuthenticated } = useOptionalAuth();
+  const { isAdmin } = useAdminStatus();
 
   const params = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
@@ -23,6 +26,8 @@ function App() {
     mainContent = <PlayersView />;
   } else if (view === 'registration-players') {
     mainContent = <RegistrationPlayers />;
+  } else if (view === 'tournament-players') {
+    mainContent = <TournamentPlayersView />;
   } else if (view === 'live' || view === 'pool-stages' || view === 'brackets' || status === 'LIVE') {
     mainContent = <LiveTournament />;
   } else if (view === 'targets') {
@@ -57,36 +62,42 @@ function App() {
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
                 {t('nav.players')}
               </a>
-              <div className="relative group">
-                <button
-                  type="button"
-                  className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center gap-2"
-                  aria-haspopup="true"
-                  aria-expanded="false"
-                >
-                  Manage{' '}
-                  <span aria-hidden="true">▾</span>
-                </button>
-                <div className="absolute left-0 top-full z-10 pt-2 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
-                  <div className="min-w-[10rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
-                    <a
-                      className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
-                      href="/?view=create-tournament"
-                    >
-                      {t('tournaments.create')}
-                    </a>
-                    <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
-                      {t('nav.drafts')}
-                    </a>
-                    <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=OPEN">
-                      {t('nav.open')}
-                    </a>
-                    <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=SIGNATURE">
-                      {t('nav.signature')}
-                    </a>
+              {isAdmin ? (
+                <div className="relative group">
+                  <button
+                    type="button"
+                    className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center gap-2"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                  >
+                    {t('nav.manage')}{' '}
+                    <span aria-hidden="true">▾</span>
+                  </button>
+                  <div className="absolute left-0 top-full z-10 pt-2 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+                    <div className="min-w-[10rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
+                      <a
+                        className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
+                        href="/?view=create-tournament"
+                      >
+                        {t('tournaments.create')}
+                      </a>
+                      <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
+                        {t('nav.drafts')}
+                      </a>
+                      <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=OPEN">
+                        {t('nav.open')}
+                      </a>
+                      <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=SIGNATURE">
+                        {t('nav.signature')}
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="https://darts.bzhtech.eu/?status=OPEN">
+                  {t('nav.inscription')}
+                </a>
+              )}
               <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?status=live">
                 {t('nav.live')}
               </a>

@@ -1453,6 +1453,11 @@ export class TournamentService {
     await this.tournamentModel.unregisterPlayer(tournamentId, playerId);
   }
 
+  async getPlayerById(playerId: string): Promise<Player | null> {
+    this.validateUUID(playerId);
+    return await this.tournamentModel.getPlayerById(playerId);
+  }
+
   /**
    * Update player details for tournament
    */

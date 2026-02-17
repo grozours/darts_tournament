@@ -21,9 +21,11 @@ export const isPoolStagesView = (viewMode: LiveViewMode) => viewMode === 'pool-s
 export const isBracketsView = (viewMode: LiveViewMode) => viewMode === 'brackets';
 
 export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewStatus) => {
-  const targetStatus = viewStatus === 'FINISHED' ? 'COMPLETED' : 'IN_PROGRESS';
+  const allowedStatuses = viewStatus === 'FINISHED'
+    ? new Set(['COMPLETED'])
+    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
   return (view.poolStages || []).some(
-    (stage) => stage.status === targetStatus && (stage.pools?.length || 0) > 0
+    (stage) => allowedStatuses.has(stage.status ?? '') && (stage.pools?.length || 0) > 0
   );
 };
 

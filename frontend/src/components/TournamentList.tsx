@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useOptionalAuth } from '../auth/optionalAuth';
+import { useAdminStatus } from '../auth/useAdminStatus';
 import SignInPanel from '../auth/SignInPanel';
 import { useI18n } from '../i18n';
 import { TournamentFormat, DurationType, SkillLevel, BracketType, BracketStatus, StageStatus, AssignmentType } from '@shared/types';
@@ -12,6 +13,7 @@ import {
   updateTournamentPlayer,
   updateTournamentPlayerCheckIn,
   removeTournamentPlayer,
+  unregisterTournamentPlayer,
   fetchPoolStages,
   createPoolStage,
   updatePoolStage,
@@ -101,6 +103,36 @@ const getCheckInLabel = (
     return t('edit.undo');
   }
   return t('edit.confirmCheckIn');
+};
+
+const getErrorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error) {
+    return getErrorMessage(err.message, fallback);
+  }
+
+  if (typeof err === 'string') {
+    try {
+      const parsedErr = JSON.parse(err) as {
+        error?: { message?: unknown };
+      };
+      if (parsedErr?.error?.message && typeof parsedErr.error.message === 'string') {
+        return parsedErr.error.message;
+      }
+    } catch {
+      // Ignore JSON parse errors and fall back to raw string.
+    }
+
+    return err;
+  }
+
+  if (err && typeof err === 'object' && 'error' in err) {
+    const errorObj = (err as { error?: { message?: unknown } }).error;
+    if (errorObj && typeof errorObj.message === 'string') {
+      return errorObj.message;
+    }
+  }
+
+  return fallback;
 };
 
 const RegistrationPlayersList = ({ players, playersLoading, t, onEdit, onRemove }: PlayerListProps) => {
@@ -204,7 +236,9 @@ function TournamentList() { // NOSONAR
     isAuthenticated,
     isLoading: authLoading,
     getAccessTokenSilently,
+    user,
   } = useOptionalAuth();
+  const { isAdmin } = useAdminStatus();
   const { t } = useI18n();
   const params = globalThis.window ? new URLSearchParams(globalThis.window.location.search) : null;
   const view = params?.get('view') ?? null;
@@ -412,6 +446,8 @@ function TournamentList() { // NOSONAR
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [userRegistrations, setUserRegistrations] = useState<Set<string>>(new Set());
+  const [registeringTournamentId, setRegisteringTournamentId] = useState<string | null>(null);
   const [playerForm, setPlayerForm] = useState<CreatePlayerPayload>({
     firstName: '',
     lastName: '',
@@ -493,9 +529,23 @@ function TournamentList() { // NOSONAR
     if (statusFilter !== 'ALL') {
       const normalizedStatus = normalizedStatusFilter;
       const title = statusLabels[normalizedStatus] ?? t('tournaments.hub');
-      const items = tournaments.filter(
-        (tournament) => normalizeStatus(tournament.status) === normalizedStatus
-      );
+      const items = tournaments.filter((tournament) => {
+        const normalized = normalizeStatus(tournament.status);
+        if (normalized === normalizedStatus) {
+          return true;
+        }
+
+        if (
+          normalizedStatus === 'OPEN' &&
+          normalized === 'SIGNATURE' &&
+          !isAdmin &&
+          userRegistrations.has(tournament.id)
+        ) {
+          return true;
+        }
+
+        return false;
+      });
 
       return [{ title, status: normalizedStatus, items }];
     }
@@ -508,7 +558,7 @@ function TournamentList() { // NOSONAR
         (tournament) => normalizeStatus(tournament.status) === status
       ),
     }));
-  }, [tournaments, statusFilter, normalizedStatusFilter, normalizeStatus, t]);
+  }, [tournaments, statusFilter, normalizedStatusFilter, normalizeStatus, t, isAdmin, userRegistrations]);
 
   const toLocalInput = useCallback((value?: string) => {
     if (!value) return '';
@@ -564,11 +614,57 @@ function TournamentList() { // NOSONAR
     }
   }, [getSafeAccessToken]);
 
+  const checkUserRegistrations = useCallback(async (tournamentList: Tournament[]) => {
+    if (!isAuthenticated || !user) return;
+    
+    const userDetails = user as { email?: string };
+    const userEmail = userDetails?.email?.toLowerCase();
+    
+    if (!userEmail) return;
+
+    const token = await getSafeAccessToken();
+    const registeredTournaments = new Set<string>();
+
+    // Check each tournament for user registration
+    for (const tournament of tournamentList) {
+      try {
+        const response = await fetch(`/api/tournaments/${tournament.id}/players`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const players = data.players || [];
+          
+          // Check if user's email matches any player
+          const isRegistered = players.some((player: TournamentPlayer) => 
+            player.email?.toLowerCase() === userEmail
+          );
+          
+          if (isRegistered) {
+            registeredTournaments.add(tournament.id);
+          }
+        }
+      } catch (err) {
+        console.error(`[TournamentList] Error checking registration for tournament ${tournament.id}:`, err);
+      }
+    }
+
+    setUserRegistrations(registeredTournaments);
+  }, [isAuthenticated, user, getSafeAccessToken]);
+
   useEffect(() => {
     if (!authEnabled || isAuthenticated) {
       fetchTournaments();
     }
   }, [authEnabled, isAuthenticated, fetchTournaments]);
+
+  // Check user registrations after tournaments are loaded
+  useEffect(() => {
+    if (tournaments.length > 0 && isAuthenticated && !isAdmin) {
+      checkUserRegistrations(tournaments);
+    }
+  }, [tournaments, isAuthenticated, isAdmin, checkUserRegistrations]);
 
   const deleteTournament = async (id: string) => {
     if (!confirm('Are you sure you want to delete this tournament?')) return;
@@ -1303,6 +1399,110 @@ function TournamentList() { // NOSONAR
     }
   };
 
+  const handleRegisterSelf = async (tournamentId: string) => {
+    if (!isAuthenticated) {
+      alert(t('auth.signInRequired') || 'Please sign in to register');
+      return;
+    }
+
+    setRegisteringTournamentId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      // Extract user info from Auth0 user object
+      const userDetails = user as {
+        name?: string;
+        email?: string;
+        nickname?: string;
+      };
+
+      const email = userDetails?.email || '';
+      const fullName = userDetails?.name || 'User';
+      const nameParts = fullName.split(' ');
+      const firstName = nameParts[0] || 'User';
+      const lastName = nameParts.slice(1).join(' ') || 'Registration';
+
+      if (!email) {
+        throw new Error('Email not found in user profile. Please ensure your account has an email address.');
+      }
+
+      await registerTournamentPlayer(
+        tournamentId,
+        {
+          firstName,
+          lastName,
+          email,
+        },
+        token
+      );
+
+      // Add to user registrations
+      setUserRegistrations(prev => new Set(prev).add(tournamentId));
+      alert(t('tournaments.registerSuccess') || 'Successfully registered!');
+    } catch (err) {
+      console.error('Error registering for tournament:', err);
+      alert(err instanceof Error ? err.message : 'Failed to register');
+    } finally {
+      setRegisteringTournamentId(null);
+    }
+  };
+
+  const handleUnregisterSelf = async (tournamentId: string) => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    if (!confirm(t('tournaments.unregisterConfirm') || 'Are you sure you want to unregister?')) {
+      return;
+    }
+
+    setRegisteringTournamentId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      // Get user's email to find their player registration
+      const userDetails = user as { email?: string };
+      const userEmail = userDetails?.email?.toLowerCase();
+
+      if (!userEmail) {
+        throw new Error('Email not found in user profile');
+      }
+
+      // Fetch players in the tournament to find user's player ID
+      const tournamentPlayers = await fetchTournamentPlayers(tournamentId, token);
+      const userPlayer = tournamentPlayers.find(
+        player => player.email?.toLowerCase() === userEmail
+      );
+
+      if (!userPlayer) {
+        throw new Error('You are not registered for this tournament');
+      }
+
+      // Remove the player
+      await unregisterTournamentPlayer(tournamentId, userPlayer.playerId, token);
+      
+      // Remove from user registrations
+      setUserRegistrations(prev => {
+        const next = new Set(prev);
+        next.delete(tournamentId);
+        return next;
+      });
+
+      alert(t('tournaments.unregisterSuccess') || 'Successfully unregistered!');
+    } catch (err) {
+      console.error('Error unregistering from tournament:', err);
+      alert(getErrorMessage(err, 'Failed to unregister'));
+    } finally {
+      setRegisteringTournamentId(null);
+    }
+  };
+
   const confirmAllPlayers = async () => {
     if (!editingTournament || players.length === 0) return;
     setIsConfirmingAll(true);
@@ -1445,11 +1645,19 @@ function TournamentList() { // NOSONAR
     [editingPlayerId, isAutoFillingPlayers, isRegisteringPlayer, t]
   );
 
-  const renderCard = (tournament: Tournament) => (
-    <div
-      key={tournament.id}
-      className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
-    >
+  const renderCard = (tournament: Tournament) => {
+    const normalizedStatus = normalizeStatus(tournament.status);
+    const showWaitingSignature =
+      !isAdmin && normalizedStatus === 'SIGNATURE' && userRegistrations.has(tournament.id);
+    const statusLabel = showWaitingSignature
+      ? t('tournaments.waitingSignature')
+      : tournament.status;
+
+    return (
+      <div
+        key={tournament.id}
+        className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
+      >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
       <div className="flex items-start justify-between">
         <div>
@@ -1457,9 +1665,10 @@ function TournamentList() { // NOSONAR
             {tournament.name}
           </h3>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
+          <p className="mt-1 text-xs text-slate-500">ID: {tournament.id}</p>
         </div>
         <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
-          {tournament.status}
+          {statusLabel}
         </span>
       </div>
 
@@ -1470,46 +1679,78 @@ function TournamentList() { // NOSONAR
         </div>
         <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
           <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
-          <p className="mt-2 text-lg font-semibold text-white">{tournament.status}</p>
+          <p className="mt-2 text-lg font-semibold text-white">{statusLabel}</p>
         </div>
       </div>
-
-      <div className="mt-6 flex justify-end gap-2">
-        <a
-          href={`/?view=pool-stages&tournamentId=${tournament.id}${normalizeStatus(tournament.status) === 'FINISHED' ? '&status=FINISHED' : ''}`}
-          className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
-        >
-          {t('nav.poolStagesShort')}
-        </a>
-        <a
-          href={`/?view=brackets&tournamentId=${tournament.id}${normalizeStatus(tournament.status) === 'FINISHED' ? '&status=FINISHED' : ''}`}
-          className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
-        >
-          {t('nav.bracketsShort')}
-        </a>
-        {normalizeStatus(tournament.status) === 'LIVE' && (
+      {!showWaitingSignature && (
+        <div className="mt-6 flex justify-end gap-2">
           <a
-            href={`/?view=live&tournamentId=${tournament.id}`}
-            className="rounded-full border border-emerald-500/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300"
+            href={`/?view=tournament-players&tournamentId=${tournament.id}`}
+            className="rounded-full border border-cyan-500/60 px-4 py-1.5 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300"
           >
-            {t('tournaments.viewLive')}
+            {t('tournaments.registered')}
           </a>
-        )}
-        <button
-          onClick={() => openEdit(tournament)}
-          className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
-        >
-          {t('tournaments.edit')}
-        </button>
-        <button
-          onClick={() => deleteTournament(tournament.id)}
-          className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
-        >
-          {t('tournaments.delete')}
-        </button>
-      </div>
+          <a
+            href={`/?view=pool-stages&tournamentId=${tournament.id}${normalizedStatus === 'FINISHED' ? '&status=FINISHED' : ''}`}
+            className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+          >
+            {t('nav.poolStagesShort')}
+          </a>
+          <a
+            href={`/?view=brackets&tournamentId=${tournament.id}${normalizedStatus === 'FINISHED' ? '&status=FINISHED' : ''}`}
+            className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+          >
+            {t('nav.bracketsShort')}
+          </a>
+          {normalizedStatus === 'LIVE' && (
+            <a
+              href={`/?view=live&tournamentId=${tournament.id}`}
+              className="rounded-full border border-emerald-500/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300"
+            >
+              {t('tournaments.viewLive')}
+            </a>
+          )}
+          {isAdmin ? (
+            <>
+              <button
+                onClick={() => openEdit(tournament)}
+                className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+              >
+                {t('tournaments.edit')}
+              </button>
+              <button
+                onClick={() => deleteTournament(tournament.id)}
+                className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
+              >
+                {t('tournaments.delete')}
+              </button>
+            </>
+          ) : (
+            <>
+              {userRegistrations.has(tournament.id) ? (
+                <button
+                  onClick={() => handleUnregisterSelf(tournament.id)}
+                  disabled={registeringTournamentId === tournament.id}
+                  className="rounded-full border border-amber-500/60 px-4 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {registeringTournamentId === tournament.id ? t('common.loading') : t('tournaments.unregister')}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleRegisterSelf(tournament.id)}
+                  disabled={registeringTournamentId === tournament.id}
+                  className="rounded-full border border-emerald-500/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {registeringTournamentId === tournament.id ? t('common.loading') : t('tournaments.register')}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
+  };
 
   if (authLoading) {
     return (

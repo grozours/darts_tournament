@@ -95,6 +95,17 @@ class App {
             }
           );
         }
+
+        if (res.statusCode >= 500) {
+          logger.error('Response finished with server error', {
+            correlationId: req.correlationId,
+            metadata: {
+              method: req.method,
+              path: req.path,
+              statusCode: res.statusCode,
+            },
+          });
+        }
       });
       
       next();
