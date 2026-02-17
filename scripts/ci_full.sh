@@ -7,6 +7,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "${ROOT_DIR}/scripts/lint_all.sh"
 "${ROOT_DIR}/scripts/verify_nav_links.sh"
 
+echo "[ci] Running end-to-end tests..."
+npx playwright test "${ROOT_DIR}/tests/e2e" "${ROOT_DIR}/frontend/tests/e2e"
+
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
 	if [[ -f "${ROOT_DIR}/.sonar-token" ]]; then
 		SONAR_TOKEN="$(cat "${ROOT_DIR}/.sonar-token")"

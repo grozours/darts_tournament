@@ -36,6 +36,7 @@ type NotificationItem = {
   id: string;
   receivedAt: string;
   payload: MatchStartedPayload;
+  acknowledgedAt?: string;
 };
 
 const STORAGE_KEY = 'notifications:match-started';
@@ -71,6 +72,14 @@ function NotificationsView() {
   const [joinedTournaments, setJoinedTournaments] = useState<string[]>([]);
   const playerIdsRef = useRef<Set<string>>(new Set());
   const permissionRef = useRef<'default' | 'granted' | 'denied' | 'unsupported'>('default');
+
+  const persistNotifications = useCallback((items: NotificationItem[]) => {
+    try {
+      globalThis.window?.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch (err) {
+      console.warn('Failed to persist notifications:', err);
+    }
+  }, []);
 
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled) return undefined;
@@ -270,11 +279,7 @@ function NotificationsView() {
           },
           ...current,
         ].slice(0, STORAGE_LIMIT);
-        try {
-          globalThis.window?.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        } catch (err) {
-          console.warn('Failed to persist notifications:', err);
-        }
+        persistNotifications(next);
         return next;
       });
 
@@ -295,7 +300,22 @@ function NotificationsView() {
       socket.removeAllListeners();
       socket.disconnect();
     };
-  }, [authEnabled, isAuthenticated, joinedTournaments, shouldNotify]);
+  }, [authEnabled, isAuthenticated, joinedTournaments, persistNotifications, shouldNotify]);
+
+  const acknowledgeNotification = useCallback(
+    (id: string) => {
+      setNotifications((current) => {
+        const next = current.map((item) =>
+          item.id === id && !item.acknowledgedAt
+            ? { ...item, acknowledgedAt: new Date().toISOString() }
+            : item
+        );
+        persistNotifications(next);
+        return next;
+      });
+    },
+    [persistNotifications]
+  );
 
   if (!authEnabled) {
     return (
@@ -404,12 +424,26 @@ function NotificationsView() {
             const players = item.payload.players
               .map((player) => player.teamName || player.surname || `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim())
               .filter(Boolean);
+            const isAcknowledged = Boolean(item.acknowledgedAt);
             return (
               <div key={item.id} className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm text-slate-200">{item.payload.tournamentName}</div>
-                  <div className="text-xs text-slate-500">
-                    {new Date(item.receivedAt).toLocaleTimeString()}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                    <span>{new Date(item.receivedAt).toLocaleTimeString()}</span>
+                    {isAcknowledged ? (
+                      <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-emerald-200">
+                        {t('notifications.acknowledged')}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => acknowledgeNotification(item.id)}
+                        className="rounded-full border border-cyan-500/60 px-3 py-1 text-cyan-200 transition hover:border-cyan-300"
+                      >
+                        {t('notifications.acknowledge')}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 text-lg font-semibold text-white">

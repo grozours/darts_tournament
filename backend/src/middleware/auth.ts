@@ -1,4 +1,4 @@
-import { auth } from 'express-oauth2-jwt-bearer';
+import { auth, type AuthResult } from 'express-oauth2-jwt-bearer';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/environment';
 
@@ -6,25 +6,26 @@ import { config } from '../config/environment';
 declare global {
   namespace Express {
     interface Request {
-      auth?: {
-        payload?: {
-          sub?: string;
-          email?: string;
-          [key: string]: unknown;
-        };
-      };
+      auth?: AuthResult;
     }
   }
 }
 
-export const requireAuth = auth({
-  audience: config.auth.audience,
-  issuerBaseURL: config.auth.issuerBaseURL,
-  tokenSigningAlg: 'RS256',
-});
+const noopAuth = (req: Request, res: Response, next: NextFunction) => next();
+
+export const requireAuth = config.auth.enabled
+  ? auth({
+      audience: config.auth.audience,
+      issuerBaseURL: config.auth.issuerBaseURL,
+      tokenSigningAlg: 'RS256',
+    })
+  : noopAuth;
 
 // Optional auth middleware: validates token if present, allows requests without token
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!config.auth.enabled) {
+    return next();
+  }
   // If no authorization header, skip auth validation
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -73,21 +74,27 @@ export const isAdmin = (req: Request): boolean => {
 };
 
 // Middleware to require admin access
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (!config.auth.enabled) {
+    next();
+    return;
+  }
   if (!req.auth?.payload) {
     console.log('[requireAdmin] No auth payload found');
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Unauthorized',
       message: 'Authentication required',
     });
+    return;
   }
 
   if (!isAdmin(req)) {
     console.log('[requireAdmin] User is not admin. Payload:', req.auth.payload);
-    return res.status(403).json({
+    res.status(403).json({
       error: 'Forbidden',
       message: 'Admin access required',
     });
+    return;
   }
 
   next();

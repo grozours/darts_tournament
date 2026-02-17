@@ -7,6 +7,9 @@ dotenv.config({ path: '.env' });
 
 // Global test configuration
 process.env.NODE_ENV = 'test';
+process.env.AUTH_ENABLED = 'false';
+process.env.AUTH_ISSUER_BASE_URL = '';
+process.env.AUTH_AUDIENCE = '';
 
 // Only set defaults if not already defined
 if (!process.env.DATABASE_URL) {

@@ -4,11 +4,12 @@ import { requireAuth, isAdmin } from '../middleware/auth';
 const router = Router();
 
 // Get current user info and admin status
-router.get('/me', requireAuth, (req: Request, res: Response) => {
+router.get('/me', requireAuth, (req: Request, res: Response): void => {
   const userPayload = req.auth?.payload;
   
   if (!userPayload) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
 
   res.json({

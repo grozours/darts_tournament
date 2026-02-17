@@ -915,7 +915,7 @@ export class TournamentService {
       return a.position - b.position;
     };
 
-    const uniqueByPlayer = (entries: Array<{ playerId: string; poolNumber: number; position: number }>) => {
+    const uniqueByPlayer = <T extends { playerId: string; poolNumber: number; position: number }>(entries: T[]) => {
       const seen = new Set<string>();
       return entries.filter((entry) => {
         if (seen.has(entry.playerId)) return false;
@@ -1456,7 +1456,25 @@ export class TournamentService {
 
   async getPlayerById(playerId: string): Promise<Player | null> {
     this.validateUUID(playerId);
-    return await this.tournamentModel.getPlayerById(playerId);
+    const player = await this.tournamentModel.getPlayerById(playerId);
+    if (!player) {
+      return null;
+    }
+    return {
+      id: player.id,
+      tournamentId: player.tournamentId,
+      firstName: player.firstName,
+      lastName: player.lastName,
+      registeredAt: player.registeredAt,
+      isActive: player.isActive,
+      checkedIn: player.checkedIn,
+      ...(player.personId ? { personId: player.personId } : {}),
+      ...(player.surname ? { surname: player.surname } : {}),
+      ...(player.teamName ? { teamName: player.teamName } : {}),
+      ...(player.email ? { email: player.email } : {}),
+      ...(player.phone ? { phone: player.phone } : {}),
+      ...(player.skillLevel ? { skillLevel: player.skillLevel as SkillLevel } : {}),
+    };
   }
 
   /**
@@ -2137,13 +2155,20 @@ export class TournamentService {
       return;
     }
 
-    const players = (matchDetails.playerMatches ?? []).map((pm) => ({
-      id: pm.player?.id ?? pm.playerId,
-      firstName: pm.player?.firstName,
-      lastName: pm.player?.lastName,
-      surname: pm.player?.surname ?? undefined,
-      teamName: pm.player?.teamName ?? undefined,
-    }));
+    const players = (matchDetails.playerMatches ?? []).map((pm) => {
+      const summary: { id?: string; firstName?: string; lastName?: string; surname?: string; teamName?: string } = {
+        id: pm.player?.id ?? pm.playerId,
+        firstName: pm.player?.firstName,
+        lastName: pm.player?.lastName,
+      };
+      if (pm.player?.surname) {
+        summary.surname = pm.player.surname;
+      }
+      if (pm.player?.teamName) {
+        summary.teamName = pm.player.teamName;
+      }
+      return summary;
+    });
 
     const matchPayload = matchDetails.pool
       ? {
@@ -2160,19 +2185,21 @@ export class TournamentService {
           bracketName: matchDetails.bracket?.name ?? null,
         };
 
+    const target = matchDetails.target
+      ? {
+          id: matchDetails.target.id,
+          targetNumber: matchDetails.target.targetNumber,
+          ...(matchDetails.target.targetCode ? { targetCode: matchDetails.target.targetCode } : {}),
+          name: matchDetails.target.name ?? null,
+        }
+      : undefined;
+
     await webSocketService.emitMatchStarted({
       matchId,
       tournamentId: tournament.id,
       tournamentName: tournament.name,
-      startedAt: matchDetails.startedAt?.toISOString(),
-      target: matchDetails.target
-        ? {
-            id: matchDetails.target.id,
-            targetNumber: matchDetails.target.targetNumber,
-            targetCode: matchDetails.target.targetCode ?? undefined,
-            name: matchDetails.target.name ?? null,
-          }
-        : undefined,
+      ...(matchDetails.startedAt ? { startedAt: matchDetails.startedAt.toISOString() } : {}),
+      ...(target ? { target } : {}),
       match: matchPayload,
       players,
     });
