@@ -151,7 +151,7 @@ function App() {
               aria-label="Toggle language"
               title={lang === 'en' ? 'Français' : 'English'}
             >
-              {lang === 'en' ? '🇫🇷' : '🇬🇧'}
+              {lang === 'en' ? '🇬🇧' : '🇫🇷'}
             </button>
             <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=notifications">
               {t('nav.notifications')}

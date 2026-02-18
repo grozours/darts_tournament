@@ -92,6 +92,7 @@ model PoolStage {
   poolCount      Int       @map("pool_count")
   playersPerPool Int       @map("players_per_pool")
   advanceCount   Int       @map("advance_count")
+  losersAdvanceToBracket Boolean @default(false) @map("losers_advance_to_bracket")
   status         StageStatus @default(NOT_STARTED)
   createdAt      DateTime  @default(now()) @map("created_at")
   completedAt    DateTime? @map("completed_at")

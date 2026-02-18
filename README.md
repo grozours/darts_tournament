@@ -15,22 +15,102 @@ A full-stack application for managing darts tournaments with support for single 
 
 ## ✨ Features
 
-- **Tournament Management**: Create and manage tournaments with various formats
-- **Player Registration**: Register players with skill levels and contact info
-- **Pool Stages**: Organize pool play with automatic bracket generation
-- **Match Scheduling**: Automated scheduling with target assignment
-- **Real-time Updates**: WebSocket support for live score updates
-- **Structured Logging**: Comprehensive logging with correlation IDs
+### Tournament Management
+- **Multiple Formats**: Single elimination, double elimination, and team (4-player) formats
+- **Flexible Duration**: Half-day (morning/afternoon/night), full-day, or two-day tournaments
+- **Status Workflow**: DRAFT → OPEN → SIGNATURE → LIVE → FINISHED
+- **Visual Branding**: Upload tournament logos (JPG/PNG, max 5MB)
+- **Target Management**: Configure and track dartboard targets with availability status
+
+### Player & Team Management
+- **Comprehensive Registration**: First name, last name, surname, team name, email, phone
+- **Skill Level Assessment**: Beginner, Intermediate, Advanced, Expert
+- **Check-in System**: Player signature/check-in tracking before tournament start
+- **Person Linking**: Reusable player profiles across multiple tournaments
+- **Orphan Player Management**: Handle players without tournament assignment
+
+### Pool Stages
+- **Multi-Stage Pools**: Configure multiple pool stages with varying pool counts
+- **Intelligent Seeding**: Automatic player distribution based on skill levels
+- **Pool Status Tracking**: NOT_STARTED, EDITION, IN_PROGRESS, COMPLETED
+- **Advancement Rules**: Configurable number of players advancing from each pool
+- **Loser Bracket Integration**: Optionally advance non-qualifiers to loser brackets
+
+### Brackets
+- **Single/Double Elimination**: Winner and loser bracket support
+- **Configurable Rounds**: Flexible round configuration (1-10 rounds)
+- **Automatic Seeding**: Bracket entries from pool stage results
+- **Match Progression**: Automatic winner advancement through rounds
+
+### Match & Scoring
+- **Real-time Score Entry**: Update scores with immediate synchronization
+- **Target Assignment**: Assign matches to specific dartboard targets
+- **Match Status**: SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+- **Match Queue**: Intelligent queue showing next matches for available targets
+- **Player Blocking**: Prevent same player from playing concurrent matches
+- **Legs & Sets**: Configurable match format (best of X legs/sets)
+
+### Live Tournament Views
+- **Live Dashboard**: Real-time tournament status and ongoing matches
+- **Pool Stages View**: Detailed pool standings and match results
+- **Brackets View**: Visual bracket progression and results
+- **Targets View**: Target availability and current match assignments
+- **Match Queue**: Prioritized list of upcoming matches
+- **Multi-Tournament**: View and manage multiple tournaments simultaneously
+
+### Authentication & Authorization
+- **OAuth 2.0**: Auth0 integration with Google/Facebook/Instagram login
+- **Admin Roles**: Email-based admin access control
+- **Protected Endpoints**: Secure API access with JWT bearer tokens
+- **Optional Authentication**: Public views available without login
+
+### Real-time Features
+- **WebSocket Integration**: Live updates for match status changes
+- **Match Notifications**: Real-time notifications when matches start
+- **Target Status Updates**: Instant target availability changes
+- **Score Synchronization**: Live score updates across all clients
+
+### Data & Logging
+- **Structured Logging**: Winston with daily rotation and correlation IDs
+- **Request Tracking**: Unique correlation IDs for request tracing
+- **Tournament History**: Permanent storage of completed tournaments
+- **Statistics**: Tournament and player statistics tracking
 
 ## 🛠 Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | React 18, TypeScript, Vite, TailwindCSS |
-| **Backend** | Node.js, Express, TypeScript |
-| **Database** | PostgreSQL with Prisma ORM |
-| **Cache** | Redis |
-| **Logging** | Winston with daily rotation |
+| Layer | Technology | Version | Purpose |
+|-------|------------|---------|----------|
+| **Frontend** | React | 18.2+ | UI framework |
+| | TypeScript | 5.x | Type safety |
+| | Vite | 5.x | Build tool & dev server |
+| | TailwindCSS | 3.x | Styling framework |
+| | React Router | 6.x | Client-side routing |
+| | Auth0 React | 2.x | Authentication |
+| | TanStack Query | 5.x | Server state management |
+| | React Hook Form | 7.x | Form handling |
+| | Zod | 3.x | Schema validation |
+| | Socket.io Client | 4.x | Real-time communication |
+| | Vitest | 1.x | Unit testing |
+| | Axios | 1.x | HTTP client |
+| **Backend** | Node.js | 20+ | Runtime environment |
+| | Express | 4.x | Web framework |
+| | TypeScript | 5.x | Type safety |
+| | Prisma | 5.x | ORM & database toolkit |
+| | PostgreSQL | 14+ | Primary database |
+| | Redis | 6+ | Caching & sessions |
+| | Socket.io | 4.x | WebSocket server |
+| | Winston | 3.x | Structured logging |
+| | Joi | 17.x | Request validation |
+| | express-oauth2-jwt-bearer | 1.x | JWT authentication |
+| | helmet | 7.x | Security headers |
+| | express-rate-limit | 8.x | Rate limiting |
+| | Jest | 29.x | Testing framework |
+| **DevOps** | Docker | Latest | Containerization |
+| | Docker Compose | Latest | Multi-container orchestration |
+| | Playwright | Latest | E2E testing |
+| | ESLint | 8.x | Code linting |
+| | Prettier | 3.x | Code formatting |
+| | SonarQube | LTS | Code quality analysis |
 
 ## 🚀 Quick Start
 
@@ -378,32 +458,32 @@ cd frontend && npm test
 
 This project is licensed under the MIT License.
 
-## 📋 Specifications
+## � Documentation
+
+### Core Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[API Documentation](docs/API.md)** | Complete REST API reference with all endpoints, request/response examples, authentication, rate limiting, and WebSocket events |
+| **[Architecture](docs/ARCHITECTURE.md)** | System architecture, design patterns, data flow, technology decisions, and scalability considerations |
+| **[Frontend Guide](docs/FRONTEND.md)** | React component architecture, routing, state management, styling, forms, and testing |
+| **[Deployment Guide](docs/DEPLOYMENT.md)** | Production deployment instructions, Docker setup, cloud deployment, database management, and monitoring |
+| **[Testing Documentation](docs/TESTING.md)** | Testing strategy, unit tests, integration tests, E2E tests, coverage goals, and CI/CD integration |
+| **[Commands Reference](docs/COMMANDS.md)** | Complete command reference for development, database management, and service management |
+| **[Admin Setup](docs/ADMIN_SETUP.md)** | Admin authentication setup and email configuration |
+| **[Auth0 Email Setup](docs/AUTH0_EMAIL_SETUP.md)** | Auth0 email claim configuration for admin verification |
+
+### Specifications
 
 The project specifications are located in `specs/001-tournament-manager/`:
 
 | File | Description |
 |------|-------------|
-| [spec.md](specs/001-tournament-manager/spec.md) | **User Stories & Requirements** - Complete functional requirements with prioritized user stories (P1, P2, P3), acceptance criteria, and use cases |
-| [plan.md](specs/001-tournament-manager/plan.md) | **Implementation Plan** - Technology stack decisions, project structure, architectural patterns, and development approach |
-| [data-model.md](specs/001-tournament-manager/data-model.md) | **Database Schema** - Entity definitions, relationships, enums, and Prisma schema design |
-| [research.md](specs/001-tournament-manager/research.md) | **Technical Research** - Design decisions, alternatives considered, and rationale for key choices |
-| [quickstart.md](specs/001-tournament-manager/quickstart.md) | **Test Scenarios** - Manual and automated test cases for validating functionality |
-| [tasks.md](specs/001-tournament-manager/tasks.md) | **Development Tasks** - Detailed task breakdown with dependencies, organized by user story |
-
-### Contracts (`specs/001-tournament-manager/contracts/`)
-
-API contract definitions for each endpoint:
-- Tournament CRUD operations
-- Player registration
-- Match scheduling
-- Score tracking
-
-### Checklists (`specs/001-tournament-manager/checklists/`)
-
-Quality assurance checklists for:
-- Code review
-- Testing coverage
-- Deployment readiness
+| [spec.md](specs/001-tournament-manager/spec.md) | User stories & requirements with prioritized acceptance criteria |
+| [plan.md](specs/001-tournament-manager/plan.md) | Implementation plan and technology stack decisions |
+| [data-model.md](specs/001-tournament-manager/data-model.md) | Database schema, entity relationships, and Prisma design |
+| [research.md](specs/001-tournament-manager/research.md) | Technical research and design decision rationale |
+| [quickstart.md](specs/001-tournament-manager/quickstart.md) | Test scenarios and validation cases |
+| [tasks.md](specs/001-tournament-manager/tasks.md) | Development tasks breakdown with dependencies |
 
 **Happy Darting! 🎯**

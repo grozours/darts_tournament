@@ -478,3 +478,563 @@ cd ..
 │ DOCKER LOGS:      docker compose logs -f postgres           │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Testing Commands
+
+### Backend Tests
+
+```bash
+cd backend
+
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run specific test file
+npm test -- tournament.test.ts
+
+# Run integration tests only
+npm test -- --testPathPattern=integration
+
+# Run unit tests only
+npm test -- --testPathPattern=unit
+
+# Run contract tests only
+npm test -- --testPathPattern=contract
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+
+# Run all tests
+npm test
+
+# Run in watch mode
+npm test -- --watch
+
+# Run with UI
+npm run test:ui
+
+# Run with coverage
+npm run test:coverage
+
+# Run specific test
+npm test -- TournamentCard.test.tsx
+```
+
+### E2E Tests
+
+```bash
+# Install Playwright browsers (first time only)
+npx playwright install
+
+# Run all E2E tests
+npm run test:e2e
+
+# Run specific test file
+npx playwright test tests/e2e/players-view.spec.ts
+
+# Run in headed mode (see browser)
+npx playwright test --headed
+
+# Run with debug mode
+npx playwright test --debug
+
+# Run specific browser
+npx playwright test --project=chromium
+npx playwright test --project=firefox
+npx playwright test --project=webkit
+
+# Generate report
+npx playwright show-report
+```
+
+---
+
+## Code Quality Commands
+
+### Linting
+
+```bash
+# Backend
+cd backend
+npm run lint              # Check for errors
+npm run lint:fix          # Auto-fix errors
+
+# Frontend
+cd frontend
+npm run lint              # Check for errors
+npm run lint:fix          # Auto-fix errors
+```
+
+### Formatting
+
+```bash
+# Backend
+cd backend
+npm run format            # Format all TypeScript files
+
+# Frontend
+cd frontend
+npm run format            # Format all TypeScript/React files
+```
+
+### Type Checking
+
+```bash
+# Backend
+cd backend
+npx tsc --noEmit         # Type check without building
+
+# Frontend
+cd frontend
+npx tsc --noEmit         # Type check without building
+```
+
+### Code Analysis
+
+```bash
+# Run SonarQube analysis
+./scripts/sonar_scan.sh
+
+# Start SonarQube server (if using local)
+docker compose up -d sonarqube
+
+# Access SonarQube at http://localhost:9000
+```
+
+---
+
+## CI/CD Scripts
+
+The `scripts/` directory contains useful CI/CD scripts:
+
+### Full CI Pipeline
+
+```bash
+# Run complete CI checks (lint, test, build)
+./scripts/ci_full.sh
+
+# What it does:
+# 1. Lints backend and frontend
+# 2. Runs all tests with coverage
+# 3. Builds both projects
+# 4. Reports success/failure
+```
+
+### Individual Scripts
+
+```bash
+# Lint backend only
+./scripts/lint_backend.sh
+
+# Lint frontend only
+./scripts/lint_frontend.sh
+
+# Lint everything
+./scripts/lint_all.sh
+
+# Run non-regression tests
+./scripts/non_regression.sh
+
+# Verify navigation links
+./scripts/verify_nav_links.sh
+```
+
+---
+
+## Environment Management
+
+### Backend Environment
+
+```bash
+cd backend
+
+# Copy example environment file
+cp .env.example .env
+
+# Edit environment variables
+nano .env  # or vim, code, etc.
+
+# Verify environment
+cat .env
+
+# Required variables:
+# - DATABASE_URL
+# - REDIS_URL
+# - JWT_SECRET
+# - AUTH_ISSUER_BASE_URL
+# - AUTH_AUDIENCE
+```
+
+### Frontend Environment
+
+```bash
+cd frontend
+
+# Copy example environment file
+cp .env.example .env
+
+# Edit environment variables
+nano .env
+
+# Required variables:
+# - VITE_AUTH0_DOMAIN
+# - VITE_AUTH0_CLIENT_ID
+# - VITE_AUTH0_AUDIENCE
+```
+
+---
+
+## Process Management (PM2)
+
+For production deployments using PM2:
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start backend
+cd backend
+pm2 start npm --name "darts-backend" -- start
+
+# Manage processes
+pm2 status                # List all processes
+pm2 logs darts-backend    # View logs
+pm2 restart darts-backend # Restart
+pm2 stop darts-backend    # Stop
+pm2 delete darts-backend  # Remove from PM2
+
+# Monitor
+pm2 monit                 # Real-time dashboard
+pm2 describe darts-backend # Detailed info
+
+# Startup script (survive reboots)
+pm2 startup               # Follow instructions
+pm2 save                  # Save current process list
+
+# Update app
+git pull
+npm ci --production
+npm run build
+pm2 reload darts-backend
+```
+
+---
+
+## Database Administration
+
+### PostgreSQL Commands
+
+```bash
+# Connect to database
+psql -h localhost -U darts_user -d darts_tournament
+
+# From within psql:
+\dt                    # List tables
+\d tournaments         # Describe table
+\l                     # List databases
+\du                    # List users
+\q                     # Quit
+
+# Backup database
+pg_dump -U darts_user darts_tournament > backup.sql
+
+# Restore database
+psql -U darts_user darts_tournament < backup.sql
+
+# Create backup with timestamp
+pg_dump -U darts_user darts_tournament > backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+### Prisma Database Commands
+
+```bash
+cd backend
+
+# View current schema
+npx prisma db pull
+
+# Validate schema
+npx prisma validate
+
+# Format schema file
+npx prisma format
+
+# Introspect database
+npx prisma db pull
+
+# Reset (danger!)
+npx prisma migrate reset --force
+```
+
+---
+
+## Redis Commands
+
+### Connect to Redis
+
+```bash
+# Using Docker
+docker compose exec redis redis-cli
+
+# Local Redis
+redis-cli
+
+# With auth
+redis-cli -a your-password
+
+# Remote Redis
+redis-cli -h hostname -p 6379 -a password
+```
+
+### Common Redis Commands
+
+```bash
+# From redis-cli:
+PING                   # Test connection
+INFO                   # Server info
+KEYS *                 # List all keys (dev only!)
+GET key_name           # Get value
+SET key_name value     # Set value
+DEL key_name           # Delete key
+FLUSHDB                # Clear current database
+FLUSHALL               # Clear all databases
+```
+
+---
+
+## Logs Management
+
+### View Logs
+
+```bash
+# Backend logs
+tail -f backend/logs/combined-*.log
+tail -f backend/logs/error-*.log
+
+# Frontend logs (if applicable)
+tail -f frontend/logs/*.log
+
+# PM2 logs
+pm2 logs darts-backend
+pm2 logs darts-backend --lines 100
+pm2 logs darts-backend --err      # Error logs only
+pm2 logs darts-backend --out      # Output logs only
+
+# Docker logs
+docker compose logs -f backend
+docker compose logs -f postgres --tail=100
+```
+
+### Clear Logs
+
+```bash
+# Backend logs
+rm backend/logs/*.log
+
+# PM2 logs
+pm2 flush darts-backend
+
+# Docker logs
+docker compose logs --no-log-prefix > /dev/null
+```
+
+---
+
+## Network & Port Management
+
+### Check Port Usage
+
+```bash
+# Check if port is in use
+lsof -i :3000          # Backend
+lsof -i :5173          # Frontend
+lsof -i :5432          # PostgreSQL
+lsof -i :6379          # Redis
+
+# Kill process on port
+kill -9 $(lsof -t -i :3000)
+
+# Alternative (using netstat)
+netstat -tuln | grep :3000
+```
+
+### Firewall (UFW)
+
+```bash
+# Enable firewall
+sudo ufw enable
+
+# Allow specific ports
+sudo ufw allow 22         # SSH
+sudo ufw allow 80         # HTTP
+sudo ufw allow 443        # HTTPS
+sudo ufw allow 3000       # Backend (dev)
+sudo ufw allow 5173       # Frontend (dev)
+
+# Check status
+sudo ufw status
+
+# Delete rule
+sudo ufw delete allow 3000
+```
+
+---
+
+## Git Workflows
+
+### Update Local Repository
+
+```bash
+# Fetch and pull latest changes
+git fetch origin
+git pull origin main
+
+# Stash local changes before pull
+git stash
+git pull origin main
+git stash pop
+```
+
+### Create Feature Branch
+
+```bash
+# Create and switch to new branch
+git checkout -b feature/my-feature
+
+# Make changes, then commit
+git add .
+git commit -m "feat: add new feature"
+
+# Push to remote
+git push origin feature/my-feature
+```
+
+### Tag Release
+
+```bash
+# Create annotated tag
+git tag -a v1.0.0 -m "Release version 1.0.0"
+
+# Push tags to remote
+git push origin --tags
+
+# List tags
+git tag -l
+
+# Checkout specific tag
+git checkout v1.0.0
+```
+
+---
+
+## Performance Monitoring
+
+### Backend Performance
+
+```bash
+# Using PM2
+pm2 describe darts-backend
+pm2 monit
+
+# Node.js memory usage
+node --expose-gc backend/dist/server.js
+
+# Profile with clinic
+npm install -g clinic
+clinic doctor -- node dist/server.js
+```
+
+### Database Performance
+
+```sql
+-- From psql:
+
+-- Check slow queries
+SELECT query, mean_exec_time, calls
+FROM pg_stat_statements
+ORDER BY mean_exec_time DESC
+LIMIT 10;
+
+-- Check table sizes
+SELECT 
+  tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- Check index usage
+SELECT 
+  schemaname,
+  tablename,
+  indexname,
+  idx_scan,
+  idx_tup_read,
+  idx_tup_fetch
+FROM pg_stat_user_indexes
+ORDER BY idx_scan DESC;
+```
+
+---
+
+## Maintenance Tasks
+
+### Regular Maintenance
+
+```bash
+# Weekly: Update dependencies
+cd backend && npm update
+cd frontend && npm update
+
+# Monthly: Security audit
+npm audit
+npm audit fix
+
+# Database vacuum (PostgreSQL)
+psql -U darts_user -d darts_tournament -c "VACUUM ANALYZE;"
+
+# Clear old logs (older than 30 days)
+find backend/logs -name "*.log" -mtime +30 -delete
+```
+
+### Backup Strategy
+
+```bash
+# Daily backup script (add to crontab)
+#!/bin/bash
+BACKUP_DIR="/backups"
+DATE=$(date +%Y%m%d)
+
+# Database backup
+pg_dump -U darts_user darts_tournament > $BACKUP_DIR/db_$DATE.sql
+
+# Code backup (if needed)
+tar -czf $BACKUP_DIR/app_$DATE.tar.gz /var/www/darts_tournament
+
+# Clean old backups (keep 30 days)
+find $BACKUP_DIR -name "*.sql" -mtime +30 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
+```
+
+---
+
+## Additional Resources
+
+- [API Documentation](./API.md)
+- [Architecture Documentation](./ARCHITECTURE.md)
+- [Frontend Documentation](./FRONTEND.md)
+- [Deployment Guide](./DEPLOYMENT.md)
+- [Testing Documentation](./TESTING.md)
+
+**Happy Darting! 🎯**

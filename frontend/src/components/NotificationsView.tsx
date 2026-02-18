@@ -251,6 +251,7 @@ function NotificationsView() {
     }
 
     const socket = io(globalThis.window?.location.origin ?? '', {
+      path: '/socket.io',
       transports: ['websocket'],
       withCredentials: true,
     });

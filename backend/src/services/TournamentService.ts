@@ -642,6 +642,7 @@ export class TournamentService {
       poolCount: number;
       playersPerPool: number;
       advanceCount: number;
+      losersAdvanceToBracket: boolean;
       status: StageStatus;
       completedAt: Date | null;
     }>
@@ -652,6 +653,7 @@ export class TournamentService {
       poolCount: number;
       playersPerPool: number;
       advanceCount: number;
+      losersAdvanceToBracket: boolean;
       status: StageStatus;
       completedAt: Date | null;
     }>;
@@ -1617,6 +1619,7 @@ export class TournamentService {
       poolCount: number;
       playersPerPool: number;
       advanceCount: number;
+      losersAdvanceToBracket?: boolean;
     }
   ) {
     this.validateUUID(tournamentId);
@@ -1649,6 +1652,7 @@ export class TournamentService {
       poolCount: number;
       playersPerPool: number;
       advanceCount: number;
+      losersAdvanceToBracket: boolean;
       status: StageStatus;
       completedAt: Date | null;
     }>

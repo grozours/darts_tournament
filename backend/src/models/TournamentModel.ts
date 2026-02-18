@@ -358,6 +358,7 @@ export class TournamentModel {
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
+    losersAdvanceToBracket?: boolean;
   }) {
     try {
       return await this.prisma.poolStage.create({
@@ -368,6 +369,7 @@ export class TournamentModel {
           poolCount: data.poolCount,
           playersPerPool: data.playersPerPool,
           advanceCount: data.advanceCount,
+          losersAdvanceToBracket: data.losersAdvanceToBracket ?? false,
         },
       });
     } catch (error) {
@@ -395,6 +397,7 @@ export class TournamentModel {
       poolCount: number;
       playersPerPool: number;
       advanceCount: number;
+      losersAdvanceToBracket: boolean;
       status: StageStatus;
       completedAt: Date | null;
     }>

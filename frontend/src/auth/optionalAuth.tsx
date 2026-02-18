@@ -208,6 +208,13 @@ export function OptionalAuthProvider({
     <Auth0Provider
       domain={domain}
       clientId={clientId}
+      cacheLocation="localstorage"
+      useRefreshTokens
+      useCookiesForTransactions
+      authorizationParams={{
+        redirect_uri: redirectUri,
+        ...(audience ? { audience } : {}),
+      }}
       onRedirectCallback={(appState) => {
         debugLog('[Auth0] 🔄 onRedirectCallback fired');
         debugLog('[Auth0] 📦 App state:', JSON.stringify(appState, null, 2));

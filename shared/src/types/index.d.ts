@@ -77,6 +77,7 @@ export interface PoolStage {
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
+    losersAdvanceToBracket: boolean;
     status: StageStatus;
     createdAt: Date;
     completedAt?: Date;

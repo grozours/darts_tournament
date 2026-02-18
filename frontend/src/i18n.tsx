@@ -4,13 +4,13 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 type Language = 'en' | 'fr';
 
 const resolveLang = (value?: string | null): Language => {
-  if (!value) return 'en';
+  if (!value) return 'fr';
   return value.toLowerCase().startsWith('fr') ? 'fr' : 'en';
 };
 
 const getStoredLang = (): Language => {
   const storage = globalThis.window?.localStorage;
-  if (!storage) return 'en';
+  if (!storage) return 'fr';
   return resolveLang(storage.getItem('lang'));
 };
 
@@ -261,6 +261,9 @@ const messages: Record<Language, Record<string, string>> = {
     'edit.pools': 'Pools',
     'edit.perPool': 'Per pool',
     'edit.advance': 'Advance',
+    'edit.losers': 'Losers',
+    'edit.losersOut': 'Eliminated',
+    'edit.losersToBracket': 'To loser bracket',
     'edit.editPlayers': 'Edit players',
     'edit.addStage': 'Add stage',
     'edit.brackets': 'Brackets',
@@ -586,6 +589,9 @@ const messages: Record<Language, Record<string, string>> = {
     'edit.pools': 'Poules',
     'edit.perPool': 'Par poule',
     'edit.advance': 'Qualifiés',
+    'edit.losers': 'Perdants',
+    'edit.losersOut': 'Éliminés',
+    'edit.losersToBracket': 'Vers le tableau des perdants',
     'edit.editPlayers': 'Modifier les joueurs',
     'edit.addStage': 'Ajouter une phase',
     'edit.brackets': 'Tableaux',

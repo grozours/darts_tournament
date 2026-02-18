@@ -48,6 +48,7 @@ export interface PoolStageConfig {
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
+  losersAdvanceToBracket: boolean;
   status: string;
 }
 

@@ -93,20 +93,12 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: frontend/Dockerfile
     ports:
-      - "3001:3001"
-    environment:
-      VITE_API_PROXY_TARGET: http://backend:3000
-    env_file:
-      - ./frontend/.env
-    volumes:
-      - ./frontend/src:/app/frontend/src
-      - ./shared:/app/shared
+      - "3001:80"
     depends_on:
       - backend
-    command: npm run dev -- --host 0.0.0.0 --port 3001
 
 volumes:
   postgres_data:

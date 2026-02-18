@@ -437,6 +437,7 @@ router.post(
       poolCount: z.number().int().min(1).max(16),
       playersPerPool: z.number().int().min(2).max(16),
       advanceCount: z.number().int().min(1).max(16),
+      losersAdvanceToBracket: z.boolean().optional(),
     }),
   }),
   tournamentController.createPoolStage
@@ -462,6 +463,7 @@ router.patch(
       poolCount: z.number().int().min(1).max(16).optional(),
       playersPerPool: z.number().int().min(2).max(16).optional(),
       advanceCount: z.number().int().min(1).max(16).optional(),
+      losersAdvanceToBracket: z.boolean().optional(),
       status: z.enum(['NOT_STARTED', 'EDITION', 'IN_PROGRESS', 'COMPLETED']).optional(),
     }),
   }),

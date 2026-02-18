@@ -433,12 +433,16 @@ function TournamentList() { // NOSONAR
     poolCount: 2,
     playersPerPool: 4,
     advanceCount: 2,
+    losersAdvanceToBracket: false,
   });
+  const [isAddingPoolStage, setIsAddingPoolStage] = useState(false);
   const [newBracket, setNewBracket] = useState({
     name: '',
     bracketType: BracketType.SINGLE_ELIMINATION as string,
     totalRounds: 3,
   });
+  const [isAddingBracket, setIsAddingBracket] = useState(false);
+  const [isBracketRoundsAuto, setIsBracketRoundsAuto] = useState(true);
   const [isRegisteringPlayer, setIsRegisteringPlayer] = useState(false);
   const [isAutoFillingPlayers, setIsAutoFillingPlayers] = useState(false);
   const [checkingInPlayerId, setCheckingInPlayerId] = useState<string | null>(null);
@@ -514,6 +518,27 @@ function TournamentList() { // NOSONAR
     if (!status) return '';
     return status.trim().toUpperCase();
   }, []);
+
+  const getDefaultBracketRounds = useCallback((bracketName: string, bracketType: string) => {
+    if (poolStages.length === 0) return 3;
+    const latestStage = poolStages.reduce((current, next) => (
+      next.stageNumber > current.stageNumber ? next : current
+    ));
+    const winnersPerPool = Math.max(0, latestStage.advanceCount);
+    const losersPerPool = Math.max(0, latestStage.playersPerPool - latestStage.advanceCount);
+    const winnerEntrants = latestStage.poolCount * winnersPerPool;
+    const loserEntrants = latestStage.losersAdvanceToBracket
+      ? latestStage.poolCount * losersPerPool
+      : 0;
+    const normalizedName = bracketName.trim().toLowerCase();
+    const useLosers = normalizedName.includes('loser')
+      || normalizedName.includes('perdant')
+      || normalizedName.includes('perdants')
+      || bracketType === BracketType.DOUBLE_ELIMINATION;
+    const entrants = useLosers ? loserEntrants : winnerEntrants;
+    const rounds = entrants > 0 ? Math.ceil(Math.log2(entrants)) : 1;
+    return Math.max(1, rounds);
+  }, [poolStages]);
 
   const normalizedStatusFilter = statusFilter === 'ALL' ? 'ALL' : normalizeStatus(statusFilter);
 
@@ -712,12 +737,15 @@ function TournamentList() { // NOSONAR
       poolCount: 2,
       playersPerPool: 4,
       advanceCount: 2,
+      losersAdvanceToBracket: false,
     });
     setNewBracket({
       name: '',
       bracketType: BracketType.SINGLE_ELIMINATION,
       totalRounds: 3,
     });
+    setIsAddingBracket(false);
+    setIsBracketRoundsAuto(true);
     setPlayerForm({
       firstName: '',
       lastName: '',
@@ -810,6 +838,8 @@ function TournamentList() { // NOSONAR
       const token = await getSafeAccessToken();
       const data = await fetchBrackets(tournamentId, token);
       setBrackets(data);
+      setIsAddingBracket(false);
+      setIsBracketRoundsAuto(true);
     } catch (err) {
       console.error('Error fetching brackets:', err);
       setBracketsError(err instanceof Error ? err.message : t('edit.error.failedLoadBrackets'));
@@ -912,6 +942,10 @@ function TournamentList() { // NOSONAR
     updatePoolStageField(stageId, (item) => ({ ...item, advanceCount: value }));
   };
 
+  const handlePoolStageLosersAdvanceChange = (stageId: string, value: boolean) => {
+    updatePoolStageField(stageId, (item) => ({ ...item, losersAdvanceToBracket: value }));
+  };
+
   const handlePoolStageStatusChange = (stage: PoolStageConfig, nextStatus: string) => {
     updatePoolStageField(stage.id, (item) => ({ ...item, status: nextStatus }));
     savePoolStage({ ...stage, status: nextStatus });
@@ -953,7 +987,8 @@ function TournamentList() { // NOSONAR
       const token = await getSafeAccessToken();
       await createPoolStage(editingTournament.id, newPoolStage, token);
       await loadPoolStages(editingTournament.id);
-      setNewPoolStage((current) => ({ ...current, name: '' }));
+        setNewPoolStage((current) => ({ ...current, name: '' }));
+        setIsAddingPoolStage(false);
     } catch (err) {
       setPoolStagesError(err instanceof Error ? err.message : t('edit.error.failedAddPoolStage'));
     }
@@ -970,6 +1005,7 @@ function TournamentList() { // NOSONAR
         poolCount: stage.poolCount,
         playersPerPool: stage.playersPerPool,
         advanceCount: stage.advanceCount,
+        losersAdvanceToBracket: stage.losersAdvanceToBracket,
         status: stage.status,
       }, token);
       await loadPoolStages(editingTournament.id);
@@ -1000,6 +1036,7 @@ function TournamentList() { // NOSONAR
     setPoolStageAssignments({});
     try {
       const token = await getSafeAccessToken();
+      setIsAddingPoolStage(false);
       const [playersData, poolsData] = await Promise.all([
         fetchTournamentPlayers(editingTournament.id, token),
         fetchPoolStagePools(editingTournament.id, stage.id, token),
@@ -1077,6 +1114,8 @@ function TournamentList() { // NOSONAR
       await createBracket(editingTournament.id, newBracket, token);
       await loadBrackets(editingTournament.id);
       setNewBracket((current) => ({ ...current, name: '' }));
+      setIsAddingBracket(false);
+      setIsBracketRoundsAuto(true);
     } catch (err) {
       setBracketsError(err instanceof Error ? err.message : t('edit.error.failedAddBracket'));
     }
@@ -1659,15 +1698,15 @@ function TournamentList() { // NOSONAR
         className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
       >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-white mb-1">
             {tournament.name}
           </h3>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
-          <p className="mt-1 text-xs text-slate-500">ID: {tournament.id}</p>
+          <p className="mt-1 break-all text-xs text-slate-500">ID: {tournament.id}</p>
         </div>
-        <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
+        <span className="w-fit rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
           {statusLabel}
         </span>
       </div>
@@ -1683,29 +1722,29 @@ function TournamentList() { // NOSONAR
         </div>
       </div>
       {!showWaitingSignature && (
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
           <a
             href={`/?view=tournament-players&tournamentId=${tournament.id}`}
-            className="rounded-full border border-cyan-500/60 px-4 py-1.5 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300"
+            className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 sm:w-auto"
           >
             {t('tournaments.registered')}
           </a>
           <a
             href={`/?view=pool-stages&tournamentId=${tournament.id}${normalizedStatus === 'FINISHED' ? '&status=FINISHED' : ''}`}
-            className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+            className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
           >
             {t('nav.poolStagesShort')}
           </a>
           <a
             href={`/?view=brackets&tournamentId=${tournament.id}${normalizedStatus === 'FINISHED' ? '&status=FINISHED' : ''}`}
-            className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+            className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
           >
             {t('nav.bracketsShort')}
           </a>
           {normalizedStatus === 'LIVE' && (
             <a
               href={`/?view=live&tournamentId=${tournament.id}`}
-              className="rounded-full border border-emerald-500/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300"
+              className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 sm:w-auto"
             >
               {t('tournaments.viewLive')}
             </a>
@@ -1714,13 +1753,13 @@ function TournamentList() { // NOSONAR
             <>
               <button
                 onClick={() => openEdit(tournament)}
-                className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
               >
                 {t('tournaments.edit')}
               </button>
               <button
                 onClick={() => deleteTournament(tournament.id)}
-                className="rounded-full border border-rose-500/60 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20"
+                className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
               >
                 {t('tournaments.delete')}
               </button>
@@ -1731,7 +1770,7 @@ function TournamentList() { // NOSONAR
                 <button
                   onClick={() => handleUnregisterSelf(tournament.id)}
                   disabled={registeringTournamentId === tournament.id}
-                  className="rounded-full border border-amber-500/60 px-4 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {registeringTournamentId === tournament.id ? t('common.loading') : t('tournaments.unregister')}
                 </button>
@@ -1739,7 +1778,7 @@ function TournamentList() { // NOSONAR
                 <button
                   onClick={() => handleRegisterSelf(tournament.id)}
                   disabled={registeringTournamentId === tournament.id}
-                  className="rounded-full border border-emerald-500/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {registeringTournamentId === tournament.id ? t('common.loading') : t('tournaments.register')}
                 </button>
@@ -2063,7 +2102,7 @@ function TournamentList() { // NOSONAR
                   ) : (
                     poolStages.map((stage) => (
                       <div key={stage.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-4">
-                        <div className="grid gap-3 md:grid-cols-5">
+                        <div className="grid gap-3 md:grid-cols-6">
                           <label className="text-xs text-slate-400">
                             {t('edit.stageNumber')}
                             <input
@@ -2109,6 +2148,17 @@ function TournamentList() { // NOSONAR
                               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
                             />
                           </label>
+                          <label className="text-xs text-slate-400">
+                            {t('edit.losers')}
+                            <select
+                              value={stage.losersAdvanceToBracket ? 'bracket' : 'out'}
+                              onChange={(e) => handlePoolStageLosersAdvanceChange(stage.id, e.target.value === 'bracket')}
+                              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                            >
+                              <option value="out">{t('edit.losersOut')}</option>
+                              <option value="bracket">{t('edit.losersToBracket')}</option>
+                            </select>
+                          </label>
                         </div>
                         <div className="mt-3 flex flex-wrap justify-end gap-2">
                           <select
@@ -2147,87 +2197,122 @@ function TournamentList() { // NOSONAR
                   )}
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-5">
-                  <label className="text-xs text-slate-400">
-                    {t('edit.stageNumber')}
-                    <input
-                      type="number"
-                      value={newPoolStage.stageNumber}
-                      onChange={(e) =>
-                        setNewPoolStage((current) => ({
-                          ...current,
-                          stageNumber: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-slate-400 md:col-span-2">
-                    {t('edit.name')}
-                    <input
-                      type="text"
-                      value={newPoolStage.name}
-                      onChange={(e) =>
-                        setNewPoolStage((current) => ({
-                          ...current,
-                          name: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-slate-400">
-                    {t('edit.pools')}
-                    <input
-                      type="number"
-                      value={newPoolStage.poolCount}
-                      onChange={(e) =>
-                        setNewPoolStage((current) => ({
-                          ...current,
-                          poolCount: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-slate-400">
-                    {t('edit.perPool')}
-                    <input
-                      type="number"
-                      value={newPoolStage.playersPerPool}
-                      onChange={(e) =>
-                        setNewPoolStage((current) => ({
-                          ...current,
-                          playersPerPool: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-slate-400">
-                    {t('edit.advance')}
-                    <input
-                      type="number"
-                      value={newPoolStage.advanceCount}
-                      onChange={(e) =>
-                        setNewPoolStage((current) => ({
-                          ...current,
-                          advanceCount: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <button
-                    onClick={addPoolStage}
-                    disabled={!newPoolStage.name.trim()}
-                    className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400"
-                  >
-                    {t('edit.addStage')}
-                  </button>
-                </div>
+                {!isAddingPoolStage ? (
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      onClick={() => setIsAddingPoolStage(true)}
+                      className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400"
+                    >
+                      {t('edit.addStage')}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-5 grid gap-3 md:grid-cols-6">
+                      <label className="text-xs text-slate-400">
+                        {t('edit.stageNumber')}
+                        <input
+                          type="number"
+                          value={newPoolStage.stageNumber}
+                          onChange={(e) =>
+                            setNewPoolStage((current) => ({
+                              ...current,
+                              stageNumber: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-400 md:col-span-2">
+                        {t('edit.name')}
+                        <input
+                          type="text"
+                          value={newPoolStage.name}
+                          onChange={(e) =>
+                            setNewPoolStage((current) => ({
+                              ...current,
+                              name: e.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-400">
+                        {t('edit.pools')}
+                        <input
+                          type="number"
+                          value={newPoolStage.poolCount}
+                          onChange={(e) =>
+                            setNewPoolStage((current) => ({
+                              ...current,
+                              poolCount: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-400">
+                        {t('edit.perPool')}
+                        <input
+                          type="number"
+                          value={newPoolStage.playersPerPool}
+                          onChange={(e) =>
+                            setNewPoolStage((current) => ({
+                              ...current,
+                              playersPerPool: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-400">
+                        {t('edit.advance')}
+                        <input
+                          type="number"
+                          value={newPoolStage.advanceCount}
+                          onChange={(e) =>
+                            setNewPoolStage((current) => ({
+                              ...current,
+                              advanceCount: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-400">
+                        {t('edit.losers')}
+                        <select
+                          value={newPoolStage.losersAdvanceToBracket ? 'bracket' : 'out'}
+                          onChange={(e) =>
+                            setNewPoolStage((current) => ({
+                              ...current,
+                              losersAdvanceToBracket: e.target.value === 'bracket',
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        >
+                          <option value="out">{t('edit.losersOut')}</option>
+                          <option value="bracket">{t('edit.losersToBracket')}</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <button
+                        onClick={() => setIsAddingPoolStage(false)}
+                        className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        onClick={addPoolStage}
+                        disabled={!newPoolStage.name.trim()}
+                        className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400"
+                      >
+                        {t('edit.addStage')}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
@@ -2313,64 +2398,100 @@ function TournamentList() { // NOSONAR
                   )}
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-4">
-                  <label className="text-xs text-slate-400 md:col-span-2">
-                    {t('edit.name')}
-                    <input
-                      type="text"
-                      value={newBracket.name}
-                      onChange={(e) =>
+                {!isAddingBracket ? (
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      onClick={() => {
+                        setIsAddingBracket(true);
+                        setIsBracketRoundsAuto(true);
                         setNewBracket((current) => ({
                           ...current,
-                          name: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-slate-400">
-                    {t('edit.type')}
-                    <select
-                      value={newBracket.bracketType}
-                      onChange={(e) =>
-                        setNewBracket((current) => ({
-                          ...current,
-                          bracketType: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                          totalRounds: getDefaultBracketRounds(current.name, current.bracketType),
+                        }));
+                      }}
+                      className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
                     >
-                      {Object.values(BracketType).map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs text-slate-400">
-                    {t('edit.rounds')}
-                    <input
-                      type="number"
-                      value={newBracket.totalRounds}
-                      onChange={(e) =>
-                        setNewBracket((current) => ({
-                          ...current,
-                          totalRounds: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <button
-                    onClick={addBracket}
-                    disabled={!newBracket.name.trim()}
-                    className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
-                  >
-                    {t('edit.addBracket')}
-                  </button>
-                </div>
+                      {t('edit.addBracket')}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-5 grid gap-3 md:grid-cols-4">
+                      <label className="text-xs text-slate-400 md:col-span-2">
+                        {t('edit.name')}
+                        <input
+                          type="text"
+                          value={newBracket.name}
+                          onChange={(e) =>
+                            setNewBracket((current) => ({
+                              ...current,
+                              name: e.target.value,
+                              ...(isBracketRoundsAuto
+                                ? { totalRounds: getDefaultBracketRounds(e.target.value, current.bracketType) }
+                                : {}),
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-400">
+                        {t('edit.type')}
+                        <select
+                          value={newBracket.bracketType}
+                          onChange={(e) =>
+                            setNewBracket((current) => ({
+                              ...current,
+                              bracketType: e.target.value,
+                              ...(isBracketRoundsAuto
+                                ? { totalRounds: getDefaultBracketRounds(current.name, e.target.value) }
+                                : {}),
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        >
+                          {Object.values(BracketType).map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-xs text-slate-400">
+                        {t('edit.rounds')}
+                        <input
+                          type="number"
+                          value={newBracket.totalRounds}
+                          onChange={(e) => {
+                            setIsBracketRoundsAuto(false);
+                            setNewBracket((current) => ({
+                              ...current,
+                              totalRounds: Number(e.target.value),
+                            }));
+                          }}
+                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setIsAddingBracket(false);
+                          setIsBracketRoundsAuto(true);
+                        }}
+                        className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        onClick={addBracket}
+                        disabled={!newBracket.name.trim()}
+                        className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+                      >
+                        {t('edit.addBracket')}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
             {normalizeStatus(editingTournament.status) === 'OPEN' && (
