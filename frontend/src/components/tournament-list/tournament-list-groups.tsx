@@ -8,6 +8,10 @@ type TournamentListGroupsProperties = {
   t: Translator;
   userRegistrations: Set<string>;
   registeringTournamentId?: string | undefined;
+  openingRegistrationId?: string | undefined;
+  openingSignatureId?: string | undefined;
+  onOpenRegistration: (tournamentId: string) => void;
+  onOpenSignature: (tournamentId: string) => void;
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
   onRegister: (tournamentId: string) => void;
@@ -21,13 +25,19 @@ const TournamentListGroups = ({
   t,
   userRegistrations,
   registeringTournamentId,
+  openingRegistrationId,
+  openingSignatureId,
   onEdit,
   onDelete,
   onRegister,
   onUnregister,
+  onOpenRegistration,
+  onOpenSignature,
 }: TournamentListGroupsProperties) => (
   <div className="space-y-8">
-    {groupedTournaments.map((group) => (
+    {groupedTournaments
+      .filter((group) => isAdmin || group.status !== 'DRAFT')
+      .map((group) => (
       <div key={group.status} className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">{group.title}</h3>
@@ -60,7 +70,11 @@ const TournamentListGroups = ({
                   onDelete={onDelete}
                   onRegister={onRegister}
                   onUnregister={onUnregister}
+                  onOpenRegistration={onOpenRegistration}
+                  onOpenSignature={onOpenSignature}
                   registeringTournamentId={registeringTournamentId}
+                  openingRegistrationId={openingRegistrationId}
+                  openingSignatureId={openingSignatureId}
                   userRegistrations={userRegistrations}
                 />
               );

@@ -5,7 +5,10 @@ import { TournamentStatus } from '../../../shared/src/types';
 let mockService: {
   createTournament: jest.Mock;
   getTournamentById: jest.Mock;
+  getTournamentLiveView: jest.Mock;
   getTournaments: jest.Mock;
+  updateTournament: jest.Mock;
+  deleteTournament: jest.Mock;
   uploadTournamentLogo: jest.Mock;
   getTournamentsByDateRange: jest.Mock;
   registerPlayer: jest.Mock;
@@ -13,6 +16,7 @@ let mockService: {
   getPlayerById: jest.Mock;
   unregisterPlayer: jest.Mock;
   getTournamentParticipants: jest.Mock;
+  updateTournamentPlayerCheckIn: jest.Mock;
   validateRegistrationConstraints: jest.Mock;
   transitionTournamentStatus: jest.Mock;
 };
@@ -58,7 +62,10 @@ describe('tournament-controller', () => {
     mockService = {
       createTournament: jest.fn(),
       getTournamentById: jest.fn(),
+      getTournamentLiveView: jest.fn(),
       getTournaments: jest.fn(),
+      updateTournament: jest.fn(),
+      deleteTournament: jest.fn(),
       uploadTournamentLogo: jest.fn(),
       getTournamentsByDateRange: jest.fn(),
       registerPlayer: jest.fn(),
@@ -66,6 +73,7 @@ describe('tournament-controller', () => {
       getPlayerById: jest.fn(),
       unregisterPlayer: jest.fn(),
       getTournamentParticipants: jest.fn(),
+      updateTournamentPlayerCheckIn: jest.fn(),
       validateRegistrationConstraints: jest.fn(),
       transitionTournamentStatus: jest.fn(),
     };
@@ -139,6 +147,70 @@ describe('tournament-controller', () => {
       })
     );
     expect(response.json).toHaveBeenCalledWith([{ id: 't-1' }]);
+  });
+
+  it('hides drafts for non-admin users', async () => {
+    const request = buildRequest({ query: { status: TournamentStatus.DRAFT } });
+    const response = buildResponse();
+
+    isAdminMock.mockReturnValue(false);
+
+    await controller.getTournaments(request as never, response as never);
+
+    expect(mockService.getTournaments).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith({
+      tournaments: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it('adds excludeDraft for non-admin list queries', async () => {
+    const request = buildRequest({ query: { page: '1', limit: '5' } });
+    const response = buildResponse();
+
+    isAdminMock.mockReturnValue(false);
+    mockService.getTournaments.mockResolvedValue([]);
+
+    await controller.getTournaments(request as never, response as never);
+
+    expect(mockService.getTournaments).toHaveBeenCalledWith(
+      expect.objectContaining({ excludeDraft: true })
+    );
+  });
+
+  it('returns tournament live views', async () => {
+    const request = buildRequest({ params: { id: 't-12' } });
+    const response = buildResponse();
+
+    mockService.getTournamentLiveView.mockResolvedValue({ id: 't-12' });
+
+    await controller.getTournamentLiveView(request as never, response as never);
+
+    expect(response.json).toHaveBeenCalledWith({ id: 't-12' });
+  });
+
+  it('updates tournaments', async () => {
+    const request = buildRequest({ params: { id: 't-13' }, body: { name: 'Updated' } });
+    const response = buildResponse();
+
+    mockService.updateTournament.mockResolvedValue({ id: 't-13' });
+
+    await controller.updateTournament(request as never, response as never);
+
+    expect(mockService.updateTournament).toHaveBeenCalledWith('t-13', { name: 'Updated' });
+    expect(response.json).toHaveBeenCalledWith({ id: 't-13' });
+  });
+
+  it('deletes tournaments', async () => {
+    const request = buildRequest({ params: { id: 't-14' } });
+    const response = buildResponse();
+
+    await controller.deleteTournament(request as never, response as never);
+
+    expect(mockService.deleteTournament).toHaveBeenCalledWith('t-14');
+    expect(response.status).toHaveBeenCalledWith(204);
   });
 
   it('rejects missing logo uploads', async () => {
@@ -231,6 +303,27 @@ describe('tournament-controller', () => {
     expect(mockService.unregisterPlayer).not.toHaveBeenCalled();
   });
 
+  it('allows unregistering when user email matches', async () => {
+    const request = buildRequest({
+      params: { id: 't-4', playerId: 'p-2' },
+      auth: { payload: { email: 'user@example.com' } },
+    });
+    const response = buildResponse();
+
+    isAdminMock.mockReturnValue(false);
+    mockService.getPlayerById.mockResolvedValue({
+      tournamentId: 't-4',
+      email: 'user@example.com',
+    });
+
+    await controller.unregisterPlayer(request as never, response as never);
+
+    expect(mockService.unregisterPlayer).toHaveBeenCalledWith('t-4', 'p-2');
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Player unregistered successfully' })
+    );
+  });
+
   it('rejects unregistering without verified user email', async () => {
     const request = buildRequest({ params: { id: 't-4', playerId: 'p-2' } });
     const response = buildResponse();
@@ -255,6 +348,33 @@ describe('tournament-controller', () => {
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ totalCount: 1 })
     );
+  });
+
+  it('updates player check-in status', async () => {
+    const request = buildRequest({
+      params: { id: 't-9', playerId: 'p-3' },
+      body: { checkedIn: true },
+    });
+    const response = buildResponse();
+
+    mockService.updateTournamentPlayerCheckIn.mockResolvedValue({ id: 'p-3' });
+
+    await controller.updateTournamentPlayerCheckIn(request as never, response as never);
+
+    expect(mockService.updateTournamentPlayerCheckIn).toHaveBeenCalledWith('t-9', 'p-3', true);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Player check-in status updated' })
+    );
+  });
+
+  it('deletes tournament players', async () => {
+    const request = buildRequest({ params: { id: 't-10', playerId: 'p-4' } });
+    const response = buildResponse();
+
+    await controller.deleteTournamentPlayer(request as never, response as never);
+
+    expect(mockService.unregisterPlayer).toHaveBeenCalledWith('t-10', 'p-4');
+    expect(response.status).toHaveBeenCalledWith(204);
   });
 
   it('validates registrations', async () => {

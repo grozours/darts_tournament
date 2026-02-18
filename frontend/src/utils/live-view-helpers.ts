@@ -23,10 +23,13 @@ export const isPoolStagesView = (viewMode: LiveViewMode) => viewMode === 'pool-s
 
 export const isBracketsView = (viewMode: LiveViewMode) => viewMode === 'brackets';
 
-export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewStatus) => {
+export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewStatus, isAdmin = false) => {
   const allowedStatuses = viewStatus === 'FINISHED'
     ? new Set(['COMPLETED'])
     : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
+  if (isAdmin && viewStatus !== 'FINISHED') {
+    allowedStatuses.add('EDITION');
+  }
   return (view.poolStages || []).some(
     (stage) => allowedStatuses.has(stage.status ?? '') && (stage.pools?.length || 0) > 0
   );
@@ -42,10 +45,11 @@ export const hasActiveBrackets = (view: LiveViewLike, viewStatus?: LiveViewStatu
 export const getVisibleLiveViews = <T extends LiveViewLike>(
   viewMode: LiveViewMode,
   views: T[],
-  viewStatus?: LiveViewStatus
+  viewStatus?: LiveViewStatus,
+  isAdmin = false
 ) => {
   if (isPoolStagesView(viewMode)) {
-    return views.filter((view) => hasActivePoolStages(view, viewStatus));
+    return views.filter((view) => hasActivePoolStages(view, viewStatus, isAdmin));
   }
   if (isBracketsView(viewMode)) {
     return views.filter((view) => hasActiveBrackets(view, viewStatus));

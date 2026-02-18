@@ -11,7 +11,8 @@ type PoolStageStats = {
 export const filterPoolStagesForView = (
   viewMode: LiveViewMode,
   viewStatus: LiveViewStatus,
-  poolStages?: LiveViewPoolStage[]
+  poolStages?: LiveViewPoolStage[],
+  isAdmin = false
 ) => {
   const stages = poolStages || [];
   if (!isPoolStagesView(viewMode)) {
@@ -20,6 +21,9 @@ export const filterPoolStagesForView = (
   const allowedStatuses = viewStatus === 'FINISHED'
     ? new Set(['COMPLETED'])
     : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
+  if (isAdmin && viewStatus !== 'FINISHED') {
+    allowedStatuses.add('EDITION');
+  }
   return stages.filter((stage) => allowedStatuses.has(stage.status) && (stage.pools?.length || 0) > 0);
 };
 

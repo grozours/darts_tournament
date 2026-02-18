@@ -274,16 +274,18 @@ export class TournamentModel {
     status?: TournamentStatus;
     format?: TournamentFormat;
     name?: string;
+    excludeDraft?: boolean;
     page?: number;
     limit?: number;
     sortBy?: 'name' | 'startTime' | 'createdAt';
     sortOrder?: 'asc' | 'desc';
-  }): Promise<{ tournaments: Tournament[]; total: number; page: number; limit: number }> {
+  }): Promise<{ tournaments: Array<Tournament & { currentParticipants: number }>; total: number; page: number; limit: number }> {
     try {
       const {
         status,
         format,
         name,
+        excludeDraft,
         page = 1,
         limit = 10,
         sortBy = 'createdAt',
@@ -294,6 +296,8 @@ export class TournamentModel {
       
       if (status) {
         where.status = status;
+      } else if (excludeDraft) {
+        where.status = { not: TournamentStatus.DRAFT };
       }
       
       if (format) {
@@ -321,8 +325,23 @@ export class TournamentModel {
         this.prisma.tournament.count({ where }),
       ]);
 
+      const tournamentIds = tournaments.map((tournament) => tournament.id);
+      const participantCounts = tournamentIds.length > 0
+        ? await this.prisma.player.groupBy({
+          by: ['tournamentId'],
+          where: { tournamentId: { in: tournamentIds }, isActive: true },
+          _count: { _all: true },
+        })
+        : [];
+      const participantCountByTournament = new Map(
+        participantCounts.map((entry) => [entry.tournamentId, entry._count._all])
+      );
+
       return {
-        tournaments: tournaments.map(tournament => this.mapToTournament(tournament)),
+        tournaments: tournaments.map((tournament) => ({
+          ...this.mapToTournament(tournament),
+          currentParticipants: participantCountByTournament.get(tournament.id) ?? 0,
+        })),
         total,
         page,
         limit,

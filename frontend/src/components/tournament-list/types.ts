@@ -15,6 +15,7 @@ export type Tournament = {
   logoUrl?: string | undefined;
   format: string;
   totalParticipants: number;
+  currentParticipants?: number | undefined;
   status: string;
   durationType?: string | undefined;
   startTime?: string | undefined;

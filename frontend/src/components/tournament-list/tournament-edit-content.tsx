@@ -101,104 +101,175 @@ export type TournamentEditContentProperties = {
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;
 };
 
-const getFormProperties = (properties: TournamentEditContentProperties) => ({
-  t: properties.t,
-  editForm: properties.editForm,
-  editingTournament: properties.editingTournament,
-  formatOptions: properties.formatOptions,
-  durationOptions: properties.durationOptions,
-  logoFile: properties.logoFile,
-  isUploadingLogo: properties.isUploadingLogo,
-  onEditFormChange: properties.onEditFormChange,
-  onLogoFileChange: properties.onLogoFileChange,
-  onUploadLogo: properties.onUploadLogo,
-});
+const TournamentEditContent = (properties: TournamentEditContentProperties) => {
+  const {
+    t,
+    editForm,
+    editingTournament,
+    formatOptions,
+    durationOptions,
+    logoFile,
+    isUploadingLogo,
+    poolStages,
+    poolStagesError,
+    isAddingPoolStage,
+    newPoolStage,
+    brackets,
+    bracketsError,
+    isAddingBracket,
+    newBracket,
+    players,
+    playersLoading,
+    playersError,
+    playerForm,
+    editingPlayerId,
+    checkingInPlayerId,
+    playerActionLabel,
+    isRegisteringPlayer,
+    isAutoFillingPlayers,
+    isConfirmingAll,
+    normalizedStatus,
+    onEditFormChange,
+    onLogoFileChange,
+    onUploadLogo,
+    onLoadPoolStages,
+    onPoolStageNumberChange,
+    onPoolStageNameChange,
+    onPoolStagePoolCountChange,
+    onPoolStagePlayersPerPoolChange,
+    onPoolStageAdvanceCountChange,
+    onPoolStageLosersAdvanceChange,
+    onPoolStageStatusChange,
+    onOpenPoolStageAssignments,
+    onSavePoolStage,
+    onRemovePoolStage,
+    onStartAddPoolStage,
+    onCancelAddPoolStage,
+    onNewPoolStageStageNumberChange,
+    onNewPoolStageNameChange,
+    onNewPoolStagePoolCountChange,
+    onNewPoolStagePlayersPerPoolChange,
+    onNewPoolStageAdvanceCountChange,
+    onNewPoolStageLosersAdvanceChange,
+    onAddPoolStage,
+    onLoadBrackets,
+    onBracketNameChange,
+    onBracketTypeChange,
+    onBracketRoundsChange,
+    onBracketStatusChange,
+    onSaveBracket,
+    onRemoveBracket,
+    onStartAddBracket,
+    onCancelAddBracket,
+    onNewBracketNameChange,
+    onNewBracketTypeChange,
+    onNewBracketRoundsChange,
+    onAddBracket,
+    getStatusLabel,
+    normalizeStageStatus,
+    onPlayerFormChange,
+    onStartEditPlayer,
+    onCancelEditPlayer,
+    onSubmitPlayer,
+    onAutoFillPlayers,
+    onRemovePlayer,
+    onFetchPlayers,
+    onConfirmAllPlayers,
+    onTogglePlayerCheckIn,
+    skillLevelOptions,
+  } = properties;
 
-const getPoolStagesProperties = (properties: TournamentEditContentProperties) => ({
-  t: properties.t,
-  poolStages: properties.poolStages,
-  poolStagesError: properties.poolStagesError,
-  isAddingPoolStage: properties.isAddingPoolStage,
-  newPoolStage: properties.newPoolStage,
-  onLoadPoolStages: properties.onLoadPoolStages,
-  onPoolStageNumberChange: properties.onPoolStageNumberChange,
-  onPoolStageNameChange: properties.onPoolStageNameChange,
-  onPoolStagePoolCountChange: properties.onPoolStagePoolCountChange,
-  onPoolStagePlayersPerPoolChange: properties.onPoolStagePlayersPerPoolChange,
-  onPoolStageAdvanceCountChange: properties.onPoolStageAdvanceCountChange,
-  onPoolStageLosersAdvanceChange: properties.onPoolStageLosersAdvanceChange,
-  onPoolStageStatusChange: properties.onPoolStageStatusChange,
-  onOpenPoolStageAssignments: properties.onOpenPoolStageAssignments,
-  onSavePoolStage: properties.onSavePoolStage,
-  onRemovePoolStage: properties.onRemovePoolStage,
-  onStartAddPoolStage: properties.onStartAddPoolStage,
-  onCancelAddPoolStage: properties.onCancelAddPoolStage,
-  onNewPoolStageStageNumberChange: properties.onNewPoolStageStageNumberChange,
-  onNewPoolStageNameChange: properties.onNewPoolStageNameChange,
-  onNewPoolStagePoolCountChange: properties.onNewPoolStagePoolCountChange,
-  onNewPoolStagePlayersPerPoolChange: properties.onNewPoolStagePlayersPerPoolChange,
-  onNewPoolStageAdvanceCountChange: properties.onNewPoolStageAdvanceCountChange,
-  onNewPoolStageLosersAdvanceChange: properties.onNewPoolStageLosersAdvanceChange,
-  onAddPoolStage: properties.onAddPoolStage,
-  getStatusLabel: properties.getStatusLabel,
-  normalizeStageStatus: properties.normalizeStageStatus,
-});
-
-const getBracketsProperties = (properties: TournamentEditContentProperties) => ({
-  t: properties.t,
-  brackets: properties.brackets,
-  bracketsError: properties.bracketsError,
-  isAddingBracket: properties.isAddingBracket,
-  newBracket: properties.newBracket,
-  onLoadBrackets: properties.onLoadBrackets,
-  onBracketNameChange: properties.onBracketNameChange,
-  onBracketTypeChange: properties.onBracketTypeChange,
-  onBracketRoundsChange: properties.onBracketRoundsChange,
-  onBracketStatusChange: properties.onBracketStatusChange,
-  onSaveBracket: properties.onSaveBracket,
-  onRemoveBracket: properties.onRemoveBracket,
-  onStartAddBracket: properties.onStartAddBracket,
-  onCancelAddBracket: properties.onCancelAddBracket,
-  onNewBracketNameChange: properties.onNewBracketNameChange,
-  onNewBracketTypeChange: properties.onNewBracketTypeChange,
-  onNewBracketRoundsChange: properties.onNewBracketRoundsChange,
-  onAddBracket: properties.onAddBracket,
-  getStatusLabel: properties.getStatusLabel,
-});
-
-const getStatusSectionProperties = (properties: TournamentEditContentProperties) => ({
-  t: properties.t,
-  normalizedStatus: properties.normalizedStatus,
-  editingTournament: properties.editingTournament,
-  players: properties.players,
-  playersLoading: properties.playersLoading,
-  playersError: properties.playersError,
-  playerForm: properties.playerForm,
-  editingPlayerId: properties.editingPlayerId,
-  checkingInPlayerId: properties.checkingInPlayerId,
-  playerActionLabel: properties.playerActionLabel,
-  isRegisteringPlayer: properties.isRegisteringPlayer,
-  isAutoFillingPlayers: properties.isAutoFillingPlayers,
-  isConfirmingAll: properties.isConfirmingAll,
-  skillLevelOptions: properties.skillLevelOptions,
-  onPlayerFormChange: properties.onPlayerFormChange,
-  onStartEditPlayer: properties.onStartEditPlayer,
-  onCancelEditPlayer: properties.onCancelEditPlayer,
-  onSubmitPlayer: properties.onSubmitPlayer,
-  onAutoFillPlayers: properties.onAutoFillPlayers,
-  onRemovePlayer: properties.onRemovePlayer,
-  onFetchPlayers: properties.onFetchPlayers,
-  onConfirmAllPlayers: properties.onConfirmAllPlayers,
-  onTogglePlayerCheckIn: properties.onTogglePlayerCheckIn,
-});
-
-const TournamentEditContent = (properties: TournamentEditContentProperties) => (
-  <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-1">
-    <TournamentEditForm {...getFormProperties(properties)} />
-    <PoolStagesEditor {...getPoolStagesProperties(properties)} />
-    <BracketsEditor {...getBracketsProperties(properties)} />
-    <TournamentStatusSections {...getStatusSectionProperties(properties)} />
-  </div>
-);
+  return (
+    <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-1">
+      <TournamentEditForm
+        t={t}
+        editForm={editForm}
+        editingTournament={editingTournament}
+        formatOptions={formatOptions}
+        durationOptions={durationOptions}
+        logoFile={logoFile}
+        isUploadingLogo={isUploadingLogo}
+        onEditFormChange={onEditFormChange}
+        onLogoFileChange={onLogoFileChange}
+        onUploadLogo={onUploadLogo}
+      />
+      <PoolStagesEditor
+        t={t}
+        poolStages={poolStages}
+        poolStagesError={poolStagesError}
+        isAddingPoolStage={isAddingPoolStage}
+        newPoolStage={newPoolStage}
+        onLoadPoolStages={onLoadPoolStages}
+        onPoolStageNumberChange={onPoolStageNumberChange}
+        onPoolStageNameChange={onPoolStageNameChange}
+        onPoolStagePoolCountChange={onPoolStagePoolCountChange}
+        onPoolStagePlayersPerPoolChange={onPoolStagePlayersPerPoolChange}
+        onPoolStageAdvanceCountChange={onPoolStageAdvanceCountChange}
+        onPoolStageLosersAdvanceChange={onPoolStageLosersAdvanceChange}
+        onPoolStageStatusChange={onPoolStageStatusChange}
+        onOpenPoolStageAssignments={onOpenPoolStageAssignments}
+        onSavePoolStage={onSavePoolStage}
+        onRemovePoolStage={onRemovePoolStage}
+        onStartAddPoolStage={onStartAddPoolStage}
+        onCancelAddPoolStage={onCancelAddPoolStage}
+        onNewPoolStageStageNumberChange={onNewPoolStageStageNumberChange}
+        onNewPoolStageNameChange={onNewPoolStageNameChange}
+        onNewPoolStagePoolCountChange={onNewPoolStagePoolCountChange}
+        onNewPoolStagePlayersPerPoolChange={onNewPoolStagePlayersPerPoolChange}
+        onNewPoolStageAdvanceCountChange={onNewPoolStageAdvanceCountChange}
+        onNewPoolStageLosersAdvanceChange={onNewPoolStageLosersAdvanceChange}
+        onAddPoolStage={onAddPoolStage}
+        getStatusLabel={getStatusLabel}
+        normalizeStageStatus={normalizeStageStatus}
+      />
+      <BracketsEditor
+        t={t}
+        brackets={brackets}
+        bracketsError={bracketsError}
+        isAddingBracket={isAddingBracket}
+        newBracket={newBracket}
+        onLoadBrackets={onLoadBrackets}
+        onBracketNameChange={onBracketNameChange}
+        onBracketTypeChange={onBracketTypeChange}
+        onBracketRoundsChange={onBracketRoundsChange}
+        onBracketStatusChange={onBracketStatusChange}
+        onSaveBracket={onSaveBracket}
+        onRemoveBracket={onRemoveBracket}
+        onStartAddBracket={onStartAddBracket}
+        onCancelAddBracket={onCancelAddBracket}
+        onNewBracketNameChange={onNewBracketNameChange}
+        onNewBracketTypeChange={onNewBracketTypeChange}
+        onNewBracketRoundsChange={onNewBracketRoundsChange}
+        onAddBracket={onAddBracket}
+        getStatusLabel={getStatusLabel}
+      />
+      <TournamentStatusSections
+        t={t}
+        normalizedStatus={normalizedStatus}
+        editingTournament={editingTournament}
+        players={players}
+        playersLoading={playersLoading}
+        playersError={playersError}
+        playerForm={playerForm}
+        editingPlayerId={editingPlayerId}
+        checkingInPlayerId={checkingInPlayerId}
+        playerActionLabel={playerActionLabel}
+        isRegisteringPlayer={isRegisteringPlayer}
+        isAutoFillingPlayers={isAutoFillingPlayers}
+        isConfirmingAll={isConfirmingAll}
+        skillLevelOptions={skillLevelOptions}
+        onPlayerFormChange={onPlayerFormChange}
+        onStartEditPlayer={onStartEditPlayer}
+        onCancelEditPlayer={onCancelEditPlayer}
+        onSubmitPlayer={onSubmitPlayer}
+        onAutoFillPlayers={onAutoFillPlayers}
+        onRemovePlayer={onRemovePlayer}
+        onFetchPlayers={onFetchPlayers}
+        onConfirmAllPlayers={onConfirmAllPlayers}
+        onTogglePlayerCheckIn={onTogglePlayerCheckIn}
+      />
+    </div>
+  );
+};
 
 export default TournamentEditContent;

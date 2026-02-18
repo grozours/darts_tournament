@@ -163,6 +163,15 @@ export class TournamentController {
         filters.name = name;
       }
 
+      const isAdminRequest = isAdmin(request);
+      if (!isAdminRequest && filters.status === TournamentStatus.DRAFT) {
+        response.json({ tournaments: [], total: 0, page: filters.page ?? 1, limit: filters.limit ?? 10 });
+        return;
+      }
+      if (!isAdminRequest) {
+        filters.excludeDraft = true;
+      }
+
       const result = await this.getTournamentService(request).getTournaments(filters);
 
       response.json(result);

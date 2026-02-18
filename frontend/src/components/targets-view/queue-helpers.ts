@@ -1,5 +1,6 @@
 import type { LiveViewData, LiveViewMatch, LiveViewPool, LiveViewPoolStage, MatchQueueItem, PoolQueue } from './types';
 import { getPlayerIdentity, getMatchPlayers, statusWeight } from './target-labels';
+import { buildPoolQueues, collectActiveFromMatches, interleavePools } from '../queue/pool-queue-utils';
 
 type BuildQueueItemsProperties = {
   view: LiveViewData;
@@ -67,54 +68,6 @@ const sortPoolMatches = (queue: PoolQueue) => {
   });
 };
 
-const interleavePools = (queues: PoolQueue[]) => {
-  const ordered: MatchQueueItem[] = [];
-  const comparePools = (a: PoolQueue, b: PoolQueue) => {
-    if (a.progress !== b.progress) return a.progress - b.progress;
-    if (a.stageNumber !== b.stageNumber) return a.stageNumber - b.stageNumber;
-    return a.poolNumber - b.poolNumber;
-  };
-
-  while (queues.some((queue) => queue.matches.length > 0)) {
-    const nextPool = [...queues]
-      .filter((queue) => queue.matches.length > 0)
-      .toSorted(comparePools)[0];
-    if (!nextPool) break;
-    const nextMatch = nextPool.matches.shift();
-    if (!nextMatch) break;
-    ordered.push(nextMatch);
-    nextPool.progress += 1;
-  }
-
-  return ordered;
-};
-
-const buildPoolQueues = (
-  poolStages: LiveViewPoolStage[],
-  collectActivePlayers: (match: LiveViewMatch) => void
-): PoolQueue[] => {
-  const poolQueues: PoolQueue[] = [];
-  for (const stage of poolStages) {
-    for (const pool of stage.pools ?? []) {
-      const completedOrInProgress = (pool.matches ?? []).filter(
-        (match) => match.status === 'COMPLETED' || match.status === 'IN_PROGRESS'
-      ).length;
-      poolQueues.push({
-        poolId: pool.id,
-        stageNumber: stage.stageNumber,
-        poolNumber: pool.poolNumber,
-        progress: completedOrInProgress,
-        matches: [],
-      });
-      for (const match of pool.matches ?? []) {
-        if (match.status === 'IN_PROGRESS') {
-          collectActivePlayers(match);
-        }
-      }
-    }
-  }
-  return poolQueues;
-};
 
 const collectPoolItemsForPool = (
   view: LiveViewData,
@@ -167,16 +120,10 @@ const buildQueueItems = ({
   return items;
 };
 
-const collectActivePlayersFromMatches = (
-  matches: LiveViewMatch[],
-  collectActivePlayers: (match: LiveViewMatch) => void
-) => {
-  for (const match of matches) {
-    if (match.status === 'IN_PROGRESS') {
-      collectActivePlayers(match);
-    }
-  }
-};
+const isInProgress = (match: LiveViewMatch) => match.status === 'IN_PROGRESS';
+const isCompletedOrInProgress = (match: LiveViewMatch) => (
+  match.status === 'COMPLETED' || match.status === 'IN_PROGRESS'
+);
 
 const buildMatchBlocker = (activePlayerKeys: Set<string>) => (match: LiveViewMatch) => {
   for (const playerMatch of match.playerMatches ?? []) {
@@ -237,10 +184,20 @@ export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
       }
     };
 
-    poolQueues.push(...buildPoolQueues(view.poolStages ?? [], collectActivePlayers));
+    poolQueues.push(...buildPoolQueues<LiveViewPoolStage, LiveViewPool, LiveViewMatch, MatchQueueItem>({
+      stages: view.poolStages ?? [],
+      getPools: (stage) => stage.pools,
+      getPoolId: (pool) => pool.id,
+      getStageNumber: (stage) => stage.stageNumber,
+      getPoolNumber: (pool) => pool.poolNumber,
+      getMatches: (pool) => pool.matches,
+      isMatchCompletedOrInProgress: isCompletedOrInProgress,
+      isMatchInProgress: isInProgress,
+      onInProgressMatch: collectActivePlayers,
+    }));
 
     for (const bracket of view.brackets ?? []) {
-      collectActivePlayersFromMatches(bracket.matches ?? [], collectActivePlayers);
+      collectActiveFromMatches(bracket.matches ?? [], isInProgress, collectActivePlayers);
     }
 
     const isMatchBlocked = buildMatchBlocker(activePlayerKeys);

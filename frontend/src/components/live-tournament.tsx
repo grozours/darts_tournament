@@ -86,6 +86,7 @@ function LiveTournament() {
     isAuthenticated,
     authLoading,
     authError,
+    isAdmin,
     viewMode,
     viewStatus,
     tournamentId,
@@ -174,6 +175,7 @@ function LiveTournament() {
 
   const commonViewProperties = {
     t,
+    isAdmin,
     viewMode,
     viewStatus,
     isAggregateView,

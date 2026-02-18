@@ -261,6 +261,62 @@ describe('TournamentService core logic', () => {
     );
   });
 
+  it('blocks bracket match start unless tournament is live', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000013';
+    const matchId = '00000000-0000-4000-8000-000000000113';
+    const targetId = '00000000-0000-4000-8000-000000000213';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, status: TournamentStatus.SIGNATURE });
+    mockModel.getMatchById.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.SCHEDULED,
+      targetId,
+      bracketId: 'bracket-1',
+    });
+    mockModel.getTargetById.mockResolvedValue({
+      id: targetId,
+      tournamentId,
+      status: TargetStatus.AVAILABLE,
+    });
+
+    await expect(
+      service.updateMatchStatus(tournamentId, matchId, MatchStatus.IN_PROGRESS)
+    ).rejects.toMatchObject({ code: 'BRACKET_MATCH_NOT_LIVE' });
+
+    expect(mockModel.startMatchWithTarget).not.toHaveBeenCalled();
+  });
+
+  it('allows bracket match start when tournament is live', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000014';
+    const matchId = '00000000-0000-4000-8000-000000000114';
+    const targetId = '00000000-0000-4000-8000-000000000214';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, status: TournamentStatus.LIVE });
+    mockModel.getMatchById.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.SCHEDULED,
+      targetId,
+      bracketId: 'bracket-2',
+    });
+    mockModel.getTargetById.mockResolvedValue({
+      id: targetId,
+      tournamentId,
+      status: TargetStatus.AVAILABLE,
+    });
+
+    await service.updateMatchStatus(tournamentId, matchId, MatchStatus.IN_PROGRESS);
+
+    expect(mockModel.startMatchWithTarget).toHaveBeenCalledWith(
+      matchId,
+      targetId,
+      expect.any(Date)
+    );
+  });
+
   it('releases targets when completing a match', async () => {
     const service = new TournamentService({} as never);
     const tournamentId = '00000000-0000-4000-8000-000000000004';
@@ -409,6 +465,48 @@ describe('TournamentService core logic', () => {
     await service.updateTournamentPlayerCheckIn(tournamentId, playerId, true);
 
     expect(mockModel.updatePlayerCheckIn).toHaveBeenCalledWith(tournamentId, playerId, true);
+  });
+
+  it('auto-transitions to live when all players are checked in', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000016';
+    const playerId = '00000000-0000-4000-8000-000000000116';
+    const player = { id: playerId } as Player;
+    const transitionSpy = jest.fn();
+
+    (service as unknown as { transitionTournamentStatus: jest.Mock }).transitionTournamentStatus = transitionSpy;
+    mockModel.findById.mockResolvedValue({ id: tournamentId, status: TournamentStatus.SIGNATURE });
+    mockModel.updatePlayerCheckIn.mockResolvedValue(player);
+    mockModel.getParticipantCount.mockResolvedValue(2);
+    mockModel.getCheckedInCount.mockResolvedValue(2);
+
+    await service.updateTournamentPlayerCheckIn(tournamentId, playerId, true);
+
+    expect(transitionSpy).toHaveBeenCalledWith(tournamentId, TournamentStatus.LIVE);
+  });
+
+  it('logs and continues when auto-transition fails', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000017';
+    const playerId = '00000000-0000-4000-8000-000000000117';
+    const player = { id: playerId } as Player;
+    const transitionSpy = jest.fn().mockRejectedValue(new Error('boom'));
+    const loggerError = jest.fn();
+
+    (service as unknown as { transitionTournamentStatus: jest.Mock }).transitionTournamentStatus = transitionSpy;
+    (service as unknown as { logger: { error: jest.Mock } }).logger = { error: loggerError };
+    mockModel.findById.mockResolvedValue({ id: tournamentId, status: TournamentStatus.SIGNATURE });
+    mockModel.updatePlayerCheckIn.mockResolvedValue(player);
+    mockModel.getParticipantCount.mockResolvedValue(2);
+    mockModel.getCheckedInCount.mockResolvedValue(2);
+
+    await service.updateTournamentPlayerCheckIn(tournamentId, playerId, true);
+
+    expect(loggerError).toHaveBeenCalledWith(
+      'Failed to auto-transition tournament to LIVE after check-in',
+      tournamentId,
+      expect.any(Error)
+    );
   });
 
   it('rejects player registration details when team name duplicates', async () => {

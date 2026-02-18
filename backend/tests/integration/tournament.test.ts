@@ -160,12 +160,16 @@ describe('Tournament Management - Integration Tests', () => {
         .send({ checkedIn: true })
         .expect(200);
 
-      const liveResponse = await request(server)
+      await request(server)
         .patch(`/api/tournaments/${tournamentId}/status`)
         .send({ status: 'LIVE' })
+        .expect(400);
+
+      const liveResponse = await request(server)
+        .get(`/api/tournaments/${tournamentId}`)
         .expect(200);
 
-      expect(liveResponse.body.tournament.status).toBe('LIVE');
+      expect(liveResponse.body.status).toBe('LIVE');
 
       const finishedResponse = await request(server)
         .patch(`/api/tournaments/${tournamentId}/status`)
@@ -178,6 +182,7 @@ describe('Tournament Management - Integration Tests', () => {
 
     it('should handle tournament list operations', async () => {
       // Create multiple tournaments
+      const tournamentIds: string[] = [];
       for (let i = 0; i < 3; i++) {
         const tournamentData = {
           ...validTournamentData,
@@ -186,10 +191,18 @@ describe('Tournament Management - Integration Tests', () => {
           endTime: new Date(`2026-0${i + 4}-15T18:00:00.000Z`).toISOString(),
         };
 
-        await request(server)
+        const createResponse = await request(server)
           .post('/api/tournaments')
           .send(tournamentData)
           .expect(201);
+        tournamentIds.push(createResponse.body.id);
+      }
+
+      for (const tournamentId of tournamentIds) {
+        await request(server)
+          .patch(`/api/tournaments/${tournamentId}/status`)
+          .send({ status: 'OPEN' })
+          .expect(200);
       }
 
       // Test tournament listing

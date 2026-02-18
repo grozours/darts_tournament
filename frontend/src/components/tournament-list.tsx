@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import SignInPanel from '../auth/sign-in-panel';
 import { useI18n } from '../i18n';
+import { updateTournamentStatus } from '../services/tournament-service';
 import TournamentEditPanel from './tournament-list/tournament-edit-panel';
 import PoolStageAssignmentsModal from './tournament-list/pool-stage-assignments-modal';
 import TournamentListGroups from './tournament-list/tournament-list-groups';
@@ -70,6 +71,44 @@ function TournamentList() { // NOSONAR
     isAuthenticated,
     getSafeAccessToken,
   });
+  const [openingRegistrationId, setOpeningRegistrationId] = useState<string | undefined>();
+  const [openingSignatureId, setOpeningSignatureId] = useState<string | undefined>();
+  const visibleTournaments = useMemo(
+    () => (isAdmin
+      ? tournaments
+      : tournaments.filter(
+        (tournament) => normalizeTournamentStatus(tournament.status) !== 'DRAFT'
+      )),
+    [tournaments, isAdmin]
+  );
+  const openRegistrationFromCard = useCallback(async (tournamentId: string) => {
+    setOpeningRegistrationId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      await updateTournamentStatus(tournamentId, 'OPEN', token);
+      globalThis.window?.location.assign('/?status=OPEN');
+      await fetchTournaments();
+    } catch (error_) {
+      console.error('[TournamentList] Failed to open registration:', error_);
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedOpenRegistration'));
+    } finally {
+      setOpeningRegistrationId(undefined);
+    }
+  }, [fetchTournaments, getSafeAccessToken, t]);
+  const openSignatureFromCard = useCallback(async (tournamentId: string) => {
+    setOpeningSignatureId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      await updateTournamentStatus(tournamentId, 'SIGNATURE', token);
+      globalThis.window?.location.assign('/?status=SIGNATURE');
+      await fetchTournaments();
+    } catch (error_) {
+      console.error('[TournamentList] Failed to open signature:', error_);
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedMoveToSignature'));
+    } finally {
+      setOpeningSignatureId(undefined);
+    }
+  }, [fetchTournaments, getSafeAccessToken, t]);
   const refreshTournaments = useCallback(() => {
     void fetchTournaments();
   }, [fetchTournaments]);
@@ -225,7 +264,7 @@ function TournamentList() { // NOSONAR
     handleUnregisterSelf,
   } = useTournamentListRegistrations({
     t,
-    tournaments,
+    tournaments: visibleTournaments,
     isAuthenticated,
     isAdmin,
     user,
@@ -235,7 +274,7 @@ function TournamentList() { // NOSONAR
   const { formatOptions, durationOptions, skillLevelOptions } = useTournamentOptions(t);
   const { groupedTournaments } = useTournamentListGrouping({
     t,
-    tournaments,
+    tournaments: visibleTournaments,
     isAdmin,
     userRegistrations,
   });
@@ -293,7 +332,7 @@ function TournamentList() { // NOSONAR
       <TournamentListHeader
         isEditPage={isEditPage}
         editingTournament={editingTournament}
-        tournamentsCount={tournaments.length}
+        tournamentsCount={visibleTournaments.length}
         t={t}
       />
 
@@ -309,7 +348,7 @@ function TournamentList() { // NOSONAR
         </div>
       )}
 
-      {!isEditPage && (tournaments.length === 0 ? (
+      {!isEditPage && (visibleTournaments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
           <p className="text-lg font-semibold text-white">{t('tournaments.none')}</p>
           <p className="mt-2">{t('tournaments.none.subtitle')}</p>
@@ -326,6 +365,10 @@ function TournamentList() { // NOSONAR
           onDelete={deleteTournament}
           onRegister={handleRegisterSelf}
           onUnregister={handleUnregisterSelf}
+          onOpenRegistration={openRegistrationFromCard}
+          onOpenSignature={openSignatureFromCard}
+          openingRegistrationId={openingRegistrationId ?? undefined}
+          openingSignatureId={openingSignatureId ?? undefined}
         />
       ))}
 

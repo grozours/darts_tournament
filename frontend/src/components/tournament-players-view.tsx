@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useI18n } from '../i18n';
-import { fetchTournamentPlayers, type TournamentPlayer } from '../services/tournament-service';
+import {
+  fetchTournamentPlayers,
+  updateTournamentPlayerCheckIn,
+  type TournamentPlayer,
+} from '../services/tournament-service';
 
 function TournamentPlayersView() {
   const { t } = useI18n();
@@ -14,6 +18,7 @@ function TournamentPlayersView() {
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [checkingInId, setCheckingInId] = useState<string | undefined>();
 
   const parameters = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
@@ -65,12 +70,39 @@ function TournamentPlayersView() {
     }
   }, [getSafeAccessToken]);
 
+  const confirmPresence = useCallback(async (player: TournamentPlayer) => {
+    if (!tournamentId || !player.playerId || player.checkedIn) {
+      return;
+    }
+
+    setCheckingInId(player.playerId);
+    try {
+      const token = await getSafeAccessToken();
+      if (!token) {
+        throw new Error(t('auth.signInRequired'));
+      }
+      await updateTournamentPlayerCheckIn(tournamentId, player.playerId, true, token);
+      setPlayers((current) => current.map((entry) => (
+        entry.playerId === player.playerId
+          ? { ...entry, checkedIn: true }
+          : entry
+      )));
+    } catch (error_) {
+      console.error('[TournamentPlayersView] Error confirming presence:', error_);
+      alert(error_ instanceof Error ? error_.message : t('players.confirmPresenceFailed'));
+    } finally {
+      setCheckingInId(undefined);
+    }
+  }, [getSafeAccessToken, t, tournamentId]);
+
   useEffect(() => {
     if (tournamentId) {
       fetchTournamentDetails(tournamentId);
       fetchPlayers(tournamentId);
     }
   }, [tournamentId, fetchTournamentDetails, fetchPlayers]);
+
+  const playerCountLabel = players.length === 1 ? t('common.player') : t('common.players');
 
   if (!tournamentId) {
     return (
@@ -127,7 +159,7 @@ function TournamentPlayersView() {
         <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
           <div className="mb-6">
             <p className="text-slate-400 text-sm">
-              {players.length} {players.length === 1 ? t('common.player') : t('common.players')}
+              {players.length} {playerCountLabel}
             </p>
           </div>
 
@@ -137,12 +169,20 @@ function TournamentPlayersView() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {players.map((player) => (
-                <div
-                  key={player.playerId}
-                  className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4"
-                >
-                  <div className="flex items-start justify-between">
+              {players.map((player) => {
+                let presenceLabel = t('players.confirmPresence');
+                if (player.checkedIn) {
+                  presenceLabel = t('players.confirmed');
+                } else if (checkingInId === player.playerId) {
+                  presenceLabel = t('common.loading');
+                }
+
+                return (
+                  <div
+                    key={player.playerId}
+                    className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4"
+                  >
+                    <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-white">
                         {player.firstName} {player.lastName}
@@ -175,8 +215,18 @@ function TournamentPlayersView() {
                       </p>
                     )}
                   </div>
-                </div>
-              ))}
+                    <div className="mt-4">
+                      <button
+                        onClick={() => confirmPresence(player)}
+                        disabled={player.checkedIn || checkingInId === player.playerId}
+                        className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {presenceLabel}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

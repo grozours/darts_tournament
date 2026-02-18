@@ -118,7 +118,7 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/status`)
       .send({ status: 'LIVE' })
-      .expect(200);
+      .expect(400);
 
     const liveResponse = await request(server)
       .get(`/api/tournaments/${tournamentId}/live`)

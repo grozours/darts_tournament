@@ -35,6 +35,13 @@ type TournamentEditActionShared = {
   setIsSaving: (value: boolean) => void;
 };
 
+type TransitionConfig = {
+  targetStatus: 'OPEN' | 'SIGNATURE' | 'LIVE';
+  redirectStatus: string;
+  validate?: () => string | undefined;
+  fallbackError: string;
+};
+
 const useSaveEditAction = ({
   t,
   editingTournament,
@@ -81,92 +88,17 @@ const useSaveEditAction = ({
   }
 }, [closeEdit, editForm, editingTournament, fetchTournaments, getSafeAccessToken, setEditError, setIsSaving, t]);
 
-const useOpenRegistrationAction = ({
-  t,
-  isEditPage,
-  editingTournament,
-  getSafeAccessToken,
-  closeEdit,
-  fetchTournaments,
-  setEditError,
-  setIsSaving,
-}: TournamentEditActionShared) => useCallback(async () => {
-  if (!editingTournament) return;
-  if (normalizeTournamentStatus(editingTournament.status) === 'OPEN') {
-    setEditError(t('edit.error.registrationAlreadyOpen'));
-    return;
-  }
-  setIsSaving(true);
-  setEditError(undefined);
-  try {
-    const token = await getSafeAccessToken();
-    await updateTournamentStatus(editingTournament.id, 'OPEN', token);
-    if (isEditPage) {
-      globalThis.window?.location.assign('/?status=OPEN');
-      return;
-    }
-    closeEdit();
-    fetchTournaments();
-  } catch (error_) {
-    setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedOpenRegistration'));
-  } finally {
-    setIsSaving(false);
-  }
-}, [closeEdit, editingTournament, fetchTournaments, getSafeAccessToken, isEditPage, setEditError, setIsSaving, t]);
+const useStatusTransitionAction = (
+  shared: TournamentEditActionShared,
+  config: TransitionConfig
+) => useCallback(async () => {
+  const { editingTournament, getSafeAccessToken, isEditPage, closeEdit, fetchTournaments, setEditError, setIsSaving } = shared;
 
-const useMoveToSignatureAction = ({
-  t,
-  isEditPage,
-  editingTournament,
-  getSafeAccessToken,
-  closeEdit,
-  fetchTournaments,
-  setEditError,
-  setIsSaving,
-}: TournamentEditActionShared) => useCallback(async () => {
   if (!editingTournament) return;
-  if (normalizeTournamentStatus(editingTournament.status) !== 'OPEN') {
-    setEditError(t('edit.error.mustBeOpenToSignature'));
-    return;
-  }
-  setIsSaving(true);
-  setEditError(undefined);
-  try {
-    const token = await getSafeAccessToken();
-    await updateTournamentStatus(editingTournament.id, 'SIGNATURE', token);
-    if (isEditPage) {
-      globalThis.window?.location.assign('/?status=SIGNATURE');
-      return;
-    }
-    closeEdit();
-    fetchTournaments();
-  } catch (error_) {
-    setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedMoveToSignature'));
-  } finally {
-    setIsSaving(false);
-  }
-}, [closeEdit, editingTournament, fetchTournaments, getSafeAccessToken, isEditPage, setEditError, setIsSaving, t]);
 
-const useMoveToLiveAction = ({
-  t,
-  isEditPage,
-  editingTournament,
-  players,
-  getSafeAccessToken,
-  closeEdit,
-  fetchTournaments,
-  setEditError,
-  setIsSaving,
-}: TournamentEditActionShared & {
-  players: TournamentPlayer[];
-}) => useCallback(async () => {
-  if (!editingTournament) return;
-  if (normalizeTournamentStatus(editingTournament.status) !== 'SIGNATURE') {
-    setEditError(t('edit.error.mustBeSignatureToLive'));
-    return;
-  }
-  if (players.length === 0 || !players.every((player) => player.checkedIn)) {
-    setEditError(t('edit.error.allPlayersMustBeConfirmed'));
+  const validationError = config.validate?.();
+  if (validationError) {
+    setEditError(validationError);
     return;
   }
 
@@ -174,19 +106,19 @@ const useMoveToLiveAction = ({
   setEditError(undefined);
   try {
     const token = await getSafeAccessToken();
-    await updateTournamentStatus(editingTournament.id, 'LIVE', token);
+    await updateTournamentStatus(editingTournament.id, config.targetStatus, token);
     if (isEditPage) {
-      globalThis.window?.location.assign('/?status=live');
+      globalThis.window?.location.assign(`/?status=${config.redirectStatus}`);
       return;
     }
     closeEdit();
     fetchTournaments();
   } catch (error_) {
-    setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedStartLive'));
+    setEditError(error_ instanceof Error ? error_.message : config.fallbackError);
   } finally {
     setIsSaving(false);
   }
-}, [closeEdit, editingTournament, fetchTournaments, getSafeAccessToken, isEditPage, players, setEditError, setIsSaving, t]);
+}, [config, shared]);
 
 const useTournamentEditActions = ({
   t,
@@ -211,7 +143,7 @@ const useTournamentEditActions = ({
     setIsSaving,
   });
 
-  const openRegistration = useOpenRegistrationAction({
+  const shared = {
     t,
     isEditPage,
     editingTournament,
@@ -220,29 +152,44 @@ const useTournamentEditActions = ({
     fetchTournaments,
     setEditError,
     setIsSaving,
+  };
+
+  const openRegistration = useStatusTransitionAction(shared, {
+    targetStatus: 'OPEN',
+    redirectStatus: 'OPEN',
+    validate: () => (
+      editingTournament && normalizeTournamentStatus(editingTournament.status) === 'OPEN'
+        ? t('edit.error.registrationAlreadyOpen')
+        : undefined
+    ),
+    fallbackError: t('edit.error.failedOpenRegistration'),
   });
 
-  const moveToSignature = useMoveToSignatureAction({
-    t,
-    isEditPage,
-    editingTournament,
-    getSafeAccessToken,
-    closeEdit,
-    fetchTournaments,
-    setEditError,
-    setIsSaving,
+  const moveToSignature = useStatusTransitionAction(shared, {
+    targetStatus: 'SIGNATURE',
+    redirectStatus: 'SIGNATURE',
+    validate: () => (
+      editingTournament && normalizeTournamentStatus(editingTournament.status) !== 'OPEN'
+        ? t('edit.error.mustBeOpenToSignature')
+        : undefined
+    ),
+    fallbackError: t('edit.error.failedMoveToSignature'),
   });
 
-  const moveToLive = useMoveToLiveAction({
-    t,
-    isEditPage,
-    editingTournament,
-    players,
-    getSafeAccessToken,
-    closeEdit,
-    fetchTournaments,
-    setEditError,
-    setIsSaving,
+  const moveToLive = useStatusTransitionAction(shared, {
+    targetStatus: 'LIVE',
+    redirectStatus: 'live',
+    validate: () => {
+      if (!editingTournament) return undefined;
+      if (normalizeTournamentStatus(editingTournament.status) !== 'SIGNATURE') {
+        return t('edit.error.mustBeSignatureToLive');
+      }
+      if (players.length === 0 || !players.every((player) => player.checkedIn)) {
+        return t('edit.error.allPlayersMustBeConfirmed');
+      }
+      return undefined;
+    },
+    fallbackError: t('edit.error.failedStartLive'),
   });
 
   return {

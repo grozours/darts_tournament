@@ -1,5 +1,6 @@
 import type { LiveViewBracket, LiveViewMatch, LiveViewTarget, Translator } from './types';
 import BracketMatches from './bracket-matches';
+import SectionEmptyState from './section-empty-state';
 
 type BracketsSectionProperties = {
   t: Translator;
@@ -148,14 +149,7 @@ const BracketsSection = ({
   activeBracketId,
 }: BracketsSectionProperties) => {
   if (brackets.length === 0) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-lg font-semibold text-white">{t('live.bracketStages')}</h3>
-        <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
-          {t('live.noBrackets')}
-        </div>
-      </div>
-    );
+    return <SectionEmptyState title={t('live.bracketStages')} message={t('live.noBrackets')} />;
   }
 
   const preferredBracket = brackets.find((bracket) => /winner/i.test(bracket.name)) ?? brackets[0];

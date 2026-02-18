@@ -30,6 +30,7 @@ type LiveTournamentState = {
   isAuthenticated: boolean;
   authLoading: boolean;
   authError: Error | undefined;
+  isAdmin: boolean;
   viewMode: LiveViewMode;
   viewStatus: string | undefined;
   tournamentId: string | undefined;
@@ -120,6 +121,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     viewStatus,
     tournamentId,
     isAggregateView,
+    isAdmin,
   });
   const {
     availableTargetsByTournament,
@@ -187,6 +189,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     isAuthenticated,
     authLoading,
     authError,
+    isAdmin,
     viewMode,
     viewStatus,
     tournamentId,

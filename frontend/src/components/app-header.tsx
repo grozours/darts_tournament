@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { useI18n } from '../i18n';
 
 type AppHeaderProperties = {
@@ -8,22 +9,73 @@ type AppHeaderProperties = {
   toggleLang: () => void;
 };
 
-const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderProperties) => (
-  <header className="border-b border-slate-800/70 bg-slate-950/80 backdrop-blur">
-    <div className="max-w-6xl mx-auto px-6 py-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-3">
-          <a
-            className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-900 font-semibold"
-            href="/"
-            aria-label="Darts Hub home"
-          >
-            🎯
-          </a>
-          <a className="text-sm font-semibold tracking-wide hover:text-white" href="/">
-            {t('app.title')}
-          </a>
-        </div>
+const NOTIFICATIONS_STORAGE_KEY = 'notifications:match-started';
+
+const readUnreadCount = () => {
+  try {
+    const stored = globalThis.window?.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    if (!stored) {
+      return 0;
+    }
+    const parsed = JSON.parse(stored) as Array<{ acknowledgedAt?: string }>;
+    if (!Array.isArray(parsed)) {
+      return 0;
+    }
+    return parsed.filter((item) => !item.acknowledgedAt).length;
+  } catch {
+    return 0;
+  }
+};
+
+const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderProperties) => {
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!globalThis.window) {
+      return;
+    }
+    const updateUnreadCount = () => {
+      setUnreadCount(readUnreadCount());
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === NOTIFICATIONS_STORAGE_KEY) {
+        updateUnreadCount();
+      }
+    };
+    const handleVisibility = () => {
+      if (globalThis.document?.visibilityState === 'visible') {
+        updateUnreadCount();
+      }
+    };
+
+    updateUnreadCount();
+    globalThis.window.addEventListener('storage', handleStorage);
+    globalThis.window.addEventListener('notifications:updated', updateUnreadCount);
+    globalThis.document?.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      globalThis.window.removeEventListener('storage', handleStorage);
+      globalThis.window.removeEventListener('notifications:updated', updateUnreadCount);
+      globalThis.document?.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  return (
+    <header className="border-b border-slate-800/70 bg-slate-950/80 backdrop-blur">
+      <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-3">
+            <a
+              className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-900 font-semibold"
+              href="/"
+              aria-label="Darts Hub home"
+            >
+              🎯
+            </a>
+            <a className="text-sm font-semibold tracking-wide hover:text-white" href="/">
+              {t('app.title')}
+            </a>
+          </div>
 
         <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
           <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
@@ -117,12 +169,21 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
         >
           {lang === 'en' ? '🇬🇧' : '🇫🇷'}
         </button>
-        <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=notifications">
-          {t('nav.notifications')}
-        </a>
+          <a className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center" href="/?view=notifications">
+            <span>{t('nav.notifications')}</span>
+            {unreadCount > 0 && (
+              <span
+                className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500/90 px-1 text-[11px] font-semibold text-white"
+                aria-label={`${unreadCount} unread notifications`}
+              >
+                {unreadCount}
+              </span>
+            )}
+          </a>
+        </div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 export default AppHeader;

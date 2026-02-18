@@ -11,7 +11,11 @@ export type TournamentCardProperties = {
   onDelete: (tournamentId: string) => void;
   onRegister: (tournamentId: string) => void;
   onUnregister: (tournamentId: string) => void;
+  onOpenRegistration: (tournamentId: string) => void;
+  onOpenSignature: (tournamentId: string) => void;
   registeringTournamentId?: string | undefined;
+  openingRegistrationId?: string | undefined;
+  openingSignatureId?: string | undefined;
   userRegistrations: Set<string>;
 };
 
@@ -26,7 +30,11 @@ const TournamentCard = ({
   onDelete,
   onRegister,
   onUnregister,
+  onOpenRegistration,
+  onOpenSignature,
   registeringTournamentId,
+  openingRegistrationId,
+  openingSignatureId,
   userRegistrations,
 }: TournamentCardProperties) => (
   <div
@@ -87,6 +95,29 @@ const TournamentCard = ({
         )}
         {isAdmin ? (
           <>
+            {normalizedStatus === 'DRAFT' && (
+              <button
+                onClick={() => onOpenRegistration(tournament.id)}
+                disabled={openingRegistrationId === tournament.id}
+                className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {openingRegistrationId === tournament.id
+                  ? t('common.loading')
+                  : t('tournaments.openRegistration')}
+              </button>
+            )}
+            {normalizedStatus === 'OPEN'
+              && (tournament.currentParticipants ?? 0) >= tournament.totalParticipants && (
+              <button
+                onClick={() => onOpenSignature(tournament.id)}
+                disabled={openingSignatureId === tournament.id}
+                className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {openingSignatureId === tournament.id
+                  ? t('common.loading')
+                  : t('tournaments.openSignature')}
+              </button>
+            )}
             <button
               onClick={() => onEdit(tournament)}
               className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"

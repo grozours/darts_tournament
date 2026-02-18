@@ -82,16 +82,28 @@ const fetchAuthEmail = async (token: string, t: (key: string) => string) => {
 };
 
 const fetchLiveTournaments = async (token: string, t: (key: string) => string) => {
-  const tournamentsResponse = await fetch('/api/tournaments?status=LIVE', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!tournamentsResponse.ok) {
+  const statuses = ['LIVE', 'SIGNATURE'];
+  const responses = await Promise.all(statuses.map((status) =>
+    fetch(`/api/tournaments?status=${encodeURIComponent(status)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  ));
+  if (responses.some((response) => !response.ok)) {
     throw new Error(t('notifications.loadFailed'));
   }
-  const tournamentsData = await tournamentsResponse.json();
-  return Array.isArray(tournamentsData?.tournaments)
-    ? (tournamentsData.tournaments as TournamentSummary[])
-    : [];
+  const payloads = await Promise.all(responses.map((response) => response.json()));
+  const tournamentMap = new Map<string, TournamentSummary>();
+  for (const data of payloads) {
+    const tournaments = Array.isArray(data?.tournaments)
+      ? (data.tournaments as TournamentSummary[])
+      : [];
+    for (const tournament of tournaments) {
+      if (tournament?.id) {
+        tournamentMap.set(tournament.id, tournament);
+      }
+    }
+  }
+  return Array.from(tournamentMap.values());
 };
 
 const fetchPlayerIdsForEmail = async (
@@ -141,6 +153,7 @@ function NotificationsView() {
   const persistNotifications = useCallback((items: NotificationItem[]) => {
     try {
       globalThis.window?.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      globalThis.window?.dispatchEvent(new Event('notifications:updated'));
     } catch (error) {
       console.warn('Failed to persist notifications:', error);
     }

@@ -16,7 +16,6 @@ docker run --rm \
   -e SONAR_HOST_URL="$SONAR_HOST_URL" \
   -v "$ROOT_DIR:/usr/src" \
   sonarsource/sonar-scanner-cli \
-  -X \
   -Dsonar.login="$SONAR_TOKEN" \
   -Dsonar.projectKey="darts-tournament" \
   -Dsonar.qualitygate.wait=true \

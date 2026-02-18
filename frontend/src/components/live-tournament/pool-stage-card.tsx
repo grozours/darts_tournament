@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type {
   LiveViewMatch,
   LiveViewPool,
@@ -82,6 +83,12 @@ const PoolStageCard = ({
   stagePoolCountDrafts,
   stagePlayersPerPoolDrafts,
 }: PoolStageCardProperties) => {
+  const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
+
+  useEffect(() => {
+    setShowMatches(!isPoolStagesReadonly);
+  }, [isPoolStagesReadonly]);
+
   const renderStageControls = (stageTournamentId: string) => {
     if (isPoolStagesReadonly) {
       return;
@@ -350,6 +357,36 @@ const PoolStageCard = ({
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
               {renderMatchPlayers(match)}
             </div>
+            {match.status === 'COMPLETED' && (match.playerMatches?.length ?? 0) > 0 && (
+              <div className="mt-2">
+                <p className="text-[10px] uppercase tracking-widest text-slate-500">
+                  {t('live.finalScore')}
+                </p>
+                <div className="mt-2 grid gap-1 text-xs">
+                  {[...(match.playerMatches ?? [])]
+                    .sort((first, second) => first.playerPosition - second.playerPosition)
+                    .map((playerMatch) => (
+                      <div
+                        key={`${match.id}-${playerMatch.playerPosition}-score`}
+                        className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1"
+                      >
+                        <span
+                          className={
+                            playerMatch.player?.id === match.winner?.id
+                              ? 'font-semibold text-emerald-200'
+                              : 'text-slate-300'
+                          }
+                        >
+                          {playerMatch.player?.firstName} {playerMatch.player?.lastName}
+                        </span>
+                        <span className="text-slate-200">
+                          {playerMatch.scoreTotal ?? playerMatch.legsWon ?? '-'}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
             {match.winner && (
               <p className="mt-2 text-xs text-emerald-300">
                 {t('live.winner')}: {match.winner.firstName} {match.winner.lastName}
@@ -403,8 +440,18 @@ const PoolStageCard = ({
               </div>
 
               <div className="mt-4">
-                <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.matches')}</p>
-                {renderPoolMatches(tournamentId, pool)}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.matches')}</p>
+                  {isPoolStagesReadonly && (
+                    <button
+                      onClick={() => setShowMatches((previous) => !previous)}
+                      className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+                    >
+                      {showMatches ? t('live.hideMatches') : t('live.showMatches')}
+                    </button>
+                  )}
+                </div>
+                {(!isPoolStagesReadonly || showMatches) && renderPoolMatches(tournamentId, pool)}
               </div>
             </div>
           ))}

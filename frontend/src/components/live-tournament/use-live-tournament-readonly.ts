@@ -15,7 +15,7 @@ const useLiveTournamentReadonly = ({
   isAdmin,
   viewMode,
 }: UseLiveTournamentReadonlyProperties): LiveTournamentReadonlyResult => {
-  const isPoolStagesReadonly = !isAdmin && isPoolStagesView(viewMode);
+  const isPoolStagesReadonly = !isAdmin && (isPoolStagesView(viewMode) || viewMode === 'live');
   const isBracketsReadonly = !isAdmin && isBracketsView(viewMode);
 
   return { isPoolStagesReadonly, isBracketsReadonly };

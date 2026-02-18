@@ -244,6 +244,71 @@ describe('websocket server', () => {
     await expect(service.getConnectedClientsCount('t-1')).resolves.toBe(5);
   });
 
+  it('returns zero when client count fails', async () => {
+    const io = {
+      to: jest.fn().mockReturnThis(),
+      emit: jest.fn(),
+      sockets: { sockets: new Map() },
+      on: jest.fn(),
+    };
+
+    redisClient.scard.mockRejectedValue(new Error('boom'));
+
+    const { WebSocketService } = await import('../../src/websocket/server');
+    const service = new WebSocketService(io as never);
+
+    await expect(service.getConnectedClientsCount('t-1')).resolves.toBe(0);
+  });
+
+  it('warns when score emission is slow', async () => {
+    const io = {
+      to: jest.fn().mockReturnThis(),
+      emit: jest.fn(),
+      sockets: { sockets: new Map() },
+      on: jest.fn(),
+    };
+
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const nowSpy = jest.spyOn(Date, 'now');
+    nowSpy.mockReturnValueOnce(1_000).mockReturnValueOnce(1_250);
+
+    const { WebSocketService } = await import('../../src/websocket/server');
+    const service = new WebSocketService(io as never);
+
+    await service.emitMatchScoreUpdated('m-1', 't-1', { score: 10 });
+
+    expect(warnSpy).toHaveBeenCalled();
+
+    nowSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it('handles errors when emitting match started', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const io = {
+      to: jest.fn(() => {
+        throw new Error('boom');
+      }),
+      emit: jest.fn(),
+      sockets: { sockets: new Map() },
+      on: jest.fn(),
+    };
+
+    const { WebSocketService } = await import('../../src/websocket/server');
+    const service = new WebSocketService(io as never);
+
+    await service.emitMatchStarted({
+      matchId: 'm-1',
+      tournamentId: 't-1',
+      tournamentName: 'Test Tournament',
+      match: { source: 'pool', matchNumber: 1 },
+      players: [],
+    });
+
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   it('logs high connection counts when metrics enabled', async () => {
     const originalEnableMetrics = config.performance.enableMetrics;
     config.performance.enableMetrics = true;

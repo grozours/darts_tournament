@@ -33,19 +33,23 @@ const MatchQueueSection = ({
   formatTargetLabel,
   getTargetLabel,
 }: MatchQueueSectionProperties) => {
+  const maxQueueItems = 3;
+  const visibleQueue = queue.slice(0, maxQueueItems);
+  const queueCountLabel = `${visibleQueue.length}/${queue.length}`;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-white">{t('live.queue.title')}</h3>
-        <span className="text-xs text-slate-400">{queue.length}</span>
+        <span className="text-xs text-slate-400">{queueCountLabel}</span>
       </div>
-      {queue.length === 0 ? (
+      {visibleQueue.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
           {t('live.queue.empty')}
         </div>
       ) : (
         <div className="space-y-3">
-          {queue.map((item) => {
+          {visibleQueue.map((item) => {
             const matchKey = getMatchKey(item.tournamentId, item.matchId);
             const availableTargets = availableTargetsByTournament.get(item.tournamentId) || [];
             const selectedTargetNumber = matchTargetSelections[matchKey] || '';

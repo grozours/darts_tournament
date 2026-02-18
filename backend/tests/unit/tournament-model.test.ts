@@ -3,6 +3,7 @@ import { AppError } from '../../src/middleware/error-handler';
 import { BracketType, TournamentFormat, DurationType, TournamentStatus } from '../../../shared/src/types';
 
 type PrismaMock = {
+  $executeRaw: jest.Mock;
   tournament: {
     create: jest.Mock;
     update: jest.Mock;
@@ -15,11 +16,17 @@ type PrismaMock = {
   };
   target: {
     createMany: jest.Mock;
+    findFirst: jest.Mock;
   };
   bracket: {
     create: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+  };
+  person: {
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
   };
   player: {
     create: jest.Mock;
@@ -27,6 +34,8 @@ type PrismaMock = {
     findUnique: jest.Mock;
     findMany: jest.Mock;
     count: jest.Mock;
+    update: jest.Mock;
+    findFirst: jest.Mock;
   };
 };
 
@@ -50,6 +59,7 @@ describe('tournament model', () => {
 
   beforeEach(() => {
     prisma = {
+      $executeRaw: jest.fn(),
       tournament: {
         create: jest.fn(),
         update: jest.fn(),
@@ -62,11 +72,17 @@ describe('tournament model', () => {
       },
       target: {
         createMany: jest.fn(),
+        findFirst: jest.fn(),
       },
       bracket: {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      person: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
       },
       player: {
         create: jest.fn(),
@@ -74,6 +90,8 @@ describe('tournament model', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
+        update: jest.fn(),
+        findFirst: jest.fn(),
       },
     };
 
@@ -208,6 +226,73 @@ describe('tournament model', () => {
     );
   });
 
+  it('finds a person by email and phone', async () => {
+    const person = { id: 'person-1' };
+    prisma.person.findUnique.mockResolvedValue(person);
+
+    const result = await model.findPersonByEmailAndPhone('ada@example.com', '123');
+
+    expect(prisma.person.findUnique).toHaveBeenCalledWith({
+      where: { email_phone: { email: 'ada@example.com', phone: '123' } },
+    });
+    expect(result).toBe(person);
+  });
+
+  it('maps person lookup errors', async () => {
+    prisma.person.findUnique.mockRejectedValue(new Error('db'));
+
+    await expect(
+      model.findPersonByEmailAndPhone('ada@example.com', '123')
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('creates person records', async () => {
+    prisma.person.create.mockResolvedValue({ id: 'person-2' });
+
+    await expect(
+      model.createPerson({ firstName: 'Ada', lastName: 'Lovelace' })
+    ).resolves.toEqual({ id: 'person-2' });
+  });
+
+  it('maps person update errors', async () => {
+    prisma.person.update.mockRejectedValue(new Error('db'));
+
+    await expect(
+      model.updatePerson('person-1', { firstName: 'Ada' })
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('returns player lookups', async () => {
+    prisma.player.findUnique.mockResolvedValue({ id: 'p-1' });
+
+    await expect(model.getPlayerById('p-1')).resolves.toEqual({ id: 'p-1' });
+  });
+
+  it('maps player lookup errors', async () => {
+    prisma.player.findUnique.mockRejectedValue(new Error('db'));
+
+    await expect(model.getPlayerById('p-1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('returns max target number', async () => {
+    prisma.target.findFirst.mockResolvedValue({ targetNumber: 4 });
+
+    await expect(model.getMaxTargetNumber('t-1')).resolves.toBe(4);
+  });
+
+  it('creates targets when count is positive', async () => {
+    await model.createTargetsForTournament('t-1', 3, 2);
+
+    expect(prisma.target.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          { tournamentId: 't-1', targetNumber: 3, targetCode: 'target3' },
+          { tournamentId: 't-1', targetNumber: 4, targetCode: 'target4' },
+        ],
+      })
+    );
+  });
+
   it('unregisters players when count is positive', async () => {
     prisma.player.deleteMany.mockResolvedValue({ count: 1 });
 
@@ -246,6 +331,61 @@ describe('tournament model', () => {
     await expect(
       model.updateBracket('b-1', { name: 'Bracket' })
     ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('updates status with raw fallback for enum errors', async () => {
+    const validationError = new Error('validation');
+    validationError.name = 'PrismaClientValidationError';
+    prisma.tournament.update.mockRejectedValue(validationError);
+    prisma.tournament.findUnique.mockResolvedValue({
+      ...baseTournament,
+      status: TournamentStatus.LIVE,
+    });
+
+    const result = await model.updateStatus('t-1', TournamentStatus.LIVE);
+
+    expect(prisma.$executeRaw).toHaveBeenCalled();
+    expect(result.status).toBe(TournamentStatus.LIVE);
+  });
+
+  it('throws when raw status update cannot find tournament', async () => {
+    const validationError = new Error('validation');
+    validationError.name = 'PrismaClientValidationError';
+    prisma.tournament.update.mockRejectedValue(validationError);
+    prisma.tournament.findUnique.mockResolvedValue(null);
+
+    await expect(
+      model.updateStatus('t-1', TournamentStatus.LIVE)
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('maps duplicate player updates', async () => {
+    prisma.player.update.mockRejectedValue({ code: 'P2002' });
+
+    await expect(
+      model.updatePlayer('t-1', 'p-1', { firstName: 'Ada' })
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('finds players by surname and team name', async () => {
+    prisma.player.findFirst.mockResolvedValueOnce({ id: 'p-1' }).mockResolvedValueOnce({ id: 'p-2' });
+
+    await expect(model.findPlayerBySurname('t-1', 'Smith', 'p-3')).resolves.toEqual({ id: 'p-1' });
+    await expect(model.findPlayerByTeamName('t-1', 'A-Team')).resolves.toEqual({ id: 'p-2' });
+
+    expect(prisma.player.findFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        tournamentId: 't-1',
+        surname: { equals: 'Smith', mode: 'insensitive' },
+        id: { not: 'p-3' },
+      },
+    });
+    expect(prisma.player.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        tournamentId: 't-1',
+        teamName: { equals: 'A-Team', mode: 'insensitive' },
+      },
+    });
   });
 
   it('returns overall stats', async () => {

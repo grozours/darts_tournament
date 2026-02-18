@@ -31,27 +31,29 @@ const TargetsGrid = ({
   onStartMatch,
   onScoreChange,
   onCompleteMatch,
-}: TargetsGridProperties) => (
-  <div className="grid gap-4 sm:grid-cols-2">
-    {sharedTargets.map((target) => (
-      <TargetsGridCard
-        key={target.targetNumber}
-        t={t}
-        isAdmin={isAdmin}
-        target={target}
-        matchDetailsById={matchDetailsById}
-        matchSelectionByTarget={matchSelectionByTarget}
-        matchScores={matchScores}
-        updatingMatchId={updatingMatchId}
-        startingMatchId={startingMatchId}
-        queueItems={queueItems}
-        onQueueSelectionChange={onQueueSelectionChange}
-        onStartMatch={onStartMatch}
-        onScoreChange={onScoreChange}
-        onCompleteMatch={onCompleteMatch}
-      />
-    ))}
-  </div>
-);
+}: TargetsGridProperties) => {
+  const sharedProps = {
+    t,
+    isAdmin,
+    matchDetailsById,
+    matchSelectionByTarget,
+    matchScores,
+    updatingMatchId,
+    startingMatchId,
+    queueItems,
+    onQueueSelectionChange,
+    onStartMatch,
+    onScoreChange,
+    onCompleteMatch,
+  };
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {sharedTargets.map((target) => (
+        <TargetsGridCard key={target.targetNumber} target={target} {...sharedProps} />
+      ))}
+    </div>
+  );
+};
 
 export default TargetsGrid;

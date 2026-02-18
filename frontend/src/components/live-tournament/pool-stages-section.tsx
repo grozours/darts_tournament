@@ -5,6 +5,7 @@ import type {
   Translator,
 } from './types';
 import PoolStageCard from './pool-stage-card';
+import SectionEmptyState from './section-empty-state';
 
 type PoolStagesSectionProperties = {
   t: Translator;
@@ -50,14 +51,7 @@ const PoolStagesSection = ({
   ...stageProperties
 }: PoolStagesSectionProperties) => {
   if (stages.length === 0) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-lg font-semibold text-white">{t('live.poolStages')}</h3>
-        <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
-          {t('live.noPoolStages')}
-        </div>
-      </div>
-    );
+    return <SectionEmptyState title={t('live.poolStages')} message={t('live.noPoolStages')} />;
   }
 
   return (

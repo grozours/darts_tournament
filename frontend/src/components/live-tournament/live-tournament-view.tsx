@@ -29,6 +29,7 @@ type PoolStats = {
 type LiveTournamentViewProperties = {
   t: Translator;
   view: LiveViewData;
+  isAdmin: boolean;
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
   isAggregateView: boolean;
@@ -130,6 +131,7 @@ const LiveTournamentPoolSummaryCards = ({ t, stats, hasLoserBracket }: LiveTourn
 const LiveTournamentView = ({
   t,
   view,
+  isAdmin,
   viewMode,
   viewStatus,
   isAggregateView,
@@ -174,14 +176,17 @@ const LiveTournamentView = ({
   activeBracketId,
   onRefresh,
 }: LiveTournamentViewProperties) => {
-  const filteredPoolStages = filterPoolStagesForView(viewMode, viewStatus, view.poolStages);
+  const filteredPoolStages = filterPoolStagesForView(viewMode, viewStatus, view.poolStages, isAdmin);
   const filteredBrackets = filterBracketsForView(viewMode, viewStatus, view.brackets);
   const hasLoserBracket = getHasLoserBracket(view.brackets);
   const poolStats = getPoolStageStats(filteredPoolStages);
   const queue = buildMatchQueue(view, filteredPoolStages);
   const showTournamentName = isAggregateView && visibleLiveViewsCount > 1;
   const showPools = !isBracketsView(viewMode);
-  const showBrackets = !isPoolStagesView(viewMode);
+  const hasRunningPoolStages = (view.poolStages || []).some(
+    (stage) => stage.status !== 'COMPLETED' && (stage.pools?.length || 0) > 0
+  );
+  const showBrackets = !isPoolStagesView(viewMode) && (isAdmin || !hasRunningPoolStages);
 
   const queueProperties = {
     t,

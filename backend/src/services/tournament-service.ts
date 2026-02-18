@@ -56,6 +56,7 @@ export interface TournamentFilters {
   status?: TournamentStatus;
   format?: TournamentFormat;
   name?: string;
+  excludeDraft?: boolean;
   page?: number;
   limit?: number;
   sortBy?: 'name' | 'startTime' | 'createdAt';
@@ -1728,11 +1729,29 @@ export class TournamentService {
       );
     }
 
-    return await this.tournamentModel.updatePlayerCheckIn(
+    const updatedPlayer = await this.tournamentModel.updatePlayerCheckIn(
       tournamentId,
       playerId,
       checkedIn
     );
+
+    if (checkedIn && tournament.status === TournamentStatus.SIGNATURE) {
+      const participantCount = await this.tournamentModel.getParticipantCount(tournamentId);
+      const checkedInCount = await this.tournamentModel.getCheckedInCount(tournamentId);
+      if (participantCount >= 2 && checkedInCount >= participantCount) {
+        try {
+          await this.transitionTournamentStatus(tournamentId, TournamentStatus.LIVE);
+        } catch (error) {
+          this.logger.error(
+            'Failed to auto-transition tournament to LIVE after check-in',
+            tournamentId,
+            error
+          );
+        }
+      }
+    }
+
+    return updatedPlayer;
   }
 
   /**
@@ -2179,6 +2198,13 @@ export class TournamentService {
 
     const now = new Date();
     if (status === MatchStatus.IN_PROGRESS) {
+      if (match.bracketId && tournament.status !== TournamentStatus.LIVE) {
+        throw new AppError(
+          'Bracket matches can only start when the tournament is live',
+          400,
+          'BRACKET_MATCH_NOT_LIVE'
+        );
+      }
       await this.startMatchWithTarget(tournament, matchId, match, targetId, tournamentId, now);
       return;
     }

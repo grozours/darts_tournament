@@ -10,6 +10,7 @@ type UseLiveTournamentDataProperties = {
   viewStatus?: LiveViewStatus;
   tournamentId?: string | undefined;
   isAggregateView: boolean;
+  isAdmin: boolean;
 };
 
 type LiveTournamentDataResult = {
@@ -34,6 +35,7 @@ const useLiveTournamentData = ({
   viewStatus,
   tournamentId,
   isAggregateView,
+  isAdmin,
 }: UseLiveTournamentDataProperties): LiveTournamentDataResult => {
   const { liveViews, loading, error, setError, reloadLiveViews } = useLiveTournamentLoaders({
     getSafeAccessToken,
@@ -53,6 +55,7 @@ const useLiveTournamentData = ({
     viewStatus,
     tournamentId,
     liveViews,
+    isAdmin,
   });
   const { showGlobalQueue, globalQueue } = useLiveTournamentGlobalQueue({
     viewMode,

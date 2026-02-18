@@ -37,11 +37,20 @@ const useTournamentListGrouping = ({
       LIVE: t('tournaments.live'),
       FINISHED: t('tournaments.finished'),
     };
+    const visibleTournaments = isAdmin
+      ? tournaments
+      : tournaments.filter(
+        (tournament) => normalizeTournamentStatus(tournament.status) !== 'DRAFT'
+      );
 
     if (statusFilter !== 'ALL') {
       const normalizedStatus = normalizedStatusFilter;
       const title = statusLabels[normalizedStatus] ?? t('tournaments.hub');
-      const items = tournaments.filter((tournament) => {
+      if (!isAdmin && normalizedStatus === 'DRAFT') {
+        return [];
+      }
+
+      const items = visibleTournaments.filter((tournament) => {
         const normalized = normalizeTournamentStatus(tournament.status);
         if (normalized === normalizedStatus) {
           return true;
@@ -62,11 +71,13 @@ const useTournamentListGrouping = ({
       return [{ title, status: normalizedStatus, items }];
     }
 
-    const statuses = ['DRAFT', 'OPEN', 'SIGNATURE', 'LIVE', 'FINISHED'] as const;
+    const statuses = isAdmin
+      ? (['DRAFT', 'OPEN', 'SIGNATURE', 'LIVE', 'FINISHED'] as const)
+      : (['OPEN', 'SIGNATURE', 'LIVE', 'FINISHED'] as const);
     return statuses.map((status) => ({
       title: statusLabels[status] ?? t('tournaments.hub'),
       status,
-      items: tournaments.filter(
+      items: visibleTournaments.filter(
         (tournament) => normalizeTournamentStatus(tournament.status) === status
       ),
     }));
