@@ -7,6 +7,7 @@ Complete reference for all scripts and commands in the Darts Tournament Manager.
 - [Service Management (restart.sh)](#service-management-restartsh)
 - [Database Commands](#database-commands)
 - [Development Commands](#development-commands)
+- [Code Quality (SonarQube)](#code-quality-sonarqube)
 - [Installation Script (install.sh)](#installation-script-installsh)
 - [Docker Commands](#docker-commands)
 - [Troubleshooting](#troubleshooting)
@@ -254,6 +255,23 @@ npm run preview
 # - Simulates production environment
 # - Use after npm run build
 ```
+
+---
+
+## Code Quality (SonarQube)
+
+Run the scan from the project root:
+
+```bash
+export SONAR_TOKEN=your_token
+# Optional: export SONAR_HOST_URL=http://localhost:9000
+./scripts/sonar_scan.sh
+```
+
+Notes:
+- `SONAR_TOKEN` is required. Generate it in SonarQube: User > My Account > Security.
+- `SONAR_HOST_URL` defaults to `http://localhost:9000`.
+- `scripts/ci_full.sh` will auto-load a token from `.sonar-token` if present and skip the scan if no token is available.
 
 ---
 

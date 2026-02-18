@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import TournamentForm from '../../../src/components/tournaments/TournamentForm';
+import TournamentForm from '../../../src/components/tournaments/tournament-form';
 import { TournamentFormat, DurationType } from '@shared/types';
 
 // Mock the API calls
 const mockCreateTournament = vi.fn();
 const mockUploadLogo = vi.fn();
 
-vi.mock('../../../src/services/tournamentService', () => ({
+vi.mock('../../../src/services/tournament-service', () => ({
   createTournament: (...args: any[]) => mockCreateTournament(...args),
   uploadTournamentLogo: (...args: any[]) => mockUploadLogo(...args),
 }));
@@ -295,7 +295,8 @@ describe('TournamentForm Component', () => {
     });
 
     it('should show loading state during submission', async () => {
-      const user = userEvent.setup();
+      vi.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       
       // Mock slow API call
       mockCreateTournament.mockImplementation(() => 
@@ -319,6 +320,9 @@ describe('TournamentForm Component', () => {
       // Check loading state
       expect(screen.getByRole('button', { name: /creating/i })).toBeDisabled();
       expect(screen.getByRole('button', { name: /creating/i })).toBeInTheDocument();
+
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
     });
 
     it('should handle submission errors', async () => {
@@ -341,7 +345,9 @@ describe('TournamentForm Component', () => {
       await user.click(screen.getByRole('button', { name: /create tournament/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/failed to create tournament/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Tournament creation failed|failed to create tournament/i)
+        ).toBeInTheDocument();
       });
     });
   });

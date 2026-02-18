@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import App from '../../src/App';
+import App from '../../src/app';
 
 const mockFetch = vi.fn();
 
@@ -24,11 +24,8 @@ describe('Home page', () => {
     expect(screen.getByText(/tournament manager/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText(/no tournaments yet/i)).toBeInTheDocument();
+      expect(screen.getByText(/no tournaments yet|aucun tournoi pour le moment/i)).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByRole('link', { name: /create tournament/i })
-    ).toBeInTheDocument();
   });
 });

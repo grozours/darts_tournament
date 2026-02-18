@@ -21,7 +21,7 @@ if (!process.env.REDIS_URL) {
 }
 
 // Global test timeout
-jest.setTimeout(30000);
+jest.setTimeout(30_000);
 
 // Setup global mocks if needed
 beforeAll(async () => {

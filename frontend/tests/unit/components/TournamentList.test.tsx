@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
-import TournamentList from '../../../src/components/TournamentList';
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react';
+import TournamentList from '../../../src/components/tournament-list';
 
 const mockFetchPlayers = vi.fn();
 const mockRegisterPlayer = vi.fn();
@@ -9,7 +9,7 @@ const mockFetchBrackets = vi.fn();
 const mockLoginWithRedirect = vi.fn();
 const mockGetAccessTokenSilently = vi.fn();
 
-vi.mock('../../../src/services/tournamentService', () => ({
+vi.mock('../../../src/services/tournament-service', () => ({
   updateTournament: vi.fn(),
   updateTournamentStatus: vi.fn(),
   fetchTournamentPlayers: (...args: any[]) => mockFetchPlayers(...args),
@@ -61,7 +61,7 @@ describe('TournamentList - player registration', () => {
   });
 
   it('renders player registration form and submits new player', async () => {
-    window.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
+    globalThis.window?.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
     const tournamentsPayload = {
       tournaments: [
         {
@@ -107,7 +107,7 @@ describe('TournamentList - player registration', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText(/loading tournaments/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/loading tournaments|chargement des tournois/i)).not.toBeInTheDocument();
     });
 
     const initialPlayersPromise = Promise.resolve([]);
@@ -115,21 +115,27 @@ describe('TournamentList - player registration', () => {
     mockFetchPoolStages.mockResolvedValueOnce([]);
     mockFetchBrackets.mockResolvedValueOnce([]);
 
-    await screen.findByText(/player registration/i);
+    const registrationHeading = await screen.findByRole('heading', {
+      name: /player registration|inscriptions des joueurs/i,
+      level: 4,
+    });
+    const registrationSection =
+      registrationHeading.closest('div')?.parentElement?.parentElement ?? document.body;
+    const registrationScope = within(registrationSection);
     await waitFor(() => {
       expect(mockFetchPlayers.mock.calls.length).toBeGreaterThanOrEqual(1);
-      expect(screen.queryByText(/loading players/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/loading players|chargement des joueurs/i)).not.toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Grace' } });
-    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Hopper' } });
+    fireEvent.change(registrationScope.getByLabelText(/first name|prénom/i), { target: { value: 'Grace' } });
+    fireEvent.change(registrationScope.getByLabelText(/^Nom$|last name/i), { target: { value: 'Hopper' } });
 
     const registerPromise = Promise.resolve(undefined);
     const refreshPlayersPromise = Promise.resolve([]);
     mockRegisterPlayer.mockReturnValueOnce(registerPromise);
     mockFetchPlayers.mockReturnValueOnce(refreshPlayersPromise);
 
-    fireEvent.click(screen.getByRole('button', { name: /add player/i }));
+    fireEvent.click(registrationScope.getByRole('button', { name: /add player|ajouter un joueur/i }));
 
     await act(async () => {
       await registerPromise;
@@ -146,7 +152,7 @@ describe('TournamentList - player registration', () => {
         undefined
       );
       expect(mockFetchPlayers.mock.calls.length).toBeGreaterThanOrEqual(2);
-      expect(screen.queryByText(/loading players/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/loading players|chargement des joueurs/i)).not.toBeInTheDocument();
     });
   });
 });

@@ -2,6 +2,15 @@ import request from 'supertest';
 import App from '../../src/app';
 import { TournamentFormat, DurationType } from '../../../shared/src/types';
 
+const buildFutureWindow = (offsetHours = 24, durationHours = 9) => {
+  const start = new Date(Date.now() + offsetHours * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+  return {
+    startTime: start.toISOString(),
+    endTime: end.toISOString(),
+  };
+};
+
 describe('POST /tournaments - Contract Tests', () => {
   let app: App;
   let server: any;
@@ -20,12 +29,13 @@ describe('POST /tournaments - Contract Tests', () => {
   });
 
   describe('Valid tournament creation', () => {
+    const { startTime, endTime } = buildFutureWindow();
     const validTournamentData = {
       name: 'Test Championship 2026',
       format: TournamentFormat.SINGLE,
       durationType: DurationType.FULL_DAY,
-      startTime: new Date('2026-02-10T09:00:00.000Z').toISOString(),
-      endTime: new Date('2026-02-10T18:00:00.000Z').toISOString(),
+      startTime,
+      endTime,
       totalParticipants: 16,
       targetCount: 4,
     };
@@ -93,12 +103,13 @@ describe('POST /tournaments - Contract Tests', () => {
   });
 
   describe('Invalid tournament creation', () => {
+    const { startTime, endTime } = buildFutureWindow();
     const validTournamentData = {
       name: 'Test Championship 2026',
       format: TournamentFormat.SINGLE,
       durationType: DurationType.FULL_DAY,
-      startTime: new Date('2026-02-10T09:00:00.000Z').toISOString(),
-      endTime: new Date('2026-02-10T18:00:00.000Z').toISOString(),
+      startTime,
+      endTime,
       totalParticipants: 16,
       targetCount: 4,
     };
@@ -155,12 +166,14 @@ describe('POST /tournaments - Contract Tests', () => {
     });
 
     it('should reject tournament with end time before start time', async () => {
+      const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() - 60 * 60 * 1000);
       const response = await request(server)
         .post('/api/tournaments')
         .send({
           ...validTournamentData,
-          startTime: new Date('2026-02-10T18:00:00.000Z').toISOString(),
-          endTime: new Date('2026-02-10T09:00:00.000Z').toISOString(),
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
         })
         .expect(400);
 
@@ -249,13 +262,13 @@ describe('POST /tournaments - Contract Tests', () => {
 
     it('should include request timing per performance requirements', async () => {
       const startTime = Date.now();
-      
+      const { startTime: futureStart, endTime: futureEnd } = buildFutureWindow();
       const validTournamentData = {
         name: 'Performance Test Tournament',
         format: TournamentFormat.SINGLE,
         durationType: DurationType.FULL_DAY,
-        startTime: new Date('2026-02-10T09:00:00.000Z').toISOString(),
-        endTime: new Date('2026-02-10T18:00:00.000Z').toISOString(),
+        startTime: futureStart,
+        endTime: futureEnd,
         totalParticipants: 8,
         targetCount: 2,
       };

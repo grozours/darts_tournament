@@ -2,9 +2,9 @@ import Redis from 'ioredis';
 import { config } from './environment';
 
 class RedisConfig {
-  private client: Redis;
-  private publisher: Redis;
-  private subscriber: Redis;
+  private readonly client: Redis;
+  private readonly publisher: Redis;
+  private readonly subscriber: Redis;
 
   constructor() {
     const redisOptions = {
@@ -25,26 +25,24 @@ class RedisConfig {
       console.log('Redis client connected');
     });
 
-    this.client.on('error', (err) => {
-      console.error('Redis client error:', err);
+    this.client.on('error', (error) => {
+      console.error('Redis client error:', error);
     });
 
-    this.publisher.on('error', (err) => {
-      console.error('Redis publisher error:', err);
+    this.publisher.on('error', (error) => {
+      console.error('Redis publisher error:', error);
     });
 
-    this.subscriber.on('error', (err) => {
-      console.error('Redis subscriber error:', err);
+    this.subscriber.on('error', (error) => {
+      console.error('Redis subscriber error:', error);
     });
   }
 
   public async connect(): Promise<void> {
     try {
-      await Promise.all([
-        this.client.connect(),
-        this.publisher.connect(),
-        this.subscriber.connect(),
-      ]);
+      await this.client.connect();
+      await this.publisher.connect();
+      await this.subscriber.connect();
       console.log('Redis connected successfully');
     } catch (error) {
       console.error('Redis connection failed:', error);
@@ -53,11 +51,9 @@ class RedisConfig {
   }
 
   public async disconnect(): Promise<void> {
-    await Promise.all([
-      this.client.disconnect(),
-      this.publisher.disconnect(),
-      this.subscriber.disconnect(),
-    ]);
+    this.client.disconnect();
+    this.publisher.disconnect();
+    this.subscriber.disconnect();
     console.log('Redis disconnected');
   }
 

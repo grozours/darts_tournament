@@ -1,8 +1,17 @@
 import request from 'supertest';
-import path from 'path';
-import fs from 'fs';
+import path from 'node:path';
+import fs from 'node:fs';
 import App from '../../src/app';
 import { TournamentFormat, DurationType } from '@shared/types';
+
+const buildFutureWindow = (offsetHours = 24, durationHours = 9) => {
+  const start = new Date(Date.now() + offsetHours * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+  return {
+    startTime: start.toISOString(),
+    endTime: end.toISOString(),
+  };
+};
 
 describe('POST /tournaments/:id/logo - Contract Tests', () => {
   let app: App;
@@ -30,12 +39,13 @@ describe('POST /tournaments/:id/logo - Contract Tests', () => {
     fs.writeFileSync(testImagePath, testImageBuffer);
 
     // Create a test tournament first
+    const { startTime, endTime } = buildFutureWindow();
     const tournamentData = {
       name: 'Logo Test Tournament',
       format: TournamentFormat.SINGLE,
       durationType: DurationType.FULL_DAY,
-      startTime: new Date('2026-02-10T09:00:00.000Z').toISOString(),
-      endTime: new Date('2026-02-10T18:00:00.000Z').toISOString(),
+      startTime,
+      endTime,
       totalParticipants: 8,
       targetCount: 2,
     };

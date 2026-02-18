@@ -1,12 +1,12 @@
 import '@testing-library/jest-dom';
 
 // Mock matchMedia for components/tests that rely on it
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(globalThis, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
     matches: false,
     media: query,
-    onchange: null,
+    onchange: undefined,
     addListener: () => {}, // deprecated
     removeListener: () => {}, // deprecated
     addEventListener: () => {},
@@ -16,4 +16,4 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock scrollTo
-Object.defineProperty(window, 'scrollTo', { value: () => {}, writable: true });
+Object.defineProperty(globalThis, 'scrollTo', { value: () => {}, writable: true });

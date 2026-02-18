@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import TournamentController from '../controllers/TournamentController';
+import TournamentController from '../controllers/tournament-controller';
 import { validate } from '../middleware/validation';
 import { uploadTournamentLogo } from '../middleware/upload';
 import { requireAuth, requireAdmin } from '../middleware/auth';
@@ -12,6 +12,8 @@ const prisma = new PrismaClient();
 const tournamentController = new TournamentController(prisma);
 
 const router = Router();
+
+const minutesToMs = 60_000;
 
 // Validation schemas
 const createTournamentSchema = {
@@ -30,7 +32,7 @@ const createTournamentSchema = {
     }),
     startTime: z.string({ required_error: 'Start time is required' })
       .datetime({ message: 'Invalid start time format' })
-      .refine((val) => new Date(val) > new Date(), {
+      .refine((value) => new Date(value) > new Date(), {
         message: 'Start time must be in the future',
       }),
     endTime: z.string({ required_error: 'End time is required' })
@@ -54,7 +56,8 @@ const createTournamentSchema = {
     const startTime = new Date(data.startTime);
     const endTime = new Date(data.endTime);
     const duration = endTime.getTime() - startTime.getTime();
-    const minDuration = 60 * 60 * 1000; // 1 hour
+    const minutesToMs = 60_000;
+    const minDuration = 60 * minutesToMs; // 1 hour
     return duration >= minDuration;
   }, {
     message: 'Tournament duration must be at least 1 hour',
@@ -63,7 +66,7 @@ const createTournamentSchema = {
     const startTime = new Date(data.startTime);
     const endTime = new Date(data.endTime);
     const duration = endTime.getTime() - startTime.getTime();
-    const maxDuration = 24 * 60 * 60 * 1000; // 24 hours
+    const maxDuration = 24 * 60 * minutesToMs; // 24 hours
     return duration <= maxDuration;
   }, {
     message: 'Tournament duration cannot exceed 24 hours',
@@ -107,12 +110,12 @@ const uuidSchema = {
 
 const getTournamentsSchema = {
   query: z.object({
-    status: z.preprocess((val) => typeof val === 'string' ? val.toUpperCase() : val,
+    status: z.preprocess((value) => typeof value === 'string' ? value.toUpperCase() : value,
       z.nativeEnum(TournamentStatus, {
         errorMap: () => ({ message: 'Invalid tournament status' }),
       })
     ).optional(),
-    format: z.preprocess((val) => typeof val === 'string' ? val.toUpperCase() : val,
+    format: z.preprocess((value) => typeof value === 'string' ? value.toUpperCase() : value,
       z.nativeEnum(TournamentFormat, {
         errorMap: () => ({ message: 'Invalid tournament format' }),
       })
@@ -123,13 +126,13 @@ const getTournamentsSchema = {
       .optional(),
     page: z.string()
       .regex(/^\d+$/, 'Page must be a positive integer')
-      .transform((val) => Number.parseInt(val, 10))
-      .refine((val) => val > 0, 'Page must be greater than 0')
+      .transform((value) => Number.parseInt(value, 10))
+      .refine((value) => value > 0, 'Page must be greater than 0')
       .optional(),
     limit: z.string()
       .regex(/^\d+$/, 'Limit must be a positive integer')
-      .transform((val) => Number.parseInt(val, 10))
-      .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100')
+      .transform((value) => Number.parseInt(value, 10))
+      .refine((value) => value > 0 && value <= 100, 'Limit must be between 1 and 100')
       .optional(),
     sortBy: z.enum(['name', 'startTime', 'createdAt']).optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),

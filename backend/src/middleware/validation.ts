@@ -1,63 +1,65 @@
 import { Request, Response, NextFunction } from 'express';
 import { z, ZodError, ZodSchema } from 'zod';
-import { AppError } from './errorHandler';
+import { AppError } from './error-handler';
 
 // Request validation middleware per constitution requirements
 export const validationMiddleware = (
-  req: Request,
-  res: Response,
+  request: Request,
+  _response: Response,
   next: NextFunction
 ): void => {
   // Basic request validation
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    if (req.is('application/json') && !req.body) {
-      throw new AppError('Request body is required', 400, 'MISSING_BODY');
-    }
+  if (
+    (request.method === 'POST' || request.method === 'PUT' || request.method === 'PATCH')
+    && request.is('application/json')
+    && !request.body
+  ) {
+    throw new AppError('Request body is required', 400, 'MISSING_BODY');
   }
 
   next();
 };
 
 // Validation helper function
+const buildValidationError = (error: ZodError): AppError => {
+  const formattedError = new AppError(
+    error.errors && error.errors.length > 0 && error.errors[0]
+      ? error.errors[0].message
+      : 'Validation failed',
+    400,
+    'VALIDATION_ERROR'
+  );
+  const details = error.errors.map((issue) => ({
+    field: issue.path.join('.'),
+    message: issue.message,
+    value: 'received' in issue ? (issue as { received?: unknown }).received : undefined,
+  }));
+  (formattedError as AppError & { details?: unknown }).details = details;
+  return formattedError;
+};
+
 export const validate = (schema: {
   body?: ZodSchema;
   query?: ZodSchema;
   params?: ZodSchema;
 }) => {
-  const parseRequest = (req: Request): void => {
-    if (schema.body && req.body) {
-      req.body = schema.body.parse(req.body);
+  const parseRequest = (request: Request): void => {
+    if (schema.body && request.body) {
+      request.body = schema.body.parse(request.body);
     }
 
-    if (schema.query && req.query) {
-      req.query = schema.query.parse(req.query);
+    if (schema.query && request.query) {
+      request.query = schema.query.parse(request.query);
     }
 
-    if (schema.params && req.params) {
-      req.params = schema.params.parse(req.params);
+    if (schema.params && request.params) {
+      request.params = schema.params.parse(request.params);
     }
   };
 
-  const buildValidationError = (error: ZodError): AppError => {
-    const formattedError = new AppError(
-      error.errors && error.errors.length > 0 && error.errors[0]
-        ? error.errors[0].message
-        : 'Validation failed',
-      400,
-      'VALIDATION_ERROR'
-    );
-    const details = error.errors.map(err => ({
-      field: err.path.join('.'),
-      message: err.message,
-      value: 'received' in err ? (err as { received?: unknown }).received : undefined,
-    }));
-    (formattedError as AppError & { details?: unknown }).details = details;
-    return formattedError;
-  };
-
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (request: Request, _response: Response, next: NextFunction): void => {
     try {
-      parseRequest(req);
+      parseRequest(request);
 
       next();
     } catch (error) {
@@ -97,7 +99,7 @@ export const commonSchemas = {
     mimetype: z.enum(['image/jpeg', 'image/png'], {
       errorMap: () => ({ message: 'Only JPEG and PNG files are allowed' }),
     }),
-    size: z.number().max(5242880, 'File size must be less than 5MB'),
+    size: z.number().max(5_242_880, 'File size must be less than 5MB'),
     buffer: z.instanceof(Buffer),
   }),
 
@@ -158,9 +160,9 @@ export const validatePlayerCreation = validate({
   body: commonSchemas.createPlayer,
 });
 
-export const validateUuidParam = (paramName: string = 'id') => validate({
+export const validateUuidParameter = (parameterName: string = 'id') => validate({
   params: z.object({
-    [paramName]: commonSchemas.uuid,
+    [parameterName]: commonSchemas.uuid,
   }),
 });
 

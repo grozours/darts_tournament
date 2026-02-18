@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getVisibleLiveViews, resolveEmptyLiveCopy } from '../../../src/utils/liveViewHelpers';
+import { getVisibleLiveViews, resolveEmptyLiveCopy } from '../../../src/utils/live-view-helpers';
 
 describe('LiveTournament helpers', () => {
   it('filters live views for pool stages', () => {

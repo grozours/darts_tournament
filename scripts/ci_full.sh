@@ -17,4 +17,8 @@ if [[ -z "${SONAR_TOKEN:-}" ]]; then
 	fi
 fi
 
-"${ROOT_DIR}/scripts/sonar_scan.sh"
+if [[ -n "${SONAR_TOKEN:-}" ]]; then
+	"${ROOT_DIR}/scripts/sonar_scan.sh"
+else
+	echo "[ci] SONAR_TOKEN not set; skipping SonarQube scan."
+fi

@@ -679,13 +679,13 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue>({
   lang: getStoredLang(),
-  toggleLang: () => undefined,
+  toggleLang: () => {},
   t: (key) => messages[getStoredLang()]?.[key] || messages.en[key] || key,
 });
 
-type I18nProviderProps = Readonly<{ children: ReactNode }>;
+type I18nProviderProperties = Readonly<{ children: ReactNode }>;
 
-export function I18nProvider({ children }: I18nProviderProps) {
+export function I18nProvider({ children }: I18nProviderProperties) {
   const [lang, setLang] = useState<Language>(() => getStoredLang());
 
   const toggleLang = () => {

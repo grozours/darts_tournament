@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import PlayersView from '../../../src/components/PlayersView';
+import PlayersView from '../../../src/components/players-view';
 import { TournamentFormat } from '@shared/types';
-import { fetchTournamentPlayers } from '../../../src/services/tournamentService';
+import { fetchTournamentPlayers } from '../../../src/services/tournament-service';
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
-vi.mock('../../../src/services/tournamentService', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/services/tournamentService')>(
-    '../../../src/services/tournamentService'
+vi.mock('../../../src/services/tournament-service', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/services/tournament-service')>(
+    '../../../src/services/tournament-service'
   );
   return {
     ...actual,
@@ -75,7 +75,7 @@ describe('PlayersView', () => {
     expect(screen.getByText(/Team Rocket/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Spring Open/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Doubles Night/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/2\s+Players/i)).toBeInTheDocument();
+    expect(screen.getByText(/2\s+(Players|Joueurs)/i)).toBeInTheDocument();
   });
 
   it('filters players by search input', async () => {
@@ -108,9 +108,12 @@ describe('PlayersView', () => {
       expect(screen.getByText(/Alice Smith \(Falcon\)/i)).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/search name, team, email, phone, tournament/i), {
+    fireEvent.change(
+      screen.getByPlaceholderText(/search name, team, email, phone, tournament|Rechercher nom, équipe, email, téléphone, tournoi/i),
+      {
       target: { value: 'falcon' },
-    });
+      }
+    );
 
     expect(screen.getByText(/Alice Smith \(Falcon\)/i)).toBeInTheDocument();
     expect(screen.queryByText(/Bob Lee/i)).not.toBeInTheDocument();

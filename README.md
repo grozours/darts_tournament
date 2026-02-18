@@ -314,6 +314,18 @@ npm run test         # Run Vitest tests
 npm run lint         # Check for linting errors
 ```
 
+### SonarQube Scan
+
+Run the SonarQube scan from the project root (requires `SONAR_TOKEN`):
+
+```bash
+export SONAR_TOKEN=your_token
+# Optional: export SONAR_HOST_URL=http://localhost:9000
+./scripts/sonar_scan.sh
+```
+
+If you store a token in `.sonar-token`, it will be used automatically by `scripts/ci_full.sh`.
+
 ### Installation Script (`install.sh`)
 
 For fresh installations from GitHub:

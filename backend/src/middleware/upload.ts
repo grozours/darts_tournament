@@ -1,12 +1,13 @@
 import multer, { StorageEngine } from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/environment';
-import { AppError } from './errorHandler';
+import { AppError } from './error-handler';
 
 // Ensure upload directory exists
-const ensureUploadDir = (): void => {
+const ensureUploadDirectory = (): void => {
   if (!fs.existsSync(config.upload.directory)) {
     fs.mkdirSync(config.upload.directory, { recursive: true });
     console.log(`📁 Created upload directory: ${config.upload.directory}`);
@@ -14,24 +15,26 @@ const ensureUploadDir = (): void => {
 };
 
 // Initialize upload directory
-ensureUploadDir();
+ensureUploadDirectory();
 
 // Storage configuration per constitution file handling requirements
 const storage: StorageEngine = multer.diskStorage({
-  destination: (req: Request, file: Express.Multer.File, cb) => {
-    cb(null, config.upload.directory);
+  destination: (_request: Request, _file: Express.Multer.File, callback) => {
+    // eslint-disable-next-line unicorn/no-null
+    callback(null, config.upload.directory);
   },
-  filename: (req: Request, file: Express.Multer.File, cb) => {
-    // Generate unique filename with timestamp and original extension
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+  filename: (_request: Request, file: Express.Multer.File, callback) => {
+    // Generate unique filename with timestamp and cryptographic randomness
+    const uniqueSuffix = `${Date.now()}-${randomUUID()}`;
     const extension = path.extname(file.originalname);
     const filename = `${file.fieldname}-${uniqueSuffix}${extension}`;
-    cb(null, filename);
+    // eslint-disable-next-line unicorn/no-null
+    callback(null, filename);
   },
 });
 
 // File filter per constitution requirements
-const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback): void => {
+const fileFilter = (_request: Request, file: Express.Multer.File, callback: multer.FileFilterCallback): void => {
   // Check MIME type
   if (!config.upload.allowedMimeTypes.includes(file.mimetype)) {
     const error = new AppError(
@@ -39,7 +42,7 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilt
       400,
       'INVALID_FILE_TYPE'
     );
-    return cb(error);
+    return callback(error);
   }
 
   // Check file extension
@@ -50,18 +53,20 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilt
       400,
       'INVALID_FILE_EXTENSION'
     );
-    return cb(error);
+    return callback(error);
   }
 
-  cb(null, true);
+  // eslint-disable-next-line unicorn/no-null
+  callback(null, true);
 };
 
 // Multer configuration
+const maxUploadSize = Math.min(config.upload.maxSize, 5 * 1024 * 1024);
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: config.upload.maxSize, // 5MB per constitution
+    fileSize: maxUploadSize, // 5MB per constitution
     files: 1, // Single file upload for tournament logos
   },
 });
@@ -77,22 +82,22 @@ export const uploadMultipleFiles = (fieldName: string, maxCount: number = 5) =>
   upload.array(fieldName, maxCount);
 
 // File validation middleware (additional checks after multer)
-export const validateUploadedFile = (req: Request, res: Response, next: NextFunction): void => {
-  const file = req.file;
+export const validateUploadedFile = (request: Request, _response: Response, next: NextFunction): void => {
+  const file = request.file;
   
   if (!file) {
     return next(new AppError('No file uploaded', 400, 'NO_FILE_UPLOADED'));
   }
 
   // Additional file size check (belt and suspenders approach)
-  if (file.size > config.upload.maxSize) {
+  if (file.size > maxUploadSize) {
     // Clean up the uploaded file
-    fs.unlink(file.path, (err) => {
-      if (err) console.error('Error cleaning up oversized file:', err);
+    fs.unlink(file.path, (error) => {
+      if (error) console.error('Error cleaning up oversized file:', error);
     });
     
     return next(new AppError(
-      `File too large. Maximum size is ${Math.round(config.upload.maxSize / 1024 / 1024)}MB`,
+      `File too large. Maximum size is ${Math.round(maxUploadSize / 1024 / 1024)}MB`,
       400,
       'FILE_TOO_LARGE'
     ));
@@ -109,9 +114,9 @@ export const validateUploadedFile = (req: Request, res: Response, next: NextFunc
 // File cleanup utility
 export const cleanupFile = (filePath: string): void => {
   if (fs.existsSync(filePath)) {
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.error('Error cleaning up file:', err);
+    fs.unlink(filePath, (error) => {
+      if (error) {
+        console.error('Error cleaning up file:', error);
       } else {
         console.log('🗑️  Cleaned up file:', filePath);
       }
@@ -125,8 +130,8 @@ export const getFileUrl = (filename: string): string => {
 };
 
 // File type validation for logos specifically
-export const validateLogoFile = (req: Request, res: Response, next: NextFunction): void => {
-  const file = req.file;
+export const validateLogoFile = (request: Request, _response: Response, next: NextFunction): void => {
+  const file = request.file;
   
   if (!file) {
     return next();

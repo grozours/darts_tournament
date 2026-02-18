@@ -74,34 +74,34 @@ const fileLogFormat = winston.format.combine(
 );
 
 // Ensure logs directory exists
-const logsDir = path.join(process.cwd(), 'logs');
+const logsDirectory = path.join(process.cwd(), 'logs');
 
-const isTestEnv = process.env.NODE_ENV === 'test';
+const isTestEnvironment = process.env.NODE_ENV === 'test';
 
 const consoleTransport = new winston.transports.Console({
   format: logFormat,
 });
 
-const fileTransports = isTestEnv
+const fileTransports = isTestEnvironment
   ? []
   : [
       new winston.transports.File({
-        filename: path.join(logsDir, 'error.log'),
+        filename: path.join(logsDirectory, 'error.log'),
         level: 'error',
         format: fileLogFormat,
-        maxsize: 5242880, // 5MB
+        maxsize: 5_242_880, // 5MB
         maxFiles: 5,
       }),
       new winston.transports.File({
-        filename: path.join(logsDir, 'combined.log'),
+        filename: path.join(logsDirectory, 'combined.log'),
         format: fileLogFormat,
-        maxsize: 5242880, // 5MB
+        maxsize: 5_242_880, // 5MB
         maxFiles: 5,
       }),
       new winston.transports.File({
-        filename: path.join(logsDir, 'tournaments.log'),
+        filename: path.join(logsDirectory, 'tournaments.log'),
         format: fileLogFormat,
-        maxsize: 5242880, // 5MB
+        maxsize: 5_242_880, // 5MB
         maxFiles: 3,
       }),
     ];
@@ -114,19 +114,19 @@ const logger = winston.createLogger({
   levels: logLevels,
   transports,
   // Handle uncaught exceptions and rejections
-  exceptionHandlers: isTestEnv
+  exceptionHandlers: isTestEnvironment
     ? []
     : [
         new winston.transports.File({
-          filename: path.join(logsDir, 'exceptions.log'),
+          filename: path.join(logsDirectory, 'exceptions.log'),
           format: fileLogFormat,
         }),
       ],
-  rejectionHandlers: isTestEnv
+  rejectionHandlers: isTestEnvironment
     ? []
     : [
         new winston.transports.File({
-          filename: path.join(logsDir, 'rejections.log'),
+          filename: path.join(logsDirectory, 'rejections.log'),
           format: fileLogFormat,
         }),
       ],

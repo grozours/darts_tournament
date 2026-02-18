@@ -22,6 +22,12 @@ module.exports = {
   ],
   ignorePatterns: ['dist', 'node_modules'],
   rules: {
+    complexity: ['warn', 15],
+    'max-depth': ['warn', 4],
+    'max-lines': ['warn', 400],
+    'max-lines-per-function': ['warn', 120],
+    'max-params': ['warn', 5],
+    'max-statements': ['warn', 30],
     'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
   },
 };

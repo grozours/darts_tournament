@@ -4,18 +4,18 @@ import { config } from '../config/environment';
 
 // Security middleware per constitution requirements
 export const securityMiddleware = (
-  req: Request,
-  res: Response,
+  _request: Request,
+  response: Response,
   next: NextFunction
 ): void => {
   // Add security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('X-Frame-Options', 'DENY');
+  response.setHeader('X-XSS-Protection', '1; mode=block');
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   
   // Remove sensitive headers
-  res.removeHeader('X-Powered-By');
+  response.removeHeader('X-Powered-By');
   
   next();
 };
@@ -27,14 +27,14 @@ export const createRateLimit = (windowMs: number = 15 * 60 * 1000, max: number =
     max,
     message: {
       error: 'Too many requests',
-      message: `Rate limit exceeded. Try again in ${Math.ceil(windowMs / 60000)} minutes.`,
+      message: `Rate limit exceeded. Try again in ${Math.ceil(windowMs / 60_000)} minutes.`,
       statusCode: 429,
     },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req: Request) => {
+    skip: (request: Request) => {
       // Skip rate limiting in development for easier testing
-      return config.isDevelopment && req.ip === '::1';
+      return config.isDevelopment && request.ip === '::1';
     },
   });
 };
@@ -45,7 +45,7 @@ export const uploadRateLimit = createRateLimit(60 * 60 * 1000, 10); // 10 upload
 export const authRateLimit = createRateLimit(15 * 60 * 1000, 5); // 5 auth attempts per 15 minutes
 
 // Content Security Policy
-export const cspMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+export const cspMiddleware = (_request: Request, response: Response, next: NextFunction): void => {
   const csp = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
@@ -58,50 +58,50 @@ export const cspMiddleware = (req: Request, res: Response, next: NextFunction): 
     "base-uri 'self'",
   ].join('; ');
 
-  res.setHeader('Content-Security-Policy', csp);
+  response.setHeader('Content-Security-Policy', csp);
   next();
 };
 
 // Request sanitization
+const sanitizeValue = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    return value
+      .replaceAll(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replaceAll(/javascript:/gi, '')
+      .replaceAll(/on\w+=/gi, '');
+  }
+  return value;
+};
+
+const sanitizeObject = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeObject(item));
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(record)) {
+      result[key] = sanitizeObject(record[key]);
+    }
+    return result;
+  }
+  return sanitizeValue(value);
+};
+
 export const sanitizeMiddleware = (
-  req: Request,
-  res: Response,
+  request: Request,
+  _response: Response,
   next: NextFunction
 ): void => {
   // Basic sanitization for common XSS patterns
-  const sanitizeValue = (value: unknown): unknown => {
-    if (typeof value === 'string') {
-      return value
-        .replaceAll(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replaceAll(/javascript:/gi, '')
-        .replaceAll(/on\w+=/gi, '');
-    }
-    return value;
-  };
-
-  const sanitizeObject = (obj: unknown): unknown => {
-    if (Array.isArray(obj)) {
-      return obj.map((item) => sanitizeObject(item));
-    }
-    if (obj && typeof obj === 'object') {
-      const record = obj as Record<string, unknown>;
-      const result: Record<string, unknown> = {};
-      Object.keys(record).forEach((key) => {
-        result[key] = sanitizeObject(record[key]);
-      });
-      return result;
-    }
-    return sanitizeValue(obj);
-  };
-
-  if (req.body) {
-    req.body = sanitizeObject({ ...req.body }) as typeof req.body;
+  if (request.body) {
+    request.body = sanitizeObject({ ...request.body }) as typeof request.body;
   }
-  if (req.query) {
-    req.query = sanitizeObject({ ...req.query }) as typeof req.query;
+  if (request.query) {
+    request.query = sanitizeObject({ ...request.query }) as typeof request.query;
   }
-  if (req.params) {
-    req.params = sanitizeObject({ ...req.params }) as typeof req.params;
+  if (request.params) {
+    request.params = sanitizeObject({ ...request.params }) as typeof request.params;
   }
 
   next();
@@ -109,15 +109,15 @@ export const sanitizeMiddleware = (
 
 // File upload security
 export const fileSecurityMiddleware = (
-  req: Request,
-  res: Response,
+  _request: Request,
+  response: Response,
   next: NextFunction
 ): void => {
   // Add file-specific security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  response.setHeader('Pragma', 'no-cache');
+  response.setHeader('Expires', '0');
   
   next();
 };

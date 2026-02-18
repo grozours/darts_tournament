@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 import { config } from './environment';
 
 class DatabaseConfig {
-  private pool: Pool;
+  private readonly pool: Pool;
 
   constructor() {
     this.pool = new Pool({
@@ -14,9 +14,8 @@ class DatabaseConfig {
     });
 
     // Handle connection errors
-    this.pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
-      process.exit(-1);
+    this.pool.on('error', (error) => {
+      console.error('Unexpected error on idle client', error);
     });
   }
 
