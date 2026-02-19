@@ -3,16 +3,19 @@ import { useAdminStatus } from '../../auth/use-admin-status';
 import { useI18n } from '../../i18n';
 import useLiveTournamentBracketActions from './use-live-tournament-bracket-actions';
 import useLiveTournamentData from './use-live-tournament-data';
+import useLiveTournamentGlobalQueue from './use-live-tournament-global-queue';
 import useLiveTournamentMatchActions from './use-live-tournament-match-actions';
 import useLiveTournamentMatchKey from './use-live-tournament-match-key';
 import useLiveTournamentParameters from './use-live-tournament-parameters';
 import useLiveTournamentReadonly from './use-live-tournament-readonly';
 import useLiveTournamentRefresh from './use-live-tournament-refresh';
+import useLiveTournamentPlayerIds from './use-live-tournament-player-ids';
 import useLiveTournamentStageActions from './use-live-tournament-stage-actions';
 import useLiveTournamentStatusLabels from './use-live-tournament-status-labels';
 import useLiveTournamentTargetLabels from './use-live-tournament-target-labels';
 import useLiveTournamentTargets from './use-live-tournament-targets';
 import useLiveTournamentToken from './use-live-tournament-token';
+import useLiveTournamentSelection from './use-live-tournament-selection';
 import type {
   LiveViewBracket,
   LiveViewData,
@@ -47,6 +50,7 @@ type LiveTournamentState = {
   setSelectedLiveTournamentId: (value: string) => void;
   selectedPoolStagesTournamentId: string;
   setSelectedPoolStagesTournamentId: (value: string) => void;
+  playerIdByTournament: Record<string, string>;
   showGlobalQueue: boolean;
   globalQueue: MatchQueueItem[];
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
@@ -96,6 +100,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     isLoading: authLoading,
     getAccessTokenSilently,
     error: authError,
+    user,
   } = useOptionalAuth();
   const { isAdmin } = useAdminStatus();
   const { getStatusLabel } = useLiveTournamentStatusLabels(t);
@@ -107,21 +112,40 @@ const useLiveTournamentState = (): LiveTournamentState => {
     error,
     setError,
     reloadLiveViews,
-    visibleLiveViews,
-    displayedLiveViews,
-    selectedLiveTournamentId,
-    setSelectedLiveTournamentId,
-    selectedPoolStagesTournamentId,
-    setSelectedPoolStagesTournamentId,
-    showGlobalQueue,
-    globalQueue,
   } = useLiveTournamentData({
     getSafeAccessToken,
     viewMode,
     viewStatus,
     tournamentId,
     isAggregateView,
-    isAdmin,
+  });
+    const { playerIdByTournament } = useLiveTournamentPlayerIds({
+      liveViews,
+      isAuthenticated,
+      ...(user ? { user } : {}),
+      getSafeAccessToken,
+    });
+  const canViewEditionByViewId = (viewId: string) => isAdmin || Boolean(playerIdByTournament[viewId]);
+  const {
+    visibleLiveViews,
+    displayedLiveViews,
+    selectedLiveTournamentId,
+    setSelectedLiveTournamentId,
+    selectedPoolStagesTournamentId,
+    setSelectedPoolStagesTournamentId,
+  } = useLiveTournamentSelection({
+    viewMode,
+    viewStatus,
+    tournamentId,
+    liveViews,
+    canViewEditionByViewId,
+  });
+  const { showGlobalQueue, globalQueue } = useLiveTournamentGlobalQueue({
+    viewMode,
+    viewStatus,
+    displayedLiveViews,
+    selectedLiveTournamentId,
+    visibleLiveViewsCount: visibleLiveViews.length,
   });
   const {
     availableTargetsByTournament,
@@ -206,6 +230,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     setSelectedLiveTournamentId,
     selectedPoolStagesTournamentId,
     setSelectedPoolStagesTournamentId,
+    playerIdByTournament,
     showGlobalQueue,
     globalQueue,
     availableTargetsByTournament,

@@ -5,6 +5,7 @@ import type { LiveViewData } from './types';
 
 type UseLiveTournamentLoadersProperties = {
   getSafeAccessToken: () => Promise<string | undefined>;
+  viewMode?: string | undefined;
   viewStatus?: LiveViewStatus;
   tournamentId?: string | undefined;
   isAggregateView: boolean;
@@ -18,8 +19,36 @@ type LiveTournamentLoadersResult = {
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
 };
 
+const getStatusList = (viewMode?: string, viewStatus?: LiveViewStatus): string[] => {
+  if (viewMode === 'pool-stages' && !viewStatus) {
+    return ['LIVE', 'OPEN'];
+  }
+  return [(viewStatus ?? 'LIVE').toUpperCase()];
+};
+
+const fetchViewsForStatus = async (
+  statusParameter: string,
+  token?: string
+): Promise<LiveViewData[]> => {
+  const response = await fetch(`/api/tournaments?status=${encodeURIComponent(statusParameter)}`,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {});
+  if (!response.ok) {
+    throw new Error('Failed to fetch live tournaments');
+  }
+  const data = await response.json();
+  const tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+  const filteredTournaments = tournaments.filter((t: { status?: string }) =>
+    (t.status ?? '').toUpperCase() === statusParameter
+  );
+  const views = await Promise.all(
+    filteredTournaments.map((t: { id: string }) => fetchTournamentLiveView(t.id, token))
+  );
+  return views as LiveViewData[];
+};
+
 const useLiveTournamentLoaders = ({
   getSafeAccessToken,
+  viewMode,
   viewStatus,
   tournamentId,
   isAggregateView,
@@ -59,21 +88,18 @@ const useLiveTournamentLoaders = ({
 
     try {
       const token = await getSafeAccessToken();
-      const statusParameter = (viewStatus ?? 'LIVE').toUpperCase();
-      const response = await fetch(`/api/tournaments?status=${encodeURIComponent(statusParameter)}`,
-        token ? { headers: { Authorization: `Bearer ${token}` } } : {});
-      if (!response.ok) {
-        throw new Error('Failed to fetch live tournaments');
+      const statusList = getStatusList(viewMode, viewStatus);
+
+      const viewMap = new Map<string, LiveViewData>();
+
+      for (const statusParameter of statusList) {
+        const views = await fetchViewsForStatus(statusParameter, token);
+        for (const view of views) {
+          viewMap.set(view.id, view);
+        }
       }
-      const data = await response.json();
-      const tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
-      const liveTournaments = tournaments.filter((t: { status?: string }) =>
-        (t.status ?? '').toUpperCase() === statusParameter
-      );
-      const views = await Promise.all(
-        liveTournaments.map((t: { id: string }) => fetchTournamentLiveView(t.id, token))
-      );
-      setLiveViews(views as LiveViewData[]);
+
+      setLiveViews([...viewMap.values()]);
     } catch (error_) {
       console.error('Error fetching live view:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to load live view');
@@ -82,7 +108,7 @@ const useLiveTournamentLoaders = ({
         setLoading(false);
       }
     }
-  }, [getSafeAccessToken, viewStatus]);
+  }, [getSafeAccessToken, viewMode, viewStatus]);
 
   const reloadLiveViews = useCallback(async (options?: { showLoader?: boolean }) => {
     if (isAggregateView) {

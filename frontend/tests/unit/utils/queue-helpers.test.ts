@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildGlobalMatchQueue, buildMatchQueue } from '../../../src/components/targets-view/queue-helpers';
 import type { LiveViewData } from '../../../src/components/targets-view/types';
 
-describe('queue-helpers', () => {
+describe('queue-helpers items', () => {
   it('builds pool and bracket queue items', () => {
     const view: LiveViewData = {
       id: 't-1',
@@ -70,7 +70,9 @@ describe('queue-helpers', () => {
     expect(poolItem?.blocked).toBe(false);
     expect(bracketItem?.matchId).toBe('match-3');
   });
+});
 
+describe('queue-helpers interleaving', () => {
   it('interleaves queues across tournaments', () => {
     const viewOne: LiveViewData = {
       id: 't-1',

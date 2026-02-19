@@ -48,7 +48,6 @@ describe('PlayersView', () => {
           lastName: 'Smith',
           surname: 'Falcon',
           name: 'Alice Smith',
-          teamName: undefined,
         },
       ],
       t2: [
@@ -111,7 +110,7 @@ describe('PlayersView', () => {
     fireEvent.change(
       screen.getByPlaceholderText(/search name, team, email, phone, tournament|Rechercher nom, équipe, email, téléphone, tournoi/i),
       {
-      target: { value: 'falcon' },
+        target: { value: 'falcon' },
       }
     );
 

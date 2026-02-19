@@ -5,8 +5,16 @@ import {
   filterPoolStagesForView,
   getPoolStageStats,
 } from '../../../src/components/live-tournament/view-utilities';
+import {
+  getVisibleLiveViews,
+  hasActiveBrackets,
+  hasActivePoolStages,
+  resolveEmptyLiveCopy,
+} from '../../../src/utils/live-view-helpers';
 import useLiveTournamentMatchKey from '../../../src/components/live-tournament/use-live-tournament-match-key';
 import validateMatchScores from '../../../src/components/live-tournament/use-live-tournament-score-validation';
+
+const translate = (key: string) => key;
 
 const makeMatch = (id: string, status: string): LiveViewMatch => ({
   id,
@@ -15,7 +23,7 @@ const makeMatch = (id: string, status: string): LiveViewMatch => ({
   status,
 });
 
-describe('live tournament low coverage utilities', () => {
+describe('live tournament view filters', () => {
   it('filters pool stages based on view mode and status', () => {
     const stages: LiveViewPoolStage[] = [
       {
@@ -55,6 +63,15 @@ describe('live tournament low coverage utilities', () => {
       's2',
       's4',
     ]);
+    expect(filterPoolStagesForView('pool-stages', 'LIVE', [
+      {
+        id: 's5',
+        stageNumber: 5,
+        name: 'Stage 5',
+        status: 'EDITION',
+        poolCount: 2,
+      },
+    ], true).map((stage) => stage.id)).toEqual(['s5']);
   });
 
   it('filters brackets based on view mode and status', () => {
@@ -86,7 +103,9 @@ describe('live tournament low coverage utilities', () => {
     expect(filterBracketsForView('brackets', 'LIVE', brackets)).toHaveLength(3);
     expect(filterBracketsForView('brackets', 'FINISHED', brackets).map((bracket) => bracket.id)).toEqual(['b1']);
   });
+});
 
+describe('live tournament stats', () => {
   it('summarizes pool stage stats', () => {
     const stages: LiveViewPoolStage[] = [
       {
@@ -115,6 +134,52 @@ describe('live tournament low coverage utilities', () => {
     });
   });
 
+  it('evaluates pool stage visibility and active brackets', () => {
+    const viewWithStages = {
+      id: 't1',
+      name: 'Tournament 1',
+      status: 'LIVE',
+      poolStages: [
+        { status: 'IN_PROGRESS', poolCount: 3 },
+        { status: 'COMPLETED', pools: [] },
+      ],
+    };
+
+    expect(hasActivePoolStages(viewWithStages, 'LIVE', false)).toBe(true);
+    expect(hasActivePoolStages(viewWithStages, 'FINISHED', false)).toBe(false);
+
+    const viewWithBrackets = {
+      id: 't2',
+      name: 'Tournament 2',
+      status: 'LIVE',
+      brackets: [
+        { status: 'IN_PROGRESS', matches: [{ id: 'm1' }] },
+        { status: 'COMPLETED', matches: [] },
+      ],
+    };
+
+    expect(hasActiveBrackets(viewWithBrackets, 'LIVE')).toBe(true);
+    expect(hasActiveBrackets(viewWithBrackets, 'FINISHED')).toBe(false);
+  });
+
+  it('filters live views and resolves empty copy', () => {
+    const views = [
+      { id: 't1', name: 'One', status: 'LIVE', poolStages: [{ status: 'IN_PROGRESS', poolCount: 1 }] },
+      { id: 't2', name: 'Two', status: 'LIVE', brackets: [{ status: 'IN_PROGRESS', matches: [{ id: 'm2' }] }] },
+    ];
+
+    expect(getVisibleLiveViews('pool-stages', views).map((view) => view.id)).toEqual(['t1']);
+    expect(getVisibleLiveViews('brackets', views, 'LIVE').map((view) => view.id)).toEqual(['t2']);
+    expect(getVisibleLiveViews('live', views)).toHaveLength(2);
+    expect(getVisibleLiveViews(undefined, views)).toHaveLength(2);
+
+    expect(resolveEmptyLiveCopy('brackets', translate)).toBe('live.noneBrackets');
+    expect(resolveEmptyLiveCopy('pool-stages', translate)).toBe('live.nonePoolStages');
+    expect(resolveEmptyLiveCopy('live', translate)).toBe('live.none');
+  });
+});
+
+describe('live tournament match helpers', () => {
   it('builds match keys', () => {
     const { getMatchKey } = useLiveTournamentMatchKey();
     expect(getMatchKey('t-1', 'm-9')).toBe('t-1:m-9');

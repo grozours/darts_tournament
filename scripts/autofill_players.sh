@@ -40,7 +40,7 @@ if [[ "$ready" != "true" ]]; then
 fi
 
 echo "Autofilling players and activating T2..."
-API_BASE="http://localhost:3000" node ./scripts/autofill_players.mjs
+REGISTRATION_EMPTY_SLOTS=5 API_BASE="http://localhost:3000" node ./scripts/autofill_players.mjs
 
 if [[ "${original_auth_enabled}" != "false" ]]; then
   echo "Re-enabling auth..."

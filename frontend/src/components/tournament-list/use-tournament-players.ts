@@ -43,6 +43,7 @@ const useTournamentPlayers = ({
   t,
   editingTournament,
   getSafeAccessToken,
+  refreshTournamentDetails,
 }: TournamentPlayersContext): UseTournamentPlayersResult => {
   const {
     players,
@@ -101,6 +102,7 @@ const useTournamentPlayers = ({
     getSafeAccessToken,
     players,
     fetchPlayers,
+    refreshTournamentDetails,
     setPlayersError,
     setCheckingInPlayerId,
     setIsConfirmingAll,

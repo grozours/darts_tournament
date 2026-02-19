@@ -3,6 +3,7 @@
 import { randomInt } from 'node:crypto';
 
 const apiBase = process.env.API_BASE || 'http://localhost:3000';
+const registrationEmptySlots = Number(process.env.REGISTRATION_EMPTY_SLOTS ?? '0');
 
 const sampleFirstNames = [
   'Alex',
@@ -283,7 +284,12 @@ const main = async () => {
   const t1Id = await findTournamentId('Registration Cup');
   const t2Id = await findTournamentId('Dual Stage Open');
 
-  await registerPlayers(t1Id, 32);
+  const t1Info = await requestJson(`${apiBase}/api/tournaments/${t1Id}`);
+  const t1Capacity = Number(t1Info.totalParticipants ?? 0);
+  const t1Target = Math.max(0, t1Capacity - registrationEmptySlots);
+  if (t1Target > 0) {
+    await registerPlayers(t1Id, t1Target);
+  }
   await registerPlayers(t2Id, 40);
 
   const t2Info = await requestJson(`${apiBase}/api/tournaments/${t2Id}`);

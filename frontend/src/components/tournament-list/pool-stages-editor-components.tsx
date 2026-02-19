@@ -14,6 +14,7 @@ type PoolStageDraft = {
 type PoolStagesListProperties = {
   t: Translator;
   poolStages: PoolStageConfig[];
+  isTournamentLive: boolean;
   onPoolStageNumberChange: (id: string, value: number) => void;
   onPoolStageNameChange: (id: string, value: string) => void;
   onPoolStagePoolCountChange: (id: string, value: number) => void;
@@ -31,6 +32,7 @@ type PoolStagesListProperties = {
 type PoolStageItemProperties = {
   t: Translator;
   stage: PoolStageConfig;
+  isTournamentLive: boolean;
   onPoolStageNumberChange: (id: string, value: number) => void;
   onPoolStageNameChange: (id: string, value: string) => void;
   onPoolStagePoolCountChange: (id: string, value: number) => void;
@@ -63,6 +65,7 @@ type NewPoolStageFormProperties = {
 export const PoolStageItem = ({
   t,
   stage,
+  isTournamentLive,
   onPoolStageNumberChange,
   onPoolStageNameChange,
   onPoolStagePoolCountChange,
@@ -142,7 +145,11 @@ export const PoolStageItem = ({
         className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
       >
         {Object.values(StageStatus).map((status) => (
-          <option key={status} value={status}>
+          <option
+            key={status}
+            value={status}
+            disabled={!isTournamentLive && status === StageStatus.IN_PROGRESS}
+          >
             {getStatusLabel('stage', status)}
           </option>
         ))}
@@ -173,6 +180,7 @@ export const PoolStageItem = ({
 export const PoolStagesList = ({
   t,
   poolStages,
+  isTournamentLive,
   onPoolStageNumberChange,
   onPoolStageNameChange,
   onPoolStagePoolCountChange,
@@ -195,6 +203,7 @@ export const PoolStagesList = ({
           key={stage.id}
           t={t}
           stage={stage}
+          isTournamentLive={isTournamentLive}
           onPoolStageNumberChange={onPoolStageNumberChange}
           onPoolStageNameChange={onPoolStageNameChange}
           onPoolStagePoolCountChange={onPoolStagePoolCountChange}

@@ -58,6 +58,9 @@ const TournamentCard = ({
       <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
         <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.players')}</p>
         <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
+        <p className="mt-1 text-xs text-slate-400">
+          {t('tournaments.registered')}: {tournament.currentParticipants ?? 0}
+        </p>
       </div>
       <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
         <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
@@ -106,8 +109,7 @@ const TournamentCard = ({
                   : t('tournaments.openRegistration')}
               </button>
             )}
-            {normalizedStatus === 'OPEN'
-              && (tournament.currentParticipants ?? 0) >= tournament.totalParticipants && (
+            {normalizedStatus === 'DRAFT' && (
               <button
                 onClick={() => onOpenSignature(tournament.id)}
                 disabled={openingSignatureId === tournament.id}

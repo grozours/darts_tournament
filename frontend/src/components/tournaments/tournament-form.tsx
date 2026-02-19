@@ -1,5 +1,6 @@
 import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useOptionalAuth } from '../../auth/optional-auth';
+import { useI18n } from '../../i18n';
 import { TournamentFormat, DurationType } from '@shared/types';
 import {
   createTournament,
@@ -33,56 +34,12 @@ const toLocalInput = (value: Date) =>
     value.getDate()
   )}T${padNumber(value.getHours())}:${padNumber(value.getMinutes())}`;
 
-const validateName = (value: string): string | undefined => {
-  if (!value) return undefined;
-  if (value.length < 3) return 'Name must be at least 3 characters';
-  if (value.length > 100) return 'Name cannot exceed 100 characters';
-  return undefined;
-};
-
-const validateParticipants = (value: string): string | undefined => {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) return 'Minimum 2 participants';
-  if (parsed < 2) return 'Minimum 2 participants';
-  if (parsed > 512) return 'Maximum 512 participants';
-  return undefined;
-};
-
-const validateTargets = (value: string): string | undefined => {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) return 'Minimum 1 target';
-  if (parsed < 1) return 'Minimum 1 target';
-  if (parsed > 20) return 'Maximum 20 targets';
-  return undefined;
-};
-
-const validateStartTime = (value: string): string | undefined => {
-  if (!value) return undefined;
-  const start = new Date(value);
-  const now = new Date();
-  if (start.getTime() < now.getTime()) {
-    return 'Start time cannot be in the past';
-  }
-  return undefined;
-};
-
-const validateEndTime = (startValue: string, endValue: string): string | undefined => {
-  if (!endValue || !startValue) return undefined;
-  const start = new Date(startValue);
-  const end = new Date(endValue);
-  if (end.getTime() <= start.getTime()) {
-    return 'End time must be after start time';
-  }
-  return undefined;
-};
-
 export default function TournamentForm({
   onSubmit,
   onCancel,
   isLoading = false,
 }: TournamentFormProperties) {
+  const { t } = useI18n();
   const {
     enabled: authEnabled,
     isAuthenticated,
@@ -107,22 +64,67 @@ export default function TournamentForm({
 
   const formatOptions = useMemo(
     () => [
-      { value: TournamentFormat.SINGLE, label: 'Single' },
-      { value: TournamentFormat.DOUBLE, label: 'Double' },
-      { value: 'KNOCKOUT', label: 'Knockout' },
-      { value: 'POOL', label: 'Pool' },
+      { value: TournamentFormat.SINGLE, label: t('format.single') },
+      { value: TournamentFormat.DOUBLE, label: t('format.double') },
+      { value: 'KNOCKOUT', label: t('format.knockout') },
+      { value: 'POOL', label: t('format.pool') },
     ],
-    []
+    [t]
   );
 
   const durationOptions = useMemo(
     () => [
-      { value: DurationType.FULL_DAY, label: 'Full day' },
-      { value: DurationType.HALF_DAY_MORNING, label: 'Half day' },
-      { value: DurationType.HALF_DAY_NIGHT, label: 'Evening' },
+      { value: DurationType.FULL_DAY, label: t('duration.fullDay') },
+      { value: DurationType.HALF_DAY_MORNING, label: t('duration.halfDayMorning') },
+      { value: DurationType.HALF_DAY_NIGHT, label: t('duration.halfDayNight') },
     ],
-    []
+    [t]
   );
+
+  const validateName = (value: string): string | undefined => {
+    if (!value) return undefined;
+    if (value.length < 3) return t('tournamentForm.errors.nameMin');
+    if (value.length > 100) return t('tournamentForm.errors.nameMax');
+    return undefined;
+  };
+
+  const validateParticipants = (value: string): string | undefined => {
+    if (!value) return undefined;
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return t('tournamentForm.errors.participantsMin');
+    if (parsed < 2) return t('tournamentForm.errors.participantsMin');
+    if (parsed > 512) return t('tournamentForm.errors.participantsMax');
+    return undefined;
+  };
+
+  const validateTargets = (value: string): string | undefined => {
+    if (!value) return undefined;
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return t('tournamentForm.errors.targetsMin');
+    if (parsed < 1) return t('tournamentForm.errors.targetsMin');
+    if (parsed > 20) return t('tournamentForm.errors.targetsMax');
+    return undefined;
+  };
+
+  const validateStartTime = (value: string): string | undefined => {
+    if (!value) return undefined;
+    const start = new Date(value);
+    const now = new Date();
+    if (start.getTime() < now.getTime()) {
+      return t('tournamentForm.errors.startPast');
+    }
+    return undefined;
+  };
+
+  const validateEndTime = (startValue: string, endValue: string): string | undefined => {
+    if (!endValue || !startValue) return undefined;
+    const start = new Date(startValue);
+    const end = new Date(endValue);
+    if (end.getTime() <= start.getTime()) {
+      return t('tournamentForm.errors.endBeforeStart');
+    }
+    return undefined;
+  };
 
   const setField = (field: keyof FormState, value: string) => {
     setFormState((previous) => ({ ...previous, [field]: value }));
@@ -151,16 +153,16 @@ export default function TournamentForm({
     const nextErrors: ErrorState = {};
 
     if (!state.name.trim()) {
-      nextErrors.name = 'Tournament name is required';
+      nextErrors.name = t('tournamentForm.errors.nameRequired');
     }
     if (!state.format) {
-      nextErrors.format = 'Format is required';
+      nextErrors.format = t('tournamentForm.errors.formatRequired');
     }
     if (!state.startTime) {
-      nextErrors.startTime = 'Start time is required';
+      nextErrors.startTime = t('tournamentForm.errors.startRequired');
     }
     if (!state.endTime) {
-      nextErrors.endTime = 'End time is required';
+      nextErrors.endTime = t('tournamentForm.errors.endRequired');
     }
 
     const nameValidation = validateName(state.name);
@@ -213,7 +215,7 @@ export default function TournamentForm({
     if (!hasValidMime && !hasValidExtension) {
       setErrors((previous) => ({
         ...previous,
-        logo: 'Only JPEG and PNG files are allowed',
+        logo: t('tournamentForm.errors.fileType'),
       }));
       setLogoFile(undefined);
       setLogoPreview(undefined);
@@ -223,7 +225,7 @@ export default function TournamentForm({
     if (file.size > MAX_FILE_SIZE) {
       setErrors((previous) => ({
         ...previous,
-        logo: 'File size cannot exceed 5MB',
+        logo: t('tournamentForm.errors.fileSize'),
       }));
       setLogoFile(undefined);
       setLogoPreview(undefined);
@@ -258,7 +260,7 @@ export default function TournamentForm({
     event.preventDefault();
 
     if (authEnabled && !isAuthenticated) {
-      setErrors((previous) => ({ ...previous, submit: 'Please sign in to create tournaments.' }));
+      setErrors((previous) => ({ ...previous, submit: t('tournamentForm.errors.signInRequired') }));
       await loginWithRedirect();
       return;
     }
@@ -293,7 +295,7 @@ export default function TournamentForm({
       onSubmit(result);
     } catch (error) {
       console.error('Failed to create tournament', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create tournament';
+      const errorMessage = error instanceof Error ? error.message : t('tournamentForm.errors.failedCreate');
       setErrors((previous) => ({ ...previous, submit: errorMessage }));
     } finally {
       setIsSubmitting(false);
@@ -302,14 +304,16 @@ export default function TournamentForm({
 
   return (
     <form
-      aria-label="Create Tournament"
+      aria-label={t('tournaments.create')}
       noValidate
       onSubmit={handleSubmit}
       className="space-y-6"
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-3">
-          <label htmlFor="tournament-name" className="text-sm text-slate-300">Tournament Name</label>
+          <label htmlFor="tournament-name" className="text-sm text-slate-300">
+            {t('tournamentForm.nameLabel')}
+          </label>
           <input
             id="tournament-name"
             type="text"
@@ -318,13 +322,15 @@ export default function TournamentForm({
             onChange={(event) => setField('name', event.target.value)}
             onBlur={() => handleBlur('name')}
             className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-            placeholder="Open Championship"
+            placeholder={t('tournamentForm.namePlaceholder')}
           />
           {errors.name && <p role="alert" className="text-xs text-rose-300">{errors.name}</p>}
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="tournament-format" className="text-sm text-slate-300">Format</label>
+          <label htmlFor="tournament-format" className="text-sm text-slate-300">
+            {t('tournamentForm.formatLabel')}
+          </label>
           <select
             id="tournament-format"
             required
@@ -333,7 +339,7 @@ export default function TournamentForm({
             className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
           >
             <option value="" disabled>
-              Select format
+              {t('tournamentForm.formatPlaceholder')}
             </option>
             {formatOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -345,7 +351,9 @@ export default function TournamentForm({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="duration-type" className="text-sm text-slate-300">Duration Type</label>
+          <label htmlFor="duration-type" className="text-sm text-slate-300">
+            {t('tournamentForm.durationLabel')}
+          </label>
           <select
             id="duration-type"
             value={formState.durationType}
@@ -353,7 +361,7 @@ export default function TournamentForm({
             className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
           >
             <option value="" disabled>
-              Select duration
+              {t('tournamentForm.durationPlaceholder')}
             </option>
             {durationOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -365,7 +373,9 @@ export default function TournamentForm({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="total-participants" className="text-sm text-slate-300">Total Participants</label>
+          <label htmlFor="total-participants" className="text-sm text-slate-300">
+            {t('tournamentForm.participantsLabel')}
+          </label>
           <input
             id="total-participants"
             type="number"
@@ -381,7 +391,9 @@ export default function TournamentForm({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="start-time" className="text-sm text-slate-300">Start Time</label>
+          <label htmlFor="start-time" className="text-sm text-slate-300">
+            {t('tournamentForm.startLabel')}
+          </label>
           <input
             id="start-time"
             type="datetime-local"
@@ -394,7 +406,9 @@ export default function TournamentForm({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="end-time" className="text-sm text-slate-300">End Time</label>
+          <label htmlFor="end-time" className="text-sm text-slate-300">
+            {t('tournamentForm.endLabel')}
+          </label>
           <input
             id="end-time"
             type="datetime-local"
@@ -407,7 +421,9 @@ export default function TournamentForm({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="target-count" className="text-sm text-slate-300">Target Count</label>
+          <label htmlFor="target-count" className="text-sm text-slate-300">
+            {t('tournamentForm.targetLabel')}
+          </label>
           <input
             id="target-count"
             type="number"
@@ -421,7 +437,9 @@ export default function TournamentForm({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="tournament-logo" className="text-sm text-slate-300">Tournament Logo</label>
+          <label htmlFor="tournament-logo" className="text-sm text-slate-300">
+            {t('tournamentForm.logoLabel')}
+          </label>
           <input
             id="tournament-logo"
             type="file"
@@ -432,8 +450,8 @@ export default function TournamentForm({
           {logoPreview && (
             <img
               src={logoPreview}
-              alt="Logo preview"
-              aria-label="Logo preview"
+              alt={t('tournamentForm.logoPreview')}
+              aria-label={t('tournamentForm.logoPreview')}
               className="mt-3 h-16 w-16 rounded-full border border-slate-800 object-cover"
             />
           )}
@@ -448,14 +466,14 @@ export default function TournamentForm({
           disabled={isBusy}
           className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
         >
-          {isBusy ? 'Creating...' : 'Create Tournament'}
+          {isBusy ? t('tournamentForm.submitting') : t('tournamentForm.submit')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded-full border border-slate-700 px-5 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </form>

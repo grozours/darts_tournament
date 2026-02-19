@@ -196,6 +196,7 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
       <PoolStagesEditor
         t={t}
         poolStages={poolStages}
+        isTournamentLive={normalizedStatus === 'LIVE'}
         poolStagesError={poolStagesError}
         isAddingPoolStage={isAddingPoolStage}
         newPoolStage={newPoolStage}

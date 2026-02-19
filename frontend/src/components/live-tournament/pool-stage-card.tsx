@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   LiveViewMatch,
   LiveViewPool,
@@ -13,6 +13,7 @@ import MatchTargetSelector from './match-target-selector';
 type PoolStageCardProperties = {
   t: Translator;
   tournamentId: string;
+  tournamentStatus: string;
   stage: LiveViewPoolStage;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
@@ -40,6 +41,7 @@ type PoolStageCardProperties = {
   onStagePoolCountChange: (stageId: string, value: string) => void;
   onStagePlayersPerPoolChange: (stageId: string, value: string) => void;
   onStageStatusChange: (stageId: string, value: string) => void;
+  preferredPlayerId?: string;
   editingStageId?: string | undefined;
   updatingStageId?: string | undefined;
   stageStatusDrafts: Record<string, string>;
@@ -50,6 +52,7 @@ type PoolStageCardProperties = {
 const PoolStageCard = ({
   t,
   tournamentId,
+  tournamentStatus,
   stage,
   isPoolStagesReadonly,
   getStatusLabel,
@@ -77,6 +80,7 @@ const PoolStageCard = ({
   onStagePoolCountChange,
   onStagePlayersPerPoolChange,
   onStageStatusChange,
+  preferredPlayerId,
   editingStageId,
   updatingStageId,
   stageStatusDrafts,
@@ -86,10 +90,29 @@ const PoolStageCard = ({
   const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
   const [activePoolId, setActivePoolId] = useState(stage.pools?.[0]?.id ?? '');
   const pools = useMemo(() => stage.pools ?? [], [stage.pools]);
+  const manualSelectionReference = useRef(false);
+  const playerPoolId = useMemo(() => {
+    if (!preferredPlayerId) return '';
+    const match = pools.find((pool) =>
+      pool.assignments?.some((assignment) => assignment.player?.id === preferredPlayerId)
+    );
+    return match?.id ?? '';
+  }, [pools, preferredPlayerId]);
 
   useEffect(() => {
     setShowMatches(!isPoolStagesReadonly);
   }, [isPoolStagesReadonly]);
+
+  useEffect(() => {
+    manualSelectionReference.current = false;
+  }, [preferredPlayerId, stage.id]);
+
+  useEffect(() => {
+    if (!playerPoolId || manualSelectionReference.current) return;
+    if (playerPoolId !== activePoolId) {
+      setActivePoolId(playerPoolId);
+    }
+  }, [activePoolId, playerPoolId]);
 
   useEffect(() => {
     if (pools.length === 0) {
@@ -168,7 +191,11 @@ const PoolStageCard = ({
           className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
         >
           {['NOT_STARTED', 'EDITION', 'IN_PROGRESS', 'COMPLETED'].map((status) => (
-            <option key={status} value={status}>
+            <option
+              key={status}
+              value={status}
+              disabled={tournamentStatus !== 'LIVE' && status === 'IN_PROGRESS'}
+            >
               {getStatusLabel('stage', status)}
             </option>
           ))}
@@ -448,7 +475,10 @@ const PoolStageCard = ({
                 <button
                   key={pool.id}
                   type="button"
-                  onClick={() => setActivePoolId(pool.id)}
+                  onClick={() => {
+                    manualSelectionReference.current = true;
+                    setActivePoolId(pool.id);
+                  }}
                   className={`group rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 ${
                     isActive
                       ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_20px_45px_-30px_rgba(245,158,11,0.8)]'

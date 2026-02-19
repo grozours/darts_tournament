@@ -8,25 +8,35 @@ import type { LiveViewData, LiveViewMode, Translator } from './live-tournament/t
 type LiveTournamentFiltersProperties = {
   t: Translator;
   viewMode: LiveViewMode;
+  viewStatus: string | undefined;
   tournamentId: string | undefined;
   visibleLiveViews: LiveViewData[];
   selectedLiveTournamentId: string;
   setSelectedLiveTournamentId: (value: string) => void;
   selectedPoolStagesTournamentId: string;
   setSelectedPoolStagesTournamentId: (value: string) => void;
+  onStatusChange: (status?: string) => void;
 };
 
 const LiveTournamentFilters = ({
   t,
   viewMode,
+  viewStatus,
   tournamentId,
   visibleLiveViews,
   selectedLiveTournamentId,
   setSelectedLiveTournamentId,
   selectedPoolStagesTournamentId,
   setSelectedPoolStagesTournamentId,
-}: LiveTournamentFiltersProperties) => (
-  <>
+  onStatusChange,
+}: LiveTournamentFiltersProperties) => {
+  const normalizedStatus = (viewStatus ?? '').toUpperCase();
+  const selectedStatus = normalizedStatus === 'OPEN' || normalizedStatus === 'LIVE'
+    ? normalizedStatus
+    : 'ALL';
+
+  return (
+    <>
     {viewMode === 'live' && visibleLiveViews.length > 1 && (
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-xs uppercase tracking-widest text-slate-500" htmlFor="live-tournament-filter">
@@ -47,27 +57,54 @@ const LiveTournamentFilters = ({
         </select>
       </div>
     )}
-    {viewMode === 'pool-stages' && !tournamentId && visibleLiveViews.length > 1 && (
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-xs uppercase tracking-widest text-slate-500" htmlFor="pool-stages-tournament-filter">
-          {t('live.selectTournament')}
-        </label>
-        <select
-          id="pool-stages-tournament-filter"
-          value={selectedPoolStagesTournamentId}
-          onChange={(event) => setSelectedPoolStagesTournamentId(event.target.value)}
-          className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
-        >
-          {visibleLiveViews.map((view) => (
-            <option key={view.id} value={view.id}>
-              {view.name}
-            </option>
-          ))}
-        </select>
+    {viewMode === 'pool-stages' && !tournamentId && (
+      <div className="flex flex-wrap items-center gap-4">
+        {visibleLiveViews.length > 1 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs uppercase tracking-widest text-slate-500" htmlFor="pool-stages-tournament-filter">
+              {t('live.selectTournament')}
+            </label>
+            <select
+              id="pool-stages-tournament-filter"
+              value={selectedPoolStagesTournamentId}
+              onChange={(event) => setSelectedPoolStagesTournamentId(event.target.value)}
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
+            >
+              {visibleLiveViews.map((view) => (
+                <option key={view.id} value={view.id}>
+                  {view.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</span>
+          <div className="flex rounded-full border border-slate-700 bg-slate-950/60 p-1">
+            {([
+              { value: 'ALL', label: t('common.all') },
+              { value: 'LIVE', label: t('nav.live') },
+              { value: 'OPEN', label: t('nav.open') },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                onClick={() => onStatusChange(option.value === 'ALL' ? undefined : option.value)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  selectedStatus === option.value
+                    ? 'bg-cyan-500/20 text-cyan-100'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     )}
-  </>
-);
+    </>
+  );
+};
 
 type LiveTournamentEmptyStateProperties = {
   copy: string;
@@ -102,6 +139,7 @@ function LiveTournament() {
     setSelectedLiveTournamentId,
     selectedPoolStagesTournamentId,
     setSelectedPoolStagesTournamentId,
+    playerIdByTournament,
     showGlobalQueue,
     globalQueue,
     availableTargetsByTournament,
@@ -148,10 +186,27 @@ function LiveTournament() {
   const handleRefresh = () => {
     void reloadLiveViews();
   };
+  const handleStatusChange = (status?: string) => {
+    const windowReference = globalThis.window;
+    if (windowReference === undefined) {
+      return;
+    }
+    const url = new URL(windowReference.location.href);
+    const statusValue = status?.trim();
+    if (statusValue === undefined || statusValue === '') {
+      url.searchParams.delete('status');
+    } else {
+      url.searchParams.set('status', statusValue);
+    }
+    windowReference.location.assign(`${url.pathname}${url.search}`);
+  };
 
   const debugEnabled = (() => {
-    if (!globalThis.window) return false;
-    const parameters = new URLSearchParams(globalThis.window.location.search);
+    const windowReference = globalThis.window;
+    if (windowReference === undefined) {
+      return false;
+    }
+    const parameters = new URLSearchParams(windowReference.location.search);
     return parameters.get('debug') === '1';
   })();
 
@@ -164,15 +219,16 @@ function LiveTournament() {
       <div>selectedLive: {selectedLiveTournamentId} | selectedPoolStages: {selectedPoolStagesTournamentId || 'none'}</div>
       <div>authEnabled: {String(authEnabled)} | isAuthenticated: {String(isAuthenticated)} | isAdmin: {String(isAdmin)}</div>
     </div>
-  ) : null;
+  ) : undefined;
 
+  const requireTournamentId = !isAggregateView;
   const gateContent = LiveTournamentGate({
     authLoading,
     authEnabled,
     isAuthenticated,
     authError,
     tournamentId,
-    requireTournamentId: !isAggregateView,
+    requireTournamentId,
     loading,
     error,
     onRetry: handleRefresh,
@@ -183,78 +239,72 @@ function LiveTournament() {
     return gateContent;
   }
 
-  if (displayedLiveViews.length === 0) {
-    if (isAggregateView && !loading && !error) {
-      const emptyCopy = resolveEmptyLiveCopy(viewMode, t);
-      return (
-        <div className="space-y-6">
-          {debugPanel}
-          <LiveTournamentEmptyState copy={emptyCopy} />
-        </div>
-      );
-    }
-    return debugPanel || null;
-  }
+  const hasDisplayedViews = displayedLiveViews.length > 0;
+  const isAggregateEmptyState = isAggregateView && loading === false && error === undefined;
 
-  const commonViewProperties = {
-    t,
-    isAdmin,
-    viewMode,
-    viewStatus,
-    isAggregateView,
-    visibleLiveViewsCount: visibleLiveViews.length,
-    showGlobalQueue,
-    isPoolStagesReadonly,
-    isBracketsReadonly,
-    availableTargetsByTournament,
-    matchTargetSelections,
-    updatingMatchId,
-    editingMatchId,
-    updatingRoundKey,
-    matchScores,
-    getMatchKey,
-    getTargetIdForSelection,
-    getStatusLabel,
-    formatTargetLabel,
-    getTargetLabel,
-    getMatchTargetLabel,
-    onTargetSelectionChange: handleTargetSelectionChange,
-    onStartMatch: handleStartMatch,
-    onCompleteMatch: handleCompleteMatch,
-    onEditMatch: handleEditMatch,
-    onUpdateCompletedMatch: handleUpdateCompletedMatch,
-    onCancelMatchEdit: cancelMatchEdit,
-    onScoreChange: handleScoreChange,
-    onEditStage: handleEditStage,
-    onCancelEditStage: cancelEditStage,
-    onUpdateStage: handleUpdateStage,
-    onCompleteStageWithScores: handleCompleteStageWithScores,
-    onDeleteStage: handleDeleteStage,
-    onStagePoolCountChange: handleStagePoolCountChange,
-    onStagePlayersPerPoolChange: handleStagePlayersPerPoolChange,
-    onStageStatusChange: handleStageStatusChange,
-    editingStageId,
-    updatingStageId,
-    stageStatusDrafts,
-    stagePoolCountDrafts,
-    stagePlayersPerPoolDrafts,
-    onCompleteBracketRound: handleCompleteBracketRound,
-    onSelectBracket: handleSelectBracket,
-    onRefresh: handleRefresh,
-  };
+  if (hasDisplayedViews) {
+    const commonViewProperties = {
+      t,
+      isAdmin,
+      viewMode,
+      viewStatus,
+      isAggregateView,
+      visibleLiveViewsCount: visibleLiveViews.length,
+      showGlobalQueue,
+      isPoolStagesReadonly,
+      isBracketsReadonly,
+      availableTargetsByTournament,
+      matchTargetSelections,
+      updatingMatchId,
+      editingMatchId,
+      updatingRoundKey,
+      matchScores,
+      getMatchKey,
+      getTargetIdForSelection,
+      getStatusLabel,
+      formatTargetLabel,
+      getTargetLabel,
+      getMatchTargetLabel,
+      onTargetSelectionChange: handleTargetSelectionChange,
+      onStartMatch: handleStartMatch,
+      onCompleteMatch: handleCompleteMatch,
+      onEditMatch: handleEditMatch,
+      onUpdateCompletedMatch: handleUpdateCompletedMatch,
+      onCancelMatchEdit: cancelMatchEdit,
+      onScoreChange: handleScoreChange,
+      onEditStage: handleEditStage,
+      onCancelEditStage: cancelEditStage,
+      onUpdateStage: handleUpdateStage,
+      onCompleteStageWithScores: handleCompleteStageWithScores,
+      onDeleteStage: handleDeleteStage,
+      onStagePoolCountChange: handleStagePoolCountChange,
+      onStagePlayersPerPoolChange: handleStagePlayersPerPoolChange,
+      onStageStatusChange: handleStageStatusChange,
+      editingStageId,
+      updatingStageId,
+      stageStatusDrafts,
+      stagePoolCountDrafts,
+      stagePlayersPerPoolDrafts,
+      playerIdByTournament,
+      onCompleteBracketRound: handleCompleteBracketRound,
+      onSelectBracket: handleSelectBracket,
+      onRefresh: handleRefresh,
+    };
 
-  return (
+    return (
     <div className="space-y-12">
       {debugPanel}
       <LiveTournamentFilters
         t={t}
         viewMode={viewMode}
+        viewStatus={viewStatus}
         tournamentId={tournamentId}
         visibleLiveViews={visibleLiveViews}
         selectedLiveTournamentId={selectedLiveTournamentId}
         setSelectedLiveTournamentId={setSelectedLiveTournamentId}
         selectedPoolStagesTournamentId={selectedPoolStagesTournamentId}
         setSelectedPoolStagesTournamentId={setSelectedPoolStagesTournamentId}
+        onStatusChange={handleStatusChange}
       />
       {showGlobalQueue && (
         <MatchQueueSection
@@ -283,7 +333,32 @@ function LiveTournament() {
         />
       ))}
     </div>
-  );
+    );
+  }
+
+  if (isAggregateEmptyState) {
+    const emptyCopy = resolveEmptyLiveCopy(viewMode, t);
+    return (
+      <div className="space-y-6">
+        {debugPanel}
+        <LiveTournamentFilters
+          t={t}
+          viewMode={viewMode}
+          viewStatus={viewStatus}
+          tournamentId={tournamentId}
+          visibleLiveViews={visibleLiveViews}
+          selectedLiveTournamentId={selectedLiveTournamentId}
+          setSelectedLiveTournamentId={setSelectedLiveTournamentId}
+          selectedPoolStagesTournamentId={selectedPoolStagesTournamentId}
+          setSelectedPoolStagesTournamentId={setSelectedPoolStagesTournamentId}
+          onStatusChange={handleStatusChange}
+        />
+        <LiveTournamentEmptyState copy={emptyCopy} />
+      </div>
+    );
+  }
+
+  return debugPanel;
 }
 
 export default LiveTournament;

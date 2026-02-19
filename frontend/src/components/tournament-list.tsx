@@ -130,6 +130,21 @@ function TournamentList() { // NOSONAR
     setLogoFile,
     setIsUploadingLogo,
   } = useTournamentEditState();
+  const refreshTournamentDetails = useCallback(async (tournamentId: string) => {
+    try {
+      const token = await getSafeAccessToken();
+      const response = await fetch(`/api/tournaments/${tournamentId}`, token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : {});
+      if (!response.ok) {
+        throw new Error('Failed to fetch tournament details');
+      }
+      const data = await response.json();
+      setEditingTournament((current) => (current ? { ...current, ...data } : data));
+    } catch (error_) {
+      console.error('Error fetching tournament details:', error_);
+    }
+  }, [getSafeAccessToken, setEditingTournament]);
   const {
     players,
     playersLoading,
@@ -158,6 +173,7 @@ function TournamentList() { // NOSONAR
     t,
     editingTournament,
     getSafeAccessToken,
+    refreshTournamentDetails,
   });
   const {
     poolStages,
@@ -269,6 +285,7 @@ function TournamentList() { // NOSONAR
     isAdmin,
     user,
     getSafeAccessToken,
+    refreshTournaments,
   });
 
   const { formatOptions, durationOptions, skillLevelOptions } = useTournamentOptions(t);

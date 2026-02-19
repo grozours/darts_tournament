@@ -246,21 +246,29 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     };
   };
 
-  const buildMatchStatusMap = (
-    tournament: Tournament & {
-      poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }>;
-      brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }>;
-    }
-  ): Map<string, MatchStatus> => {
-    const matchStatusById = new Map<string, MatchStatus>();
+  type TargetAvailabilityTournament = {
+    targets?: Array<{
+      id: string;
+      status?: string;
+      // eslint-disable-next-line unicorn/no-null
+      currentMatchId?: string | null;
+      // eslint-disable-next-line unicorn/no-null
+      lastUsedAt?: Date | null;
+    }>;
+    poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: string }> }> }>;
+    brackets?: Array<{ matches?: Array<{ id: string; status: string }> }>;
+  };
+
+  const buildMatchStatusMap = (tournament: TargetAvailabilityTournament): Map<string, string> => {
+    const matchStatusById = new Map<string, string>();
     addMatchStatusFromPools(tournament, matchStatusById);
     addMatchStatusFromBrackets(tournament, matchStatusById);
     return matchStatusById;
   };
 
   const addMatchStatusFromPools = (
-    tournament: { poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }> },
-    matchStatusById: Map<string, MatchStatus>
+    tournament: { poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: string }> }> }> },
+    matchStatusById: Map<string, string>
   ): void => {
     const poolStages = tournament.poolStages ?? [];
     for (const stage of poolStages) {
@@ -275,8 +283,8 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
   };
 
   const addMatchStatusFromBrackets = (
-    tournament: { brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> },
-    matchStatusById: Map<string, MatchStatus>
+    tournament: { brackets?: Array<{ matches?: Array<{ id: string; status: string }> }> },
+    matchStatusById: Map<string, string>
   ): void => {
     const brackets = tournament.brackets ?? [];
     for (const bracket of brackets) {
@@ -289,18 +297,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
   };
 
   const reconcileTargetAvailability = async (
-    tournament: Tournament & {
-      targets?: Array<{
-        id: string;
-        status?: TargetStatus;
-        // eslint-disable-next-line unicorn/no-null
-        currentMatchId?: string | null;
-        // eslint-disable-next-line unicorn/no-null
-        lastUsedAt?: Date | null;
-      }>;
-      poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }>;
-      brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }>;
-    }
+    tournament: TargetAvailabilityTournament
   ): Promise<void> => {
     const targets = tournament.targets ?? [];
     if (targets.length === 0) {
@@ -407,14 +404,22 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     getTournamentLiveView: async (tournamentId: string): Promise<unknown> => {
       validateUUID(tournamentId);
 
-      const tournament = await tournamentModel.findLiveView(tournamentId) as (Tournament & {
-        status: TournamentStatus;
-      });
+      const tournament = await tournamentModel.findLiveView(tournamentId);
       if (!tournament) {
         throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
       }
 
-      if (tournament.status !== TournamentStatus.LIVE && tournament.status !== TournamentStatus.FINISHED) {
+      const hasConfiguredPools = (tournament.poolStages || []).some((stage) => {
+        const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
+        return poolCount > 0;
+      });
+      const isViewableOpenTournament = tournament.status === TournamentStatus.OPEN && hasConfiguredPools;
+
+      if (
+        tournament.status !== TournamentStatus.LIVE
+        && tournament.status !== TournamentStatus.FINISHED
+        && !isViewableOpenTournament
+      ) {
         throw new AppError('Tournament is not live', 400, 'TOURNAMENT_NOT_LIVE');
       }
 

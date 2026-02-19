@@ -14,6 +14,17 @@ type ProviderConfig = {
   className: string;
 };
 
+const getEnvironmentValue = (key: string): string | undefined => {
+  const globalEnvironment = (globalThis as typeof globalThis & {
+    __APP_ENV__?: Record<string, string>;
+  }).__APP_ENV__;
+  if (globalEnvironment && key in globalEnvironment) {
+    return globalEnvironment[key];
+  }
+  const environment = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
+  return environment ? environment[key] : undefined;
+};
+
 const getConnection = (value: string | undefined, fallback: string) => {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
@@ -25,15 +36,15 @@ function SignInPanel({ title, description }: SignInPanelProperties) {
 
   const providers = useMemo<ProviderConfig[]>(() => {
     const googleConnection = getConnection(
-      import.meta.env.VITE_AUTH0_CONNECTION_GOOGLE,
+      getEnvironmentValue('VITE_AUTH0_CONNECTION_GOOGLE'),
       'google-oauth2'
     );
     const facebookConnection = getConnection(
-      import.meta.env.VITE_AUTH0_CONNECTION_FACEBOOK,
+      getEnvironmentValue('VITE_AUTH0_CONNECTION_FACEBOOK'),
       'facebook'
     );
     const instagramConnection = getConnection(
-      import.meta.env.VITE_AUTH0_CONNECTION_INSTAGRAM,
+      getEnvironmentValue('VITE_AUTH0_CONNECTION_INSTAGRAM'),
       'instagram'
     );
 

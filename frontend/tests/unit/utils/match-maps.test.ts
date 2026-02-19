@@ -4,7 +4,7 @@ import type { LiveViewData } from '../../../src/components/targets-view/types';
 
 const t = (key: string) => key;
 
-describe('match-maps', () => {
+describe('match-maps selection', () => {
   it('prefers in-progress match info for a target', () => {
     const viewOne: LiveViewData = {
       id: 't-1',
@@ -75,7 +75,9 @@ describe('match-maps', () => {
     expect(maps.matchById.get('match-1')).toBeDefined();
     expect(maps.matchById.get('match-2')).toBeDefined();
   });
+});
 
+describe('match-maps shared targets', () => {
   it('builds shared target usage and ordering', () => {
     const view: LiveViewData = {
       id: 't-1',

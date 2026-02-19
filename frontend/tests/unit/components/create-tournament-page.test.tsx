@@ -27,9 +27,9 @@ vi.mock('../../../src/i18n', () => ({
 }));
 
 vi.mock('../../../src/services/tournament-service', () => ({
-  createTournament: (...args: unknown[]) => mockCreateTournament(...args),
-  createPoolStage: (...args: unknown[]) => mockCreatePoolStage(...args),
-  createBracket: (...args: unknown[]) => mockCreateBracket(...args),
+  createTournament: (...arguments_: unknown[]) => mockCreateTournament(...arguments_),
+  createPoolStage: (...arguments_: unknown[]) => mockCreatePoolStage(...arguments_),
+  createBracket: (...arguments_: unknown[]) => mockCreateBracket(...arguments_),
 }));
 
 vi.mock('../../../src/components/tournaments/tournament-form', () => ({
@@ -69,15 +69,15 @@ describe('CreateTournamentPage', () => {
   it('shows validation errors for preset inputs', async () => {
     render(<CreateTournamentPage />);
 
-    fireEvent.change(screen.getByLabelText(/Tournament name/i), { target: { value: '' } });
-    fireEvent.change(screen.getByLabelText(/Total participants/i), { target: { value: '3' } });
-    fireEvent.change(screen.getByLabelText(/Target count/i), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('createTournament.presets.nameLabel'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('createTournament.presets.participantsLabel'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('createTournament.presets.targetsLabel'), { target: { value: '0' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Create single-stage preset/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'createTournament.presets.single' }));
 
-    expect(await screen.findByText(/Tournament name is required/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Total participants must be at least 4/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Target count must be at least 1/i)).toBeInTheDocument();
+    expect(await screen.findByText('createTournament.errors.nameRequired')).toBeInTheDocument();
+    expect(await screen.findByText('createTournament.errors.participantsMin')).toBeInTheDocument();
+    expect(await screen.findByText('createTournament.errors.targetsMin')).toBeInTheDocument();
   });
 
   it('requires auth before creating presets', async () => {
@@ -86,14 +86,14 @@ describe('CreateTournamentPage', () => {
 
     render(<CreateTournamentPage />);
 
-    fireEvent.change(screen.getByLabelText(/Tournament name/i), { target: { value: 'Weekend Cup' } });
-    fireEvent.click(screen.getByRole('button', { name: /Create single-stage preset/i }));
+    fireEvent.change(screen.getByLabelText('createTournament.presets.nameLabel'), { target: { value: 'Weekend Cup' } });
+    fireEvent.click(screen.getByRole('button', { name: 'createTournament.presets.single' }));
 
     await waitFor(() => {
       expect(mockLoginWithRedirect).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/Please sign in to create tournaments/i)).toBeInTheDocument();
+    expect(screen.getByText('createTournament.errors.signInRequired')).toBeInTheDocument();
   });
 
   it('creates presets and redirects on success', async () => {
@@ -103,9 +103,9 @@ describe('CreateTournamentPage', () => {
 
     render(<CreateTournamentPage />);
 
-    fireEvent.change(screen.getByLabelText(/Tournament name/i), { target: { value: 'Weekend Cup' } });
+    fireEvent.change(screen.getByLabelText('createTournament.presets.nameLabel'), { target: { value: 'Weekend Cup' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Create single-stage preset/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'createTournament.presets.single' }));
 
     await waitFor(() => {
       expect(mockCreateTournament).toHaveBeenCalled();

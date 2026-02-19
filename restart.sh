@@ -1,12 +1,15 @@
 #!/bin/bash
 
 # Darts Tournament Manager - Service Restart Script (Docker Compose)
-# Usage: ./restart.sh [backend|frontend|both|stop|status|logs]
+# Usage: ./restart.sh [-d] [-dev] [backend|frontend|both|stop|status|logs]
 
 PROJECT_ROOT="/home/tangi/darts_tournament"
 COMPOSE_CMD=()
 BACKEND_PORT=3000
 FRONTEND_PORT=3001
+DEBUG_UI=${DEBUG_UI:-false}
+DEV_PROFILE=${DEV_PROFILE:-false}
+DEV_SERVICES=(postgres_test redis_test sonarqube)
 
 # Colors for output
 RED='\033[0;31m'
@@ -52,7 +55,10 @@ init_compose_cmd() {
 start_backend() {
     print_status "Starting backend container..."
     cd "$PROJECT_ROOT" || return 1
-    if ! "${COMPOSE_CMD[@]}" up -d --build backend; then
+    if [[ "$DEV_PROFILE" != "true" ]]; then
+        stop_dev_services
+    fi
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build backend; then
         print_error "Failed to start backend"
         return 1
     fi
@@ -64,7 +70,10 @@ start_backend() {
 start_frontend() {
     print_status "Starting frontend container..."
     cd "$PROJECT_ROOT" || return 1
-    if ! "${COMPOSE_CMD[@]}" up -d --build frontend; then
+    if [[ "$DEV_PROFILE" != "true" ]]; then
+        stop_dev_services
+    fi
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build frontend; then
         print_error "Failed to start frontend"
         return 1
     fi
@@ -102,6 +111,14 @@ stop_services() {
     print_success "All containers stopped"
 }
 
+# Function to stop dev-only services
+stop_dev_services() {
+    print_status "Stopping dev-only containers..."
+    cd "$PROJECT_ROOT" || return 1
+    "${COMPOSE_CMD[@]}" stop "${DEV_SERVICES[@]}" >/dev/null 2>&1 || true
+    "${COMPOSE_CMD[@]}" rm -f "${DEV_SERVICES[@]}" >/dev/null 2>&1 || true
+}
+
 # Function to show logs
 show_logs() {
     local service=$1
@@ -124,8 +141,36 @@ show_logs() {
 mkdir -p "$PROJECT_ROOT/backend/logs"
 mkdir -p "$PROJECT_ROOT/frontend/logs"
 
+POSITIONAL_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -d|--debug)
+            DEBUG_UI=true
+            shift
+            ;;
+        -dev|--dev)
+            DEV_PROFILE=true
+            shift
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+set -- "${POSITIONAL_ARGS[@]}"
+COMMAND="${1:-both}"
+export DEBUG_UI
+export DEV_PROFILE
+
+COMPOSE_PROFILE_ARGS=()
+if [[ "$DEV_PROFILE" == "true" ]]; then
+    COMPOSE_PROFILE_ARGS+=(--profile dev)
+fi
+
 init_compose_cmd
-case "${1:-both}" in
+case "$COMMAND" in
     "backend")
         print_status "🔄 Restarting backend only..."
         start_backend
@@ -137,7 +182,10 @@ case "${1:-both}" in
     "both")
         print_status "🔄 Restarting both backend and frontend..."
         cd "$PROJECT_ROOT" || exit 1
-        if ! "${COMPOSE_CMD[@]}" up -d --build; then
+        if [[ "$DEV_PROFILE" != "true" ]]; then
+            stop_dev_services
+        fi
+        if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build; then
             print_error "Failed to start services"
             exit 1
         fi
@@ -161,7 +209,7 @@ case "${1:-both}" in
     "help"|"-h"|"--help")
         echo "🎯 Darts Tournament Manager - Service Restart Script"
         echo ""
-        echo "Usage: $0 [COMMAND]"
+        echo "Usage: $0 [-d] [-dev] [COMMAND]"
         echo ""
         echo "Commands:"
         echo "  backend     Start/restart backend only"
@@ -174,10 +222,16 @@ case "${1:-both}" in
         echo "    - logs frontend  Show frontend logs"
         echo "  help        Show this help message"
         echo ""
+        echo "Options:"
+        echo "  -d, --debug Enable debug UI in frontend build"
+        echo "  -dev, --dev Enable dev profile services"
+        echo ""
         echo "Examples:"
         echo "  $0                # Restart both services"
         echo "  $0 backend        # Restart backend only"
         echo "  $0 frontend       # Restart frontend only"
+        echo "  $0 -d             # Restart with debug UI enabled"
+        echo "  $0 -dev           # Restart with dev profile services"
         echo "  $0 status         # Check if services are running"
         echo "  $0 stop           # Stop all services"
         echo "  $0 logs backend   # Show backend logs"
@@ -190,7 +244,7 @@ case "${1:-both}" in
 esac
 
 # Show final status if not showing logs or help
-if [[ "$1" != "logs" && "$1" != "help" && "$1" != "-h" && "$1" != "--help" && "$1" != "stop" ]]; then
+if [[ "$COMMAND" != "logs" && "$COMMAND" != "help" && "$COMMAND" != "-h" && "$COMMAND" != "--help" && "$COMMAND" != "stop" ]]; then
     echo ""
     check_status
     echo ""

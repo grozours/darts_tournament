@@ -10,6 +10,7 @@ import SectionEmptyState from './section-empty-state';
 type PoolStagesSectionProperties = {
   t: Translator;
   tournamentId: string;
+  tournamentStatus: string;
   stages: LiveViewPoolStage[];
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
@@ -42,12 +43,15 @@ type PoolStagesSectionProperties = {
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
+  playerIdByTournament: Record<string, string>;
 };
 
 const PoolStagesSection = ({
   t,
   tournamentId,
+  tournamentStatus,
   stages,
+  playerIdByTournament = {},
   ...stageProperties
 }: PoolStagesSectionProperties) => {
   if (stages.length === 0) {
@@ -63,7 +67,11 @@ const PoolStagesSection = ({
             key={stage.id}
             t={t}
             tournamentId={tournamentId}
+            tournamentStatus={tournamentStatus}
             stage={stage}
+            {...(playerIdByTournament[tournamentId]
+              ? { preferredPlayerId: playerIdByTournament[tournamentId] }
+              : {})}
             {...stageProperties}
           />
         ))}

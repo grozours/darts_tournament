@@ -1,7 +1,9 @@
 FROM node:20-alpine AS build
 
 ARG BUILD_ID=local
+ARG DEBUG_UI=false
 ENV VITE_BUILD_ID=$BUILD_ID
+ENV VITE_DEBUG_UI=$DEBUG_UI
 
 WORKDIR /app/frontend
 

@@ -72,7 +72,7 @@ const compareByPoolAndPosition = (
 export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   const { tournamentModel, validateUUID, completeMatchWithRandomScores } = context;
 
-  const getEditableTournamentForPoolStage = async (tournamentId: string): Promise<void> => {
+  const getEditableTournamentForPoolStage = async (tournamentId: string) => {
     const tournament = await tournamentModel.findById(tournamentId);
     if (!tournament) {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
@@ -85,6 +85,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         'POOL_STAGE_NOT_EDITABLE'
       );
     }
+
+    return tournament;
   };
 
   const isPoolStageEditable = (status: TournamentStatus): boolean => {
@@ -734,9 +736,16 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     updatePoolStage: async (tournamentId: string, stageId: string, data: PoolStageUpdateData) => {
       validateUUID(tournamentId);
       validateUUID(stageId);
-      await getEditableTournamentForPoolStage(tournamentId);
+      const tournament = await getEditableTournamentForPoolStage(tournamentId);
 
       const { nextData, shouldRedistribute } = buildPoolStageUpdateData(data);
+      if (nextData.status === StageStatus.IN_PROGRESS && tournament.status !== TournamentStatus.LIVE) {
+        throw new AppError(
+          'Pool stages can only be started when the tournament is live',
+          400,
+          'POOL_STAGE_NOT_LIVE'
+        );
+      }
       const updatedStage = await tournamentModel.updatePoolStage(stageId, nextData);
 
       await applyPoolStageStatusUpdates(

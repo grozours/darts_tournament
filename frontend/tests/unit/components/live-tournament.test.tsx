@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
+import type { LiveViewData } from '../../../src/components/live-tournament/types';
 import { getVisibleLiveViews, resolveEmptyLiveCopy } from '../../../src/utils/live-view-helpers';
+
+const translate = (key: string) => key;
 
 describe('LiveTournament helpers', () => {
   it('filters live views for pool stages', () => {
-    const views = [
+    const views: LiveViewData[] = [
       {
         id: 'one',
         name: 'One',
@@ -22,13 +25,12 @@ describe('LiveTournament helpers', () => {
       },
     ];
 
-    const visible = getVisibleLiveViews('pool-stages', views as any);
+    const visible = getVisibleLiveViews('pool-stages', views);
     expect(visible).toHaveLength(1);
     expect(visible[0].id).toBe('one');
   });
 
   it('returns empty copy for pool-stages view', () => {
-    const t = (key: string) => key;
-    expect(resolveEmptyLiveCopy('pool-stages', t)).toBe('live.nonePoolStages');
+    expect(resolveEmptyLiveCopy('pool-stages', translate)).toBe('live.nonePoolStages');
   });
 });

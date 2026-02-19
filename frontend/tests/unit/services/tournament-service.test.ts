@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   completeMatch,
+  completePoolStageWithScores,
+  completeBracketRoundWithScores,
+  createBracket,
   createPoolStage,
   createTournament,
   deletePoolStage,
@@ -13,6 +16,7 @@ import {
   fetchTournamentPlayers,
   registerTournamentPlayer,
   removeTournamentPlayer,
+  updateBracket,
   updateCompletedMatchScores,
   updateTournament,
   unregisterTournamentPlayer,
@@ -21,26 +25,22 @@ import {
   updateMatchStatus,
   updateTournamentStatus,
   uploadTournamentLogo,
-  completePoolStageWithScores,
-  createBracket,
-  updateBracket,
-  completeBracketRoundWithScores,
 } from '../../../src/services/tournament-service';
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
-describe('tournament-service', () => {
-  const mockFetch = vi.fn() as MockFetch;
+const mockFetch = vi.fn() as MockFetch;
 
-  beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetch);
-  });
+beforeEach(() => {
+  vi.stubGlobal('fetch', mockFetch);
+});
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.clearAllMocks();
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
 
+describe('tournament-service create/update', () => {
   it('creates tournaments and surfaces API errors', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -117,7 +117,9 @@ describe('tournament-service', () => {
 
     await expect(updateTournament('t-1', { name: 'Bad' })).rejects.toThrow('Update failed');
   });
+});
 
+describe('tournament-service pools and matches', () => {
   it('fetches tournament players and pool stages', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -171,7 +173,9 @@ describe('tournament-service', () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
     await expect(completePoolStageWithScores('t-1', 's-1')).resolves.toBeUndefined();
   });
+});
 
+describe('tournament-service deletions', () => {
   it('handles delete and unregister flows', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Delete failed' });
     await expect(deleteBracket('t-1', 'b-1')).rejects.toThrow('Delete failed');
@@ -185,7 +189,9 @@ describe('tournament-service', () => {
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Pool stage delete failed' });
     await expect(deletePoolStage('t-1', 's-1')).rejects.toThrow('Pool stage delete failed');
   });
+});
 
+describe('tournament-service player updates', () => {
   it('handles player registrations and updates', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
     await expect(registerTournamentPlayer('t-1', { firstName: 'Ana', lastName: 'Diaz' }))
@@ -201,7 +207,9 @@ describe('tournament-service', () => {
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Check-in failed' });
     await expect(updateTournamentPlayerCheckIn('t-1', 'p-1', true)).rejects.toThrow('Check-in failed');
   });
+});
 
+describe('tournament-service bracket operations', () => {
   it('handles bracket operations and score updates', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ brackets: [{ id: 'b-1' }] }) });
     await expect(fetchBrackets('t-1')).resolves.toEqual([{ id: 'b-1' }]);
@@ -220,7 +228,9 @@ describe('tournament-service', () => {
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Round failed' });
     await expect(completeBracketRoundWithScores('t-1', 'b-1', 1)).rejects.toThrow('Round failed');
   });
+});
 
+describe('tournament-service live view', () => {
   it('fetches live view and orphan players', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 't-1' }) });
     await expect(fetchTournamentLiveView('t-1')).resolves.toEqual({ id: 't-1' });

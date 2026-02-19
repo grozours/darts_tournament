@@ -1,5 +1,5 @@
 import type { LiveViewStatus } from '../../utils/live-view-helpers';
-import { isBracketsView, isPoolStagesView } from '../../utils/live-view-helpers';
+import { hasActiveBrackets, isBracketsView, isPoolStagesView } from '../../utils/live-view-helpers';
 import BracketsSection from './brackets-section';
 import MatchQueueSection from './match-queue-section';
 import PoolStagesSection from './pool-stages-section';
@@ -69,6 +69,7 @@ type LiveTournamentViewProperties = {
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
+  playerIdByTournament: Record<string, string>;
   onCompleteBracketRound: (matchTournamentId: string, bracket: LiveViewBracket) => void;
   onSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketId: string;
@@ -79,6 +80,7 @@ type LiveTournamentViewHeaderProperties = {
   t: Translator;
   view: LiveViewData;
   onRefresh: () => void;
+  showBracketsLink: boolean;
 };
 
 type LiveTournamentPoolSummaryProperties = {
@@ -87,7 +89,7 @@ type LiveTournamentPoolSummaryProperties = {
   hasLoserBracket: boolean;
 };
 
-const LiveTournamentViewHeader = ({ t, view, onRefresh }: LiveTournamentViewHeaderProperties) => (
+const LiveTournamentViewHeader = ({ t, view, onRefresh, showBracketsLink }: LiveTournamentViewHeaderProperties) => (
   <div className="flex flex-wrap items-center justify-between gap-4">
     <div>
       <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('live.title')}</p>
@@ -95,12 +97,22 @@ const LiveTournamentViewHeader = ({ t, view, onRefresh }: LiveTournamentViewHead
       <p className="mt-1 text-xs text-slate-500">ID: {view.id}</p>
       <p className="mt-1 text-sm text-slate-400">{t('common.status')}: {view.status}</p>
     </div>
-    <button
-      onClick={onRefresh}
-      className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
-    >
-      {t('common.refresh')}
-    </button>
+    <div className="flex items-center gap-3">
+      {showBracketsLink && (
+        <a
+          href={`/?view=brackets&tournamentId=${view.id}`}
+          className="rounded-full border border-cyan-500/70 px-3 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300"
+        >
+          {t('nav.bracketsRunning')}
+        </a>
+      )}
+      <button
+        onClick={onRefresh}
+        className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+      >
+        {t('common.refresh')}
+      </button>
+    </div>
   </div>
 );
 
@@ -171,13 +183,23 @@ const LiveTournamentView = ({
   stageStatusDrafts,
   stagePoolCountDrafts,
   stagePlayersPerPoolDrafts,
+  playerIdByTournament = {},
   onCompleteBracketRound,
   onSelectBracket,
   activeBracketId,
   onRefresh,
 }: LiveTournamentViewProperties) => {
-  const filteredPoolStages = filterPoolStagesForView(viewMode, viewStatus, view.poolStages, isAdmin);
+  const canViewEdition = isAdmin || Boolean(playerIdByTournament[view.id]);
+  const filteredPoolStages = filterPoolStagesForView(
+    viewMode,
+    viewStatus,
+    view.poolStages,
+    canViewEdition
+  );
   const filteredBrackets = filterBracketsForView(viewMode, viewStatus, view.brackets);
+  const hasLiveBrackets = hasActiveBrackets(view, viewStatus);
+  const hasCompletedPoolStage = filteredPoolStages.some((stage) => stage.status === 'COMPLETED');
+  const showBracketsLink = hasCompletedPoolStage && hasLiveBrackets;
   const hasLoserBracket = getHasLoserBracket(view.brackets);
   const poolStats = getPoolStageStats(filteredPoolStages);
   const queue = buildMatchQueue(view, filteredPoolStages);
@@ -209,6 +231,7 @@ const LiveTournamentView = ({
   const poolStagesProperties = {
     t,
     tournamentId: view.id,
+    tournamentStatus: view.status,
     stages: filteredPoolStages,
     isPoolStagesReadonly,
     getStatusLabel,
@@ -241,6 +264,7 @@ const LiveTournamentView = ({
     stageStatusDrafts,
     stagePoolCountDrafts,
     stagePlayersPerPoolDrafts,
+    playerIdByTournament,
   };
 
   const bracketsProperties = {
@@ -273,7 +297,7 @@ const LiveTournamentView = ({
 
   return (
     <div className="space-y-10">
-      <LiveTournamentViewHeader t={t} view={view} onRefresh={onRefresh} />
+      <LiveTournamentViewHeader t={t} view={view} onRefresh={onRefresh} showBracketsLink={showBracketsLink} />
       {showPools && <LiveTournamentPoolSummaryCards t={t} stats={poolStats} hasLoserBracket={hasLoserBracket} />}
       {showPools && !isPoolStagesView(viewMode) && !showGlobalQueue && (
         <MatchQueueSection {...queueProperties} />

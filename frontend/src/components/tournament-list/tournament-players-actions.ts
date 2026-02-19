@@ -134,6 +134,7 @@ const usePlayerCheckInMutations = ({
   getSafeAccessToken,
   players,
   fetchPlayers,
+  refreshTournamentDetails,
   setPlayersError,
   setCheckingInPlayerId,
   setIsConfirmingAll,
@@ -143,6 +144,7 @@ const usePlayerCheckInMutations = ({
   getSafeAccessToken: TournamentPlayersContext['getSafeAccessToken'];
   players: TournamentPlayer[];
   fetchPlayers: (tournamentId: string) => Promise<void>;
+  refreshTournamentDetails: TournamentPlayersContext['refreshTournamentDetails'];
   setPlayersError: PlayersStateSetters['setPlayersError'];
   setCheckingInPlayerId: PlayersStateSetters['setCheckingInPlayerId'];
   setIsConfirmingAll: PlayersStateSetters['setIsConfirmingAll'];
@@ -160,13 +162,14 @@ const usePlayerCheckInMutations = ({
         token
       );
       await fetchPlayers(editingTournament.id);
+      await refreshTournamentDetails?.(editingTournament.id);
     } catch (error_) {
       console.error('Error updating check-in:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdateCheckIn'));
     } finally {
       setCheckingInPlayerId(undefined);
     }
-  }, [editingTournament, fetchPlayers, getSafeAccessToken, setCheckingInPlayerId, setPlayersError, t]);
+  }, [editingTournament, fetchPlayers, getSafeAccessToken, refreshTournamentDetails, setCheckingInPlayerId, setPlayersError, t]);
 
   const confirmAllPlayers = useCallback(async () => {
     if (!editingTournament || players.length === 0) return;
@@ -181,13 +184,14 @@ const usePlayerCheckInMutations = ({
       }
 
       await fetchPlayers(editingTournament.id);
+      await refreshTournamentDetails?.(editingTournament.id);
     } catch (error_) {
       console.error('Error confirming all players:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {
       setIsConfirmingAll(false);
     }
-  }, [editingTournament, fetchPlayers, getSafeAccessToken, players, setIsConfirmingAll, setPlayersError, t]);
+  }, [editingTournament, fetchPlayers, getSafeAccessToken, players, refreshTournamentDetails, setIsConfirmingAll, setPlayersError, t]);
 
   return { togglePlayerCheckIn, confirmAllPlayers };
 };

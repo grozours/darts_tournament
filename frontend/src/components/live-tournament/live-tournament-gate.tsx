@@ -52,7 +52,7 @@ const LiveTournamentGate = ({
   error,
   onRetry,
   t,
-}: LiveTournamentGateProperties) => {
+}: LiveTournamentGateProperties): JSX.Element | undefined => {
   const authErrorDetails = authError ? getAuthErrorDetails(authError) : {};
   const hasRecentAuthCallback = (() => {
     if (globalThis.window === undefined) return false;
@@ -122,7 +122,7 @@ const LiveTournamentGate = ({
     return <ErrorState message={error} actionLabel={t('common.retry')} onRetry={onRetry} />;
   }
 
-  return null;
+  return undefined;
 };
 
 export default LiveTournamentGate;

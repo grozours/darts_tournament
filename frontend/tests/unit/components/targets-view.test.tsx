@@ -22,29 +22,29 @@ vi.mock('../../../src/auth/use-admin-status', () => ({
   useAdminStatus: () => ({ isAdmin: true }),
 }));
 
-describe('TargetsView', () => {
-  const mockFetch = vi.fn() as MockFetch;
-  const originalConsoleError = console.error;
+const mockFetch = vi.fn() as MockFetch;
+const originalConsoleError = console.error;
 
-  beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetch);
-    vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 0 as unknown as ReturnType<typeof setInterval>);
-    vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => undefined);
-    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
-      const firstArg = args[0];
-      if (typeof firstArg === 'string' && firstArg.includes('not wrapped in act')) {
-        return;
-      }
-      originalConsoleError(...args);
-    });
+beforeEach(() => {
+  vi.stubGlobal('fetch', mockFetch);
+  vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 0 as unknown as ReturnType<typeof setInterval>);
+  vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation((...arguments_: unknown[]) => {
+    const firstArgument = arguments_[0];
+    if (typeof firstArgument === 'string' && firstArgument.includes('not wrapped in act')) {
+      return;
+    }
+    originalConsoleError(...arguments_);
   });
+});
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-    vi.clearAllMocks();
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
+describe('TargetsView rendering', () => {
   it('renders live targets and queue', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
@@ -63,7 +63,6 @@ describe('TargetsView', () => {
           targetNumber: 1,
           targetCode: 'A1',
           status: 'FREE',
-          currentMatchId: undefined,
         },
       ],
       poolStages: [
@@ -106,7 +105,9 @@ describe('TargetsView', () => {
     expect(screen.getAllByText(/Stage 1|Phase 1/i).length).toBeGreaterThan(0);
     expect(vi.mocked(updateMatchStatus)).not.toHaveBeenCalled();
   });
+});
 
+describe('TargetsView actions', () => {
   it('allows completing an in-progress match from targets view', async () => {
     const user = userEvent.setup();
     mockFetch.mockResolvedValue({
@@ -176,15 +177,13 @@ describe('TargetsView', () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(completeMatch)).toHaveBeenCalledWith(
-        't1',
-        'match-1',
-        [
-          { playerId: 'p1', scoreTotal: 3 },
-          { playerId: 'p2', scoreTotal: 1 },
-        ],
-        undefined
-      );
+      const [tournamentId, matchId, scores] = vi.mocked(completeMatch).mock.calls[0] ?? [];
+      expect(tournamentId).toBe('t1');
+      expect(matchId).toBe('match-1');
+      expect(scores).toEqual([
+        { playerId: 'p1', scoreTotal: 3 },
+        { playerId: 'p2', scoreTotal: 1 },
+      ]);
     });
 
     await waitFor(() => {

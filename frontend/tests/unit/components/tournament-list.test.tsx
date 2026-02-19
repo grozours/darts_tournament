@@ -12,12 +12,12 @@ const mockGetAccessTokenSilently = vi.fn();
 vi.mock('../../../src/services/tournament-service', () => ({
   updateTournament: vi.fn(),
   updateTournamentStatus: vi.fn(),
-  fetchTournamentPlayers: (...args: any[]) => mockFetchPlayers(...args),
-  registerTournamentPlayer: (...args: any[]) => mockRegisterPlayer(...args),
+  fetchTournamentPlayers: (...arguments_: unknown[]) => mockFetchPlayers(...arguments_),
+  registerTournamentPlayer: (...arguments_: unknown[]) => mockRegisterPlayer(...arguments_),
   updateTournamentPlayer: vi.fn(),
   removeTournamentPlayer: vi.fn(),
-  fetchPoolStages: (...args: any[]) => mockFetchPoolStages(...args),
-  fetchBrackets: (...args: any[]) => mockFetchBrackets(...args),
+  fetchPoolStages: (...arguments_: unknown[]) => mockFetchPoolStages(...arguments_),
+  fetchBrackets: (...arguments_: unknown[]) => mockFetchBrackets(...arguments_),
   fetchPoolStagePools: vi.fn(),
   updatePoolAssignments: vi.fn(),
 }));
@@ -31,6 +31,42 @@ vi.mock('../../../src/auth/optionalAuth', () => ({
     getAccessTokenSilently: mockGetAccessTokenSilently,
   }),
 }));
+
+const buildTournamentsPayload = () => ({
+  tournaments: [
+    {
+      id: 'tournament-1',
+      name: 'Registration Open Tournament',
+      format: 'SINGLE',
+      totalParticipants: 8,
+      status: 'OPEN',
+      durationType: 'FULL_DAY',
+      startTime: new Date('2026-04-10T10:00:00.000Z').toISOString(),
+      endTime: new Date('2026-04-10T18:00:00.000Z').toISOString(),
+      targetCount: 2,
+    },
+  ],
+});
+
+const buildTournamentFetchResponses = () => {
+  const tournamentsPayload = buildTournamentsPayload();
+  const tournamentDetailsPromise = Promise.resolve({
+    ...tournamentsPayload.tournaments[0],
+    createdAt: new Date('2026-04-01T10:00:00.000Z').toISOString(),
+  });
+  const fetchResponse = {
+    ok: true,
+    json: vi.fn(async () => tournamentsPayload),
+  };
+  const fetchDetailsResponse = {
+    ok: true,
+    json: vi.fn(async () => tournamentDetailsPromise),
+  };
+  return {
+    fetchResponse,
+    fetchDetailsResponse,
+  };
+};
 
 describe('TournamentList - player registration', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -47,12 +83,12 @@ describe('TournamentList - player registration', () => {
     mockFetchPlayers.mockResolvedValue([]);
     mockFetchPoolStages.mockResolvedValue([]);
     mockFetchBrackets.mockResolvedValue([]);
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...args: any[]) => {
-      const message = args[0];
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...arguments_: unknown[]) => {
+      const message = arguments_[0];
       if (typeof message === 'string' && message.includes('not wrapped in act')) {
         return;
       }
-      console.warn(...args);
+      console.warn(...arguments_);
     });
   });
 
@@ -62,37 +98,10 @@ describe('TournamentList - player registration', () => {
 
   it('renders player registration form and submits new player', async () => {
     globalThis.window?.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
-    const tournamentsPayload = {
-      tournaments: [
-        {
-          id: 'tournament-1',
-          name: 'Registration Open Tournament',
-          format: 'SINGLE',
-          totalParticipants: 8,
-          status: 'OPEN',
-          durationType: 'FULL_DAY',
-          startTime: new Date('2026-04-10T10:00:00.000Z').toISOString(),
-          endTime: new Date('2026-04-10T18:00:00.000Z').toISOString(),
-          targetCount: 2,
-        },
-      ],
-    };
-    const tournamentDetailsPromise = Promise.resolve({
-      ...tournamentsPayload.tournaments[0],
-      logoUrl: undefined,
-      createdAt: new Date('2026-04-01T10:00:00.000Z').toISOString(),
-    });
-    const fetchResponse = {
-      ok: true,
-      json: vi.fn(async () => tournamentsPayload),
-    };
-    const fetchDetailsResponse = {
-      ok: true,
-      json: vi.fn(async () => tournamentDetailsPromise),
-    };
+    const { fetchResponse, fetchDetailsResponse } = buildTournamentFetchResponses();
     const fetchResponsePromise = Promise.resolve(fetchResponse);
     const fetchDetailsPromise = Promise.resolve(fetchDetailsResponse);
-    (globalThis.fetch as any)
+    (globalThis.fetch as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce(fetchResponsePromise)
       .mockReturnValueOnce(fetchDetailsPromise);
 
@@ -130,7 +139,7 @@ describe('TournamentList - player registration', () => {
     fireEvent.change(registrationScope.getByLabelText(/first name|prénom/i), { target: { value: 'Grace' } });
     fireEvent.change(registrationScope.getByLabelText(/^Nom$|last name/i), { target: { value: 'Hopper' } });
 
-    const registerPromise = Promise.resolve(undefined);
+    const registerPromise = Promise.resolve();
     const refreshPlayersPromise = Promise.resolve([]);
     mockRegisterPlayer.mockReturnValueOnce(registerPromise);
     mockFetchPlayers.mockReturnValueOnce(refreshPlayersPromise);
@@ -143,14 +152,12 @@ describe('TournamentList - player registration', () => {
     });
 
     await waitFor(() => {
-      expect(mockRegisterPlayer).toHaveBeenCalledWith(
-        'tournament-1',
-        expect.objectContaining({
-          firstName: 'Grace',
-          lastName: 'Hopper',
-        }),
-        undefined
-      );
+      const registerCall = mockRegisterPlayer.mock.calls[0] ?? [];
+      expect(registerCall[0]).toBe('tournament-1');
+      expect(registerCall[1]).toEqual(expect.objectContaining({
+        firstName: 'Grace',
+        lastName: 'Hopper',
+      }));
       expect(mockFetchPlayers.mock.calls.length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByText(/loading players|chargement des joueurs/i)).not.toBeInTheDocument();
     });

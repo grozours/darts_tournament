@@ -15,6 +15,7 @@ type UseTournamentListRegistrationsProperties = {
   isAdmin: boolean;
   user: unknown;
   getSafeAccessToken: () => Promise<string | undefined>;
+  refreshTournaments: () => void;
 };
 
 type TournamentListRegistrationsResult = {
@@ -111,6 +112,7 @@ const useRegisterSelfAction = ({
   getSafeAccessToken,
   setRegisteringTournamentId,
   setUserRegistrations,
+  refreshTournaments,
 }: {
   t: Translator;
   isAuthenticated: boolean;
@@ -118,6 +120,7 @@ const useRegisterSelfAction = ({
   getSafeAccessToken: () => Promise<string | undefined>;
   setRegisteringTournamentId: RegistrationStateSetters['setRegisteringTournamentId'];
   setUserRegistrations: RegistrationStateSetters['setUserRegistrations'];
+  refreshTournaments: () => void;
 }) => useCallback(async (tournamentId: string) => {
   if (!isAuthenticated) {
     alert(t('auth.signInRequired') || 'Please sign in to register');
@@ -158,6 +161,7 @@ const useRegisterSelfAction = ({
     );
 
     setUserRegistrations((previous) => new Set(previous).add(tournamentId));
+    refreshTournaments();
     alert(t('tournaments.registerSuccess') || 'Successfully registered!');
   } catch (error_) {
     console.error('Error registering for tournament:', error_);
@@ -165,7 +169,7 @@ const useRegisterSelfAction = ({
   } finally {
     setRegisteringTournamentId(undefined);
   }
-}, [getSafeAccessToken, isAuthenticated, setRegisteringTournamentId, setUserRegistrations, t, user]);
+}, [getSafeAccessToken, isAuthenticated, refreshTournaments, setRegisteringTournamentId, setUserRegistrations, t, user]);
 
 const useUnregisterSelfAction = ({
   t,
@@ -174,6 +178,7 @@ const useUnregisterSelfAction = ({
   getSafeAccessToken,
   setRegisteringTournamentId,
   setUserRegistrations,
+  refreshTournaments,
 }: {
   t: Translator;
   isAuthenticated: boolean;
@@ -181,6 +186,7 @@ const useUnregisterSelfAction = ({
   getSafeAccessToken: () => Promise<string | undefined>;
   setRegisteringTournamentId: RegistrationStateSetters['setRegisteringTournamentId'];
   setUserRegistrations: RegistrationStateSetters['setUserRegistrations'];
+  refreshTournaments: () => void;
 }) => useCallback(async (tournamentId: string) => {
   if (!isAuthenticated) {
     return;
@@ -221,6 +227,7 @@ const useUnregisterSelfAction = ({
       return next;
     });
 
+    refreshTournaments();
     alert(t('tournaments.unregisterSuccess') || 'Successfully unregistered!');
   } catch (error_) {
     console.error('Error unregistering from tournament:', error_);
@@ -228,7 +235,7 @@ const useUnregisterSelfAction = ({
   } finally {
     setRegisteringTournamentId(undefined);
   }
-}, [getSafeAccessToken, isAuthenticated, setRegisteringTournamentId, setUserRegistrations, t, user]);
+}, [getSafeAccessToken, isAuthenticated, refreshTournaments, setRegisteringTournamentId, setUserRegistrations, t, user]);
 
 const useTournamentListRegistrations = ({
   t,
@@ -237,6 +244,7 @@ const useTournamentListRegistrations = ({
   isAdmin,
   user,
   getSafeAccessToken,
+  refreshTournaments,
 }: UseTournamentListRegistrationsProperties): TournamentListRegistrationsResult => {
   const {
     userRegistrations,
@@ -261,6 +269,7 @@ const useTournamentListRegistrations = ({
     getSafeAccessToken,
     setRegisteringTournamentId,
     setUserRegistrations,
+    refreshTournaments,
   });
 
   const handleUnregisterSelf = useUnregisterSelfAction({
@@ -270,6 +279,7 @@ const useTournamentListRegistrations = ({
     getSafeAccessToken,
     setRegisteringTournamentId,
     setUserRegistrations,
+    refreshTournaments,
   });
 
   return {

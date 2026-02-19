@@ -93,7 +93,7 @@ const TargetsGridCard = ({
               <select
                 value={selectedMatchId}
                 onChange={(event_) => onQueueSelectionChange(targetKey, event_.target.value)}
-                className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
+                className="w-full rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200 sm:flex-1 sm:min-w-0"
               >
                 <option value="">{t('targets.selectMatch')}</option>
                 {queueItems.map((item) => (
@@ -108,7 +108,7 @@ const TargetsGridCard = ({
               <button
                 onClick={() => onStartMatch(selectedMatchId, target.targetNumber)}
                 disabled={!canStart}
-                className="rounded-full border border-emerald-500/70 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+                className="shrink-0 rounded-full border border-emerald-500/70 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
               >
                 {startingMatchId === selectedMatchId ? t('live.startingMatch') : t('live.startMatch')}
               </button>

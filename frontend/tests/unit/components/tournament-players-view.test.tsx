@@ -22,8 +22,8 @@ vi.mock('../../../src/i18n', () => ({
 }));
 
 vi.mock('../../../src/services/tournament-service', () => ({
-  fetchTournamentPlayers: (...args: unknown[]) => mockFetchTournamentPlayers(...args),
-  updateTournamentPlayerCheckIn: (...args: unknown[]) => mockUpdateTournamentPlayerCheckIn(...args),
+  fetchTournamentPlayers: (...arguments_: unknown[]) => mockFetchTournamentPlayers(...arguments_),
+  updateTournamentPlayerCheckIn: (...arguments_: unknown[]) => mockUpdateTournamentPlayerCheckIn(...arguments_),
 }));
 
 describe('TournamentPlayersView', () => {
@@ -74,7 +74,7 @@ describe('TournamentPlayersView', () => {
       expect(screen.getByText('Ava Archer')).toBeInTheDocument();
     });
 
-    expect(mockFetchTournamentPlayers).toHaveBeenCalledWith('t1', undefined);
+    expect(mockFetchTournamentPlayers.mock.calls[0]?.[0]).toBe('t1');
   });
 
   it('confirms player presence when authenticated', async () => {

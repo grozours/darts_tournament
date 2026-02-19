@@ -96,13 +96,6 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       }
     }
 
-    const inProgressResponse = await request(server)
-      .patch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}`)
-      .send({ status: 'IN_PROGRESS' })
-      .expect(200);
-
-    expect(inProgressResponse.body.status).toBe('IN_PROGRESS');
-
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/status`)
       .send({ status: 'SIGNATURE' })
@@ -119,6 +112,13 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .patch(`/api/tournaments/${tournamentId}/status`)
       .send({ status: 'LIVE' })
       .expect(400);
+
+    const inProgressResponse = await request(server)
+      .patch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}`)
+      .send({ status: 'IN_PROGRESS' })
+      .expect(200);
+
+    expect(inProgressResponse.body.status).toBe('IN_PROGRESS');
 
     const liveResponse = await request(server)
       .get(`/api/tournaments/${tournamentId}/live`)

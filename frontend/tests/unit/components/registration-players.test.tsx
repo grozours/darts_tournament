@@ -25,7 +25,7 @@ vi.mock('../../../src/i18n', () => ({
 }));
 
 vi.mock('../../../src/services/tournament-service', () => ({
-  fetchTournamentPlayers: (...args: unknown[]) => mockFetchTournamentPlayers(...args),
+  fetchTournamentPlayers: (...arguments_: unknown[]) => mockFetchTournamentPlayers(...arguments_),
 }));
 
 vi.mock('../../../src/auth/sign-in-panel', () => ({
@@ -113,8 +113,8 @@ describe('RegistrationPlayers', () => {
       expect(screen.getByText('Alice')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Singles Cup')).toBeNull();
-    expect(mockFetchTournamentPlayers).toHaveBeenCalledWith('t1', undefined);
+    expect(screen.queryByText('Singles Cup')).not.toBeInTheDocument();
+    expect(mockFetchTournamentPlayers.mock.calls[0]?.[0]).toBe('t1');
   });
 
   it('shows an error and retries when fetch fails', async () => {

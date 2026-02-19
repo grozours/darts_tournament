@@ -92,15 +92,15 @@ export default function CreateTournamentPage() {
     const targetCount = Number(presetTargets);
 
     if (!presetName.trim()) {
-      nextErrors.name = 'Tournament name is required';
+      nextErrors.name = t('createTournament.errors.nameRequired');
     }
 
     if (!Number.isFinite(totalParticipants) || totalParticipants < 4) {
-      nextErrors.totalParticipants = 'Total participants must be at least 4';
+      nextErrors.totalParticipants = t('createTournament.errors.participantsMin');
     }
 
     if (!Number.isFinite(targetCount) || targetCount < 1) {
-      nextErrors.targetCount = 'Target count must be at least 1';
+      nextErrors.targetCount = t('createTournament.errors.targetsMin');
     }
 
     return { nextErrors, totalParticipants, targetCount };
@@ -108,7 +108,7 @@ export default function CreateTournamentPage() {
 
   const handlePresetCreate = async (preset: PresetType) => {
     if (authEnabled && !isAuthenticated) {
-      setPresetErrors({ submit: 'Please sign in to create tournaments.' });
+      setPresetErrors({ submit: t('createTournament.errors.signInRequired') });
       await loginWithRedirect();
       return;
     }
@@ -152,7 +152,7 @@ export default function CreateTournamentPage() {
       }
     } catch (error) {
       console.error('Error creating tournament preset:', error);
-      setPresetErrors({ submit: 'Failed to create tournament' });
+      setPresetErrors({ submit: t('createTournament.errors.failed') });
     } finally {
       setPresetSubmitting(false);
     }
@@ -164,35 +164,39 @@ export default function CreateTournamentPage() {
         <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('tournaments.create')}</p>
         <h2 className="text-2xl font-semibold text-white">{t('tournaments.create')}</h2>
         <p className="text-sm text-slate-400">
-          Create a tournament from a quick preset or build a custom configuration.
+          {t('createTournament.subtitle')}
         </p>
       </div>
 
       <section className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">Weekend presets</h3>
+            <h3 className="text-lg font-semibold text-white">{t('createTournament.presets.title')}</h3>
             <p className="text-sm text-slate-400">
-              Choose a preset format and we will set up pool stages and brackets for you.
+              {t('createTournament.presets.subtitle')}
             </p>
           </div>
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-4">
           <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-            <label htmlFor="preset-name" className="text-sm text-slate-300">Tournament name</label>
+            <label htmlFor="preset-name" className="text-sm text-slate-300">
+              {t('createTournament.presets.nameLabel')}
+            </label>
             <input
               id="preset-name"
               className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
               value={presetName}
               onChange={(event) => setPresetName(event.target.value)}
-              placeholder="Open Weekend"
+              placeholder={t('createTournament.presets.namePlaceholder')}
             />
             {presetErrors.name && <p className="text-xs text-rose-300">{presetErrors.name}</p>}
           </div>
 
           <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-            <label htmlFor="preset-participants" className="text-sm text-slate-300">Total participants</label>
+            <label htmlFor="preset-participants" className="text-sm text-slate-300">
+              {t('createTournament.presets.participantsLabel')}
+            </label>
             <input
               id="preset-participants"
               className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
@@ -207,7 +211,9 @@ export default function CreateTournamentPage() {
           </div>
 
           <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-            <label htmlFor="preset-targets" className="text-sm text-slate-300">Target count</label>
+            <label htmlFor="preset-targets" className="text-sm text-slate-300">
+              {t('createTournament.presets.targetsLabel')}
+            </label>
             <input
               id="preset-targets"
               className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
@@ -246,7 +252,7 @@ export default function CreateTournamentPage() {
             onClick={() => handlePresetCreate('single')}
             className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
           >
-            Create single-stage preset
+            {t('createTournament.presets.single')}
           </button>
           <button
             type="button"
@@ -254,21 +260,21 @@ export default function CreateTournamentPage() {
             onClick={() => handlePresetCreate('double')}
             className="rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:bg-sky-400 disabled:opacity-60"
           >
-            Create double-stage preset
+            {t('createTournament.presets.double')}
           </button>
           <a
             href="/"
             className="rounded-full border border-slate-700 px-5 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500"
           >
-            Back to tournaments
+            {t('createTournament.backToTournaments')}
           </a>
         </div>
       </section>
 
       <section className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-6">
-        <h3 className="text-lg font-semibold text-white">Custom setup</h3>
+        <h3 className="text-lg font-semibold text-white">{t('createTournament.custom.title')}</h3>
         <p className="text-sm text-slate-400">
-          Fill out the form to create a tournament with your own settings.
+          {t('createTournament.custom.subtitle')}
         </p>
         <div className="mt-6 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
           <TournamentForm

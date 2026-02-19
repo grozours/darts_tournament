@@ -18,6 +18,8 @@ services:
 
   postgres_test:
     image: postgres:15-alpine
+    profiles:
+      - dev
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD}
@@ -47,6 +49,8 @@ services:
 
   redis_test:
     image: redis:7-alpine
+    profiles:
+      - dev
     ports:
       - "6380:6379"
     command: redis-server
@@ -58,6 +62,8 @@ services:
 
   sonarqube:
     image: sonarqube:lts-community
+    profiles:
+      - dev
     ports:
       - "9000:9000"
     environment:
@@ -97,6 +103,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         BUILD_ID: ${BUILD_ID:-local}
+        DEBUG_UI: ${DEBUG_UI:-false}
     environment:
       BUILD_ID: ${BUILD_ID:-local}
     labels:

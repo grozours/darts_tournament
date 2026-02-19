@@ -14,6 +14,7 @@ type PoolStageDraft = {
 type PoolStagesEditorProperties = {
   t: Translator;
   poolStages: PoolStageConfig[];
+  isTournamentLive: boolean;
   poolStagesError?: string | undefined;
   isAddingPoolStage: boolean;
   newPoolStage: PoolStageDraft;
@@ -45,6 +46,7 @@ type PoolStagesEditorProperties = {
 const PoolStagesEditor = ({
   t,
   poolStages,
+  isTournamentLive,
   poolStagesError,
   isAddingPoolStage,
   newPoolStage,
@@ -87,6 +89,7 @@ const PoolStagesEditor = ({
     <PoolStagesList
       t={t}
       poolStages={poolStages}
+      isTournamentLive={isTournamentLive}
       onPoolStageNumberChange={onPoolStageNumberChange}
       onPoolStageNameChange={onPoolStageNameChange}
       onPoolStagePoolCountChange={onPoolStagePoolCountChange}

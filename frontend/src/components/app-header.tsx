@@ -33,6 +33,7 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
     || import.meta.env.VITE_COMMIT_SHA
     || import.meta.env.VITE_APP_VERSION
     || 'local';
+  const isDebugUiEnabled = import.meta.env.VITE_DEBUG_UI === 'true';
 
   const handleCacheBust = () => {
     if (!globalThis.window) {
@@ -174,20 +175,22 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
         </nav>
 
         <div className="ml-auto" />
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span>Build:</span>
-          <span className="rounded-full border border-slate-800/70 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-200">
-            {buildId}
-          </span>
-          <button
-            type="button"
-            onClick={handleCacheBust}
-            className="rounded-md px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
-            title="Reload with cache-bust"
-          >
-            Refresh
-          </button>
-        </div>
+        {isDebugUiEnabled && (
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span>Build:</span>
+            <span className="rounded-full border border-slate-800/70 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-200">
+              {buildId}
+            </span>
+            <button
+              type="button"
+              onClick={handleCacheBust}
+              className="rounded-md px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+              title="Reload with cache-bust"
+            >
+              Refresh
+            </button>
+          </div>
+        )}
         <button
           onClick={toggleLang}
           className="rounded-md px-2 py-1 hover:bg-slate-800"
