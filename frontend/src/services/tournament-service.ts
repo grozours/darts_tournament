@@ -8,6 +8,7 @@ export interface CreateTournamentPayload {
   endTime: string;
   totalParticipants: number;
   targetCount: number;
+  doubleStageEnabled?: boolean;
 }
 
 export interface CreateTournamentResponse {
@@ -394,6 +395,22 @@ export async function completePoolStageWithScores(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Failed to complete pool stage');
+  }
+}
+
+export async function recomputeDoubleStageProgression(
+  tournamentId: string,
+  stageId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}/recompute-double-stage`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to recompute double-stage progression');
   }
 }
 

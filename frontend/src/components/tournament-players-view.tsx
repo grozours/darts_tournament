@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
+import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
 import {
   fetchTournamentPlayers,
@@ -14,7 +15,8 @@ function TournamentPlayersView() {
     getAccessTokenSilently,
   } = useOptionalAuth();
 
-  const [tournament, setTournament] = useState<{ id: string; name: string } | undefined>();
+  const { isAdmin } = useAdminStatus();
+  const [tournament, setTournament] = useState<{ id: string; name: string; status?: string } | undefined>();
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -47,7 +49,7 @@ function TournamentPlayersView() {
 
       if (response.ok) {
         const data = await response.json();
-        setTournament({ id: data.id, name: data.name });
+        setTournament({ id: data.id, name: data.name, status: data.status });
       }
     } catch (error_) {
       console.error('[TournamentPlayersView] Error fetching tournament:', error_);
@@ -74,6 +76,9 @@ function TournamentPlayersView() {
     if (!tournamentId || !player.playerId || player.checkedIn) {
       return;
     }
+    if (!isAdmin || tournament?.status !== 'SIGNATURE') {
+      return;
+    }
 
     setCheckingInId(player.playerId);
     try {
@@ -93,7 +98,7 @@ function TournamentPlayersView() {
     } finally {
       setCheckingInId(undefined);
     }
-  }, [getSafeAccessToken, t, tournamentId]);
+  }, [getSafeAccessToken, isAdmin, t, tournament?.status, tournamentId]);
 
   useEffect(() => {
     if (tournamentId) {
@@ -201,10 +206,10 @@ function TournamentPlayersView() {
                     )}
                   </div>
                   <div className="mt-3 space-y-1 text-xs text-slate-400">
-                    {player.email && (
+                    {isAdmin && player.email && (
                       <p className="truncate">📧 {player.email}</p>
                     )}
-                    {player.phone && (
+                    {isAdmin && player.phone && (
                       <p>📱 {player.phone}</p>
                     )}
                     {player.skillLevel && (
@@ -215,15 +220,17 @@ function TournamentPlayersView() {
                       </p>
                     )}
                   </div>
-                    <div className="mt-4">
-                      <button
-                        onClick={() => confirmPresence(player)}
-                        disabled={player.checkedIn || checkingInId === player.playerId}
-                        className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {presenceLabel}
-                      </button>
-                    </div>
+                    {isAdmin && tournament?.status === 'SIGNATURE' && (
+                      <div className="mt-4">
+                        <button
+                          onClick={() => confirmPresence(player)}
+                          disabled={player.checkedIn || checkingInId === player.playerId}
+                          className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {presenceLabel}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

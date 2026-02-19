@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import TournamentPlayersView from '../../../src/components/tournament-players-view';
 
 const mockFetchTournamentPlayers = vi.fn();
 const mockUpdateTournamentPlayerCheckIn = vi.fn();
@@ -26,6 +25,10 @@ vi.mock('../../../src/services/tournament-service', () => ({
   updateTournamentPlayerCheckIn: (...arguments_: unknown[]) => mockUpdateTournamentPlayerCheckIn(...arguments_),
 }));
 
+vi.mock('../../../src/auth/use-admin-status', () => ({
+  useAdminStatus: () => ({ isAdmin: true }),
+}));
+
 describe('TournamentPlayersView', () => {
   const originalFetch = globalThis.fetch;
 
@@ -41,9 +44,10 @@ describe('TournamentPlayersView', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows an empty state when no tournament id is provided', () => {
+  it('shows an empty state when no tournament id is provided', async () => {
     globalThis.window?.history.pushState({}, '', '/?status=OPEN');
 
+    const { default: TournamentPlayersView } = await import('../../../src/components/tournament-players-view');
     render(<TournamentPlayersView />);
 
     expect(screen.getByText('common.noSelection')).toBeInTheDocument();
@@ -55,7 +59,7 @@ describe('TournamentPlayersView', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 't1', name: 'Spring Cup' }),
+      json: async () => ({ id: 't1', name: 'Spring Cup', status: 'SIGNATURE' }),
     }) as typeof fetch;
 
     mockFetchTournamentPlayers.mockResolvedValueOnce([
@@ -67,6 +71,7 @@ describe('TournamentPlayersView', () => {
       },
     ]);
 
+    const { default: TournamentPlayersView } = await import('../../../src/components/tournament-players-view');
     render(<TournamentPlayersView />);
 
     await waitFor(() => {
@@ -84,7 +89,7 @@ describe('TournamentPlayersView', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 't1', name: 'Spring Cup' }),
+      json: async () => ({ id: 't1', name: 'Spring Cup', status: 'SIGNATURE' }),
     }) as typeof fetch;
 
     mockFetchTournamentPlayers.mockResolvedValueOnce([
@@ -96,6 +101,7 @@ describe('TournamentPlayersView', () => {
       },
     ]);
 
+    const { default: TournamentPlayersView } = await import('../../../src/components/tournament-players-view');
     render(<TournamentPlayersView />);
 
     await waitFor(() => {

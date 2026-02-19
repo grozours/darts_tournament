@@ -5,8 +5,7 @@ import useTournamentEditDetails from './use-tournament-edit-details';
 import useTournamentEditLoader from './use-tournament-edit-loader';
 import useTournamentLogoUpload from './use-tournament-logo-upload';
 import { formatToLocalInput } from './tournament-date-helpers';
-import type { Tournament, Translator } from './types';
-import type { TournamentEditForm } from './use-tournament-list-edit';
+import type { EditFormState, Tournament, Translator } from './types';
 
 type UseTournamentListEditFlowProperties = {
   t: Translator;
@@ -23,10 +22,10 @@ type UseTournamentListEditFlowProperties = {
   loadBrackets: (tournamentId: string) => Promise<void>;
   fetchTournaments: () => void;
   editingTournament: Tournament | undefined;
-  editForm: TournamentEditForm | undefined;
+  editForm: EditFormState | undefined;
   logoFile: File | undefined;
   setEditingTournament: Dispatch<SetStateAction<Tournament | undefined>>;
-  setEditForm: Dispatch<SetStateAction<TournamentEditForm | undefined>>;
+  setEditForm: Dispatch<SetStateAction<EditFormState | undefined>>;
   setEditError: Dispatch<SetStateAction<string | undefined>>;
   setEditLoading: Dispatch<SetStateAction<boolean>>;
   setEditLoadError: Dispatch<SetStateAction<string | undefined>>;

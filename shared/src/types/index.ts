@@ -38,6 +38,7 @@ export interface Tournament {
   createdAt: Date;
   completedAt?: Date;
   historicalFlag: boolean;
+  doubleStageEnabled?: boolean;
 }
 
 // Player Types

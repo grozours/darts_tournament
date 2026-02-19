@@ -162,6 +162,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       totalParticipants: number;
       targetCount: number;
       logoUrl?: string;
+      doubleStageEnabled?: boolean;
     }): Promise<Tournament> => {
       try {
         const tournament = await prisma.tournament.create({
@@ -173,6 +174,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
             endTime: tournamentData.endTime,
             totalParticipants: tournamentData.totalParticipants,
             targetCount: tournamentData.targetCount,
+            doubleStageEnabled: tournamentData.doubleStageEnabled ?? false,
             // eslint-disable-next-line unicorn/no-null
             logoUrl: tournamentData.logoUrl ?? null,
             status: 'DRAFT',
@@ -242,6 +244,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         targetCount: number;
         logoUrl: string;
         status: TournamentStatus;
+        doubleStageEnabled: boolean;
       }>
     ): Promise<Tournament> => {
       try {

@@ -45,6 +45,7 @@ type TournamentServiceLike = {
       completedAt: Date | null;
     }>
   ) => Promise<unknown>;
+  recomputeDoubleStageProgression: (tournamentId: string, stageId: string) => Promise<void>;
   completePoolStageWithRandomScores: (tournamentId: string, stageId: string) => Promise<void>;
   deletePoolStage: (tournamentId: string, stageId: string) => Promise<void>;
   getPoolStagePools: (tournamentId: string, stageId: string) => Promise<unknown>;
@@ -321,6 +322,18 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
         .getTournamentService(request)
         .updatePoolStage(id, stageId, request.body);
       response.json(poolStage);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  recomputeDoubleStageProgression: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, stageId } = request.params as { id: string; stageId: string };
+      await context
+        .getTournamentService(request)
+        .recomputeDoubleStageProgression(id, stageId);
+      response.status(204).send();
     } catch (error) {
       context.handleError(response, error);
     }

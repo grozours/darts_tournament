@@ -26,6 +26,7 @@ model Tournament {
   createdAt         DateTime      @default(now()) @map("created_at")
   completedAt       DateTime?     @map("completed_at")
   historicalFlag    Boolean       @default(false) @map("historical_flag")
+  doubleStageEnabled Boolean      @default(false) @map("double_stage_enabled")
 
   // Relationships
   poolStages        PoolStage[]

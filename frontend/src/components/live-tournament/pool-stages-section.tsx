@@ -11,6 +11,7 @@ type PoolStagesSectionProperties = {
   t: Translator;
   tournamentId: string;
   tournamentStatus: string;
+  doubleStageEnabled: boolean;
   stages: LiveViewPoolStage[];
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
@@ -35,6 +36,7 @@ type PoolStagesSectionProperties = {
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  onRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onStagePoolCountChange: (stageId: string, value: string) => void;
   onStagePlayersPerPoolChange: (stageId: string, value: string) => void;
   onStageStatusChange: (stageId: string, value: string) => void;
@@ -50,6 +52,7 @@ const PoolStagesSection = ({
   t,
   tournamentId,
   tournamentStatus,
+  doubleStageEnabled,
   stages,
   playerIdByTournament = {},
   ...stageProperties
@@ -68,6 +71,7 @@ const PoolStagesSection = ({
             t={t}
             tournamentId={tournamentId}
             tournamentStatus={tournamentStatus}
+            doubleStageEnabled={doubleStageEnabled}
             stage={stage}
             {...(playerIdByTournament[tournamentId]
               ? { preferredPlayerId: playerIdByTournament[tournamentId] }

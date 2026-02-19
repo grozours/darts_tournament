@@ -18,6 +18,7 @@ export interface CreateTournamentData {
   endTime: string;
   totalParticipants: number;
   targetCount: number;
+  doubleStageEnabled?: boolean;
 }
 
 export interface TournamentFilters {
@@ -180,6 +181,10 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       validateTargetCount(sanitized.targetCount);
     }
 
+    if (sanitized.doubleStageEnabled !== undefined) {
+      sanitized.doubleStageEnabled = Boolean(sanitized.doubleStageEnabled);
+    }
+
     return sanitized;
   };
 
@@ -200,6 +205,9 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     }
     if (updateData.targetCount !== undefined) {
       processedData.targetCount = updateData.targetCount;
+    }
+    if (updateData.doubleStageEnabled !== undefined) {
+      processedData.doubleStageEnabled = updateData.doubleStageEnabled;
     }
     if (updateData.startTime !== undefined) {
       processedData.startTime = new Date(updateData.startTime);
@@ -360,6 +368,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
           endTime,
           totalParticipants: data.totalParticipants,
           targetCount: data.targetCount,
+          doubleStageEnabled: data.doubleStageEnabled ?? false,
         });
 
         logger.tournamentCreated(tournament.id, tournament.name, {
@@ -425,6 +434,15 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
       if (tournament.status === TournamentStatus.LIVE) {
         await reconcileTargetAvailability(tournament);
+      }
+
+      if (tournament.format === TournamentFormat.DOUBLE && tournament.doubleStageEnabled === false) {
+        const hasDoubleStages = (tournament.poolStages || []).some(
+          (stage) => stage.stageNumber === 2 || stage.stageNumber === 3
+        );
+        if (hasDoubleStages) {
+          tournament.doubleStageEnabled = true;
+        }
       }
 
       return tournament;

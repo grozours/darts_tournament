@@ -83,6 +83,7 @@ type LiveTournamentState = {
   handleUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
+  handleRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   cancelEditStage: () => void;
   updatingRoundKey?: string | undefined;
   handleCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => Promise<void>;
@@ -186,6 +187,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,
+    handleRecomputeDoubleStage,
     cancelEditStage,
   } = useLiveTournamentStageActions({
     t,
@@ -263,6 +265,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,
+    handleRecomputeDoubleStage,
     cancelEditStage,
     updatingRoundKey,
     handleCompleteBracketRound,

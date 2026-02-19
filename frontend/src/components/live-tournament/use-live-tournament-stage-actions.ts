@@ -22,6 +22,7 @@ type LiveTournamentStageActionsResult = {
   handleUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
+  handleRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   cancelEditStage: () => void;
 };
 
@@ -47,6 +48,7 @@ const useLiveTournamentStageActions = ({
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,
+    handleRecomputeDoubleStage,
   } = useLiveTournamentStageUpdate({
     t,
     getSafeAccessToken,
@@ -71,6 +73,7 @@ const useLiveTournamentStageActions = ({
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,
+    handleRecomputeDoubleStage,
     cancelEditStage,
   };
 };

@@ -102,6 +102,7 @@ export interface LiveViewData {
   id: string;
   name: string;
   status: string;
+  doubleStageEnabled?: boolean;
   poolStages?: LiveViewPoolStage[];
   brackets?: LiveViewBracket[];
   targets?: LiveViewTarget[];

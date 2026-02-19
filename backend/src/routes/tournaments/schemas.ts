@@ -42,6 +42,7 @@ export const createTournamentSchema = {
       .int({ message: 'Target count must be an integer' })
       .min(1, 'Tournament must have at least 1 target')
       .max(32, 'Tournament cannot exceed 32 targets'),
+    doubleStageEnabled: z.boolean().optional(),
   })
     .refine(
       (data) => {
@@ -106,6 +107,7 @@ export const updateTournamentSchema = {
       .min(1, 'Tournament must have at least 1 target')
       .max(20, 'Tournament cannot exceed 20 targets')
       .optional(),
+    doubleStageEnabled: z.boolean().optional(),
   }),
 };
 

@@ -69,6 +69,7 @@ describe('TournamentForm submission', () => {
         endTime: '2026-03-15T18:00',
         totalParticipants: 16,
         targetCount: 3,
+        doubleStageEnabled: false,
       });
       expect(mockOnSubmit).toHaveBeenCalled();
     });

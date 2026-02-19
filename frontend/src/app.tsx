@@ -31,7 +31,13 @@ function App() {
   let mainContent = <TournamentList />;
   switch (view) {
     case 'players': {
-      mainContent = <PlayersView />;
+      mainContent = isAdmin
+        ? <PlayersView />
+        : (
+          <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-6 text-center text-slate-200">
+            {t('auth.adminOnly')}
+          </div>
+        );
       break;
     }
     case 'registration-players': {

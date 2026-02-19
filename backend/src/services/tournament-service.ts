@@ -66,6 +66,7 @@ export class TournamentService {
   public getPoolStages!: PoolStageHandlers['getPoolStages'];
   public createPoolStage!: PoolStageHandlers['createPoolStage'];
   public updatePoolStage!: PoolStageHandlers['updatePoolStage'];
+  public recomputeDoubleStageProgression!: PoolStageHandlers['recomputeDoubleStageProgression'];
   public completePoolStageWithRandomScores!: PoolStageHandlers['completePoolStageWithRandomScores'];
   public deletePoolStage!: PoolStageHandlers['deletePoolStage'];
   public getPoolStagePools!: PoolStageHandlers['getPoolStagePools'];
@@ -75,28 +76,28 @@ export class TournamentService {
     this.tournamentModel = new TournamentModel(prisma);
     this.logger = new TournamentLogger(request);
     const loggerProxy = {
-      accessError: (...args: Parameters<TournamentLogger['accessError']>) =>
-        this.logger.accessError(...args),
-      validationError: (...args: Parameters<TournamentLogger['validationError']>) =>
-        this.logger.validationError(...args),
-      tournamentCreated: (...args: Parameters<TournamentLogger['tournamentCreated']>) =>
-        this.logger.tournamentCreated(...args),
-      tournamentUpdated: (...args: Parameters<TournamentLogger['tournamentUpdated']>) =>
-        this.logger.tournamentUpdated(...args),
-      tournamentDeleted: (...args: Parameters<TournamentLogger['tournamentDeleted']>) =>
-        this.logger.tournamentDeleted(...args),
-      tournamentStatusChanged: (...args: Parameters<TournamentLogger['tournamentStatusChanged']>) =>
-        this.logger.tournamentStatusChanged(...args),
-      playerRegistered: (...args: Parameters<TournamentLogger['playerRegistered']>) =>
-        this.logger.playerRegistered(...args),
-      playerUnregistered: (...args: Parameters<TournamentLogger['playerUnregistered']>) =>
-        this.logger.playerUnregistered(...args),
-      logoUploaded: (...args: Parameters<TournamentLogger['logoUploaded']>) =>
-        this.logger.logoUploaded(...args),
-      logoDeleted: (...args: Parameters<TournamentLogger['logoDeleted']>) =>
-        this.logger.logoDeleted(...args),
-      error: (...args: Parameters<TournamentLogger['error']>) =>
-        this.logger.error(...args),
+      accessError: (...arguments_: Parameters<TournamentLogger['accessError']>) =>
+        this.logger.accessError(...arguments_),
+      validationError: (...arguments_: Parameters<TournamentLogger['validationError']>) =>
+        this.logger.validationError(...arguments_),
+      tournamentCreated: (...arguments_: Parameters<TournamentLogger['tournamentCreated']>) =>
+        this.logger.tournamentCreated(...arguments_),
+      tournamentUpdated: (...arguments_: Parameters<TournamentLogger['tournamentUpdated']>) =>
+        this.logger.tournamentUpdated(...arguments_),
+      tournamentDeleted: (...arguments_: Parameters<TournamentLogger['tournamentDeleted']>) =>
+        this.logger.tournamentDeleted(...arguments_),
+      tournamentStatusChanged: (...arguments_: Parameters<TournamentLogger['tournamentStatusChanged']>) =>
+        this.logger.tournamentStatusChanged(...arguments_),
+      playerRegistered: (...arguments_: Parameters<TournamentLogger['playerRegistered']>) =>
+        this.logger.playerRegistered(...arguments_),
+      playerUnregistered: (...arguments_: Parameters<TournamentLogger['playerUnregistered']>) =>
+        this.logger.playerUnregistered(...arguments_),
+      logoUploaded: (...arguments_: Parameters<TournamentLogger['logoUploaded']>) =>
+        this.logger.logoUploaded(...arguments_),
+      logoDeleted: (...arguments_: Parameters<TournamentLogger['logoDeleted']>) =>
+        this.logger.logoDeleted(...arguments_),
+      error: (...arguments_: Parameters<TournamentLogger['error']>) =>
+        this.logger.error(...arguments_),
     } as TournamentLogger;
 
     const statusHandlers = createStatusHandlers({
@@ -104,11 +105,18 @@ export class TournamentService {
       logger: loggerProxy,
       validateUUID: this.validateUUID.bind(this),
     });
-    const matchHandlers = createMatchHandlers({
+        const recomputeReference: {
+          current: ((tournamentId: string, stageId: string) => Promise<void>) | undefined;
+        } = { current: undefined };
+
+        const matchHandlers = createMatchHandlers({
       tournamentModel: this.tournamentModel,
       validateUUID: this.validateUUID.bind(this),
       transitionTournamentStatus: (tournamentId, status) =>
         this.transitionTournamentStatus(tournamentId, status),
+          recomputeDoubleStageProgression: async (tournamentId, stageId) => {
+            await recomputeReference.current?.(tournamentId, stageId);
+          },
     });
     const playerHandlers = createPlayerHandlers({
       tournamentModel: this.tournamentModel,
@@ -122,6 +130,7 @@ export class TournamentService {
       validateUUID: this.validateUUID.bind(this),
       completeMatchWithRandomScores: matchHandlers.completeMatchWithRandomScores,
     });
+        recomputeReference.current = poolStageHandlers.recomputeDoubleStageProgression;
     const bracketHandlers = createBracketHandlers({
       tournamentModel: this.tournamentModel,
       validateUUID: this.validateUUID.bind(this),

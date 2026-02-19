@@ -129,6 +129,15 @@ const EditFormFields = ({
         className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
       />
     </label>
+    <label className="flex items-center gap-2 text-sm text-slate-300">
+      <input
+        type="checkbox"
+        checked={editForm.doubleStageEnabled}
+        onChange={(event_) => onEditFormChange({ ...editForm, doubleStageEnabled: event_.target.checked })}
+        className="h-4 w-4 rounded border border-slate-700 bg-slate-950/60 text-cyan-400"
+      />
+      {t('edit.doubleStageEnabled')}
+    </label>
   </div>
 );
 

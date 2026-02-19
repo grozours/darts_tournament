@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type { TournamentPlayer } from '../../services/tournament-service';
 import useTournamentEditState from './use-tournament-edit-state';
 import useTournamentListEditFlow from '@/components/tournament-list/use-tournament-list-edit-flow';
-import type { Tournament, Translator } from './types';
+import type { EditFormState, Tournament, Translator } from './types';
 
 type UseTournamentListEditProperties = {
   t: Translator;
@@ -20,19 +20,9 @@ type UseTournamentListEditProperties = {
   fetchTournaments: () => void;
 };
 
-export type TournamentEditForm = {
-  name: string;
-  format: string;
-  durationType: string;
-  startTime: string;
-  endTime: string;
-  totalParticipants: string;
-  targetCount: string;
-};
-
 type TournamentListEditResult = {
   editingTournament: Tournament | undefined;
-  editForm: TournamentEditForm | undefined;
+  editForm: EditFormState | undefined;
   editError: string | undefined;
   editLoading: boolean;
   editLoadError: string | undefined;
@@ -46,7 +36,7 @@ type TournamentListEditResult = {
   openRegistration: () => Promise<void>;
   moveToSignature: () => Promise<void>;
   moveToLive: () => Promise<void>;
-  setEditForm: (value: TournamentEditForm | undefined) => void;
+  setEditForm: (value: EditFormState | undefined) => void;
   setLogoFile: (value: File | undefined) => void;
   setEditError: (value: string | undefined) => void;
 };

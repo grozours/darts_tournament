@@ -68,6 +68,19 @@ export const registerTournamentPoolStageRoutes = (
     tournamentController.completePoolStageWithScores
   );
 
+  router.post(
+    '/:id/pool-stages/:stageId/recompute-double-stage',
+    requireAuth,
+    requireAdmin,
+    validate({
+      params: z.object({
+        id: z.string().uuid('Invalid tournament ID'),
+        stageId: z.string().uuid('Invalid pool stage ID'),
+      }),
+    }),
+    tournamentController.recomputeDoubleStageProgression
+  );
+
   router.delete(
     '/:id/pool-stages/:stageId',
     requireAuth,

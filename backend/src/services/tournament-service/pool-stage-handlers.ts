@@ -4,10 +4,12 @@ import type { TournamentModel } from '../../models/tournament-model';
 import { AppError } from '../../middleware/error-handler';
 import {
   AssignmentType,
+  BracketType,
   BracketStatus,
   MatchStatus,
   PoolStatus,
   StageStatus,
+  TournamentFormat,
   TournamentStatus,
 } from '../../../../shared/src/types';
 import { isPowerOfTwo, nextPowerOfTwo } from './number-helpers';
@@ -209,7 +211,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   ): Promise<void> => {
     await tournamentModel.completeMatchesForStage(stageId, completedAt);
     await tournamentModel.completePoolsForStage(stageId, completedAt);
-    await populateBracketsForStage(tournamentId, stageId);
+    const handledDoubleStage = await handleDoubleStageProgression(tournamentId, stageId);
+    if (!handledDoubleStage) {
+      await populateBracketsForStage(tournamentId, stageId);
+    }
   };
 
   const buildPlayerLabel = (player?: { firstName?: string; lastName?: string }) => {
@@ -308,7 +313,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   const populateBracket = async (
     tournamentId: string,
     bracketId: string,
-    entries: Array<{ playerId: string; seedNumber: number }>
+    entries: Array<{ playerId: string; seedNumber: number }>,
+    options?: { forceInProgress?: boolean }
   ): Promise<void> => {
     await tournamentModel.deleteMatchesForBracket(bracketId);
     await tournamentModel.deleteBracketEntriesForBracket(bracketId);
@@ -325,7 +331,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const totalRounds = Math.max(1, Math.log2(bracketSize));
 
     if (entries.length < 2) {
-      await tournamentModel.updateBracket(bracketId, { status: BracketStatus.NOT_STARTED, totalRounds });
+      await tournamentModel.updateBracket(bracketId, {
+        status: options?.forceInProgress ? BracketStatus.IN_PROGRESS : BracketStatus.NOT_STARTED,
+        totalRounds,
+      });
       return;
     }
 
@@ -372,6 +381,237 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     if (loserBracket) {
       await populateBracket(tournamentId, loserBracket.id, loserEntries);
     }
+  };
+
+  const buildPoolEntry = (
+    pool: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>[number],
+    row: { playerId: string; position: number; legsWon: number; legsLost: number; name: string }
+  ): PoolStandingsEntry => ({
+    playerId: row.playerId,
+    seedKey: `${pool.poolNumber}-${row.position}`,
+    poolNumber: pool.poolNumber,
+    position: row.position,
+    legsWon: row.legsWon,
+    legsLost: row.legsLost,
+    name: row.name,
+  });
+
+  const selectBracketByLabel = (
+    brackets: Awaited<ReturnType<TournamentModel['getBrackets']>>,
+    label: string
+  ) => {
+    const pattern = new RegExp(String.raw`\\b${label}\\b`, 'i');
+    return brackets.find((bracket) => pattern.test(bracket.name));
+  };
+
+  const ensureBracketForLabel = async (
+    tournamentId: string,
+    brackets: Awaited<ReturnType<TournamentModel['getBrackets']>>,
+    label: string
+  ) => {
+    const existing = selectBracketByLabel(brackets, label);
+    if (existing) {
+      return existing;
+    }
+
+    return await tournamentModel.createBracket(tournamentId, {
+      name: `${label} Bracket`,
+      bracketType: BracketType.SINGLE_ELIMINATION,
+      totalRounds: 1,
+    });
+  };
+
+  const assignPlayersToStage = async (
+    stage: Awaited<ReturnType<TournamentModel['getPoolStageById']>>,
+    entries: PoolStandingsEntry[]
+  ): Promise<void> => {
+    if (!stage) return;
+
+    await ensurePoolsForStage(stage.id, stage);
+    await tournamentModel.deletePoolAssignmentsForStage(stage.id);
+
+    const pools = await tournamentModel.getPoolsForStage(stage.id);
+    if (pools.length === 0) {
+      return;
+    }
+
+    const unique = uniqueEntriesByPlayerId(entries);
+    const capacity = stage.poolCount * stage.playersPerPool;
+    const selected = unique.slice(0, capacity);
+    const poolStates = pools.map((pool) => ({ pool, count: 0 }));
+    const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
+
+    let poolIndex = 0;
+    for (const entry of selected) {
+      let attempts = 0;
+      while (attempts < poolStates.length) {
+        const current = poolStates[poolIndex];
+        if (!current) {
+          break;
+        }
+        if (current.count < stage.playersPerPool) {
+          break;
+        }
+        poolIndex = (poolIndex + 1) % poolStates.length;
+        attempts += 1;
+      }
+
+      if (attempts >= poolStates.length) {
+        break;
+      }
+
+      const target = poolStates[poolIndex];
+      if (!target) {
+        break;
+      }
+      target.count += 1;
+      assignments.push({
+        poolId: target.pool.id,
+        playerId: entry.playerId,
+        assignmentType: AssignmentType.SEEDED,
+        seedNumber: assignments.length + 1,
+      });
+      poolIndex = (poolIndex + 1) % poolStates.length;
+    }
+
+    await tournamentModel.createPoolAssignments(assignments);
+  };
+
+  type DoubleStageContext = {
+    tournament: NonNullable<Awaited<ReturnType<TournamentModel['findById']>>>;
+    stage: NonNullable<Awaited<ReturnType<TournamentModel['getPoolStageById']>>>;
+    stages: Awaited<ReturnType<TournamentModel['getPoolStages']>>;
+    brackets: Awaited<ReturnType<TournamentModel['getBrackets']>>;
+    pools: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>;
+  };
+
+  const getDoubleStageContext = async (
+    tournamentId: string,
+    stageId: string
+  ): Promise<DoubleStageContext | undefined> => {
+    const tournament = await tournamentModel.findById(tournamentId);
+    if (tournament?.format !== TournamentFormat.DOUBLE) {
+      return;
+    }
+
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    if (!stage) {
+      return;
+    }
+
+    const stages = await tournamentModel.getPoolStages(tournamentId);
+    const hasDoubleStages = stages.some((item) => item.stageNumber === 2 || item.stageNumber === 3);
+    if (!tournament.doubleStageEnabled && !hasDoubleStages) {
+      return;
+    }
+
+    const [brackets, pools] = await Promise.all([
+      tournamentModel.getBrackets(tournamentId),
+      tournamentModel.getPoolsWithMatchesForStage(stageId),
+    ]);
+
+    return {
+      tournament,
+      stage,
+      stages,
+      brackets,
+      pools,
+    };
+  };
+
+  const handleStageOneDoubleProgression = async (context: DoubleStageContext): Promise<void> => {
+    const stageA = context.stages.find((item) => item.stageNumber === 2);
+    const stageB = context.stages.find((item) => item.stageNumber === 3);
+
+    if (!stageA || !stageB) {
+      throw new AppError(
+        'Double-stage tournament requires stage 2 (A) and stage 3 (B)',
+        400,
+        'DOUBLE_STAGE_MISSING_STAGE'
+      );
+    }
+
+    const entriesA: PoolStandingsEntry[] = [];
+    const entriesB: PoolStandingsEntry[] = [];
+    const entriesC: PoolStandingsEntry[] = [];
+
+    for (const pool of context.pools) {
+      const standings = buildPoolStandings(pool);
+      const topA = standings.slice(0, 2);
+      const midB = standings.slice(2, 4);
+      const lastC = standings.slice(-1);
+
+      for (const row of topA) entriesA.push(buildPoolEntry(pool, row));
+      for (const row of midB) entriesB.push(buildPoolEntry(pool, row));
+      for (const row of lastC) entriesC.push(buildPoolEntry(pool, row));
+    }
+
+    const uniqueA = uniqueEntriesByPlayerId(entriesA);
+    const uniqueB = uniqueEntriesByPlayerId(entriesB);
+    const uniqueC = uniqueEntriesByPlayerId(entriesC);
+    const stageAIds = new Set(uniqueA.map((entry) => entry.playerId));
+    const stageBEntries = uniqueB.filter((entry) => !stageAIds.has(entry.playerId));
+    const stageBIds = new Set(stageBEntries.map((entry) => entry.playerId));
+    const bracketCEntries = uniqueC.filter(
+      (entry) => !stageAIds.has(entry.playerId) && !stageBIds.has(entry.playerId)
+    );
+
+    await assignPlayersToStage(stageA, uniqueA);
+    await assignPlayersToStage(stageB, stageBEntries);
+
+    const bracketC = await ensureBracketForLabel(context.tournament.id, context.brackets, 'C');
+    const entries = [...bracketCEntries];
+    entries.sort(compareByPoolAndPosition);
+    const seeded = entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      seedNumber: index + 1,
+    }));
+
+    await populateBracket(context.tournament.id, bracketC.id, seeded, { forceInProgress: true });
+  };
+
+  const handleStageTwoOrThreeProgression = async (context: DoubleStageContext): Promise<void> => {
+    const label = context.stage.stageNumber === 2 ? 'A' : 'B';
+    const winners: PoolStandingsEntry[] = [];
+
+    for (const pool of context.pools) {
+      const standings = buildPoolStandings(pool);
+      const topTwo = standings.slice(0, 2);
+      for (const row of topTwo) {
+        winners.push(buildPoolEntry(pool, row));
+      }
+    }
+
+    const bracket = await ensureBracketForLabel(context.tournament.id, context.brackets, label);
+    const ordered = uniqueEntriesByPlayerId(winners).sort(compareByPoolAndPosition);
+    const seeded = ordered.map((entry, index) => ({
+      playerId: entry.playerId,
+      seedNumber: index + 1,
+    }));
+
+    await populateBracket(context.tournament.id, bracket.id, seeded);
+  };
+
+  const handleDoubleStageProgression = async (
+    tournamentId: string,
+    stageId: string
+  ): Promise<boolean> => {
+    const context = await getDoubleStageContext(tournamentId, stageId);
+    if (!context) {
+      return false;
+    }
+
+    if (context.stage.stageNumber === 1) {
+      await handleStageOneDoubleProgression(context);
+      return true;
+    }
+
+    if (context.stage.stageNumber === 2 || context.stage.stageNumber === 3) {
+      await handleStageTwoOrThreeProgression(context);
+      return true;
+    }
+
+    return false;
   };
 
   const getFinalPoolStage = async (tournamentId: string, stageId: string) => {
@@ -758,6 +998,32 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
       return updatedStage;
     },
+    recomputeDoubleStageProgression: async (tournamentId: string, stageId: string): Promise<void> => {
+      validateUUID(tournamentId);
+      validateUUID(stageId);
+
+      const tournament = await tournamentModel.findById(tournamentId);
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      if (tournament.status !== TournamentStatus.LIVE) {
+        throw new AppError(
+          'Double-stage progression can only be recomputed for live tournaments',
+          400,
+          'DOUBLE_STAGE_NOT_LIVE'
+        );
+      }
+
+      const handled = await handleDoubleStageProgression(tournamentId, stageId);
+      if (!handled) {
+        throw new AppError(
+          'Double-stage progression is not enabled for this tournament',
+          400,
+          'DOUBLE_STAGE_NOT_ENABLED'
+        );
+      }
+    },
     completePoolStageWithRandomScores: async (tournamentId: string, stageId: string): Promise<void> => {
       validateUUID(tournamentId);
       validateUUID(stageId);
@@ -769,7 +1035,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       }
 
       if (stage.status === StageStatus.COMPLETED) {
-        await populateBracketsForStage(tournamentId, stageId);
+        const handled = await handleDoubleStageProgression(tournamentId, stageId);
+        if (!handled) {
+          await populateBracketsForStage(tournamentId, stageId);
+        }
         return;
       }
 
@@ -801,7 +1070,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         status: StageStatus.COMPLETED,
         completedAt: now,
       });
-      await populateBracketsForStage(tournamentId, stageId);
+      const handled = await handleDoubleStageProgression(tournamentId, stageId);
+      if (!handled) {
+        await populateBracketsForStage(tournamentId, stageId);
+      }
     },
     deletePoolStage: async (tournamentId: string, stageId: string): Promise<void> => {
       validateUUID(tournamentId);

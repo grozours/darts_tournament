@@ -70,6 +70,7 @@ const useSaveEditAction = ({
       durationType: editForm.durationType,
       totalParticipants: Number(editForm.totalParticipants || 0),
       targetCount: Number(editForm.targetCount || 0),
+      doubleStageEnabled: editForm.doubleStageEnabled,
     };
     if (editForm.startTime) {
       payload.startTime = new Date(editForm.startTime).toISOString();

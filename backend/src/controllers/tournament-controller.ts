@@ -18,6 +18,7 @@ export class TournamentController {
   public getPoolStages!: (request: Request, response: Response) => Promise<void>;
   public createPoolStage!: (request: Request, response: Response) => Promise<void>;
   public updatePoolStage!: (request: Request, response: Response) => Promise<void>;
+  public recomputeDoubleStageProgression!: (request: Request, response: Response) => Promise<void>;
   public completePoolStageWithScores!: (request: Request, response: Response) => Promise<void>;
   public deletePoolStage!: (request: Request, response: Response) => Promise<void>;
   public getPoolStagePools!: (request: Request, response: Response) => Promise<void>;
@@ -462,5 +463,7 @@ export class TournamentController {
     }
   };
 }
+
+export type TournamentServiceLike = TournamentService;
 
 export default TournamentController;

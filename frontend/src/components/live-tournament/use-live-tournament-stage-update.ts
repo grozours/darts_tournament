@@ -1,5 +1,10 @@
 import { useCallback, useState } from 'react';
-import { completePoolStageWithScores, deletePoolStage, updatePoolStage } from '../../services/tournament-service';
+import {
+  completePoolStageWithScores,
+  deletePoolStage,
+  updatePoolStage,
+  recomputeDoubleStageProgression,
+} from '../../services/tournament-service';
 import type { LiveViewPoolStage, Translator } from './types';
 
 type UseLiveTournamentStageUpdateProperties = {
@@ -18,6 +23,7 @@ type LiveTournamentStageUpdateResult = {
   handleUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
+  handleRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
 };
 
 const useLiveTournamentStageUpdate = ({
@@ -102,11 +108,30 @@ const useLiveTournamentStageUpdate = ({
     }
   }, [getSafeAccessToken, reloadLiveViews, setError, t]);
 
+  const handleRecomputeDoubleStage = useCallback(async (stageTournamentId: string, stage: LiveViewPoolStage) => {
+    if (!confirm(t('live.recomputeDoubleStageConfirm'))) {
+      return;
+    }
+    setUpdatingStageId(stage.id);
+    setError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      await recomputeDoubleStageProgression(stageTournamentId, stage.id, token);
+      await reloadLiveViews({ showLoader: false });
+    } catch (error) {
+      console.error('Error recomputing double-stage progression:', error);
+      setError(error instanceof Error ? error.message : 'Failed to recompute double-stage progression');
+    } finally {
+      setUpdatingStageId(undefined);
+    }
+  }, [getSafeAccessToken, reloadLiveViews, setError, t]);
+
   return {
     updatingStageId,
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,
+    handleRecomputeDoubleStage,
   };
 };
 

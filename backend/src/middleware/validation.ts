@@ -116,6 +116,7 @@ export const commonSchemas = {
     endTime: z.string().pipe(z.coerce.date()),
     totalParticipants: z.number().int().min(2, 'Must have at least 2 participants').max(128, 'Maximum 128 participants'),
     targetCount: z.number().int().min(1, 'Must have at least 1 target').max(32, 'Maximum 32 targets'),
+    doubleStageEnabled: z.boolean().optional(),
   }).refine(data => data.endTime > data.startTime, {
     message: 'End time must be after start time',
     path: ['endTime'],

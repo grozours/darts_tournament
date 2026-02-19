@@ -73,6 +73,11 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
     data.historicalFlag as boolean | undefined,
     data.historical_flag as boolean | undefined
   ),
+  doubleStageEnabled: resolveValue(
+    undefined,
+    data.doubleStageEnabled as boolean | undefined,
+    data.double_stage_enabled as boolean | undefined
+  ),
 });
 
 const buildEditFormState = (tournament: Tournament, toLocalInput: (value?: string) => string): EditFormState => ({
@@ -83,6 +88,7 @@ const buildEditFormState = (tournament: Tournament, toLocalInput: (value?: strin
   endTime: toLocalInput(tournament.endTime),
   totalParticipants: String(tournament.totalParticipants ?? 0),
   targetCount: String(tournament.targetCount ?? 0),
+  doubleStageEnabled: Boolean(tournament.doubleStageEnabled),
 });
 
 const shouldLoadPlayers = (status: string) =>

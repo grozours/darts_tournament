@@ -8,6 +8,7 @@ import {
   MatchStatus,
   StageStatus,
   TargetStatus,
+  TournamentFormat,
   TournamentStatus,
 } from '../../../../shared/src/types';
 import type { Tournament } from '../../../../shared/src/types';
@@ -25,13 +26,14 @@ export type MatchHandlerContext = {
   tournamentModel: TournamentModel;
   validateUUID: (id: string) => void;
   transitionTournamentStatus: (tournamentId: string, newStatus: TournamentStatus) => Promise<Tournament>;
+  recomputeDoubleStageProgression?: (tournamentId: string, stageId: string) => Promise<void>;
 };
 
 const randomIntInclusive = (min: number, max: number): number =>
   randomInt(min, max + 1);
 
 export const createMatchHandlers = (context: MatchHandlerContext) => {
-  const { tournamentModel, validateUUID, transitionTournamentStatus } = context;
+  const { tournamentModel, validateUUID, transitionTournamentStatus, recomputeDoubleStageProgression } = context;
 
   const getMatchPlayerIds = (match: { playerMatches?: Array<{ playerId?: string | null }> | null }): string[] => {
     return (match.playerMatches || [])
@@ -356,6 +358,35 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
   };
 
+  const recomputeDoubleStageIfNeeded = async (tournament: Tournament, matchId: string): Promise<void> => {
+    if (!recomputeDoubleStageProgression) {
+      return;
+    }
+    if (tournament.format !== TournamentFormat.DOUBLE) {
+      return;
+    }
+
+    const poolStageId = await tournamentModel.getMatchPoolStageId(matchId);
+    if (!poolStageId) {
+      return;
+    }
+
+    const stage = await tournamentModel.getPoolStageById(poolStageId);
+    if (!stage || stage.stageNumber > 3) {
+      return;
+    }
+
+    if (!tournament.doubleStageEnabled) {
+      const stages = await tournamentModel.getPoolStages(tournament.id);
+      const hasDoubleStages = stages.some((item) => item.stageNumber === 2 || item.stageNumber === 3);
+      if (!hasDoubleStages) {
+        return;
+      }
+    }
+
+    await recomputeDoubleStageProgression(tournament.id, poolStageId);
+  };
+
   const completeMatch = async (
     tournamentId: string,
     matchId: string,
@@ -433,6 +464,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
 
     await advanceBracketIfReady(matchId, tournamentId);
+    await recomputeDoubleStageIfNeeded(tournament, matchId);
   };
 
   const updateCompletedMatchScores = async (
@@ -507,6 +539,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
 
     await advanceBracketIfReady(matchId, tournamentId);
+    await recomputeDoubleStageIfNeeded(tournament, matchId);
   };
 
   const advanceBracketIfReady = async (matchId: string, tournamentId: string): Promise<void> => {

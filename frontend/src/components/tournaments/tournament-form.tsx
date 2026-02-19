@@ -21,6 +21,7 @@ type FormState = {
   endTime: string;
   totalParticipants: string;
   targetCount: string;
+  doubleStageEnabled: boolean;
 };
 
 type ErrorState = Partial<Record<keyof FormState | 'submit' | 'logo', string | undefined>>;
@@ -54,6 +55,7 @@ export default function TournamentForm({
     endTime: '',
     totalParticipants: '',
     targetCount: '',
+    doubleStageEnabled: false,
   });
   const [errors, setErrors] = useState<ErrorState>({});
   const [logoFile, setLogoFile] = useState<File | undefined>();
@@ -250,6 +252,7 @@ export default function TournamentForm({
       endTime: '',
       totalParticipants: '',
       targetCount: '',
+      doubleStageEnabled: false,
     });
     setLogoFile(undefined);
     setLogoPreview(undefined);
@@ -285,6 +288,7 @@ export default function TournamentForm({
         endTime: submissionState.endTime,
         totalParticipants: Number(submissionState.totalParticipants || 0),
         targetCount: Number(submissionState.targetCount || 0),
+        doubleStageEnabled: submissionState.doubleStageEnabled,
       }, token);
 
       if (logoFile) {
@@ -434,6 +438,21 @@ export default function TournamentForm({
             min={1}
           />
           {errors.targetCount && <p role="alert" className="text-xs text-rose-300">{errors.targetCount}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={formState.doubleStageEnabled}
+              onChange={(event) => setFormState((previous) => ({
+                ...previous,
+                doubleStageEnabled: event.target.checked,
+              }))}
+              className="h-4 w-4 rounded border border-slate-800 bg-slate-950/60 text-cyan-400"
+            />
+            {t('tournamentForm.doubleStageEnabled')}
+          </label>
         </div>
 
         <div className="space-y-3">

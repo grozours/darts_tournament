@@ -24,6 +24,7 @@ export type Tournament = {
   createdAt?: string | undefined;
   completedAt?: string | undefined;
   historicalFlag?: boolean | undefined;
+  doubleStageEnabled?: boolean | undefined;
 };
 
 export type EditFormState = {
@@ -34,6 +35,7 @@ export type EditFormState = {
   endTime: string;
   totalParticipants: string;
   targetCount: string;
+  doubleStageEnabled: boolean;
 };
 
 export type TournamentListGroup = {

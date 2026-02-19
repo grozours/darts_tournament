@@ -14,6 +14,7 @@ type PoolStageCardProperties = {
   t: Translator;
   tournamentId: string;
   tournamentStatus: string;
+  doubleStageEnabled: boolean;
   stage: LiveViewPoolStage;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
@@ -38,6 +39,7 @@ type PoolStageCardProperties = {
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  onRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onStagePoolCountChange: (stageId: string, value: string) => void;
   onStagePlayersPerPoolChange: (stageId: string, value: string) => void;
   onStageStatusChange: (stageId: string, value: string) => void;
@@ -53,6 +55,7 @@ const PoolStageCard = ({
   t,
   tournamentId,
   tournamentStatus,
+  doubleStageEnabled,
   stage,
   isPoolStagesReadonly,
   getStatusLabel,
@@ -77,6 +80,7 @@ const PoolStageCard = ({
   onUpdateStage,
   onCompleteStageWithScores,
   onDeleteStage,
+  onRecomputeDoubleStage,
   onStagePoolCountChange,
   onStagePlayersPerPoolChange,
   onStageStatusChange,
@@ -144,6 +148,15 @@ const PoolStageCard = ({
               className="rounded-full border border-amber-500/70 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300 disabled:opacity-60"
             >
               {updatingStageId === stage.id ? t('live.completingStage') : t('live.completeStage')}
+            </button>
+          )}
+          {doubleStageEnabled && stage.status === 'COMPLETED' && stage.stageNumber <= 3 && (
+            <button
+              onClick={() => onRecomputeDoubleStage(stageTournamentId, stage)}
+              disabled={updatingStageId === stage.id}
+              className="rounded-full border border-cyan-500/70 px-3 py-1 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
+            >
+              {t('live.recomputeDoubleStage')}
             </button>
           )}
           <button
@@ -469,8 +482,9 @@ const PoolStageCard = ({
         <div className="mt-6 space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" style={{ fontFamily: '"Oswald", sans-serif' }}>
             {pools.map((pool) => {
-              const leaderboard = buildPoolLeaderboard(pool).slice(0, 4);
+              const leaderboard = buildPoolLeaderboard(pool).slice(0, 5);
               const isActive = pool.id === activePool?.id;
+              const playerCount = pool.assignments?.length ?? 0;
               return (
                 <button
                   key={pool.id}
@@ -491,6 +505,9 @@ const PoolStageCard = ({
                       <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Pool</p>
                       <p className="mt-2 text-lg font-semibold text-slate-100">
                         {pool.poolNumber.toString().padStart(2, '0')} · {pool.name}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {t('live.participants')}: {playerCount}
                       </p>
                     </div>
                     <span className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-widest text-slate-300">

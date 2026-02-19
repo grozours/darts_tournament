@@ -85,6 +85,7 @@ export const mapToTournament = (
     createdAt: prismaResult.createdAt,
     ...(prismaResult.completedAt ? { completedAt: prismaResult.completedAt } : {}),
     historicalFlag: prismaResult.historicalFlag || false,
+    doubleStageEnabled: prismaResult.doubleStageEnabled ?? false,
     ...(prismaResult.players ? { players: prismaResult.players } : {}),
     ...(prismaResult.targets ? { targets: prismaResult.targets } : {}),
     ...(prismaResult.matches ? { matches: prismaResult.matches } : {}),

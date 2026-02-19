@@ -34,6 +34,7 @@ type PresetTemplate = {
 type PresetTemplateBuilder = (
   poolCount: number,
   stage2PoolCount: number,
+  stage3PoolCount: number,
   losersAdvanceToBracket: boolean
 ) => PresetTemplate;
 
@@ -61,25 +62,27 @@ export default function CreateTournamentPage() {
 
   const presetTemplates = useMemo<Record<PresetType, PresetTemplateBuilder>>(
     () => ({
-      single: (poolCount, _stage2PoolCount, losersAdvanceToBracket) => ({
+      single: (poolCount, _stage2PoolCount, _stage3PoolCount, losersAdvanceToBracket) => ({
         format: TournamentFormat.SINGLE,
         stages: [
-          { stageNumber: 1, name: 'Stage 1', poolCount, playersPerPool: 4, advanceCount: 2, losersAdvanceToBracket },
+          { stageNumber: 1, name: 'Stage 1', poolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket },
         ],
         brackets: [
           { name: 'Loser Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
           { name: 'Winner Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
         ],
       }),
-      double: (poolCount, stage2PoolCount, losersAdvanceToBracket) => ({
+      double: (poolCount, stage2PoolCount, stage3PoolCount, losersAdvanceToBracket) => ({
         format: TournamentFormat.DOUBLE,
         stages: [
-          { stageNumber: 1, name: 'Stage 1', poolCount, playersPerPool: 4, advanceCount: 2, losersAdvanceToBracket },
-          { stageNumber: 2, name: 'Stage 2', poolCount: stage2PoolCount, playersPerPool: 4, advanceCount: 2, losersAdvanceToBracket: false },
+          { stageNumber: 1, name: 'Stage 1', poolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket },
+          { stageNumber: 2, name: 'Stage A', poolCount: stage2PoolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket: false },
+          { stageNumber: 3, name: 'Stage B', poolCount: stage3PoolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket: false },
         ],
         brackets: [
-          { name: 'Loser Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-          { name: 'Winner Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          { name: 'A Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          { name: 'B Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          { name: 'C Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
         ],
       }),
     }),
@@ -124,10 +127,11 @@ export default function CreateTournamentPage() {
 
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const poolCount = Math.max(1, Math.floor(totalParticipants / 4));
-      const stage2PoolCount = Math.max(1, Math.floor((poolCount * 2) / 4));
+      const poolCount = Math.max(1, Math.floor(totalParticipants / 5));
+      const stage2PoolCount = Math.max(1, Math.floor(poolCount / 2));
+      const stage3PoolCount = Math.max(1, Math.floor(poolCount / 2));
       const templateBuilder = presetTemplates[preset];
-      const template = templateBuilder(poolCount, stage2PoolCount, presetLosersAdvance);
+      const template = templateBuilder(poolCount, stage2PoolCount, stage3PoolCount, presetLosersAdvance);
       const { startTime, endTime } = getDateOffsets();
 
       const created = await createTournament({
@@ -138,6 +142,7 @@ export default function CreateTournamentPage() {
         endTime: endTime.toISOString(),
         totalParticipants,
         targetCount,
+        doubleStageEnabled: preset === 'double',
       }, token);
 
       for (const stage of template.stages) {

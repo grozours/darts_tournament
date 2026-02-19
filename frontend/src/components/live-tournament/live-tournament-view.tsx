@@ -61,6 +61,7 @@ type LiveTournamentViewProperties = {
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  onRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onStagePoolCountChange: (stageId: string, value: string) => void;
   onStagePlayersPerPoolChange: (stageId: string, value: string) => void;
   onStageStatusChange: (stageId: string, status: string) => void;
@@ -175,6 +176,7 @@ const LiveTournamentView = ({
   onUpdateStage,
   onCompleteStageWithScores,
   onDeleteStage,
+  onRecomputeDoubleStage,
   onStagePoolCountChange,
   onStagePlayersPerPoolChange,
   onStageStatusChange,
@@ -232,6 +234,7 @@ const LiveTournamentView = ({
     t,
     tournamentId: view.id,
     tournamentStatus: view.status,
+    doubleStageEnabled: Boolean(view.doubleStageEnabled),
     stages: filteredPoolStages,
     isPoolStagesReadonly,
     getStatusLabel,
@@ -256,6 +259,7 @@ const LiveTournamentView = ({
     onUpdateStage,
     onCompleteStageWithScores,
     onDeleteStage,
+    onRecomputeDoubleStage,
     onStagePoolCountChange,
     onStagePlayersPerPoolChange,
     onStageStatusChange,
