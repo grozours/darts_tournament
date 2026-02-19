@@ -1,5 +1,8 @@
 FROM node:20-alpine AS build
 
+ARG BUILD_ID=local
+ENV VITE_BUILD_ID=$BUILD_ID
+
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./

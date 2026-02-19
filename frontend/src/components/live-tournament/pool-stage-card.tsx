@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   LiveViewMatch,
   LiveViewPool,
@@ -84,10 +84,27 @@ const PoolStageCard = ({
   stagePlayersPerPoolDrafts,
 }: PoolStageCardProperties) => {
   const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
+  const [activePoolId, setActivePoolId] = useState(stage.pools?.[0]?.id ?? '');
+  const pools = useMemo(() => stage.pools ?? [], [stage.pools]);
 
   useEffect(() => {
     setShowMatches(!isPoolStagesReadonly);
   }, [isPoolStagesReadonly]);
+
+  useEffect(() => {
+    if (pools.length === 0) {
+      if (activePoolId) {
+        setActivePoolId('');
+      }
+      return;
+    }
+
+    const hasActivePool = pools.some((pool) => pool.id === activePoolId);
+    if (!hasActivePool) {
+      setActivePoolId(pools[0]?.id ?? '');
+    }
+  }, [activePoolId, pools]);
+  const activePool = pools.find((pool) => pool.id === activePoolId) ?? pools[0];
 
   const renderStageControls = (stageTournamentId: string) => {
     if (isPoolStagesReadonly) {
@@ -363,8 +380,8 @@ const PoolStageCard = ({
                   {t('live.finalScore')}
                 </p>
                 <div className="mt-2 grid gap-1 text-xs">
-                  {[...(match.playerMatches ?? [])]
-                    .sort((first, second) => first.playerPosition - second.playerPosition)
+                  {(match.playerMatches ?? [])
+                    .toSorted((first, second) => first.playerPosition - second.playerPosition)
                     .map((playerMatch) => (
                       <div
                         key={`${match.id}-${playerMatch.playerPosition}-score`}
@@ -399,44 +416,100 @@ const PoolStageCard = ({
   };
 
   return (
-    <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6">
+    <div className="rounded-3xl border border-slate-800/70 bg-gradient-to-br from-slate-950 via-slate-900/80 to-amber-950/30 p-6 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.9)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h4 className="text-lg font-semibold text-white">{t('live.stage')} {stage.stageNumber}: {stage.name}</h4>
+          <p className="text-xs uppercase tracking-[0.35em] text-amber-300/80">{t('live.stage')}</p>
+          <h4 className="text-2xl font-semibold text-white mt-2">
+            {stage.stageNumber.toString().padStart(2, '0')} · {stage.name}
+          </h4>
           <p className="text-sm text-slate-400">{t('common.status')}: {getStatusLabel('stage', stage.status)}</p>
           <p className="text-xs text-slate-500 mt-1">
-            {stage.pools?.length || 0} pools · {stage.playersPerPool ?? 'n/a'} per pool
+            {pools.length} pools · {stage.playersPerPool ?? 'n/a'} per pool
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {renderStageControls(tournamentId)}
           <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-            {stage.pools?.length || 0} pools
+            {pools.length} pools
           </span>
         </div>
       </div>
 
-      {(!stage.pools || stage.pools.length === 0) ? (
+      {pools.length === 0 ? (
         <p className="mt-5 text-xs text-slate-400">{t('live.noPools')}</p>
       ) : (
-        <div className="mt-5 space-y-4">
-          {stage.pools?.map((pool) => (
-            <div key={pool.id} className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-4">
+        <div className="mt-6 space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" style={{ fontFamily: '"Oswald", sans-serif' }}>
+            {pools.map((pool) => {
+              const leaderboard = buildPoolLeaderboard(pool).slice(0, 4);
+              const isActive = pool.id === activePool?.id;
+              return (
+                <button
+                  key={pool.id}
+                  type="button"
+                  onClick={() => setActivePoolId(pool.id)}
+                  className={`group rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 ${
+                    isActive
+                      ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_20px_45px_-30px_rgba(245,158,11,0.8)]'
+                      : 'border-slate-800/70 bg-slate-950/60 hover:border-amber-500/40'
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Pool</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-100">
+                        {pool.poolNumber.toString().padStart(2, '0')} · {pool.name}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-widest text-slate-300">
+                      {getStatusLabel('pool', pool.status)}
+                    </span>
+                  </div>
+                  <div className="mt-4 text-[11px] uppercase tracking-widest text-slate-500">
+                    {t('live.leaderboard')}
+                  </div>
+                  <div className="mt-2 space-y-2 text-xs text-slate-200">
+                    {leaderboard.length === 0 ? (
+                      <p className="text-slate-500">{t('live.noStandings')}</p>
+                    ) : (
+                      leaderboard.map((row) => (
+                        <div
+                          key={row.playerId}
+                          className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/50 px-2 py-1"
+                        >
+                          <span className="font-semibold text-amber-200">#{row.position}</span>
+                          <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
+                          <span className="w-16 text-right text-slate-300">
+                            {row.legsWon}-{row.legsLost}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {activePool && (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h5 className="text-base font-semibold text-slate-100">
-                  Pool {pool.poolNumber} of {stage.pools?.length || 0}: {pool.name}
+                  Pool {activePool.poolNumber} of {pools.length}: {activePool.name}
                 </h5>
-                <span className="text-xs text-slate-400">{getStatusLabel('pool', pool.status)}</span>
+                <span className="text-xs text-slate-400">{getStatusLabel('pool', activePool.status)}</span>
               </div>
 
-              <div className="mt-3">
+              <div className="mt-4">
                 <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.participants')}</p>
-                {renderPoolAssignments(pool)}
+                {renderPoolAssignments(activePool)}
               </div>
 
               <div className="mt-4">
                 <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.leaderboard')}</p>
-                {renderPoolLeaderboard(pool)}
+                {renderPoolLeaderboard(activePool)}
               </div>
 
               <div className="mt-4">
@@ -451,10 +524,10 @@ const PoolStageCard = ({
                     </button>
                   )}
                 </div>
-                {(!isPoolStagesReadonly || showMatches) && renderPoolMatches(tournamentId, pool)}
+                {(!isPoolStagesReadonly || showMatches) && renderPoolMatches(tournamentId, activePool)}
               </div>
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import type { LiveViewData, LiveViewMatch, LiveViewPool, LiveViewPoolStage, MatchQueueItem, PoolQueue } from './types';
 import { getPlayerIdentity, getMatchPlayers, statusWeight } from './target-labels';
-import { buildPoolQueues, collectActiveFromMatches, interleavePools } from '../queue/pool-queue-utils';
+import { buildPoolQueues, collectActiveFromMatches, interleavePools } from '../queue/pool-queue-utilities';
 
 type BuildQueueItemsProperties = {
   view: LiveViewData;

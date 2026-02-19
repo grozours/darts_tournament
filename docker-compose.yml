@@ -95,6 +95,12 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        BUILD_ID: ${BUILD_ID:-local}
+    environment:
+      BUILD_ID: ${BUILD_ID:-local}
+    labels:
+      com.darts.build_id: ${BUILD_ID:-local}
     ports:
       - "3001:80"
     depends_on:

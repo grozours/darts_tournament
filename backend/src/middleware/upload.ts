@@ -20,6 +20,8 @@ ensureUploadDirectory();
 // Storage configuration per constitution file handling requirements
 const storage: StorageEngine = multer.diskStorage({
   destination: (_request: Request, _file: Express.Multer.File, callback) => {
+    // Upload directory is created at startup; keep destination fixed to avoid path traversal.
+    // Content length is enforced via Multer limits to cap payload size before writing.
     // eslint-disable-next-line unicorn/no-null
     callback(null, config.upload.directory);
   },
@@ -61,11 +63,14 @@ const fileFilter = (_request: Request, file: Express.Multer.File, callback: mult
 };
 
 // Multer configuration
+// Enforce a conservative upload limit to guard memory/disk usage even if upstream limits are higher.
+// Keep this limit aligned with any reverse proxy/body parser caps to prevent oversized payloads.
 const maxUploadSize = Math.min(config.upload.maxSize, 5 * 1024 * 1024);
 const upload = multer({
   storage,
   fileFilter,
   limits: {
+    // Cap content length to a conservative 5MB max (or lower config) to prevent abuse.
     fileSize: maxUploadSize, // 5MB per constitution
     files: 1, // Single file upload for tournament logos
   },

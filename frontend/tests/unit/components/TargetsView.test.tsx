@@ -63,7 +63,7 @@ describe('TargetsView', () => {
           targetNumber: 1,
           targetCode: 'A1',
           status: 'FREE',
-          currentMatchId: null,
+          currentMatchId: undefined,
         },
       ],
       poolStages: [

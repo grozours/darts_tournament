@@ -84,9 +84,9 @@ const renderRoundPairConnectors = (
   bracketCardHeight: number
 ) => positions
   .map((top, matchIndex) => {
-    if (matchIndex % 2 !== 0) return null;
+    if (matchIndex % 2 !== 0) return;
     const nextTop = positions.at(matchIndex + 1);
-    if (nextTop === undefined) return null;
+    if (nextTop === undefined) return;
     const startY = top + bracketCardHeight / 2;
     const endY = nextTop + bracketCardHeight / 2;
     const midY = (startY + endY) / 2;
@@ -162,7 +162,7 @@ const BracketMatches = ({
 
   const renderScheduledActions = (matchTournamentId: string, match: BracketMatchSlot, matchKey: string) => {
     if (!match.playerMatches || match.playerMatches.length < 2) {
-      return null;
+      return;
     }
     const availableTargets = availableTargetsByTournament.get(matchTournamentId) || [];
     const selectedTargetNumber = matchTargetSelections[matchKey] || '';

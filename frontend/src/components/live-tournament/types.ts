@@ -74,6 +74,7 @@ export interface LiveViewPoolStage {
   stageNumber: number;
   name: string;
   status: string;
+  poolCount?: number;
   playersPerPool?: number;
   advanceCount?: number;
   pools?: LiveViewPool[];

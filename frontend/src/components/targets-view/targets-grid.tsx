@@ -32,7 +32,7 @@ const TargetsGrid = ({
   onScoreChange,
   onCompleteMatch,
 }: TargetsGridProperties) => {
-  const sharedProps = {
+  const sharedProperties = {
     t,
     isAdmin,
     matchDetailsById,
@@ -50,7 +50,7 @@ const TargetsGrid = ({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {sharedTargets.map((target) => (
-        <TargetsGridCard key={target.targetNumber} target={target} {...sharedProps} />
+        <TargetsGridCard key={target.targetNumber} target={target} {...sharedProperties} />
       ))}
     </div>
   );

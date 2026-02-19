@@ -179,7 +179,7 @@ const useTournamentEditActions = ({
   const moveToLive = useStatusTransitionAction(shared, {
     targetStatus: 'LIVE',
     redirectStatus: 'live',
-    validate: () => {
+    validate: (): string | undefined => {
       if (!editingTournament) return undefined;
       if (normalizeTournamentStatus(editingTournament.status) !== 'SIGNATURE') {
         return t('edit.error.mustBeSignatureToLive');

@@ -79,7 +79,7 @@ describe('TournamentList - player registration', () => {
     };
     const tournamentDetailsPromise = Promise.resolve({
       ...tournamentsPayload.tournaments[0],
-      logoUrl: null,
+      logoUrl: undefined,
       createdAt: new Date('2026-04-01T10:00:00.000Z').toISOString(),
     });
     const fetchResponse = {

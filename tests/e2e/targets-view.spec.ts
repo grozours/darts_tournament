@@ -25,7 +25,7 @@ test('targets view renders live targets and queue', async ({ page }) => {
             targetNumber: 1,
             targetCode: 'A1',
             status: 'AVAILABLE',
-            currentMatchId: null,
+            currentMatchId: undefined,
           },
         ],
         poolStages: [

@@ -204,12 +204,12 @@ describe('tournament model', () => {
       registeredAt: new Date('2026-01-02T10:00:00Z'),
       isActive: true,
       checkedIn: false,
-      personId: null,
-      surname: null,
-      teamName: null,
-      email: null,
-      phone: null,
-      skillLevel: null,
+      personId: undefined,
+      surname: undefined,
+      teamName: undefined,
+      email: undefined,
+      phone: undefined,
+      skillLevel: undefined,
     });
 
     const result = await model.createPlayer('t-1', {

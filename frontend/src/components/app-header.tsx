@@ -29,6 +29,19 @@ const readUnreadCount = () => {
 
 const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderProperties) => {
   const [unreadCount, setUnreadCount] = useState(0);
+  const buildId = import.meta.env.VITE_BUILD_ID
+    || import.meta.env.VITE_COMMIT_SHA
+    || import.meta.env.VITE_APP_VERSION
+    || 'local';
+
+  const handleCacheBust = () => {
+    if (!globalThis.window) {
+      return;
+    }
+    const url = new URL(globalThis.window.location.href);
+    url.searchParams.set('v', buildId);
+    globalThis.window.location.href = url.toString();
+  };
 
   useEffect(() => {
     if (!globalThis.window) {
@@ -161,6 +174,20 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
         </nav>
 
         <div className="ml-auto" />
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span>Build:</span>
+          <span className="rounded-full border border-slate-800/70 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-200">
+            {buildId}
+          </span>
+          <button
+            type="button"
+            onClick={handleCacheBust}
+            className="rounded-md px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+            title="Reload with cache-bust"
+          >
+            Refresh
+          </button>
+        </div>
         <button
           onClick={toggleLang}
           className="rounded-md px-2 py-1 hover:bg-slate-800"

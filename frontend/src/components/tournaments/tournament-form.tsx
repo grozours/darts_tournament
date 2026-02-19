@@ -33,15 +33,15 @@ const toLocalInput = (value: Date) =>
     value.getDate()
   )}T${padNumber(value.getHours())}:${padNumber(value.getMinutes())}`;
 
-const validateName = (value: string) => {
-  if (!value) return;
+const validateName = (value: string): string | undefined => {
+  if (!value) return undefined;
   if (value.length < 3) return 'Name must be at least 3 characters';
   if (value.length > 100) return 'Name cannot exceed 100 characters';
   return undefined;
 };
 
-const validateParticipants = (value: string) => {
-  if (!value) return;
+const validateParticipants = (value: string): string | undefined => {
+  if (!value) return undefined;
   const parsed = Number(value);
   if (Number.isNaN(parsed)) return 'Minimum 2 participants';
   if (parsed < 2) return 'Minimum 2 participants';
@@ -49,8 +49,8 @@ const validateParticipants = (value: string) => {
   return undefined;
 };
 
-const validateTargets = (value: string) => {
-  if (!value) return;
+const validateTargets = (value: string): string | undefined => {
+  if (!value) return undefined;
   const parsed = Number(value);
   if (Number.isNaN(parsed)) return 'Minimum 1 target';
   if (parsed < 1) return 'Minimum 1 target';
@@ -58,8 +58,8 @@ const validateTargets = (value: string) => {
   return undefined;
 };
 
-const validateStartTime = (value: string) => {
-  if (!value) return;
+const validateStartTime = (value: string): string | undefined => {
+  if (!value) return undefined;
   const start = new Date(value);
   const now = new Date();
   if (start.getTime() < now.getTime()) {
@@ -68,8 +68,8 @@ const validateStartTime = (value: string) => {
   return undefined;
 };
 
-const validateEndTime = (startValue: string, endValue: string) => {
-  if (!endValue || !startValue) return;
+const validateEndTime = (startValue: string, endValue: string): string | undefined => {
+  if (!endValue || !startValue) return undefined;
   const start = new Date(startValue);
   const end = new Date(endValue);
   if (end.getTime() <= start.getTime()) {

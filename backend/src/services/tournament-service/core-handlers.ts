@@ -1,0 +1,589 @@
+import type { TournamentModel } from '../../models/tournament-model';
+import type TournamentLogger from '../../utils/tournament-logger';
+import {
+  Tournament,
+  TournamentFormat,
+  DurationType,
+  TournamentStatus,
+  MatchStatus,
+  TargetStatus,
+} from '../../../../shared/src/types';
+import { AppError } from '../../middleware/error-handler';
+
+export interface CreateTournamentData {
+  name: string;
+  format: TournamentFormat;
+  durationType: DurationType;
+  startTime: string;
+  endTime: string;
+  totalParticipants: number;
+  targetCount: number;
+}
+
+export interface TournamentFilters {
+  status?: TournamentStatus;
+  format?: TournamentFormat;
+  name?: string;
+  excludeDraft?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: 'name' | 'startTime' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+}
+
+type TournamentUpdateData = Parameters<TournamentModel['update']>[1];
+
+type TournamentCoreContext = {
+  tournamentModel: TournamentModel;
+  logger: TournamentLogger;
+  validateUUID: (id: string) => void;
+  registerPlayer: (tournamentId: string, playerId: string) => Promise<void>;
+};
+
+export const createTournamentCoreHandlers = (context: TournamentCoreContext) => {
+  const { tournamentModel, logger, validateUUID, registerPlayer } = context;
+
+  const sanitizeName = (name: string): string => {
+    let sanitized = '';
+    let inTag = false;
+    for (const char of name) {
+      if (char === '<') {
+        inTag = true;
+        continue;
+      }
+      if (char === '>') {
+        inTag = false;
+        continue;
+      }
+      if (!inTag) {
+        sanitized += char;
+      }
+    }
+    return sanitized.trim();
+  };
+
+  const validateName = (name: string): void => {
+    if (!name || typeof name !== 'string') {
+      throw new AppError('Tournament name is required', 400, 'TOURNAMENT_NAME_REQUIRED');
+    }
+
+    const trimmedName = name.trim();
+    if (trimmedName.length < 3) {
+      throw new AppError('Tournament name must be at least 3 characters long', 400, 'TOURNAMENT_NAME_TOO_SHORT');
+    }
+
+    if (trimmedName.length > 100) {
+      throw new AppError('Tournament name cannot exceed 100 characters', 400, 'TOURNAMENT_NAME_TOO_LONG');
+    }
+  };
+
+  const validateFormat = (format: TournamentFormat): void => {
+    const validFormats = Object.values(TournamentFormat);
+    if (!validFormats.includes(format)) {
+      throw new AppError('Invalid tournament format', 400, 'INVALID_TOURNAMENT_FORMAT');
+    }
+  };
+
+  const validateDurationType = (durationType: DurationType): void => {
+    const validTypes = Object.values(DurationType);
+    if (!validTypes.includes(durationType)) {
+      throw new AppError('Invalid duration type', 400, 'INVALID_DURATION_TYPE');
+    }
+  };
+
+  const validateParticipantCount = (count: number): void => {
+    if (typeof count !== 'number' || !Number.isInteger(count)) {
+      throw new AppError('Total participants must be a valid number', 400, 'INVALID_PARTICIPANT_COUNT');
+    }
+
+    if (count < 2) {
+      throw new AppError('Tournament must have at least 2 participants', 400, 'MINIMUM_PARTICIPANTS_NOT_MET');
+    }
+
+    if (count > 512) {
+      throw new AppError('Tournament cannot exceed 512 participants', 400, 'MAXIMUM_PARTICIPANTS_EXCEEDED');
+    }
+  };
+
+  const validateTargetCount = (count: number): void => {
+    if (typeof count !== 'number' || !Number.isInteger(count)) {
+      throw new AppError('Target count must be a valid number', 400, 'INVALID_TARGET_COUNT');
+    }
+
+    if (count < 1) {
+      throw new AppError('Tournament must have at least 1 target', 400, 'MINIMUM_TARGETS_NOT_MET');
+    }
+
+    if (count > 20) {
+      throw new AppError('Tournament cannot exceed 20 targets', 400, 'MAXIMUM_TARGETS_EXCEEDED');
+    }
+  };
+
+  const validateDates = (startTime: Date, endTime: Date, allowPastStart: boolean = false): void => {
+    const now = new Date();
+
+    if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+      throw new AppError('Invalid date format', 400, 'INVALID_DATE_FORMAT');
+    }
+
+    if (!allowPastStart && startTime < now) {
+      throw new AppError('Tournament start time cannot be in the past', 400, 'START_TIME_IN_PAST');
+    }
+
+    if (endTime <= startTime) {
+      throw new AppError('Tournament end time must be after start time', 400, 'INVALID_TIME_RANGE');
+    }
+
+    const minDuration = 60 * 60 * 1000;
+    if (endTime.getTime() - startTime.getTime() < minDuration) {
+      throw new AppError('Tournament duration must be at least 1 hour', 400, 'MINIMUM_DURATION_NOT_MET');
+    }
+
+    const maxDuration = 24 * 60 * 60 * 1000;
+    if (endTime.getTime() - startTime.getTime() > maxDuration) {
+      throw new AppError('Tournament duration cannot exceed 24 hours', 400, 'MAXIMUM_DURATION_EXCEEDED');
+    }
+  };
+
+  const validateTournamentData = (data: CreateTournamentData): void => {
+    validateName(data.name);
+    validateFormat(data.format);
+    validateDurationType(data.durationType);
+    validateParticipantCount(data.totalParticipants);
+    validateTargetCount(data.targetCount);
+
+    if (!data.startTime || !data.endTime) {
+      throw new AppError('Start time and end time are required', 400, 'MISSING_TIME_DATA');
+    }
+  };
+
+  const ensureTournamentEditable = async (id: string): Promise<void> => {
+    const isEditable = await tournamentModel.isEditable(id);
+    if (!isEditable) {
+      throw new AppError('Tournament cannot be edited in its current status', 400, 'TOURNAMENT_NOT_EDITABLE');
+    }
+  };
+
+  const sanitizeUpdateData = (updateData: Partial<CreateTournamentData>): Partial<CreateTournamentData> => {
+    const sanitized = { ...updateData };
+
+    if (sanitized.name !== undefined) {
+      validateName(sanitized.name);
+      sanitized.name = sanitizeName(sanitized.name);
+    }
+
+    if (sanitized.totalParticipants !== undefined) {
+      validateParticipantCount(sanitized.totalParticipants);
+    }
+
+    if (sanitized.targetCount !== undefined) {
+      validateTargetCount(sanitized.targetCount);
+    }
+
+    return sanitized;
+  };
+
+  const buildTournamentUpdateData = (updateData: Partial<CreateTournamentData>): TournamentUpdateData => {
+    const processedData: TournamentUpdateData = {};
+
+    if (updateData.name !== undefined) {
+      processedData.name = updateData.name;
+    }
+    if (updateData.format !== undefined) {
+      processedData.format = updateData.format;
+    }
+    if (updateData.durationType !== undefined) {
+      processedData.durationType = updateData.durationType;
+    }
+    if (updateData.totalParticipants !== undefined) {
+      processedData.totalParticipants = updateData.totalParticipants;
+    }
+    if (updateData.targetCount !== undefined) {
+      processedData.targetCount = updateData.targetCount;
+    }
+    if (updateData.startTime !== undefined) {
+      processedData.startTime = new Date(updateData.startTime);
+    }
+    if (updateData.endTime !== undefined) {
+      processedData.endTime = new Date(updateData.endTime);
+    }
+
+    return processedData;
+  };
+
+  const validateUpdateDates = async (id: string, processedData: TournamentUpdateData): Promise<void> => {
+    if (!processedData.startTime && !processedData.endTime) {
+      return;
+    }
+
+    const existing = await tournamentModel.findById(id);
+    const startTime = processedData.startTime || new Date(existing!.startTime);
+    const endTime = processedData.endTime || new Date(existing!.endTime);
+    const allowPastStart =
+      existing?.status === TournamentStatus.SIGNATURE ||
+      existing?.status === TournamentStatus.LIVE ||
+      existing?.status === TournamentStatus.FINISHED;
+
+    validateDates(startTime, endTime, allowPastStart);
+  };
+
+  const calculateTournamentDuration = (startTime: string, endTime: string): {
+    hours: number;
+    minutes: number;
+    total: string;
+  } => {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end.getTime() - start.getTime();
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    return {
+      hours,
+      minutes,
+      total: `${hours}h ${minutes}m`,
+    };
+  };
+
+  const buildMatchStatusMap = (
+    tournament: Tournament & {
+      poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }>;
+      brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }>;
+    }
+  ): Map<string, MatchStatus> => {
+    const matchStatusById = new Map<string, MatchStatus>();
+    addMatchStatusFromPools(tournament, matchStatusById);
+    addMatchStatusFromBrackets(tournament, matchStatusById);
+    return matchStatusById;
+  };
+
+  const addMatchStatusFromPools = (
+    tournament: { poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }> },
+    matchStatusById: Map<string, MatchStatus>
+  ): void => {
+    const poolStages = tournament.poolStages ?? [];
+    for (const stage of poolStages) {
+      for (const pool of stage.pools ?? []) {
+        for (const match of pool.matches ?? []) {
+          if (match?.id) {
+            matchStatusById.set(match.id, match.status);
+          }
+        }
+      }
+    }
+  };
+
+  const addMatchStatusFromBrackets = (
+    tournament: { brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> },
+    matchStatusById: Map<string, MatchStatus>
+  ): void => {
+    const brackets = tournament.brackets ?? [];
+    for (const bracket of brackets) {
+      for (const match of bracket.matches ?? []) {
+        if (match?.id) {
+          matchStatusById.set(match.id, match.status);
+        }
+      }
+    }
+  };
+
+  const reconcileTargetAvailability = async (
+    tournament: Tournament & {
+      targets?: Array<{
+        id: string;
+        status?: TargetStatus;
+        // eslint-disable-next-line unicorn/no-null
+        currentMatchId?: string | null;
+        // eslint-disable-next-line unicorn/no-null
+        lastUsedAt?: Date | null;
+      }>;
+      poolStages?: Array<{ pools?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }> }>;
+      brackets?: Array<{ matches?: Array<{ id: string; status: MatchStatus }> }>;
+    }
+  ): Promise<void> => {
+    const targets = tournament.targets ?? [];
+    if (targets.length === 0) {
+      return;
+    }
+
+    const matchStatusById = buildMatchStatusMap(tournament);
+
+    for (const target of targets) {
+      if (target.status !== TargetStatus.IN_USE) {
+        continue;
+      }
+
+      if (!target.currentMatchId) {
+        await tournamentModel.setTargetAvailable(target.id);
+        target.status = TargetStatus.AVAILABLE;
+        // eslint-disable-next-line unicorn/no-null
+        target.currentMatchId = null;
+        continue;
+      }
+
+      const matchStatus = matchStatusById.get(target.currentMatchId);
+      if (matchStatus === MatchStatus.IN_PROGRESS) {
+        continue;
+      }
+
+      let completedAt: Date | undefined;
+      if (!matchStatus) {
+        const match = await tournamentModel.getMatchById(target.currentMatchId);
+        completedAt = match?.completedAt ?? undefined;
+        if (match?.status === MatchStatus.IN_PROGRESS) {
+          continue;
+        }
+      }
+
+      await tournamentModel.setTargetAvailable(target.id, completedAt);
+      target.status = TargetStatus.AVAILABLE;
+      // eslint-disable-next-line unicorn/no-null
+      target.currentMatchId = null;
+    }
+  };
+
+  return {
+    createTournament: async (data: CreateTournamentData): Promise<Tournament> => {
+      try {
+        validateTournamentData(data);
+
+        const startTime = new Date(data.startTime);
+        const endTime = new Date(data.endTime);
+
+        validateDates(startTime, endTime);
+
+        const sanitizedName = sanitizeName(data.name);
+
+        const tournament = await tournamentModel.create({
+          name: sanitizedName,
+          format: data.format,
+          durationType: data.durationType,
+          startTime,
+          endTime,
+          totalParticipants: data.totalParticipants,
+          targetCount: data.targetCount,
+        });
+
+        logger.tournamentCreated(tournament.id, tournament.name, {
+          format: tournament.format,
+          durationType: tournament.durationType,
+          totalParticipants: tournament.totalParticipants,
+          targetCount: tournament.targetCount,
+          startTime: tournament.startTime,
+          endTime: tournament.endTime,
+        });
+
+        return tournament;
+      } catch (error) {
+        if (error instanceof AppError) {
+          logger.validationError(
+            error.code || 'UNKNOWN_ERROR',
+            error.message,
+            undefined,
+            data.name
+          );
+          throw error;
+        }
+
+        logger.error('Failed to create tournament', undefined, error);
+
+        throw new AppError('Failed to create tournament', 500, 'TOURNAMENT_SERVICE_CREATE_FAILED');
+      }
+    },
+
+    getTournamentById: async (id: string): Promise<Tournament> => {
+      validateUUID(id);
+
+      const tournament = await tournamentModel.findById(id);
+
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      return tournament;
+    },
+
+    getTournamentLiveView: async (tournamentId: string): Promise<unknown> => {
+      validateUUID(tournamentId);
+
+      const tournament = await tournamentModel.findLiveView(tournamentId) as (Tournament & {
+        status: TournamentStatus;
+      });
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      if (tournament.status !== TournamentStatus.LIVE && tournament.status !== TournamentStatus.FINISHED) {
+        throw new AppError('Tournament is not live', 400, 'TOURNAMENT_NOT_LIVE');
+      }
+
+      if (tournament.status === TournamentStatus.LIVE) {
+        await reconcileTargetAvailability(tournament);
+      }
+
+      return tournament;
+    },
+
+    getTournaments: async (filters: TournamentFilters = {}) => {
+      if (filters.page && filters.page < 1) {
+        throw new AppError('Page number must be greater than 0', 400, 'INVALID_PAGE_NUMBER');
+      }
+
+      if (filters.limit && (filters.limit < 1 || filters.limit > 100)) {
+        throw new AppError('Limit must be between 1 and 100', 400, 'INVALID_LIMIT');
+      }
+
+      return await tournamentModel.findAll(filters);
+    },
+
+    updateTournament: async (
+      id: string,
+      updateData: Partial<CreateTournamentData>
+    ): Promise<Tournament> => {
+      validateUUID(id);
+      await ensureTournamentEditable(id);
+
+      const sanitizedUpdateData = sanitizeUpdateData(updateData);
+      const processedData = buildTournamentUpdateData(sanitizedUpdateData);
+      await validateUpdateDates(id, processedData);
+
+      const existing = await tournamentModel.findById(id);
+      if (!existing) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      const updated = await tournamentModel.update(id, processedData);
+
+      if (processedData.targetCount !== undefined && processedData.targetCount > existing.targetCount) {
+        const startNumber = await tournamentModel.getMaxTargetNumber(id) + 1;
+        const count = processedData.targetCount - existing.targetCount;
+        await tournamentModel.createTargetsForTournament(id, startNumber, count);
+      }
+
+      return updated;
+    },
+
+    deleteTournament: async (id: string): Promise<boolean> => {
+      validateUUID(id);
+
+      await tournamentModel.findById(id).then((tournament) => {
+        if (!tournament) {
+          throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+        }
+      });
+
+      return await tournamentModel.delete(id);
+    },
+
+    uploadTournamentLogo: async (id: string, logoUrl: string): Promise<Tournament> => {
+      validateUUID(id);
+
+      if (!logoUrl || typeof logoUrl !== 'string') {
+        throw new AppError('Invalid logo URL', 400, 'INVALID_LOGO_URL');
+      }
+
+      return await tournamentModel.updateLogo(id, logoUrl);
+    },
+
+    getTournamentsByDateRange: async (startDate: string, endDate: string): Promise<Tournament[]> => {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        throw new AppError('Invalid date format', 400, 'INVALID_DATE_FORMAT');
+      }
+
+      if (start >= end) {
+        throw new AppError('Start date must be before end date', 400, 'INVALID_DATE_RANGE');
+      }
+
+      return await tournamentModel.findByDateRange(start, end);
+    },
+
+    isTournamentNameAvailable: async (name: string, excludeId?: string): Promise<boolean> => {
+      if (!name || name.trim().length === 0) {
+        return false;
+      }
+      const normalizedExcludeId = excludeId?.trim();
+      const hasExcludeId = Boolean(normalizedExcludeId);
+
+      try {
+        await tournamentModel.findAll({
+          limit: 1,
+        });
+
+        if (hasExcludeId) {
+          // Placeholder for future exclusion logic.
+        }
+
+        return true;
+      } catch (error) {
+        logger.error('Failed to check tournament name availability', undefined, error);
+        return false;
+      }
+    },
+
+    getTournamentStats: async (id: string) => {
+      const tournamentWithDetails = await tournamentModel.findById(id);
+
+      if (!tournamentWithDetails) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      const tournamentDetails = tournamentWithDetails as Tournament & {
+        players?: unknown[];
+        matches?: Array<{ status?: string }>;
+      };
+      const tournament = tournamentDetails;
+      const currentParticipants = tournamentDetails.players?.length || 0;
+      const matchesTotal = tournamentDetails.matches?.length || 0;
+      const matchesCompleted = tournamentDetails.matches?.filter((m) => m.status === 'completed').length || 0;
+
+      return {
+        totalParticipants: tournament.totalParticipants,
+        currentParticipants,
+        targetCount: tournament.targetCount,
+        matchesTotal,
+        matchesCompleted,
+        duration: calculateTournamentDuration(tournament.startTime.toString(), tournament.endTime.toString()),
+      };
+    },
+
+    validateRegistrationConstraints: async (
+      tournamentId: string,
+      playerId: string
+    ): Promise<{ canRegister: boolean; reasons: string[] }> => {
+      const reasons: string[] = [];
+
+      try {
+        await registerPlayer(tournamentId, playerId);
+        return { canRegister: true, reasons: [] };
+      } catch (error) {
+        if (error instanceof AppError) {
+          reasons.push(error.message);
+        } else {
+          reasons.push('Unknown registration error');
+        }
+      }
+
+      return { canRegister: false, reasons };
+    },
+
+    getOverallTournamentStats: async () => {
+      try {
+        const stats = await tournamentModel.getOverallStats();
+        return stats;
+      } catch (error) {
+        logger.error('Failed to retrieve tournament statistics', undefined, error);
+        throw new AppError(
+          'Failed to retrieve tournament statistics',
+          500,
+          'STATS_RETRIEVAL_ERROR'
+        );
+      }
+    },
+  };
+};
+
+export type TournamentCoreHandlers = ReturnType<typeof createTournamentCoreHandlers>;

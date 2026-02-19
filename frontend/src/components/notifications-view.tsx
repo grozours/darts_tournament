@@ -103,7 +103,7 @@ const fetchLiveTournaments = async (token: string, t: (key: string) => string) =
       }
     }
   }
-  return Array.from(tournamentMap.values());
+  return [...tournamentMap.values()];
 };
 
 const fetchPlayerIdsForEmail = async (

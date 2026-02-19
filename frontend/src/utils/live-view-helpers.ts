@@ -4,6 +4,7 @@ export type LiveViewStatus = string | undefined;
 type PoolStageLike = {
   status?: string;
   pools?: Array<unknown>;
+  poolCount?: number;
 };
 
 type BracketLike = {
@@ -31,7 +32,11 @@ export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewSta
     allowedStatuses.add('EDITION');
   }
   return (view.poolStages || []).some(
-    (stage) => allowedStatuses.has(stage.status ?? '') && (stage.pools?.length || 0) > 0
+    (stage) => {
+      if (!allowedStatuses.has(stage.status ?? '')) return false;
+      const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
+      return poolCount > 0;
+    }
   );
 };
 
@@ -49,7 +54,7 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
   isAdmin = false
 ) => {
   if (isPoolStagesView(viewMode)) {
-    return views.filter((view) => hasActivePoolStages(view, viewStatus, isAdmin));
+    return views.filter((view) => (view.poolStages?.length || 0) > 0);
   }
   if (isBracketsView(viewMode)) {
     return views.filter((view) => hasActiveBrackets(view, viewStatus));

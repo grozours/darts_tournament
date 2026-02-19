@@ -123,7 +123,6 @@ const LiveTournamentGate = ({
   }
 
   return null;
-
 };
 
 export default LiveTournamentGate;

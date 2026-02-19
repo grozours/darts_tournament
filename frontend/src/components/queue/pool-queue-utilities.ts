@@ -37,7 +37,7 @@ export const buildPoolQueues = <TStage, TPool, TMatch, TItem>(
   for (const stage of stages) {
     for (const pool of getPools(stage) ?? []) {
       const matches = getMatches(pool) ?? [];
-      const completedOrInProgress = matches.filter(isMatchCompletedOrInProgress).length;
+      const completedOrInProgress = matches.filter((match) => isMatchCompletedOrInProgress(match)).length;
       poolQueues.push({
         poolId: getPoolId(pool),
         stageNumber: getStageNumber(stage),

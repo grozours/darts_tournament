@@ -22,6 +22,11 @@ function App() {
     : new URLSearchParams();
   const view = parameters.get('view');
   const status = parameters.get('status');
+  const debugEnabled = parameters.get('debug') === '1';
+  const buildId = import.meta.env.VITE_BUILD_ID
+    || import.meta.env.VITE_COMMIT_SHA
+    || import.meta.env.VITE_APP_VERSION
+    || 'local';
 
   let mainContent = <TournamentList />;
   switch (view) {
@@ -69,6 +74,13 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.25),_transparent_45%),radial-gradient(circle_at_30%_20%,_rgba(99,102,241,0.18),_transparent_40%)]" />
+
+      {debugEnabled && (
+        <div className="border-b border-amber-500/40 bg-amber-500/10 px-6 py-2 text-xs text-amber-100">
+          <div>Debug: view={view ?? 'none'} status={status ?? 'none'} build={buildId}</div>
+          <div>search: {globalThis.window?.location.search ?? ''}</div>
+        </div>
+      )}
 
       <AppHeader
         t={t}

@@ -21,10 +21,14 @@ export const filterPoolStagesForView = (
   const allowedStatuses = viewStatus === 'FINISHED'
     ? new Set(['COMPLETED'])
     : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
-  if (isAdmin && viewStatus !== 'FINISHED') {
+  if (viewStatus !== 'FINISHED') {
     allowedStatuses.add('EDITION');
   }
-  return stages.filter((stage) => allowedStatuses.has(stage.status) && (stage.pools?.length || 0) > 0);
+  return stages.filter((stage) => {
+    if (!allowedStatuses.has(stage.status)) return false;
+    const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
+    return poolCount > 0;
+  });
 };
 
 export const filterBracketsForView = (

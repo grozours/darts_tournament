@@ -24,7 +24,7 @@ const secureRandomIndex = (maxExclusive: number): number => {
   if (!cryptoApi?.getRandomValues) {
     throw new Error('Secure random generator unavailable');
   }
-  const maxUint32 = 0xFFFFFFFF;
+  const maxUint32 = 0xFF_FF_FF_FF;
   const limit = Math.floor(maxUint32 / maxExclusive) * maxExclusive;
   const buffer = new Uint32Array(1);
   let value = 0;

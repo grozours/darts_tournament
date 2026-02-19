@@ -29,7 +29,9 @@ const useLiveTournamentSelection = ({
   const [selectedLiveTournamentId, setSelectedLiveTournamentId] = useState('ALL');
   const [selectedPoolStagesTournamentId, setSelectedPoolStagesTournamentId] = useState('');
 
-  const visibleLiveViews = getVisibleLiveViews(viewMode, liveViews, viewStatus, isAdmin);
+  const visibleLiveViews = (viewMode === 'pool-stages' && tournamentId)
+    ? liveViews
+    : getVisibleLiveViews(viewMode, liveViews, viewStatus, isAdmin);
 
   useEffect(() => {
     if (viewMode === 'live') {

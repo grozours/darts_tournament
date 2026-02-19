@@ -10,7 +10,7 @@ import {
   buildPoolQueues,
   collectActiveFromMatches,
   interleavePools,
-} from '../queue/pool-queue-utils';
+} from '../queue/pool-queue-utilities';
 
 const statusWeight = (status: string) => (status === 'IN_PROGRESS' ? 0 : 1);
 

@@ -48,7 +48,7 @@ describe('PlayersView', () => {
           lastName: 'Smith',
           surname: 'Falcon',
           name: 'Alice Smith',
-          teamName: null,
+          teamName: undefined,
         },
       ],
       t2: [

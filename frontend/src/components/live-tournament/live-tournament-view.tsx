@@ -186,7 +186,8 @@ const LiveTournamentView = ({
   const hasRunningPoolStages = (view.poolStages || []).some(
     (stage) => stage.status !== 'COMPLETED' && (stage.pools?.length || 0) > 0
   );
-  const showBrackets = !isPoolStagesView(viewMode) && (isAdmin || !hasRunningPoolStages);
+  const showBrackets = !isPoolStagesView(viewMode)
+    && (isAdmin || viewMode === 'brackets' || !hasRunningPoolStages);
 
   const queueProperties = {
     t,

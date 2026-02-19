@@ -15,7 +15,7 @@ module.exports = {
   rules: {
     complexity: ['warn', 15],
     'max-depth': ['warn', 4],
-    'max-lines': ['warn', 400],
+    'max-lines': ['warn', 500],
     'max-lines-per-function': ['warn', 120],
     'max-params': ['warn', 5],
     'max-statements': ['warn', 30],

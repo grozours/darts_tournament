@@ -167,11 +167,11 @@ const resolveErrorContext = (error: Error | AppError | ZodError): ErrorContext =
 };
 
 // Error handler middleware per constitution requirements
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (
   error: Error | AppError | ZodError,
   request: Request,
   response: Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction
 ): void => {
   const { statusCode, message, code, details } = resolveErrorContext(error);

@@ -92,6 +92,7 @@ function LiveTournament() {
     tournamentId,
     isAggregateView,
     getStatusLabel,
+    liveViews,
     loading,
     error,
     reloadLiveViews,
@@ -148,6 +149,23 @@ function LiveTournament() {
     void reloadLiveViews();
   };
 
+  const debugEnabled = (() => {
+    if (!globalThis.window) return false;
+    const parameters = new URLSearchParams(globalThis.window.location.search);
+    return parameters.get('debug') === '1';
+  })();
+
+  const debugPanel = debugEnabled ? (
+    <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-100">
+      <div className="font-semibold">Live view debug</div>
+      <div>viewMode: {viewMode ?? 'none'} | viewStatus: {viewStatus ?? 'none'} | tournamentId: {tournamentId ?? 'none'}</div>
+      <div>isAggregateView: {String(isAggregateView)} | loading: {String(loading)} | error: {error ?? 'none'}</div>
+      <div>liveViews: {liveViews.length} | visible: {visibleLiveViews.length} | displayed: {displayedLiveViews.length}</div>
+      <div>selectedLive: {selectedLiveTournamentId} | selectedPoolStages: {selectedPoolStagesTournamentId || 'none'}</div>
+      <div>authEnabled: {String(authEnabled)} | isAuthenticated: {String(isAuthenticated)} | isAdmin: {String(isAdmin)}</div>
+    </div>
+  ) : null;
+
   const gateContent = LiveTournamentGate({
     authLoading,
     authEnabled,
@@ -168,9 +186,14 @@ function LiveTournament() {
   if (displayedLiveViews.length === 0) {
     if (isAggregateView && !loading && !error) {
       const emptyCopy = resolveEmptyLiveCopy(viewMode, t);
-      return <LiveTournamentEmptyState copy={emptyCopy} />;
+      return (
+        <div className="space-y-6">
+          {debugPanel}
+          <LiveTournamentEmptyState copy={emptyCopy} />
+        </div>
+      );
     }
-    return;
+    return debugPanel || null;
   }
 
   const commonViewProperties = {
@@ -222,6 +245,7 @@ function LiveTournament() {
 
   return (
     <div className="space-y-12">
+      {debugPanel}
       <LiveTournamentFilters
         t={t}
         viewMode={viewMode}

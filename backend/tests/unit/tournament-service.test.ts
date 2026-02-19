@@ -814,7 +814,7 @@ describe('TournamentService core logic', () => {
       id: 't-24',
       status: TournamentStatus.LIVE,
       targets: [
-        { id: 'target-1', status: TargetStatus.IN_USE, currentMatchId: null },
+        { id: 'target-1', status: TargetStatus.IN_USE, currentMatchId: undefined },
         { id: 'target-2', status: TargetStatus.IN_USE, currentMatchId: 'm-2' },
       ],
       poolStages: [],
