@@ -40,10 +40,13 @@ const fetchViewsForStatus = async (
   const filteredTournaments = tournaments.filter((t: { status?: string }) =>
     (t.status ?? '').toUpperCase() === statusParameter
   );
-  const views = await Promise.all(
+  const results = await Promise.allSettled(
     filteredTournaments.map((t: { id: string }) => fetchTournamentLiveView(t.id, token))
   );
-  return views as LiveViewData[];
+  const views = results
+    .filter((result): result is PromiseFulfilledResult<unknown> => result.status === 'fulfilled')
+    .map((result) => result.value as LiveViewData);
+  return views;
 };
 
 const useLiveTournamentLoaders = ({
