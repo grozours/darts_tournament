@@ -120,6 +120,48 @@ export const createTournamentModelMatches = (prisma: PrismaClient) => ({
     }
   },
 
+  resetMatchToScheduled: async (matchId: string, targetId?: string | null, completedAt?: Date) => {
+    try {
+      const targetUpdate = targetId
+        ? [
+            prisma.target.update({
+              where: { id: targetId },
+              data: {
+                status: TargetStatus.AVAILABLE,
+                // eslint-disable-next-line unicorn/no-null
+                currentMatchId: null,
+                lastUsedAt: completedAt ?? new Date(),
+              },
+            }),
+          ]
+        : [];
+
+      return await prisma.$transaction([
+        prisma.match.update({
+          where: { id: matchId },
+          data: {
+            status: MatchStatus.SCHEDULED,
+            // eslint-disable-next-line unicorn/no-null
+            targetId: null,
+            // eslint-disable-next-line unicorn/no-null
+            startedAt: null,
+            // eslint-disable-next-line unicorn/no-null
+            completedAt: null,
+            // eslint-disable-next-line unicorn/no-null
+            winnerId: null,
+          },
+        }),
+        ...targetUpdate,
+      ]);
+    } catch (error) {
+      logModelError('resetMatchToScheduled', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
+        throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+      }
+      throw new AppError('Failed to reset match', 500, 'MATCH_RESET_FAILED');
+    }
+  },
+
   setTargetAvailable: async (targetId: string, completedAt?: Date) => {
     try {
       return await prisma.target.update({

@@ -10,6 +10,7 @@ type UseLiveTournamentGlobalQueueProperties = {
   displayedLiveViews: LiveViewData[];
   selectedLiveTournamentId: string;
   visibleLiveViewsCount: number;
+  allowEmptyPools?: boolean;
 };
 
 type LiveTournamentGlobalQueueResult = {
@@ -23,6 +24,7 @@ const useLiveTournamentGlobalQueue = ({
   displayedLiveViews,
   selectedLiveTournamentId,
   visibleLiveViewsCount,
+  allowEmptyPools = false,
 }: UseLiveTournamentGlobalQueueProperties): LiveTournamentGlobalQueueResult => {
   const showGlobalQueue = viewMode === 'live'
     && selectedLiveTournamentId === 'ALL'
@@ -34,9 +36,9 @@ const useLiveTournamentGlobalQueue = ({
     }
     const sortedViews = [...displayedLiveViews].toSorted((a, b) => a.name.localeCompare(b.name));
     return sortedViews.flatMap((view) =>
-      buildMatchQueue(view, filterPoolStagesForView(viewMode, viewStatus, view.poolStages))
+      buildMatchQueue(view, filterPoolStagesForView(viewMode, viewStatus, view.poolStages, false, allowEmptyPools))
     );
-  }, [displayedLiveViews, showGlobalQueue, viewMode, viewStatus]);
+  }, [displayedLiveViews, showGlobalQueue, viewMode, viewStatus, allowEmptyPools]);
 
   return { showGlobalQueue, globalQueue };
 };

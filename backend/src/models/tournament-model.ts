@@ -102,6 +102,7 @@ export class TournamentModel {
   public updateMatchStatus!: TournamentModelMatchHandlers['updateMatchStatus'];
   public startMatchWithTarget!: TournamentModelMatchHandlers['startMatchWithTarget'];
   public finishMatchAndReleaseTarget!: TournamentModelMatchHandlers['finishMatchAndReleaseTarget'];
+  public resetMatchToScheduled!: TournamentModelMatchHandlers['resetMatchToScheduled'];
   public setTargetAvailable!: TournamentModelMatchHandlers['setTargetAvailable'];
   public getMatchWithPlayerMatches!: TournamentModelMatchHandlers['getMatchWithPlayerMatches'];
   public getMatchDetailsForNotification!: TournamentModelMatchHandlers['getMatchDetailsForNotification'];

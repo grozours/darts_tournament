@@ -24,18 +24,22 @@ export const isPoolStagesView = (viewMode: LiveViewMode) => viewMode === 'pool-s
 
 export const isBracketsView = (viewMode: LiveViewMode) => viewMode === 'brackets';
 
-export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewStatus, canViewEdition = false) => {
+export const hasActivePoolStages = (
+  view: LiveViewLike,
+  viewStatus?: LiveViewStatus,
+  canViewEdition = false,
+  allowEmptyPools = false
+) => {
   const allowedStatuses = viewStatus === 'FINISHED'
     ? new Set(['COMPLETED'])
-    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
-  if (canViewEdition && viewStatus !== 'FINISHED') {
-    allowedStatuses.add('EDITION');
-  }
+    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'EDITION']);
   return (view.poolStages || []).some(
     (stage) => {
       if (!allowedStatuses.has(stage.status ?? '')) return false;
       const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
-      return poolCount > 0;
+      if (poolCount <= 0) return false;
+      if (allowEmptyPools) return true;
+      return (stage.pools || []).some((pool) => (pool.assignments?.length ?? 0) > 0);
     }
   );
 };
@@ -63,13 +67,15 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
   viewMode: LiveViewMode,
   views: T[],
   viewStatus?: LiveViewStatus,
-  canViewEditionByViewId?: (viewId: string) => boolean
+  canViewEditionByViewId?: (viewId: string) => boolean,
+  allowEmptyPoolsByViewId?: (viewId: string) => boolean
 ) => {
   if (isPoolStagesView(viewMode)) {
     return views.filter((view) => hasActivePoolStages(
       view,
       viewStatus,
-      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false
+      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false,
+      allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false
     ));
   }
   if (isBracketsView(viewMode)) {
@@ -80,7 +86,12 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
     ));
   }
   if (viewMode === 'live') {
-    return views;
+    return views.filter((view) => {
+      const canViewEdition = canViewEditionByViewId ? canViewEditionByViewId(view.id) : false;
+      const allowEmptyPools = allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false;
+      return hasActivePoolStages(view, viewStatus, canViewEdition, allowEmptyPools)
+        || hasActiveBrackets(view, viewStatus, canViewEdition);
+    });
   }
   return views;
 };

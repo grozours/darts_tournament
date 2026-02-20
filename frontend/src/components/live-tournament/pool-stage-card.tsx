@@ -98,6 +98,7 @@ const PoolStageCard = ({
   stagePlayersPerPoolDrafts,
 }: PoolStageCardProperties) => {
   const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
+  const [showCompletedMatchesByPool, setShowCompletedMatchesByPool] = useState<Record<string, boolean>>({});
   const [activePoolId, setActivePoolId] = useState(stage.pools?.[0]?.id ?? '');
   const pools = useMemo(() => stage.pools ?? [], [stage.pools]);
   const manualSelectionReference = useRef(false);
@@ -116,6 +117,10 @@ const PoolStageCard = ({
   useEffect(() => {
     manualSelectionReference.current = false;
   }, [preferredPlayerId, stage.id]);
+
+  useEffect(() => {
+    setShowCompletedMatchesByPool({});
+  }, [stage.id]);
 
   useEffect(() => {
     if (!playerPoolId || manualSelectionReference.current) return;
@@ -142,6 +147,13 @@ const PoolStageCard = ({
   const handleSelectPool = (poolId: string) => {
     manualSelectionReference.current = true;
     setActivePoolId(poolId);
+  };
+
+  const toggleCompletedMatches = (poolId: string) => {
+    setShowCompletedMatchesByPool((current) => ({
+      ...current,
+      [poolId]: !(current[poolId] ?? false),
+    }));
   };
 
   const renderStageControls = (stageTournamentId: string) => {
@@ -262,32 +274,46 @@ const PoolStageCard = ({
 
   const renderPoolLeaderboard = (pool: LiveViewPool) => {
     const leaderboard = buildPoolLeaderboard(pool);
-    if (leaderboard.length === 0) {
-      return <p className="mt-2 text-xs text-slate-400">{t('live.noStandings')}</p>;
-    }
+    const hasCompletedMatches = (pool.matches || []).some((match) => match.status === 'COMPLETED');
+    const showCompletedMatches = showCompletedMatchesByPool[pool.id] ?? false;
 
     return (
       <div className="mt-2 overflow-hidden rounded-xl border border-slate-800/60">
-        <table className="min-w-full text-xs">
-          <thead className="bg-slate-900/60 text-slate-400">
-            <tr>
-              <th className="px-2 py-2 text-center font-semibold">{t('live.position')}</th>
-              <th className="px-3 py-2 text-left font-semibold">{t('common.player')}</th>
-              <th className="px-3 py-2 text-right font-semibold">{t('live.legsWon')}</th>
-              <th className="px-3 py-2 text-right font-semibold">{t('live.legsLost')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {leaderboard.map((row) => (
-              <tr key={row.playerId} className="text-slate-200">
-                <td className="px-2 py-2 text-center font-semibold text-slate-300">#{row.position}</td>
-                <td className="px-3 py-2">{row.name}</td>
-                <td className="px-3 py-2 text-right">{row.legsWon}</td>
-                <td className="px-3 py-2 text-right">{row.legsLost}</td>
+        {leaderboard.length === 0 ? (
+          <p className="px-3 py-3 text-xs text-slate-400">{t('live.noStandings')}</p>
+        ) : (
+          <table className="min-w-full text-xs">
+            <thead className="bg-slate-900/60 text-slate-400">
+              <tr>
+                <th className="px-2 py-2 text-center font-semibold">{t('live.position')}</th>
+                <th className="px-3 py-2 text-left font-semibold">{t('common.player')}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t('live.legsWon')}</th>
+                <th className="px-3 py-2 text-right font-semibold">{t('live.legsLost')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {leaderboard.map((row) => (
+                <tr key={row.playerId} className="text-slate-200">
+                  <td className="px-2 py-2 text-center font-semibold text-slate-300">#{row.position}</td>
+                  <td className="px-3 py-2">{row.name}</td>
+                  <td className="px-3 py-2 text-right">{row.legsWon}</td>
+                  <td className="px-3 py-2 text-right">{row.legsLost}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {hasCompletedMatches && (
+          <div className="flex justify-end border-t border-slate-800/60 bg-slate-950/40 px-2 py-2">
+            <button
+              type="button"
+              onClick={() => toggleCompletedMatches(pool.id)}
+              className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-200 hover:border-slate-500"
+            >
+              {showCompletedMatches ? t('live.hideCompletedMatches') : t('live.showCompletedMatches')}
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -404,13 +430,21 @@ const PoolStageCard = ({
   };
 
   const renderPoolMatches = (matchTournamentId: string, pool: LiveViewPool) => {
-    if (!pool.matches || pool.matches.length === 0) {
+    const matches = pool.matches || [];
+    if (matches.length === 0) {
+      return <p className="mt-2 text-xs text-slate-400">{t('live.noMatches')}</p>;
+    }
+    const showCompletedMatches = showCompletedMatchesByPool[pool.id] ?? false;
+    const visibleMatches = showCompletedMatches
+      ? matches
+      : matches.filter((match) => match.status !== 'COMPLETED');
+    if (visibleMatches.length === 0) {
       return <p className="mt-2 text-xs text-slate-400">{t('live.noMatches')}</p>;
     }
 
     return (
       <div className="mt-2 space-y-2">
-        {pool.matches.map((match) => (
+        {visibleMatches.map((match) => (
           <div key={match.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-slate-200">Match {match.matchNumber} · Round {match.roundNumber}</span>

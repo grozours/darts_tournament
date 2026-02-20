@@ -75,7 +75,7 @@ const useTargetsViewActions = ({
     setError(undefined);
     try {
       const token = await getSafeAccessToken();
-      await updateMatchStatus(matchTournament.tournamentId, match.id, 'CANCELLED', undefined, token);
+      await updateMatchStatus(matchTournament.tournamentId, match.id, 'SCHEDULED', undefined, token);
       await loadTargets();
     } catch (error_) {
       console.error('Error cancelling match:', error_);

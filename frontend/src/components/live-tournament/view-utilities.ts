@@ -12,22 +12,22 @@ export const filterPoolStagesForView = (
   viewMode: LiveViewMode,
   viewStatus: LiveViewStatus,
   poolStages?: LiveViewPoolStage[],
-  canViewEdition = false
+  canViewEdition = false,
+  allowEmptyPools = false
 ) => {
   const stages = poolStages || [];
-  if (!isPoolStagesView(viewMode)) {
+  if (!isPoolStagesView(viewMode) && viewMode !== 'live') {
     return stages;
   }
   const allowedStatuses = viewStatus === 'FINISHED'
     ? new Set(['COMPLETED'])
-    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']);
-  if (viewStatus !== 'FINISHED' && canViewEdition) {
-    allowedStatuses.add('EDITION');
-  }
+    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'EDITION']);
   return stages.filter((stage) => {
     if (!allowedStatuses.has(stage.status)) return false;
     const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
-    return poolCount > 0;
+    if (poolCount <= 0) return false;
+    if (allowEmptyPools) return true;
+    return (stage.pools || []).some((pool) => (pool.assignments?.length ?? 0) > 0);
   });
 };
 
@@ -41,10 +41,12 @@ export const filterBracketsForView = (
     return bracketList;
   }
   if (viewStatus !== 'FINISHED') {
-    return bracketList;
+    return bracketList.filter((bracket) => (bracket.entries?.length ?? 0) > 0);
   }
   return bracketList.filter(
-    (bracket) => bracket.status === 'COMPLETED' && (bracket.matches?.length || 0) > 0
+    (bracket) => bracket.status === 'COMPLETED'
+      && (bracket.matches?.length || 0) > 0
+      && (bracket.entries?.length ?? 0) > 0
   );
 };
 

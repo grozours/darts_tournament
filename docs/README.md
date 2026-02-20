@@ -14,6 +14,51 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 
 ---
 
+## 📄 Markdown Files Summary
+
+### Root
+- [README.md](../README.md)
+- [README.fr.md](../README.fr.md)
+- [LICENSE](../LICENSE)
+
+### Docs
+- [docs/ADMIN_GUIDE.fr.md](./ADMIN_GUIDE.fr.md)
+- [docs/PLAYER_GUIDE.fr.md](./PLAYER_GUIDE.fr.md)
+- [docs/COMMANDS.md](./COMMANDS.md)
+- [docs/COMMANDS.fr.md](./COMMANDS.fr.md)
+- [docs/DEPLOYMENT.md](./DEPLOYMENT.md)
+- [docs/DEPLOYMENT.fr.md](./DEPLOYMENT.fr.md)
+- [docs/FRONTEND.md](./FRONTEND.md)
+- [docs/FRONTEND.fr.md](./FRONTEND.fr.md)
+- [docs/ARCHITECTURE.md](./ARCHITECTURE.md)
+- [docs/ARCHITECTURE.fr.md](./ARCHITECTURE.fr.md)
+- [docs/API.md](./API.md)
+- [docs/API.fr.md](./API.fr.md)
+- [docs/TESTING.md](./TESTING.md)
+- [docs/TESTING.fr.md](./TESTING.fr.md)
+- [docs/ADMIN_SETUP.md](./ADMIN_SETUP.md)
+- [docs/ADMIN_SETUP.fr.md](./ADMIN_SETUP.fr.md)
+- [docs/AUTH0_EMAIL_SETUP.md](./AUTH0_EMAIL_SETUP.md)
+- [docs/AUTH0_EMAIL_SETUP.fr.md](./AUTH0_EMAIL_SETUP.fr.md)
+- [docs/README.md](./README.md)
+- [docs/README.fr.md](./README.fr.md)
+
+### Specs
+- [specs/001-tournament-manager/spec.md](../specs/001-tournament-manager/spec.md)
+- [specs/001-tournament-manager/spec.fr.md](../specs/001-tournament-manager/spec.fr.md)
+- [specs/001-tournament-manager/plan.md](../specs/001-tournament-manager/plan.md)
+- [specs/001-tournament-manager/plan.fr.md](../specs/001-tournament-manager/plan.fr.md)
+- [specs/001-tournament-manager/quickstart.md](../specs/001-tournament-manager/quickstart.md)
+- [specs/001-tournament-manager/quickstart.fr.md](../specs/001-tournament-manager/quickstart.fr.md)
+- [specs/001-tournament-manager/data-model.md](../specs/001-tournament-manager/data-model.md)
+- [specs/001-tournament-manager/data-model.fr.md](../specs/001-tournament-manager/data-model.fr.md)
+- [specs/001-tournament-manager/research.md](../specs/001-tournament-manager/research.md)
+- [specs/001-tournament-manager/research.fr.md](../specs/001-tournament-manager/research.fr.md)
+- [specs/001-tournament-manager/tasks.md](../specs/001-tournament-manager/tasks.md)
+- [specs/001-tournament-manager/tasks.fr.md](../specs/001-tournament-manager/tasks.fr.md)
+
+---
+
 ## 📖 Core Documentation
 
 ### For Developers

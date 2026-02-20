@@ -5,6 +5,7 @@ Référence complète de tous les scripts et commandes du Gestionnaire de Tourno
 ## Table des matières
 
 - [Gestion des services (restart.sh)](#gestion-des-services-restartsh)
+- [Scripts bash (scripts/)](#scripts-bash-scripts)
 - [Commandes base de données](#commandes-base-de-données)
 - [Commandes de développement](#commandes-de-développement)
 - [Script d’installation (install.sh)](#script-dinstallation-installsh)
@@ -88,6 +89,39 @@ Script principal pour gérer backend et frontend. Situé à la racine.
 |---------|------|-----|
 | Backend | 3000 | http://localhost:3000 |
 | Frontend | 5173 | http://localhost:5173 |
+
+---
+
+## Scripts bash (`scripts/`)
+
+Scripts utilitaires pour CI, lint, tests et seed. Lancer depuis la racine du projet.
+
+### Liste rapide
+
+| Script | Description |
+|--------|-------------|
+| `scripts/autofill_players.sh` | Remplit des joueurs de démo et active un tournoi |
+| `scripts/ci_full.sh` | Lance lint, tests, e2e et Sonar si token dispo |
+| `scripts/lint_all.sh` | Lint + typecheck frontend et backend |
+| `scripts/lint_backend.sh` | Lint + typecheck backend (+ Sonar) |
+| `scripts/lint_frontend.sh` | Lint + typecheck frontend (+ Sonar) |
+| `scripts/non_regression.sh` | Lance tests backend + frontend |
+| `scripts/redeploy_seed.sh` | Reboot stack, migrations, seed de démo |
+| `scripts/sonar_scan.sh` | Scan SonarQube (SONAR_TOKEN requis) |
+| `scripts/verify_nav_links.sh` | Vérifie les liens du menu principal |
+
+### Exemples
+
+```bash
+# Remplir des joueurs de démo
+./scripts/autofill_players.sh
+
+# Lint complet
+./scripts/lint_all.sh
+
+# Suite de non-regression
+./scripts/non_regression.sh
+```
 
 ---
 

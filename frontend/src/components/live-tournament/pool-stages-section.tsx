@@ -70,19 +70,20 @@ const PoolStagesSection = ({
       <h3 className="text-lg font-semibold text-white">{t('live.poolStages')}</h3>
       <div className="space-y-6">
         {stages.map((stage) => (
-          <PoolStageCard
-            key={stage.id}
-            t={t}
-            tournamentId={tournamentId}
-            tournamentStatus={tournamentStatus}
-            doubleStageEnabled={doubleStageEnabled}
-            stage={stage}
-            isAdmin={isAdmin}
-            {...(playerIdByTournament[tournamentId]
-              ? { preferredPlayerId: playerIdByTournament[tournamentId] }
-              : {})}
-            {...stageProperties}
-          />
+          <div key={stage.id} id={`pool-stage-${tournamentId}-${stage.id}`}>
+            <PoolStageCard
+              t={t}
+              tournamentId={tournamentId}
+              tournamentStatus={tournamentStatus}
+              doubleStageEnabled={doubleStageEnabled}
+              stage={stage}
+              isAdmin={isAdmin}
+              {...(playerIdByTournament[tournamentId]
+                ? { preferredPlayerId: playerIdByTournament[tournamentId] }
+                : {})}
+              {...stageProperties}
+            />
+          </div>
         ))}
       </div>
     </div>

@@ -8,6 +8,7 @@ type UseLiveTournamentSelectionProperties = {
   tournamentId?: string | undefined;
   liveViews: LiveViewData[];
   canViewEditionByViewId?: (viewId: string) => boolean;
+  allowEmptyPoolsByViewId?: (viewId: string) => boolean;
 };
 
 type LiveTournamentSelectionResult = {
@@ -25,13 +26,14 @@ const useLiveTournamentSelection = ({
   tournamentId,
   liveViews,
   canViewEditionByViewId,
+  allowEmptyPoolsByViewId,
 }: UseLiveTournamentSelectionProperties): LiveTournamentSelectionResult => {
   const [selectedLiveTournamentId, setSelectedLiveTournamentId] = useState('ALL');
   const [selectedPoolStagesTournamentId, setSelectedPoolStagesTournamentId] = useState('');
 
   const visibleLiveViews = (viewMode === 'pool-stages' && tournamentId)
     ? liveViews
-    : getVisibleLiveViews(viewMode, liveViews, viewStatus, canViewEditionByViewId);
+    : getVisibleLiveViews(viewMode, liveViews, viewStatus, canViewEditionByViewId, allowEmptyPoolsByViewId);
 
   useEffect(() => {
     if (viewMode === 'live') {

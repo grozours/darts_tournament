@@ -97,6 +97,18 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
   };
 
+  const resetMatchToScheduled = async (
+    matchId: string,
+    match: NonNullable<Awaited<ReturnType<TournamentModel['getMatchById']>>>,
+    now: Date
+  ): Promise<void> => {
+    if (match.targetId) {
+      await tournamentModel.resetMatchToScheduled(matchId, match.targetId, now);
+      return;
+    }
+    await tournamentModel.resetMatchToScheduled(matchId, undefined, now);
+  };
+
   const updateMatchStatus = async (
     tournamentId: string,
     matchId: string,
@@ -137,6 +149,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
 
     if (status === MatchStatus.COMPLETED || status === MatchStatus.CANCELLED) {
       await finalizeMatchStatus(matchId, match, status, now);
+      return;
+    }
+
+    if (status === MatchStatus.SCHEDULED) {
+      await resetMatchToScheduled(matchId, match, now);
       return;
     }
 
@@ -196,7 +213,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
   const ensureValidMatchTransition = (currentStatus: MatchStatus, nextStatus: MatchStatus) => {
     const validTransitions: Record<MatchStatus, MatchStatus[]> = {
       [MatchStatus.SCHEDULED]: [MatchStatus.IN_PROGRESS, MatchStatus.CANCELLED],
-      [MatchStatus.IN_PROGRESS]: [MatchStatus.COMPLETED, MatchStatus.CANCELLED],
+      [MatchStatus.IN_PROGRESS]: [MatchStatus.COMPLETED, MatchStatus.CANCELLED, MatchStatus.SCHEDULED],
       [MatchStatus.COMPLETED]: [],
       [MatchStatus.CANCELLED]: [],
     };
@@ -232,6 +249,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
     return targetToUse;
   };
+
 
   const ensureTargetExistsForTournament = (
     target: Awaited<ReturnType<TournamentModel['getTargetById']>>,

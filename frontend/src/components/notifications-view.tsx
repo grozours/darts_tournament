@@ -55,10 +55,15 @@ type TournamentPlayersResponse = {
   }>;
 };
 
-const formatTargetLabel = (payload: MatchStartedPayload) => {
+const formatTargetLabel = (payload: MatchStartedPayload, t: (key: string) => string) => {
   const target = payload.target;
   if (!target) return '';
-  return target.targetCode || target.name || `#${target.targetNumber}`;
+  const rawLabel = target.targetCode || target.name || `#${target.targetNumber}`;
+  const match = /^target\s*(\d+)$/i.exec(rawLabel.trim());
+  if (match) {
+    return `${t('targets.target')} ${match[1]}`;
+  }
+  return rawLabel;
 };
 
 const getPlayerDisplayName = (player: MatchStartedPayload['players'][number]) =>
@@ -207,7 +212,7 @@ function NotificationsView() {
     if (permissionReference.current !== 'granted') {
       return;
     }
-    const targetLabel = formatTargetLabel(payload);
+    const targetLabel = formatTargetLabel(payload, t);
     const matchLabel = buildMatchLabel(payload);
     const title = `${t('notifications.calledToTarget')} ${targetLabel}`.trim();
     const body = `${payload.tournamentName} · ${matchLabel}`;
@@ -476,7 +481,7 @@ function NotificationsView() {
         <div className="space-y-4">
           {notifications.map((item) => {
             const label = buildMatchLabel(item.payload);
-            const targetLabel = formatTargetLabel(item.payload);
+            const targetLabel = formatTargetLabel(item.payload, t);
             const players = item.payload.players
               .map((player) => getPlayerDisplayName(player))
               .filter(Boolean);

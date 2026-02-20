@@ -6,6 +6,7 @@ type LiveTournamentParameters = {
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
   tournamentId?: string | undefined;
+  bracketId?: string | undefined;
   isAggregateView: boolean;
 };
 
@@ -25,6 +26,12 @@ const useLiveTournamentParameters = (): LiveTournamentParameters => {
   const tournamentId = useMemo<string | undefined>(() => {
     if (globalThis.window === undefined) return;
     const value = new URLSearchParams(globalThis.window.location.search).get('tournamentId');
+    return value ?? undefined;
+  }, []);
+
+  const bracketId = useMemo<string | undefined>(() => {
+    if (globalThis.window === undefined) return;
+    const value = new URLSearchParams(globalThis.window.location.search).get('bracketId');
     return value ?? undefined;
   }, []);
 
@@ -48,6 +55,7 @@ const useLiveTournamentParameters = (): LiveTournamentParameters => {
     viewMode: resolvedViewMode,
     viewStatus,
     tournamentId,
+    bracketId,
     isAggregateView,
   };
 };

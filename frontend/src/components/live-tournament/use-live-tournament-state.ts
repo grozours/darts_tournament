@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useOptionalAuth } from '../../auth/optional-auth';
 import { useAdminStatus } from '../../auth/use-admin-status';
 import { useI18n } from '../../i18n';
@@ -37,6 +38,7 @@ type LiveTournamentState = {
   viewMode: LiveViewMode;
   viewStatus: string | undefined;
   tournamentId: string | undefined;
+  bracketId: string | undefined;
   isAggregateView: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   liveViews: LiveViewData[];
@@ -109,7 +111,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
   } = useOptionalAuth();
   const { isAdmin } = useAdminStatus();
   const { getStatusLabel } = useLiveTournamentStatusLabels(t);
-  const { viewMode, viewStatus, tournamentId, isAggregateView } = useLiveTournamentParameters();
+  const { viewMode, viewStatus, tournamentId, bracketId, isAggregateView } = useLiveTournamentParameters();
   const { getSafeAccessToken } = useLiveTournamentToken({ authEnabled, getAccessTokenSilently });
   const {
     liveViews,
@@ -131,6 +133,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
       getSafeAccessToken,
     });
   const canViewEditionByViewId = (viewId: string) => isAdmin || Boolean(playerIdByTournament[viewId]);
+  const allowEmptyPoolsByViewId = () => isAdmin;
   const {
     visibleLiveViews,
     displayedLiveViews,
@@ -144,6 +147,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     tournamentId,
     liveViews,
     canViewEditionByViewId,
+    allowEmptyPoolsByViewId,
   });
   const { showGlobalQueue, globalQueue } = useLiveTournamentGlobalQueue({
     viewMode,
@@ -151,6 +155,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     displayedLiveViews,
     selectedLiveTournamentId,
     visibleLiveViewsCount: visibleLiveViews.length,
+    allowEmptyPools: isAdmin,
   });
   const {
     availableTargetsByTournament,
@@ -213,6 +218,11 @@ const useLiveTournamentState = (): LiveTournamentState => {
     reloadLiveViews,
     setError,
   });
+
+  useEffect(() => {
+    if (!tournamentId || !bracketId) return;
+    handleSelectBracket(tournamentId, bracketId);
+  }, [bracketId, handleSelectBracket, tournamentId]);
   const { isPoolStagesReadonly, isBracketsReadonly } = useLiveTournamentReadonly({ isAdmin, viewMode });
 
   useLiveTournamentRefresh({ authEnabled, isAuthenticated, reloadLiveViews });
@@ -227,6 +237,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     viewMode,
     viewStatus,
     tournamentId,
+    bracketId,
     isAggregateView,
     getStatusLabel,
     liveViews,
