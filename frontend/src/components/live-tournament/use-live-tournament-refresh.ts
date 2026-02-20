@@ -12,10 +12,8 @@ const useLiveTournamentRefresh = ({
   reloadLiveViews,
 }: UseLiveTournamentRefreshProperties) => {
   useEffect(() => {
-    if (!authEnabled || isAuthenticated) {
-      void reloadLiveViews();
-    }
-  }, [authEnabled, isAuthenticated, reloadLiveViews]);
+    void reloadLiveViews();
+  }, [reloadLiveViews]);
 
   useEffect(() => {
     const intervalId = globalThis.setInterval(() => {

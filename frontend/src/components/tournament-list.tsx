@@ -3,7 +3,14 @@ import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import SignInPanel from '../auth/sign-in-panel';
 import { useI18n } from '../i18n';
-import { updateTournamentStatus } from '../services/tournament-service';
+import { BracketType, TournamentFormat } from '@shared/types';
+import {
+  createBracket,
+  createPoolStage,
+  deleteBracket,
+  deletePoolStage,
+  updateTournamentStatus,
+} from '../services/tournament-service';
 import TournamentEditPanel from './tournament-list/tournament-edit-panel';
 import PoolStageAssignmentsModal from './tournament-list/pool-stage-assignments-modal';
 import TournamentListGroups from './tournament-list/tournament-list-groups';
@@ -130,6 +137,7 @@ function TournamentList() { // NOSONAR
     setLogoFile,
     setIsUploadingLogo,
   } = useTournamentEditState();
+  const [isApplyingPreset, setIsApplyingPreset] = useState(false);
   const refreshTournamentDetails = useCallback(async (tournamentId: string) => {
     try {
       const token = await getSafeAccessToken();
@@ -256,6 +264,117 @@ function TournamentList() { // NOSONAR
     setLogoFile,
     setIsUploadingLogo,
   });
+  const handleApplyStructurePreset = useCallback(async (preset: 'single' | 'double') => {
+    if (!editingTournament) return;
+    if (normalizeTournamentStatus(editingTournament.status) === 'LIVE') {
+      setEditError(t('edit.quickStructureDisabledLive'));
+      return;
+    }
+    const confirmLabel = preset === 'single'
+      ? t('edit.quickStructureConfirmSingle')
+      : t('edit.quickStructureConfirmDouble');
+    if (!confirm(confirmLabel)) return;
+
+    const totalParticipants = Number(editForm?.totalParticipants ?? editingTournament.totalParticipants ?? 0);
+    const safeParticipants = Number.isFinite(totalParticipants) && totalParticipants > 0
+      ? totalParticipants
+      : 16;
+    const poolCount = Math.max(1, Math.floor(safeParticipants / 5));
+    const stage2PoolCount = Math.max(1, Math.floor(poolCount / 2));
+    const stage3PoolCount = Math.max(1, Math.floor(poolCount / 2));
+    const template = preset === 'single'
+      ? {
+          format: TournamentFormat.SINGLE,
+          stages: [
+            {
+              stageNumber: 1,
+              name: 'Stage 1',
+              poolCount,
+              playersPerPool: 5,
+              advanceCount: 2,
+              losersAdvanceToBracket: true,
+            },
+          ],
+          brackets: [
+            { name: 'Loser Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+            { name: 'Winner Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          ],
+        }
+      : {
+          format: TournamentFormat.DOUBLE,
+          stages: [
+            {
+              stageNumber: 1,
+              name: 'Stage 1',
+              poolCount,
+              playersPerPool: 5,
+              advanceCount: 2,
+              losersAdvanceToBracket: true,
+            },
+            {
+              stageNumber: 2,
+              name: 'Stage A',
+              poolCount: stage2PoolCount,
+              playersPerPool: 5,
+              advanceCount: 2,
+              losersAdvanceToBracket: false,
+            },
+            {
+              stageNumber: 3,
+              name: 'Stage B',
+              poolCount: stage3PoolCount,
+              playersPerPool: 5,
+              advanceCount: 2,
+              losersAdvanceToBracket: false,
+            },
+          ],
+          brackets: [
+            { name: 'A Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+            { name: 'B Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+            { name: 'C Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          ],
+        };
+
+    setIsApplyingPreset(true);
+    setEditError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      for (const bracket of brackets) {
+        await deleteBracket(editingTournament.id, bracket.id, token);
+      }
+      for (const stage of poolStages) {
+        await deletePoolStage(editingTournament.id, stage.id, token);
+      }
+      for (const stage of template.stages) {
+        await createPoolStage(editingTournament.id, stage, token);
+      }
+      for (const bracket of template.brackets) {
+        await createBracket(editingTournament.id, bracket, token);
+      }
+      if (editForm) {
+        setEditForm({
+          ...editForm,
+          format: template.format,
+          doubleStageEnabled: template.format === TournamentFormat.DOUBLE,
+        });
+      }
+      await loadPoolStages(editingTournament.id);
+      await loadBrackets(editingTournament.id);
+    } catch (error_) {
+      setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedApplyPreset'));
+    } finally {
+      setIsApplyingPreset(false);
+    }
+  }, [brackets, editForm, editingTournament, getSafeAccessToken, loadBrackets, loadPoolStages, poolStages, setEditError, setEditForm, t]);
+  const handleSaveEdit = useCallback(async () => {
+    if (isAddingPoolStage && newPoolStage.name.trim()) {
+      const created = await addPoolStage();
+      if (!created) {
+        return;
+      }
+    }
+    await saveEdit();
+  }, [addPoolStage, isAddingPoolStage, newPoolStage.name, saveEdit]);
   const {
     editingPoolStage,
     poolStagePools,
@@ -443,6 +562,13 @@ function TournamentList() { // NOSONAR
           onNewPoolStageAdvanceCountChange={handleNewPoolStageAdvanceCountChange}
           onNewPoolStageLosersAdvanceChange={handleNewPoolStageLosersAdvanceChange}
           onAddPoolStage={addPoolStage}
+          isApplyingPreset={isApplyingPreset}
+          onApplySinglePoolPreset={() => {
+            void handleApplyStructurePreset('single');
+          }}
+          onApplyDoublePoolPreset={() => {
+            void handleApplyStructurePreset('double');
+          }}
           brackets={brackets}
           bracketsError={bracketsError}
           onLoadBrackets={() => {
@@ -507,7 +633,7 @@ function TournamentList() { // NOSONAR
             void openRegistration();
           }}
           onSaveEdit={() => {
-            void saveEdit();
+            void handleSaveEdit();
           }}
         />
       )}

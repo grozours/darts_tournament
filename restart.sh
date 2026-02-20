@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Darts Tournament Manager - Service Restart Script (Docker Compose)
-# Usage: ./restart.sh [-d] [-dev] [backend|frontend|both|stop|status|logs]
+# Usage: ./restart.sh [-d] [-dev] [backend|backend+deps|frontend|both|stop|status|logs]
 
 PROJECT_ROOT="/home/tangi/darts_tournament"
 COMPOSE_CMD=()
@@ -58,11 +58,26 @@ start_backend() {
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
-    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build backend; then
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build --no-deps backend; then
         print_error "Failed to start backend"
         return 1
     fi
     print_success "Backend started"
+    print_status "Backend URL: http://localhost:$BACKEND_PORT"
+}
+
+# Function to start backend with dependencies
+start_backend_with_deps() {
+    print_status "Starting backend with dependencies..."
+    cd "$PROJECT_ROOT" || return 1
+    if [[ "$DEV_PROFILE" != "true" ]]; then
+        stop_dev_services
+    fi
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build backend postgres redis; then
+        print_error "Failed to start backend with dependencies"
+        return 1
+    fi
+    print_success "Backend and dependencies started"
     print_status "Backend URL: http://localhost:$BACKEND_PORT"
 }
 
@@ -73,7 +88,7 @@ start_frontend() {
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
-    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build frontend; then
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build --no-deps frontend; then
         print_error "Failed to start frontend"
         return 1
     fi
@@ -175,6 +190,10 @@ case "$COMMAND" in
         print_status "🔄 Restarting backend only..."
         start_backend
         ;;
+    "backend+deps")
+        print_status "🔄 Restarting backend with dependencies..."
+        start_backend_with_deps
+        ;;
     "frontend")
         print_status "🔄 Restarting frontend only..."
         start_frontend
@@ -213,6 +232,7 @@ case "$COMMAND" in
         echo ""
         echo "Commands:"
         echo "  backend     Start/restart backend only"
+        echo "  backend+deps Start/restart backend with dependencies"
         echo "  frontend    Start/restart frontend only"
         echo "  both        Start/restart both services (default)"
         echo "  stop        Stop all services"

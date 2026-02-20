@@ -21,7 +21,7 @@ type PoolStageStructureResult = {
   handlePoolStageAdvanceCountChange: (stageId: string, value: number) => void;
   handlePoolStageLosersAdvanceChange: (stageId: string, value: boolean) => void;
   handlePoolStageStatusChange: (stage: PoolStageConfig, nextStatus: string) => void;
-  addPoolStage: () => Promise<void>;
+  addPoolStage: () => Promise<boolean>;
   savePoolStage: (stage: PoolStageConfig) => Promise<void>;
   removePoolStage: (stageId: string) => Promise<void>;
   startAddPoolStage: () => void;
@@ -130,10 +130,10 @@ const usePoolStageMutations = ({
   setIsAddingPoolStage: PoolStageStateSetters['setIsAddingPoolStage'];
 }) => {
   const addPoolStage = useCallback(async () => {
-    if (!editingTournament) return;
+    if (!editingTournament) return false;
     if (!newPoolStage.name.trim()) {
       setPoolStagesError(t('edit.error.stageNameRequired'));
-      return;
+      return false;
     }
     setPoolStagesError(undefined);
     try {
@@ -142,8 +142,10 @@ const usePoolStageMutations = ({
       await loadPoolStages(editingTournament.id);
       setNewPoolStage((current) => ({ ...current, name: '' }));
       setIsAddingPoolStage(false);
+      return true;
     } catch (error_) {
       setPoolStagesError(error_ instanceof Error ? error_.message : t('edit.error.failedAddPoolStage'));
+      return false;
     }
   }, [editingTournament, getSafeAccessToken, loadPoolStages, newPoolStage, setIsAddingPoolStage, setNewPoolStage, setPoolStagesError, t]);
 

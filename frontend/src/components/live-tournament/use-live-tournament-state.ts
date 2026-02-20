@@ -63,9 +63,11 @@ type LiveTournamentState = {
   getMatchTargetLabel: (target: LiveViewMatch['target'] | undefined) => string | undefined;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   updatingMatchId: string | undefined;
+  resettingPoolId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   editingMatchId?: string | undefined;
   handleMatchStatusUpdate: (matchTournamentId: string, matchId: string, status: string, targetId?: string) => Promise<void>;
+  handleResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => Promise<void>;
   handleScoreChange: (matchKey: string, playerId: string, value: string) => void;
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
   handleEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
@@ -86,7 +88,9 @@ type LiveTournamentState = {
   handleRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   cancelEditStage: () => void;
   updatingRoundKey?: string | undefined;
+  resettingBracketId?: string | undefined;
   handleCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => Promise<void>;
+  handleResetBracketMatches: (tournamentId: string, bracketId: string) => Promise<void>;
   handleSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketByTournament: Record<string, string>;
   isPoolStagesReadonly: boolean;
@@ -159,9 +163,11 @@ const useLiveTournamentState = (): LiveTournamentState => {
   const { getMatchKey } = useLiveTournamentMatchKey();
   const {
     updatingMatchId,
+    resettingPoolId,
     matchScores,
     editingMatchId,
     handleMatchStatusUpdate,
+    handleResetPoolMatches,
     handleScoreChange,
     handleCompleteMatch,
     handleEditMatch,
@@ -197,7 +203,9 @@ const useLiveTournamentState = (): LiveTournamentState => {
   });
   const {
     updatingRoundKey,
+    resettingBracketId,
     handleCompleteBracketRound,
+    handleResetBracketMatches,
     handleSelectBracket,
     activeBracketByTournament,
   } = useLiveTournamentBracketActions({
@@ -245,9 +253,11 @@ const useLiveTournamentState = (): LiveTournamentState => {
     getMatchTargetLabel,
     getMatchKey,
     updatingMatchId,
+    resettingPoolId,
     matchScores,
     editingMatchId,
     handleMatchStatusUpdate,
+    handleResetPoolMatches,
     handleScoreChange,
     handleCompleteMatch,
     handleEditMatch,
@@ -268,7 +278,9 @@ const useLiveTournamentState = (): LiveTournamentState => {
     handleRecomputeDoubleStage,
     cancelEditStage,
     updatingRoundKey,
+    resettingBracketId,
     handleCompleteBracketRound,
+    handleResetBracketMatches,
     handleSelectBracket,
     activeBracketByTournament,
     isPoolStagesReadonly,

@@ -13,6 +13,8 @@ type LiveTournamentGateProperties = {
   authEnabled: boolean;
   isAuthenticated: boolean;
   authError?: Error | undefined;
+  viewMode?: string | undefined;
+  viewStatus?: string | undefined;
   tournamentId?: string | undefined;
   requireTournamentId: boolean;
   loading: boolean;
@@ -46,6 +48,8 @@ const LiveTournamentGate = ({
   authEnabled,
   isAuthenticated,
   authError,
+  viewMode,
+  viewStatus,
   tournamentId,
   requireTournamentId,
   loading,
@@ -53,6 +57,11 @@ const LiveTournamentGate = ({
   onRetry,
   t,
 }: LiveTournamentGateProperties): JSX.Element | undefined => {
+  const normalizedStatus = (viewStatus ?? '').toUpperCase();
+  const allowAnonymous = viewMode === 'live'
+    || viewMode === 'pool-stages'
+    || viewMode === 'brackets'
+    || normalizedStatus === 'LIVE';
   const authErrorDetails = authError ? getAuthErrorDetails(authError) : {};
   const hasRecentAuthCallback = (() => {
     if (globalThis.window === undefined) return false;
@@ -89,7 +98,7 @@ const LiveTournamentGate = ({
     );
   }
 
-  if (authEnabled && !isAuthenticated) {
+  if (authEnabled && !isAuthenticated && !allowAnonymous) {
     return (
       <div className="space-y-4">
         {hasRecentAuthCallback && (

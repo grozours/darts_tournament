@@ -16,6 +16,7 @@ type PoolStageCardProperties = {
   tournamentStatus: string;
   doubleStageEnabled: boolean;
   stage: LiveViewPoolStage;
+  isAdmin: boolean;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   getMatchTargetLabel: (target: LiveViewMatch['target'] | undefined) => string | undefined;
@@ -23,6 +24,7 @@ type PoolStageCardProperties = {
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
+  resettingPoolId: string | undefined;
   editingMatchId?: string | undefined;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
@@ -34,6 +36,7 @@ type PoolStageCardProperties = {
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
+  onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
   onEditStage: (stage: LiveViewPoolStage) => void;
   onCancelEditStage: () => void;
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
@@ -57,6 +60,7 @@ const PoolStageCard = ({
   tournamentStatus,
   doubleStageEnabled,
   stage,
+  isAdmin,
   isPoolStagesReadonly,
   getStatusLabel,
   getMatchTargetLabel,
@@ -64,6 +68,7 @@ const PoolStageCard = ({
   matchScores,
   matchTargetSelections,
   updatingMatchId,
+  resettingPoolId,
   editingMatchId,
   availableTargetsByTournament,
   getMatchKey,
@@ -75,6 +80,7 @@ const PoolStageCard = ({
   onEditMatch,
   onUpdateCompletedMatch,
   onCancelMatchEdit,
+  onResetPoolMatches,
   onEditStage,
   onCancelEditStage,
   onUpdateStage,
@@ -132,6 +138,11 @@ const PoolStageCard = ({
     }
   }, [activePoolId, pools]);
   const activePool = pools.find((pool) => pool.id === activePoolId) ?? pools[0];
+
+  const handleSelectPool = (poolId: string) => {
+    manualSelectionReference.current = true;
+    setActivePoolId(poolId);
+  };
 
   const renderStageControls = (stageTournamentId: string) => {
     if (isPoolStagesReadonly) {
@@ -486,20 +497,49 @@ const PoolStageCard = ({
               const isActive = pool.id === activePool?.id;
               const playerCount = pool.assignments?.length ?? 0;
               return (
-                <button
+                <div
                   key={pool.id}
-                  type="button"
-                  onClick={() => {
-                    manualSelectionReference.current = true;
-                    setActivePoolId(pool.id);
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleSelectPool(pool.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleSelectPool(pool.id);
+                    }
                   }}
-                  className={`group rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 ${
+                  className={`group relative rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 ${
                     isActive
                       ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_20px_45px_-30px_rgba(245,158,11,0.8)]'
                       : 'border-slate-800/70 bg-slate-950/60 hover:border-amber-500/40'
                   }`}
                   aria-pressed={isActive}
                 >
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (!globalThis.window?.confirm(t('live.resetPoolConfirm'))) {
+                          return;
+                        }
+                        onResetPoolMatches(tournamentId, stage.id, pool.id);
+                      }}
+                      disabled={resettingPoolId === pool.id}
+                      aria-label={t('live.resetPool')}
+                      title={t('live.resetPool')}
+                      className="absolute right-3 top-3 rounded-full border border-rose-500/70 bg-rose-500/10 p-1 text-rose-200 transition hover:border-rose-300 hover:bg-rose-500/20 disabled:opacity-60"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5"
+                        fill="currentColor"
+                      >
+                        <path d="M16.24 3.56a2 2 0 0 1 2.83 0l1.37 1.37a2 2 0 0 1 0 2.83l-9.9 9.9a2 2 0 0 1-1.14.56l-3.64.6a.75.75 0 0 1-.86-.86l.6-3.64a2 2 0 0 1 .56-1.14l9.9-9.9zM5 19.5c0-.41.34-.75.75-.75h12.5a.75.75 0 0 1 0 1.5H5.75A.75.75 0 0 1 5 19.5z" />
+                      </svg>
+                    </button>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Pool</p>
@@ -510,9 +550,11 @@ const PoolStageCard = ({
                         {t('live.participants')}: {playerCount}
                       </p>
                     </div>
-                    <span className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-widest text-slate-300">
-                      {getStatusLabel('pool', pool.status)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full border border-slate-700/70 px-3 py-1 text-[11px] uppercase tracking-widest text-slate-300">
+                        {getStatusLabel('pool', pool.status)}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-4 text-[11px] uppercase tracking-widest text-slate-500">
                     {t('live.leaderboard')}
@@ -535,7 +577,7 @@ const PoolStageCard = ({
                       ))
                     )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

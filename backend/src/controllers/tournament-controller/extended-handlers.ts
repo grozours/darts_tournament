@@ -49,6 +49,7 @@ type TournamentServiceLike = {
   completePoolStageWithRandomScores: (tournamentId: string, stageId: string) => Promise<void>;
   deletePoolStage: (tournamentId: string, stageId: string) => Promise<void>;
   getPoolStagePools: (tournamentId: string, stageId: string) => Promise<unknown>;
+  resetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => Promise<void>;
   updatePoolAssignments: (
     tournamentId: string,
     stageId: string,
@@ -80,6 +81,7 @@ type TournamentServiceLike = {
     bracketId: string,
     roundNumber: number
   ) => Promise<void>;
+  resetBracketMatches: (tournamentId: string, bracketId: string) => Promise<void>;
   getBrackets: (tournamentId: string) => Promise<unknown>;
   createBracket: (
     tournamentId: string,
@@ -371,6 +373,16 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     }
   },
 
+  resetPoolMatches: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, stageId, poolId } = request.params as { id: string; stageId: string; poolId: string };
+      await context.getTournamentService(request).resetPoolMatches(id, stageId, poolId);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
   updatePoolStageAssignments: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id, stageId } = request.params as { id: string; stageId: string };
@@ -434,6 +446,16 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
       await context
         .getTournamentService(request)
         .completeBracketRoundWithRandomScores(id, bracketId, roundNumber);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  resetBracketMatches: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, bracketId } = request.params as { id: string; bracketId: string };
+      await context.getTournamentService(request).resetBracketMatches(id, bracketId);
       response.status(204).send();
     } catch (error) {
       context.handleError(response, error);

@@ -42,12 +42,24 @@ const TournamentCard = ({
   >
     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-1">
-          {tournament.name}
-        </h3>
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
-        <p className="mt-1 break-all text-xs text-slate-500">ID: {tournament.id}</p>
+      <div className="flex items-start gap-3">
+        {tournament.logoUrl && (
+          <div className="h-12 w-12 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/60">
+            <img
+              src={tournament.logoUrl}
+              alt={tournament.name}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
+        <div>
+          <h3 className="mb-1 text-lg font-semibold text-white">
+            {tournament.name}
+          </h3>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
+          <p className="mt-1 break-all text-xs text-slate-500">ID: {tournament.id}</p>
+        </div>
       </div>
       <span className="w-fit rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
         {statusLabel}

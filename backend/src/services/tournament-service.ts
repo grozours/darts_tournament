@@ -53,6 +53,7 @@ export class TournamentService {
   public updateBracket!: BracketHandlers['updateBracket'];
   public deleteBracket!: BracketHandlers['deleteBracket'];
   public completeBracketRoundWithRandomScores!: BracketHandlers['completeBracketRoundWithRandomScores'];
+  public resetBracketMatches!: BracketHandlers['resetBracketMatches'];
 
   public registerPlayer!: PlayerHandlers['registerPlayer'];
   public registerPlayerDetails!: PlayerHandlers['registerPlayerDetails'];
@@ -70,6 +71,7 @@ export class TournamentService {
   public completePoolStageWithRandomScores!: PoolStageHandlers['completePoolStageWithRandomScores'];
   public deletePoolStage!: PoolStageHandlers['deletePoolStage'];
   public getPoolStagePools!: PoolStageHandlers['getPoolStagePools'];
+  public resetPoolMatches!: PoolStageHandlers['resetPoolMatches'];
   public updatePoolAssignments!: PoolStageHandlers['updatePoolAssignments'];
 
   constructor(prisma: PrismaClient, request?: Request) {

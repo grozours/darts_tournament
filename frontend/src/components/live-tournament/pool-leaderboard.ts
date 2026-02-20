@@ -2,14 +2,7 @@ import type { LiveViewMatch, LiveViewMatchPlayer, LiveViewPool, PoolLeaderboardR
 
 const getLeaderboardPlayerLabel = (player: LiveViewMatchPlayer['player']) => {
   if (!player) return '';
-  const fullName = `${player.firstName} ${player.lastName}`.trim();
-  if (player.teamName) {
-    return `${player.teamName} / ${fullName}`.trim();
-  }
-  if (player.surname) {
-    return `${player.surname} / ${fullName}`.trim();
-  }
-  return fullName;
+  return `${player.firstName} ${player.lastName}`.trim();
 };
 
 const ensureLeaderboardRow = (

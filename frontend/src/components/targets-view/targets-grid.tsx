@@ -10,11 +10,13 @@ type TargetsGridProperties = {
   matchScores: Record<string, Record<string, string>>;
   updatingMatchId: string | undefined;
   startingMatchId: string | undefined;
+  cancellingMatchId: string | undefined;
   queueItems: MatchQueueItem[];
   onQueueSelectionChange: (targetKey: string, matchId: string) => void;
   onStartMatch: (matchId: string, targetNumber: number) => void;
   onScoreChange: (matchId: string, playerId: string, value: string) => void;
   onCompleteMatch: (match: LiveViewMatch) => void;
+  onCancelMatch: (match: LiveViewMatch) => void;
 };
 
 const TargetsGrid = ({
@@ -26,11 +28,13 @@ const TargetsGrid = ({
   matchScores,
   updatingMatchId,
   startingMatchId,
+  cancellingMatchId,
   queueItems,
   onQueueSelectionChange,
   onStartMatch,
   onScoreChange,
   onCompleteMatch,
+  onCancelMatch,
 }: TargetsGridProperties) => {
   const sharedProperties = {
     t,
@@ -40,11 +44,13 @@ const TargetsGrid = ({
     matchScores,
     updatingMatchId,
     startingMatchId,
+    cancellingMatchId,
     queueItems,
     onQueueSelectionChange,
     onStartMatch,
     onScoreChange,
     onCompleteMatch,
+    onCancelMatch,
   };
 
   return (

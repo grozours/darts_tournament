@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { BracketStatus, BracketType } from '../../../../shared/src/types';
+import { BracketStatus, BracketType, MatchStatus, TargetStatus } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError } from './helpers';
 
@@ -26,6 +26,100 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     } catch (error) {
       logModelError('getMatchCountForBracket', error);
       return 0;
+    }
+  },
+
+  getBracketMatches: async (bracketId: string) => {
+    try {
+      return await prisma.match.findMany({
+        where: { bracketId },
+        select: { id: true, roundNumber: true, targetId: true },
+      });
+    } catch (error) {
+      logModelError('getBracketMatches', error);
+      throw new AppError('Failed to fetch bracket matches', 500, 'BRACKET_MATCH_FETCH_FAILED');
+    }
+  },
+
+  resetBracketMatches: async (bracketId: string): Promise<void> => {
+    try {
+      const matches = await prisma.match.findMany({
+        where: { bracketId },
+        select: { id: true, roundNumber: true, targetId: true },
+      });
+      const matchIds = matches.map((match) => match.id);
+      const roundOneMatchIds = matches
+        .filter((match) => match.roundNumber === 1)
+        .map((match) => match.id);
+      const laterMatchIds = matches
+        .filter((match) => (match.roundNumber ?? 1) > 1)
+        .map((match) => match.id);
+      const targetIds = matches
+        .map((match) => match.targetId)
+        .filter((targetId): targetId is string => Boolean(targetId));
+
+      await prisma.$transaction([
+        ...(targetIds.length > 0
+          ? [
+            prisma.target.updateMany({
+              where: { id: { in: targetIds } },
+              data: {
+                status: TargetStatus.AVAILABLE,
+                // eslint-disable-next-line unicorn/no-null
+                currentMatchId: null,
+              },
+            }),
+          ]
+          : []),
+        ...(matchIds.length > 0
+          ? [
+            prisma.score.deleteMany({
+              where: { matchId: { in: matchIds } },
+            }),
+          ]
+          : []),
+        ...(roundOneMatchIds.length > 0
+          ? [
+            prisma.playerMatch.updateMany({
+              where: { matchId: { in: roundOneMatchIds } },
+              data: {
+                scoreTotal: 0,
+                legsWon: 0,
+                setsWon: 0,
+                isWinner: false,
+              },
+            }),
+          ]
+          : []),
+        ...(laterMatchIds.length > 0
+          ? [
+            prisma.playerMatch.deleteMany({
+              where: { matchId: { in: laterMatchIds } },
+            }),
+          ]
+          : []),
+        ...(matchIds.length > 0
+          ? [
+            prisma.match.updateMany({
+              where: { id: { in: matchIds } },
+              data: {
+                status: MatchStatus.SCHEDULED,
+                // eslint-disable-next-line unicorn/no-null
+                startedAt: null,
+                // eslint-disable-next-line unicorn/no-null
+                completedAt: null,
+                // eslint-disable-next-line unicorn/no-null
+                winnerId: null,
+                // eslint-disable-next-line unicorn/no-null
+                targetId: null,
+              },
+            }),
+          ]
+          : []),
+      ]);
+    } catch (error) {
+      logModelError('resetBracketMatches', error);
+      throw new AppError('Failed to reset bracket matches', 500, 'BRACKET_MATCH_RESET_FAILED');
     }
   },
 

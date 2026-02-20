@@ -40,8 +40,10 @@ type LiveTournamentViewProperties = {
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
+  resettingPoolId: string | undefined;
   editingMatchId?: string | undefined;
   updatingRoundKey?: string | undefined;
+  resettingBracketId?: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   getTargetIdForSelection: (matchTournamentId: string, targetNumberValue: string) => string | undefined;
@@ -56,6 +58,7 @@ type LiveTournamentViewProperties = {
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
+  onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
   onEditStage: (stage: LiveViewPoolStage) => void;
   onCancelEditStage: () => void;
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
@@ -72,6 +75,7 @@ type LiveTournamentViewProperties = {
   stagePlayersPerPoolDrafts: Record<string, string>;
   playerIdByTournament: Record<string, string>;
   onCompleteBracketRound: (matchTournamentId: string, bracket: LiveViewBracket) => void;
+  onResetBracketMatches: (matchTournamentId: string, bracketId: string) => void;
   onSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketId: string;
   onRefresh: () => void;
@@ -82,6 +86,7 @@ type LiveTournamentViewHeaderProperties = {
   view: LiveViewData;
   onRefresh: () => void;
   showBracketsLink: boolean;
+  showPoolsLink: boolean;
 };
 
 type LiveTournamentPoolSummaryProperties = {
@@ -90,7 +95,7 @@ type LiveTournamentPoolSummaryProperties = {
   hasLoserBracket: boolean;
 };
 
-const LiveTournamentViewHeader = ({ t, view, onRefresh, showBracketsLink }: LiveTournamentViewHeaderProperties) => (
+const LiveTournamentViewHeader = ({ t, view, onRefresh, showBracketsLink, showPoolsLink }: LiveTournamentViewHeaderProperties) => (
   <div className="flex flex-wrap items-center justify-between gap-4">
     <div>
       <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('live.title')}</p>
@@ -99,6 +104,14 @@ const LiveTournamentViewHeader = ({ t, view, onRefresh, showBracketsLink }: Live
       <p className="mt-1 text-sm text-slate-400">{t('common.status')}: {view.status}</p>
     </div>
     <div className="flex items-center gap-3">
+      {showPoolsLink && (
+        <a
+          href={`/?view=pool-stages&tournamentId=${view.id}`}
+          className="rounded-full border border-cyan-500/70 px-3 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300"
+        >
+          {t('nav.poolStagesRunning')}
+        </a>
+      )}
       {showBracketsLink && (
         <a
           href={`/?view=brackets&tournamentId=${view.id}`}
@@ -155,8 +168,10 @@ const LiveTournamentView = ({
   availableTargetsByTournament,
   matchTargetSelections,
   updatingMatchId,
+  resettingPoolId,
   editingMatchId,
   updatingRoundKey,
+  resettingBracketId,
   matchScores,
   getMatchKey,
   getTargetIdForSelection,
@@ -171,6 +186,7 @@ const LiveTournamentView = ({
   onUpdateCompletedMatch,
   onCancelMatchEdit,
   onScoreChange,
+  onResetPoolMatches,
   onEditStage,
   onCancelEditStage,
   onUpdateStage,
@@ -187,6 +203,7 @@ const LiveTournamentView = ({
   stagePlayersPerPoolDrafts,
   playerIdByTournament = {},
   onCompleteBracketRound,
+  onResetBracketMatches,
   onSelectBracket,
   activeBracketId,
   onRefresh,
@@ -201,7 +218,8 @@ const LiveTournamentView = ({
   const filteredBrackets = filterBracketsForView(viewMode, viewStatus, view.brackets);
   const hasLiveBrackets = hasActiveBrackets(view, viewStatus);
   const hasCompletedPoolStage = filteredPoolStages.some((stage) => stage.status === 'COMPLETED');
-  const showBracketsLink = hasCompletedPoolStage && hasLiveBrackets;
+  const showBracketsLink = hasCompletedPoolStage && hasLiveBrackets && isPoolStagesView(viewMode);
+  const showPoolsLink = isBracketsView(viewMode) && filteredPoolStages.length > 0;
   const hasLoserBracket = getHasLoserBracket(view.brackets);
   const poolStats = getPoolStageStats(filteredPoolStages);
   const queue = buildMatchQueue(view, filteredPoolStages);
@@ -243,6 +261,7 @@ const LiveTournamentView = ({
     matchScores,
     matchTargetSelections,
     updatingMatchId,
+    resettingPoolId,
     editingMatchId,
     availableTargetsByTournament,
     getMatchKey,
@@ -254,6 +273,7 @@ const LiveTournamentView = ({
     onEditMatch,
     onUpdateCompletedMatch,
     onCancelMatchEdit,
+    onResetPoolMatches,
     onEditStage,
     onCancelEditStage,
     onUpdateStage,
@@ -269,6 +289,7 @@ const LiveTournamentView = ({
     stagePoolCountDrafts,
     stagePlayersPerPoolDrafts,
     playerIdByTournament,
+    isAdmin,
   };
 
   const bracketsProperties = {
@@ -276,10 +297,12 @@ const LiveTournamentView = ({
     tournamentId: view.id,
     brackets: filteredBrackets,
     hasLoserBracket,
+    isAdmin,
     isBracketsReadonly,
     updatingMatchId,
     editingMatchId,
     updatingRoundKey,
+    resettingBracketId,
     matchScores,
     matchTargetSelections,
     availableTargetsByTournament,
@@ -295,13 +318,20 @@ const LiveTournamentView = ({
     onCancelMatchEdit,
     onScoreChange,
     onCompleteBracketRound,
+    onResetBracketMatches,
     onSelectBracket,
     activeBracketId,
   };
 
   return (
     <div className="space-y-10">
-      <LiveTournamentViewHeader t={t} view={view} onRefresh={onRefresh} showBracketsLink={showBracketsLink} />
+      <LiveTournamentViewHeader
+        t={t}
+        view={view}
+        onRefresh={onRefresh}
+        showBracketsLink={showBracketsLink}
+        showPoolsLink={showPoolsLink}
+      />
       {showPools && <LiveTournamentPoolSummaryCards t={t} stats={poolStats} hasLoserBracket={hasLoserBracket} />}
       {showPools && !isPoolStagesView(viewMode) && !showGlobalQueue && (
         <MatchQueueSection {...queueProperties} />

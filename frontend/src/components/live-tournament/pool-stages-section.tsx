@@ -13,6 +13,7 @@ type PoolStagesSectionProperties = {
   tournamentStatus: string;
   doubleStageEnabled: boolean;
   stages: LiveViewPoolStage[];
+  isAdmin: boolean;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   getMatchTargetLabel: (target: LiveViewMatch['target'] | undefined) => string | undefined;
@@ -20,6 +21,7 @@ type PoolStagesSectionProperties = {
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
+  resettingPoolId: string | undefined;
   editingMatchId?: string | undefined;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
@@ -31,6 +33,7 @@ type PoolStagesSectionProperties = {
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
+  onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
   onEditStage: (stage: LiveViewPoolStage) => void;
   onCancelEditStage: () => void;
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
@@ -54,6 +57,7 @@ const PoolStagesSection = ({
   tournamentStatus,
   doubleStageEnabled,
   stages,
+  isAdmin,
   playerIdByTournament = {},
   ...stageProperties
 }: PoolStagesSectionProperties) => {
@@ -73,6 +77,7 @@ const PoolStagesSection = ({
             tournamentStatus={tournamentStatus}
             doubleStageEnabled={doubleStageEnabled}
             stage={stage}
+            isAdmin={isAdmin}
             {...(playerIdByTournament[tournamentId]
               ? { preferredPlayerId: playerIdByTournament[tournamentId] }
               : {})}

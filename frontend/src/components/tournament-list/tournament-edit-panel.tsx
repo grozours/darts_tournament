@@ -66,7 +66,7 @@ export type TournamentEditPanelProperties = {
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
-  onAddPoolStage: () => void;
+  onAddPoolStage: () => Promise<boolean>;
   brackets: BracketConfig[];
   bracketsError?: string | undefined;
   onLoadBrackets: () => void;
@@ -100,6 +100,7 @@ export type TournamentEditPanelProperties = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  isApplyingPreset: boolean;
   onPlayerFormChange: (next: CreatePlayerPayload) => void;
   onStartEditPlayer: (player: TournamentPlayer) => void;
   onCancelEditPlayer: () => void;
@@ -109,6 +110,8 @@ export type TournamentEditPanelProperties = {
   onFetchPlayers: () => void;
   onConfirmAllPlayers: () => void;
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;
+  onApplySinglePoolPreset: () => void;
+  onApplyDoublePoolPreset: () => void;
   onMoveToSignature: () => void;
   onMoveToLive: () => void;
   onOpenRegistration: () => void;
@@ -151,10 +154,13 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   isRegisteringPlayer: properties.isRegisteringPlayer,
   isAutoFillingPlayers: properties.isAutoFillingPlayers,
   isConfirmingAll: properties.isConfirmingAll,
+  isApplyingPreset: properties.isApplyingPreset,
   normalizedStatus: properties.normalizedStatus,
   onEditFormChange: properties.onEditFormChange,
   onLogoFileChange: properties.onLogoFileChange,
   onUploadLogo: properties.onUploadLogo,
+  onApplySinglePoolPreset: properties.onApplySinglePoolPreset,
+  onApplyDoublePoolPreset: properties.onApplyDoublePoolPreset,
   onLoadPoolStages: properties.onLoadPoolStages,
   onPoolStageNumberChange: properties.onPoolStageNumberChange,
   onPoolStageNameChange: properties.onPoolStageNameChange,
@@ -199,6 +205,8 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onFetchPlayers: properties.onFetchPlayers,
   onConfirmAllPlayers: properties.onConfirmAllPlayers,
   onTogglePlayerCheckIn: properties.onTogglePlayerCheckIn,
+  onApplySinglePoolPreset: properties.onApplySinglePoolPreset,
+  onApplyDoublePoolPreset: properties.onApplyDoublePoolPreset,
 });
 
 const getFooterProperties = (properties: TournamentEditPanelProperties) => ({

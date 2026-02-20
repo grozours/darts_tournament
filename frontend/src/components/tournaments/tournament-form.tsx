@@ -35,6 +35,13 @@ const toLocalInput = (value: Date) =>
     value.getDate()
   )}T${padNumber(value.getHours())}:${padNumber(value.getMinutes())}`;
 
+const toIsoString = (value: string): string => {
+  if (!value) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toISOString();
+};
+
 export default function TournamentForm({
   onSubmit,
   onCancel,
@@ -68,8 +75,7 @@ export default function TournamentForm({
     () => [
       { value: TournamentFormat.SINGLE, label: t('format.single') },
       { value: TournamentFormat.DOUBLE, label: t('format.double') },
-      { value: 'KNOCKOUT', label: t('format.knockout') },
-      { value: 'POOL', label: t('format.pool') },
+      { value: TournamentFormat.TEAM_4_PLAYER, label: t('format.team4') },
     ],
     [t]
   );
@@ -284,8 +290,8 @@ export default function TournamentForm({
         name: submissionState.name.trim(),
         format: submissionState.format,
         durationType: submissionState.durationType,
-        startTime: submissionState.startTime,
-        endTime: submissionState.endTime,
+        startTime: toIsoString(submissionState.startTime),
+        endTime: toIsoString(submissionState.endTime),
         totalParticipants: Number(submissionState.totalParticipants || 0),
         targetCount: Number(submissionState.targetCount || 0),
         doubleStageEnabled: submissionState.doubleStageEnabled,

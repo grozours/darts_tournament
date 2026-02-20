@@ -37,7 +37,7 @@ type PoolStagesEditorProperties = {
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
-  onAddPoolStage: () => void;
+  onAddPoolStage: () => Promise<boolean>;
   getStatusLabel: (kind: 'stage' | 'bracket', status: string) => string;
   normalizeStageStatus: (status?: string) => string;
 };

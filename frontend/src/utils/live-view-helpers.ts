@@ -40,10 +40,22 @@ export const hasActivePoolStages = (view: LiveViewLike, viewStatus?: LiveViewSta
   );
 };
 
-export const hasActiveBrackets = (view: LiveViewLike, viewStatus?: LiveViewStatus) => {
-  const targetStatus = viewStatus === 'FINISHED' ? 'COMPLETED' : 'IN_PROGRESS';
+export const hasActiveBrackets = (
+  view: LiveViewLike,
+  viewStatus?: LiveViewStatus,
+  canViewEdition = false
+) => {
+  if (viewStatus === 'FINISHED') {
+    return (view.brackets || []).some(
+      (bracket) => bracket.status === 'COMPLETED' && (bracket.matches?.length || 0) > 0
+    );
+  }
+  const allowedStatuses = new Set(['IN_PROGRESS']);
+  if (canViewEdition) {
+    allowedStatuses.add('NOT_STARTED');
+  }
   return (view.brackets || []).some(
-    (bracket) => bracket.status === targetStatus && (bracket.matches?.length || 0) > 0
+    (bracket) => allowedStatuses.has(bracket.status ?? '') && (bracket.matches?.length || 0) > 0
   );
 };
 
@@ -61,7 +73,11 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
     ));
   }
   if (isBracketsView(viewMode)) {
-    return views.filter((view) => hasActiveBrackets(view, viewStatus));
+    return views.filter((view) => hasActiveBrackets(
+      view,
+      viewStatus,
+      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false
+    ));
   }
   if (viewMode === 'live') {
     return views;

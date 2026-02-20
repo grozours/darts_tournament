@@ -11,11 +11,13 @@ type TargetsGridCardProperties = {
   matchScores: Record<string, Record<string, string>>;
   updatingMatchId: string | undefined;
   startingMatchId: string | undefined;
+  cancellingMatchId: string | undefined;
   queueItems: MatchQueueItem[];
   onQueueSelectionChange: (targetKey: string, matchId: string) => void;
   onStartMatch: (matchId: string, targetNumber: number) => void;
   onScoreChange: (matchId: string, playerId: string, value: string) => void;
   onCompleteMatch: (match: LiveViewMatch) => void;
+  onCancelMatch: (match: LiveViewMatch) => void;
 };
 
 const TargetsGridCard = ({
@@ -27,11 +29,13 @@ const TargetsGridCard = ({
   matchScores,
   updatingMatchId,
   startingMatchId,
+  cancellingMatchId,
   queueItems,
   onQueueSelectionChange,
   onStartMatch,
   onScoreChange,
   onCompleteMatch,
+  onCancelMatch,
 }: TargetsGridCardProperties) => {
   const targetKey = String(target.targetNumber);
   const matchInfo = target.activeMatchInfo;
@@ -83,6 +87,21 @@ const TargetsGridCard = ({
               onScoreChange={onScoreChange}
               onCompleteMatch={onCompleteMatch}
             />
+          )}
+          {activeMatch && isAdmin && activeMatch.status !== 'COMPLETED' && activeMatch.status !== 'CANCELLED' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!globalThis.window?.confirm(t('targets.cancelMatchConfirm'))) {
+                  return;
+                }
+                onCancelMatch(activeMatch);
+              }}
+              disabled={cancellingMatchId === activeMatch.id}
+              className="mt-3 rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+            >
+              {cancellingMatchId === activeMatch.id ? t('common.loading') : t('targets.cancelMatch')}
+            </button>
           )}
         </div>
       ) : (

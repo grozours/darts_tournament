@@ -144,11 +144,42 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
     await tournamentModel.deleteBracket(bracketId);
   };
 
+  const resetBracketMatches = async (tournamentId: string, bracketId: string): Promise<void> => {
+    validateUUID(tournamentId);
+    validateUUID(bracketId);
+
+    const tournament = await tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE, TournamentStatus.LIVE].includes(tournament.status)) {
+      throw new AppError(
+        'Brackets can only be reset for draft, open, signature, or live tournaments',
+        400,
+        'BRACKET_NOT_EDITABLE'
+      );
+    }
+
+    const bracket = await tournamentModel.getBracketById(bracketId);
+    if (bracket?.tournamentId !== tournamentId) {
+      throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
+    }
+
+    await tournamentModel.resetBracketMatches(bracketId);
+    await tournamentModel.updateBracket(bracketId, {
+      status: BracketStatus.NOT_STARTED,
+      // eslint-disable-next-line unicorn/no-null
+      completedAt: null,
+    });
+  };
+
   return {
     completeBracketRoundWithRandomScores,
     getBrackets,
     createBracket,
     updateBracket,
     deleteBracket,
+    resetBracketMatches,
   };
 };

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { completeBracketRoundWithScores } from '../../services/tournament-service';
+import { completeBracketRoundWithScores, resetBracketMatches } from '../../services/tournament-service';
 import type { LiveViewBracket } from './types';
 
 type UseLiveTournamentBracketActionsProperties = {
@@ -10,7 +10,9 @@ type UseLiveTournamentBracketActionsProperties = {
 
 type LiveTournamentBracketActionsResult = {
   updatingRoundKey?: string | undefined;
+  resettingBracketId?: string | undefined;
   handleCompleteBracketRound: (matchTournamentId: string, bracket: LiveViewBracket) => Promise<void>;
+  handleResetBracketMatches: (matchTournamentId: string, bracketId: string) => Promise<void>;
   handleSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketByTournament: Record<string, string>;
 };
@@ -21,6 +23,7 @@ const useLiveTournamentBracketActions = ({
   setError,
 }: UseLiveTournamentBracketActionsProperties): LiveTournamentBracketActionsResult => {
   const [updatingRoundKey, setUpdatingRoundKey] = useState<string | undefined>();
+  const [resettingBracketId, setResettingBracketId] = useState<string | undefined>();
   const [activeBracketByTournament, setActiveBracketByTournament] = useState<Record<string, string>>({});
 
   const handleCompleteBracketRound = useCallback(async (matchTournamentId: string, bracket: LiveViewBracket) => {
@@ -54,9 +57,26 @@ const useLiveTournamentBracketActions = ({
     }));
   }, []);
 
+  const handleResetBracketMatches = useCallback(async (matchTournamentId: string, bracketId: string) => {
+    setResettingBracketId(bracketId);
+    setError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      await resetBracketMatches(matchTournamentId, bracketId, token);
+      await reloadLiveViews({ showLoader: false });
+    } catch (error) {
+      console.error('Error resetting bracket matches:', error);
+      setError(error instanceof Error ? error.message : 'Failed to reset bracket matches');
+    } finally {
+      setResettingBracketId(undefined);
+    }
+  }, [getSafeAccessToken, reloadLiveViews, setError]);
+
   return {
     updatingRoundKey,
+    resettingBracketId,
     handleCompleteBracketRound,
+    handleResetBracketMatches,
     handleSelectBracket,
     activeBracketByTournament,
   };

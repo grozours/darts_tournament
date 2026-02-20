@@ -16,10 +16,12 @@ type TargetsViewContentProperties = {
   matchScores: Record<string, Record<string, string>>;
   updatingMatchId: string | undefined;
   startingMatchId: string | undefined;
+  cancellingMatchId: string | undefined;
   onQueueSelectionChange: (targetKey: string, matchId: string) => void;
   onStartMatch: (matchId: string, targetNumber: number) => void;
   onScoreChange: (matchId: string, playerId: string, value: string) => void;
   onCompleteMatch: (match: LiveViewMatch) => void;
+  onCancelMatch: (match: LiveViewMatch) => void;
 };
 
 const TargetsViewContent = ({
@@ -35,10 +37,12 @@ const TargetsViewContent = ({
   matchScores,
   updatingMatchId,
   startingMatchId,
+  cancellingMatchId,
   onQueueSelectionChange,
   onStartMatch,
   onScoreChange,
   onCompleteMatch,
+  onCancelMatch,
 }: TargetsViewContentProperties) => {
   if (sharedTargets.length === 0) {
     return (
@@ -61,11 +65,13 @@ const TargetsViewContent = ({
           matchScores={matchScores}
           updatingMatchId={updatingMatchId}
           startingMatchId={startingMatchId}
+          cancellingMatchId={cancellingMatchId}
           queueItems={queueItems}
           onQueueSelectionChange={onQueueSelectionChange}
           onStartMatch={onStartMatch}
           onScoreChange={onScoreChange}
           onCompleteMatch={onCompleteMatch}
+          onCancelMatch={onCancelMatch}
         />
         <TargetsQueuePanel t={t} queueItems={queueItems} queuePreview={queuePreview} />
       </div>

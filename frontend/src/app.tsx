@@ -22,6 +22,7 @@ function App() {
     : new URLSearchParams();
   const view = parameters.get('view');
   const status = parameters.get('status');
+  const normalizedStatus = status?.toLowerCase();
   const debugEnabled = parameters.get('debug') === '1';
   const buildId = import.meta.env.VITE_BUILD_ID
     || import.meta.env.VITE_COMMIT_SHA
@@ -71,7 +72,7 @@ function App() {
       break;
     }
     default: {
-      if (status === 'LIVE') {
+      if (normalizedStatus === 'live') {
         mainContent = <LiveTournament />;
       }
     }

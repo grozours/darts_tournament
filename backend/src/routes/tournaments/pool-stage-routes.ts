@@ -105,6 +105,20 @@ export const registerTournamentPoolStageRoutes = (
     tournamentController.getPoolStagePools
   );
 
+  router.post(
+    '/:id/pool-stages/:stageId/pools/:poolId/reset-matches',
+    requireAuth,
+    requireAdmin,
+    validate({
+      params: z.object({
+        id: z.string().uuid('Invalid tournament ID'),
+        stageId: z.string().uuid('Invalid pool stage ID'),
+        poolId: z.string().uuid('Invalid pool ID'),
+      }),
+    }),
+    tournamentController.resetPoolMatches
+  );
+
   router.put(
     '/:id/pool-stages/:stageId/assignments',
     validate({

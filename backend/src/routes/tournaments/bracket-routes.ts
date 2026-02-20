@@ -75,4 +75,17 @@ export const registerTournamentBracketRoutes = (
     }),
     tournamentController.completeBracketRoundWithScores
   );
+
+  router.post(
+    '/:id/brackets/:bracketId/reset-matches',
+    requireAuth,
+    requireAdmin,
+    validate({
+      params: z.object({
+        id: z.string().uuid('Invalid tournament ID'),
+        bracketId: z.string().uuid('Invalid bracket ID'),
+      }),
+    }),
+    tournamentController.resetBracketMatches
+  );
 };

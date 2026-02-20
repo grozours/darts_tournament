@@ -59,7 +59,7 @@ type NewPoolStageFormProperties = {
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
-  onAddPoolStage: () => void;
+  onAddPoolStage: () => Promise<boolean>;
 };
 
 export const PoolStageItem = ({

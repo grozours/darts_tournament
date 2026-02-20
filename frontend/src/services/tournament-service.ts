@@ -107,7 +107,13 @@ export async function createTournament(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-    const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+    const errorMessage =
+      (errorData && typeof errorData === 'object'
+        ? (errorData as { message?: string }).message
+          || (errorData as { error?: { message?: string } }).error?.message
+          || (errorData as { error?: string }).error
+        : undefined)
+      || `HTTP ${response.status}`;
     throw new Error(`Failed to create tournament: ${errorMessage}`);
   }
 
@@ -237,6 +243,26 @@ export async function fetchPoolStagePools(
 
   const data = await response.json();
   return data.pools || [];
+}
+
+export async function resetPoolMatches(
+  tournamentId: string,
+  stageId: string,
+  poolId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(
+    `/api/tournaments/${tournamentId}/pool-stages/${stageId}/pools/${poolId}/reset-matches`,
+    {
+      method: 'POST',
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to reset pool matches');
+  }
 }
 
 export async function updatePoolAssignments(
@@ -475,6 +501,22 @@ export async function updateCompletedMatchScores(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Failed to update match scores');
+  }
+}
+
+export async function resetBracketMatches(
+  tournamentId: string,
+  bracketId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}/reset-matches`, {
+    method: 'POST',
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to reset bracket matches');
   }
 }
 

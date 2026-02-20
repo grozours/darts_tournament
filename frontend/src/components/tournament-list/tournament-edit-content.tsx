@@ -51,10 +51,13 @@ export type TournamentEditContentProperties = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  isApplyingPreset: boolean;
   normalizedStatus: string;
   onEditFormChange: (next: EditFormState) => void;
   onLogoFileChange: (file: File | undefined) => void;
   onUploadLogo: () => void;
+  onApplySinglePoolPreset: () => void;
+  onApplyDoublePoolPreset: () => void;
   onLoadPoolStages: () => void;
   onPoolStageNumberChange: (id: string, value: number) => void;
   onPoolStageNameChange: (id: string, value: string) => void;
@@ -74,7 +77,7 @@ export type TournamentEditContentProperties = {
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
-  onAddPoolStage: () => void;
+  onAddPoolStage: () => Promise<boolean>;
   onLoadBrackets: () => void;
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
@@ -128,10 +131,13 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
     isRegisteringPlayer,
     isAutoFillingPlayers,
     isConfirmingAll,
+    isApplyingPreset,
     normalizedStatus,
     onEditFormChange,
     onLogoFileChange,
     onUploadLogo,
+    onApplySinglePoolPreset,
+    onApplyDoublePoolPreset,
     onLoadPoolStages,
     onPoolStageNumberChange,
     onPoolStageNameChange,
@@ -193,6 +199,33 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
         onLogoFileChange={onLogoFileChange}
         onUploadLogo={onUploadLogo}
       />
+      <section className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-base font-semibold text-white">{t('edit.quickStructureTitle')}</h4>
+            <p className="mt-1 text-xs text-slate-400">{t('edit.quickStructureHint')}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={onApplySinglePoolPreset}
+              disabled={isApplyingPreset || normalizedStatus === 'LIVE'}
+              className="rounded-full border border-cyan-500/70 px-3 py-1 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
+            >
+              {isApplyingPreset ? t('edit.quickStructureApplying') : t('edit.quickStructureSingle')}
+            </button>
+            <button
+              onClick={onApplyDoublePoolPreset}
+              disabled={isApplyingPreset || normalizedStatus === 'LIVE'}
+              className="rounded-full border border-sky-500/70 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:border-sky-300 disabled:opacity-60"
+            >
+              {isApplyingPreset ? t('edit.quickStructureApplying') : t('edit.quickStructureDouble')}
+            </button>
+          </div>
+        </div>
+        {normalizedStatus === 'LIVE' && (
+          <p className="mt-3 text-xs text-rose-300">{t('edit.quickStructureDisabledLive')}</p>
+        )}
+      </section>
       <PoolStagesEditor
         t={t}
         poolStages={poolStages}

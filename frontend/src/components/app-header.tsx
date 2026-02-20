@@ -166,14 +166,12 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
           >
             {t('nav.finished')}
           </a>
-          {isAuthenticated && (
-            <a
-              className="rounded-md px-2 py-1 hover:bg-slate-800 text-emerald-400"
-              href="/?view=account"
-            >
-              {t('nav.account')}
-            </a>
-          )}
+          <a
+            className={`rounded-md px-2 py-1 hover:bg-slate-800 ${isAuthenticated ? 'text-emerald-400' : ''}`}
+            href="/?view=account"
+          >
+            {t('nav.account')}
+          </a>
         </nav>
 
         <div className="ml-auto" />

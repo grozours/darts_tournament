@@ -1,3 +1,5 @@
+import { useCallback, useState } from 'react';
+import { resetPoolMatches } from '../../services/tournament-service';
 import useLiveTournamentMatchEdit from './use-live-tournament-match-edit';
 import useLiveTournamentMatchScores from './use-live-tournament-match-scores';
 import useLiveTournamentMatchUpdate from './use-live-tournament-match-update';
@@ -13,6 +15,7 @@ type UseLiveTournamentMatchActionsProperties = {
 
 type LiveTournamentMatchActionsResult = {
   updatingMatchId: string | undefined;
+  resettingPoolId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   editingMatchId?: string | undefined;
   handleMatchStatusUpdate: (
@@ -21,6 +24,7 @@ type LiveTournamentMatchActionsResult = {
     status: string,
     targetId?: string
   ) => Promise<void>;
+  handleResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => Promise<void>;
   handleScoreChange: (matchKey: string, playerId: string, value: string) => void;
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
   handleEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
@@ -35,6 +39,7 @@ const useLiveTournamentMatchActions = ({
   clearMatchTargetSelection,
   getMatchKey,
 }: UseLiveTournamentMatchActionsProperties): LiveTournamentMatchActionsResult => {
+  const [resettingPoolId, setResettingPoolId] = useState<string | undefined>();
   const { matchScores, handleScoreChange, setMatchScoresForMatch } = useLiveTournamentMatchScores();
   const { editingMatchId, handleEditMatch, cancelMatchEdit } = useLiveTournamentMatchEdit({
     getMatchKey,
@@ -51,11 +56,32 @@ const useLiveTournamentMatchActions = ({
       onUpdatedCompletedMatch: cancelMatchEdit,
     });
 
+  const handleResetPoolMatches = useCallback(async (
+    tournamentId: string,
+    stageId: string,
+    poolId: string
+  ) => {
+    setResettingPoolId(poolId);
+    setError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      await resetPoolMatches(tournamentId, stageId, poolId, token);
+      await reloadLiveViews({ showLoader: false });
+    } catch (error) {
+      console.error('Error resetting pool matches:', error);
+      setError(error instanceof Error ? error.message : 'Failed to reset pool matches');
+    } finally {
+      setResettingPoolId(undefined);
+    }
+  }, [getSafeAccessToken, reloadLiveViews, setError]);
+
   return {
     updatingMatchId,
+    resettingPoolId,
     matchScores,
     editingMatchId,
     handleMatchStatusUpdate,
+    handleResetPoolMatches,
     handleScoreChange,
     handleCompleteMatch,
     handleEditMatch,

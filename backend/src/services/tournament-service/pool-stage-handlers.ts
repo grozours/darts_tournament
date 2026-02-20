@@ -396,12 +396,19 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     name: row.name,
   });
 
+  const tokenizeBracketName = (name: string) =>
+    name
+      .split(/[^A-Za-z0-9]+/)
+      .filter(Boolean)
+      .map((token) => token.toLowerCase());
+
   const selectBracketByLabel = (
     brackets: Awaited<ReturnType<TournamentModel['getBrackets']>>,
     label: string
   ) => {
-    const pattern = new RegExp(String.raw`\\b${label}\\b`, 'i');
-    return brackets.find((bracket) => pattern.test(bracket.name));
+    const target = label.trim().toLowerCase();
+    if (!target) return;
+    return brackets.find((bracket) => tokenizeBracketName(bracket.name).includes(target));
   };
 
   const ensureBracketForLabel = async (
@@ -412,6 +419,12 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const existing = selectBracketByLabel(brackets, label);
     if (existing) {
       return existing;
+    }
+
+    const latestBrackets = await tournamentModel.getBrackets(tournamentId);
+    const latestExisting = selectBracketByLabel(latestBrackets, label);
+    if (latestExisting) {
+      return latestExisting;
     }
 
     return await tournamentModel.createBracket(tournamentId, {
@@ -1017,11 +1030,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
       const handled = await handleDoubleStageProgression(tournamentId, stageId);
       if (!handled) {
-        throw new AppError(
-          'Double-stage progression is not enabled for this tournament',
-          400,
-          'DOUBLE_STAGE_NOT_ENABLED'
-        );
+        await populateBracketsForStage(tournamentId, stageId);
       }
     },
     completePoolStageWithRandomScores: async (tournamentId: string, stageId: string): Promise<void> => {
@@ -1107,6 +1116,24 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       }
 
       return await tournamentModel.getPoolsWithAssignmentsForStage(stageId);
+    },
+    resetPoolMatches: async (tournamentId: string, stageId: string, poolId: string): Promise<void> => {
+      validateUUID(tournamentId);
+      validateUUID(stageId);
+      validateUUID(poolId);
+      await getEditableTournamentForPoolStage(tournamentId);
+
+      const stage = await tournamentModel.getPoolStageById(stageId);
+      if (stage?.tournamentId !== tournamentId) {
+        throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+      }
+
+      const pool = await tournamentModel.getPoolById(poolId);
+      if (pool?.poolStageId !== stageId) {
+        throw new AppError('Pool not found', 404, 'POOL_NOT_FOUND');
+      }
+
+      await tournamentModel.resetPoolMatches(poolId);
     },
     updatePoolAssignments: async (
       tournamentId: string,

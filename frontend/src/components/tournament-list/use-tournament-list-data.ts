@@ -42,7 +42,14 @@ const useTournamentListData = ({
       }
       const data = await response.json();
       console.log('[TournamentList] Received tournaments:', data.tournaments?.length || 0);
-      setTournaments(data.tournaments || []);
+      const normalizedTournaments = (data.tournaments || []).map((item: Tournament) => {
+        const fallbackLogoUrl = (item as Tournament & { logo_url?: string }).logo_url;
+        return {
+          ...item,
+          logoUrl: item.logoUrl ?? fallbackLogoUrl,
+        };
+      });
+      setTournaments(normalizedTournaments);
     } catch (error_) {
       console.error('[TournamentList] Error fetching tournaments:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to fetch tournaments');

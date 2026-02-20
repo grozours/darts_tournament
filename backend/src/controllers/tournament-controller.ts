@@ -22,11 +22,13 @@ export class TournamentController {
   public completePoolStageWithScores!: (request: Request, response: Response) => Promise<void>;
   public deletePoolStage!: (request: Request, response: Response) => Promise<void>;
   public getPoolStagePools!: (request: Request, response: Response) => Promise<void>;
+  public resetPoolMatches!: (request: Request, response: Response) => Promise<void>;
   public updatePoolStageAssignments!: (request: Request, response: Response) => Promise<void>;
   public updateMatchStatus!: (request: Request, response: Response) => Promise<void>;
   public completeMatch!: (request: Request, response: Response) => Promise<void>;
   public updateMatchScores!: (request: Request, response: Response) => Promise<void>;
   public completeBracketRoundWithScores!: (request: Request, response: Response) => Promise<void>;
+  public resetBracketMatches!: (request: Request, response: Response) => Promise<void>;
   public getBrackets!: (request: Request, response: Response) => Promise<void>;
   public createBracket!: (request: Request, response: Response) => Promise<void>;
   public updateBracket!: (request: Request, response: Response) => Promise<void>;

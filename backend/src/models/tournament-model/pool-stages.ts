@@ -4,6 +4,7 @@ import {
   PoolStatus,
   StageStatus,
   MatchStatus,
+  TargetStatus,
 } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError } from './helpers';
@@ -32,6 +33,17 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     } catch (error) {
       logModelError('getPoolStages', error);
       throw new AppError('Failed to fetch pool stages', 500, 'POOL_STAGE_FETCH_FAILED');
+    }
+  },
+
+  getPoolById: async (poolId: string) => {
+    try {
+      return await prisma.pool.findUnique({
+        where: { id: poolId },
+      });
+    } catch (error) {
+      logModelError('getPoolById', error);
+      throw new AppError('Failed to fetch pool', 500, 'POOL_FETCH_FAILED');
     }
   },
 
@@ -366,6 +378,75 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
       },
       data: { status: MatchStatus.COMPLETED, completedAt },
     });
+  },
+
+  resetPoolMatches: async (poolId: string): Promise<void> => {
+    try {
+      const matches = await prisma.match.findMany({
+        where: { poolId },
+        select: { id: true, targetId: true },
+      });
+      const matchIds = matches.map((match) => match.id);
+      const targetIds = matches
+        .map((match) => match.targetId)
+        .filter((targetId): targetId is string => Boolean(targetId));
+
+      await prisma.$transaction([
+        ...(targetIds.length > 0
+          ? [
+            prisma.target.updateMany({
+              where: { id: { in: targetIds } },
+              data: {
+                status: TargetStatus.AVAILABLE,
+                // eslint-disable-next-line unicorn/no-null
+                currentMatchId: null,
+              },
+            }),
+          ]
+          : []),
+        ...(matchIds.length > 0
+          ? [
+            prisma.score.deleteMany({
+              where: { matchId: { in: matchIds } },
+            }),
+            prisma.playerMatch.updateMany({
+              where: { matchId: { in: matchIds } },
+              data: {
+                scoreTotal: 0,
+                legsWon: 0,
+                setsWon: 0,
+                isWinner: false,
+              },
+            }),
+            prisma.match.updateMany({
+              where: { id: { in: matchIds } },
+              data: {
+                status: MatchStatus.SCHEDULED,
+                // eslint-disable-next-line unicorn/no-null
+                startedAt: null,
+                // eslint-disable-next-line unicorn/no-null
+                completedAt: null,
+                // eslint-disable-next-line unicorn/no-null
+                winnerId: null,
+                // eslint-disable-next-line unicorn/no-null
+                targetId: null,
+              },
+            }),
+          ]
+          : []),
+        prisma.pool.update({
+          where: { id: poolId },
+          data: {
+            status: PoolStatus.NOT_STARTED,
+            // eslint-disable-next-line unicorn/no-null
+            completedAt: null,
+          },
+        }),
+      ]);
+    } catch (error) {
+      logModelError('resetPoolMatches', error);
+      throw new AppError('Failed to reset pool matches', 500, 'POOL_MATCH_RESET_FAILED');
+    }
   },
 });
 

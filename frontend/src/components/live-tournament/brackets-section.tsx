@@ -7,10 +7,12 @@ type BracketsSectionProperties = {
   tournamentId: string;
   brackets: LiveViewBracket[];
   hasLoserBracket: boolean;
+  isAdmin: boolean;
   isBracketsReadonly: boolean;
   updatingMatchId: string | undefined;
   editingMatchId?: string | undefined;
   updatingRoundKey?: string | undefined;
+  resettingBracketId?: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
@@ -26,6 +28,7 @@ type BracketsSectionProperties = {
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
   onCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => void;
+  onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketId: string;
 };
@@ -58,7 +61,7 @@ const BracketsHeader = ({
     </div>
     {!isBracketsReadonly && (
       <div className="flex flex-wrap gap-2">
-        {brackets.map((bracket) => (
+        {[...brackets].reverse().map((bracket) => (
           <button
             key={bracket.id}
             type="button"
@@ -82,9 +85,12 @@ type BracketSummaryProperties = {
   tournamentId: string;
   bracket: LiveViewBracket;
   isBracketsReadonly: boolean;
+  canManageBrackets: boolean;
   isUpdatingRound: boolean;
+  isResettingBracket: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   onCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => void;
+  onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
 };
 
 const BracketSummaryHeader = ({
@@ -92,9 +98,12 @@ const BracketSummaryHeader = ({
   tournamentId,
   bracket,
   isBracketsReadonly,
+  canManageBrackets,
   isUpdatingRound,
+  isResettingBracket,
   getStatusLabel,
   onCompleteBracketRound,
+  onResetBracketMatches,
 }: BracketSummaryProperties) => (
   <div className="flex flex-wrap items-center justify-between gap-3">
     <div>
@@ -104,7 +113,7 @@ const BracketSummaryHeader = ({
       </p>
     </div>
     <div className="flex flex-wrap items-center gap-2">
-      {!isBracketsReadonly && (
+      {canManageBrackets && !isBracketsReadonly && (
         <button
           type="button"
           onClick={() => onCompleteBracketRound(tournamentId, bracket)}
@@ -112,6 +121,21 @@ const BracketSummaryHeader = ({
           className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
         >
           {isUpdatingRound ? t('live.completingRound') : t('live.completeRound')}
+        </button>
+      )}
+      {canManageBrackets && !isBracketsReadonly && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!globalThis.window?.confirm(t('live.resetBracketConfirm'))) {
+              return;
+            }
+            onResetBracketMatches(tournamentId, bracket.id);
+          }}
+          disabled={isResettingBracket}
+          className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+        >
+          {isResettingBracket ? t('common.loading') : t('live.resetBracket')}
         </button>
       )}
       <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
@@ -126,10 +150,12 @@ const BracketsSection = ({
   tournamentId,
   brackets,
   hasLoserBracket,
+  isAdmin,
   isBracketsReadonly,
   updatingMatchId,
   editingMatchId,
   updatingRoundKey,
+  resettingBracketId,
   matchScores,
   matchTargetSelections,
   availableTargetsByTournament,
@@ -145,6 +171,7 @@ const BracketsSection = ({
   onCancelMatchEdit,
   onScoreChange,
   onCompleteBracketRound,
+  onResetBracketMatches,
   onSelectBracket,
   activeBracketId,
 }: BracketsSectionProperties) => {
@@ -158,6 +185,8 @@ const BracketsSection = ({
   }
   const activeBracket = brackets.find((bracket) => bracket.id === activeBracketId) ?? preferredBracket;
   const isUpdatingRound = updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false;
+  const isResettingBracket = resettingBracketId === activeBracket.id;
+  const canManageBrackets = isAdmin;
 
   return (
     <div className="space-y-6">
@@ -177,9 +206,12 @@ const BracketsSection = ({
           tournamentId={tournamentId}
           bracket={activeBracket}
           isBracketsReadonly={isBracketsReadonly}
+          canManageBrackets={canManageBrackets}
           isUpdatingRound={isUpdatingRound}
+          isResettingBracket={isResettingBracket}
           getStatusLabel={getStatusLabel}
           onCompleteBracketRound={onCompleteBracketRound}
+          onResetBracketMatches={onResetBracketMatches}
         />
 
         <div className="mt-4">

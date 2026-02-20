@@ -28,16 +28,24 @@ const useLiveTournamentParameters = (): LiveTournamentParameters => {
     return value ?? undefined;
   }, []);
 
+  const resolvedViewMode = (() => {
+    if (viewMode) return viewMode;
+    if ((viewStatus ?? '').toLowerCase() === 'live') {
+      return 'live';
+    }
+    return undefined;
+  })();
+
   const isAggregateView =
     !tournamentId
     && (
-      viewMode === 'live'
-      || viewMode === 'pool-stages'
-      || viewMode === 'brackets'
+      resolvedViewMode === 'live'
+      || resolvedViewMode === 'pool-stages'
+      || resolvedViewMode === 'brackets'
     );
 
   return {
-    viewMode,
+    viewMode: resolvedViewMode,
     viewStatus,
     tournamentId,
     isAggregateView,

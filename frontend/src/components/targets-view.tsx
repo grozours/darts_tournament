@@ -52,11 +52,13 @@ function TargetsView() {
     matchSelectionByTarget,
     startingMatchId,
     updatingMatchId,
+    cancellingMatchId,
     matchScores,
     handleQueueSelectionChange,
     handleStartMatch,
     handleScoreChange,
     handleCompleteMatch,
+    handleCancelMatch,
   } = useTargetsViewActions({
     t,
     getSafeAccessToken,
@@ -93,10 +95,12 @@ function TargetsView() {
       matchScores={matchScores}
       updatingMatchId={updatingMatchId}
       startingMatchId={startingMatchId}
+      cancellingMatchId={cancellingMatchId}
       onQueueSelectionChange={handleQueueSelectionChange}
       onStartMatch={handleStartMatch}
       onScoreChange={handleScoreChange}
       onCompleteMatch={handleCompleteMatch}
+      onCancelMatch={handleCancelMatch}
     />
   );
 }
