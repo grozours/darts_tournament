@@ -43,7 +43,7 @@ describe('useLiveTournamentRefresh', () => {
     expect(reloadLiveViews).toHaveBeenCalledTimes(1);
   });
 
-  it('does not reload when auth is enabled but unauthenticated', async () => {
+  it('reloads when auth is enabled but unauthenticated', async () => {
     const reloadLiveViews = vi.fn().mockImplementation(async () => {});
 
     render(
@@ -54,8 +54,10 @@ describe('useLiveTournamentRefresh', () => {
       />
     );
 
-    await act(async () => {});
-    expect(reloadLiveViews).not.toHaveBeenCalled();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reloadLiveViews).toHaveBeenCalledTimes(1);
   });
 
   it('reloads when auth is enabled and authenticated', async () => {

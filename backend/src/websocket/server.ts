@@ -28,9 +28,22 @@ type MatchStartedPayload = {
     roundNumber?: number | null;
     stageNumber?: number;
     poolNumber?: number;
+    poolId?: string;
     bracketName?: string | null;
   };
   players: PlayerSummary[];
+};
+
+type MatchFinishedPayload = MatchStartedPayload & {
+  event: 'completed' | 'cancelled';
+  finishedAt?: string;
+  winner?: PlayerSummary | null;
+  players: Array<PlayerSummary & {
+    scoreTotal?: number | null;
+    legsWon?: number | null;
+    setsWon?: number | null;
+    isWinner?: boolean | null;
+  }>;
 };
 
 type ScorePayload = Record<string, unknown>;
@@ -47,6 +60,7 @@ export interface WebSocketEvents {
   'match:started': (data: MatchStartedPayload) => void;
   'match:score-updated': (data: { matchId: string; tournamentId: string; score: ScorePayload }) => void;
   'match:completed': (data: { matchId: string; tournamentId: string; winner: PlayerSummary }) => void;
+  'match:finished': (data: MatchFinishedPayload) => void;
   
   // Target events
   'target:available': (data: { targetId: string; tournamentId: string }) => void;
@@ -237,6 +251,16 @@ export class WebSocketService {
       console.log(`📡 Match completed event sent: ${matchId} -> winner: ${winner?.firstName}`);
     } catch (error) {
       console.error('Error emitting match completed event:', error);
+    }
+  }
+
+  async emitMatchFinished(payload: MatchFinishedPayload): Promise<void> {
+    try {
+      this.io.to(`tournament-${payload.tournamentId}`).emit('match:finished', payload);
+
+      console.log(`📡 Match finished event sent: ${payload.matchId} (${payload.event})`);
+    } catch (error) {
+      console.error('Error emitting match finished event:', error);
     }
   }
 

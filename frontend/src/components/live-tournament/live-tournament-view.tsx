@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LiveViewStatus } from '../../utils/live-view-helpers';
 import { hasActiveBrackets, isBracketsView, isPoolStagesView } from '../../utils/live-view-helpers';
 import BracketsSection from './brackets-section';
@@ -33,6 +34,7 @@ type LiveTournamentViewProperties = {
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
   isAggregateView: boolean;
+  screenMode: boolean;
   visibleLiveViewsCount: number;
   showGlobalQueue: boolean;
   isPoolStagesReadonly: boolean;
@@ -84,7 +86,11 @@ type LiveTournamentViewProperties = {
 type LiveTournamentViewHeaderProperties = {
   t: Translator;
   view: LiveViewData;
+  isAdmin: boolean;
+  screenMode: boolean;
   onRefresh: () => void;
+  showSummary: boolean;
+  onToggleSummary: () => void;
   showBracketsLink: boolean;
   showPoolsLink: boolean;
   poolStages: LiveViewPoolStage[];
@@ -101,26 +107,68 @@ type LiveTournamentPoolSummaryProperties = {
 const LiveTournamentViewHeader = ({
   t,
   view,
+  isAdmin,
+  screenMode,
   onRefresh,
+  showSummary,
+  onToggleSummary,
   showBracketsLink,
   showPoolsLink,
   poolStages,
   brackets,
   viewMode,
-}: LiveTournamentViewHeaderProperties) => (
-  <div className="flex flex-wrap items-center justify-between gap-4">
+}: LiveTournamentViewHeaderProperties) => {
+  const headerGap = screenMode ? 'gap-2' : 'gap-3';
+  const titleClass = screenMode
+    ? 'text-[10px] uppercase tracking-[0.2em] text-cyan-300'
+    : 'text-[11px] uppercase tracking-[0.25em] text-cyan-400';
+  const nameClass = screenMode
+    ? 'text-lg font-semibold text-white mt-0.5'
+    : 'text-xl font-semibold text-white mt-1';
+  const idClass = screenMode ? 'mt-0 text-[11px] text-slate-500' : 'mt-0.5 text-xs text-slate-500';
+  const statusClass = screenMode ? 'mt-0 text-[11px] text-slate-400' : 'mt-0.5 text-xs text-slate-400';
+  const actionsGap = screenMode ? 'gap-1.5' : 'gap-2';
+  const actionButtonClass = screenMode
+    ? 'rounded-full border border-slate-700/70 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white'
+    : 'rounded-full border border-slate-700/70 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white';
+  const linkButtonClass = screenMode
+    ? 'rounded-full border border-cyan-500/70 px-2.5 py-1 text-[11px] font-semibold text-cyan-200 transition hover:border-cyan-300'
+    : 'rounded-full border border-cyan-500/70 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300';
+  const refreshButtonClass = screenMode
+    ? 'inline-flex items-center gap-2 rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-200 hover:border-slate-500'
+    : 'inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500';
+
+  return (
+  <div className={`flex flex-wrap items-center justify-between ${headerGap}`}>
     <div>
-      <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('live.title')}</p>
-      <h2 className="text-2xl font-semibold text-white mt-2">{view.name}</h2>
-      <p className="mt-1 text-xs text-slate-500">ID: {view.id}</p>
-      <p className="mt-1 text-sm text-slate-400">{t('common.status')}: {view.status}</p>
+      <p className={titleClass}>{t('live.title')}</p>
+      <h2 className={nameClass}>{view.name}</h2>
+      {isAdmin && (
+        <p className={idClass}>ID: {view.id}</p>
+      )}
+      <p className={statusClass}>{t('common.status')}: {view.status}</p>
     </div>
-    <div className="flex flex-col items-end gap-3">
-      <div className="flex flex-wrap items-center justify-end gap-3">
+    <div className={`flex flex-col items-end ${actionsGap}`}>
+      <div className={`flex flex-wrap items-center justify-end ${actionsGap}`}>
+        {isAdmin && !screenMode && (
+          <a
+            href={`/?view=edit-tournament&tournamentId=${view.id}`}
+            className={actionButtonClass}
+          >
+            {t('common.edit')}
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={onToggleSummary}
+          className={actionButtonClass}
+        >
+          {showSummary ? t('live.hideSummary') : t('live.showSummary')}
+        </button>
         {showPoolsLink && (
           <a
             href={`/?view=pool-stages&tournamentId=${view.id}`}
-            className="rounded-full border border-cyan-500/70 px-3 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300"
+            className={linkButtonClass}
           >
             {t('nav.poolStagesRunning')}
           </a>
@@ -128,14 +176,14 @@ const LiveTournamentViewHeader = ({
         {showBracketsLink && (
           <a
             href={`/?view=brackets&tournamentId=${view.id}`}
-            className="rounded-full border border-cyan-500/70 px-3 py-2 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300"
+            className={linkButtonClass}
           >
             {t('nav.bracketsRunning')}
           </a>
         )}
         <button
           onClick={onRefresh}
-          className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+          className={refreshButtonClass}
         >
           {t('common.refresh')}
         </button>
@@ -164,7 +212,9 @@ const LiveTournamentViewHeader = ({
       )}
     </div>
   </div>
-);
+  </div>
+  );
+};
 
 const LiveTournamentPoolSummaryCards = ({ t, stats, hasLoserBracket }: LiveTournamentPoolSummaryProperties) => (
   <div className="grid gap-4 md:grid-cols-3">
@@ -197,6 +247,7 @@ const LiveTournamentView = ({
   viewMode,
   viewStatus,
   isAggregateView,
+  screenMode,
   visibleLiveViewsCount,
   showGlobalQueue,
   isPoolStagesReadonly,
@@ -244,15 +295,16 @@ const LiveTournamentView = ({
   activeBracketId,
   onRefresh,
 }: LiveTournamentViewProperties) => {
-  const canViewEdition = isAdmin || Boolean(playerIdByTournament[view.id]);
+  const [showSummary, setShowSummary] = useState(false);
+  const handleToggleSummary = () => setShowSummary((value) => !value);
   const filteredPoolStages = filterPoolStagesForView(
     viewMode,
     viewStatus,
     view.poolStages,
-    canViewEdition,
-    isAdmin
+    isAdmin,
+    screenMode
   );
-  const filteredBrackets = filterBracketsForView(viewMode, viewStatus, view.brackets);
+  const filteredBrackets = filterBracketsForView(viewMode, viewStatus, view.brackets, screenMode);
   const headerPoolStages = isAdmin
     ? filteredPoolStages
     : filteredPoolStages.filter((stage) =>
@@ -261,7 +313,7 @@ const LiveTournamentView = ({
   const headerBrackets = isAdmin
     ? filteredBrackets
     : filteredBrackets.filter((bracket) => (bracket.entries?.length ?? 0) > 0);
-  const hasLiveBrackets = hasActiveBrackets(view, viewStatus);
+  const hasLiveBrackets = hasActiveBrackets(view, viewStatus, false, screenMode);
   const hasCompletedPoolStage = filteredPoolStages.some((stage) => stage.status === 'COMPLETED');
   const showBracketsLink = hasCompletedPoolStage && hasLiveBrackets && isPoolStagesView(viewMode);
   const showPoolsLink = isBracketsView(viewMode) && filteredPoolStages.length > 0;
@@ -373,14 +425,20 @@ const LiveTournamentView = ({
       <LiveTournamentViewHeader
         t={t}
         view={view}
+        isAdmin={isAdmin}
+        screenMode={screenMode}
         onRefresh={onRefresh}
+        showSummary={showSummary}
+        onToggleSummary={handleToggleSummary}
         showBracketsLink={showBracketsLink}
         showPoolsLink={showPoolsLink}
         poolStages={headerPoolStages}
         brackets={headerBrackets}
         viewMode={viewMode}
       />
-      {showPools && <LiveTournamentPoolSummaryCards t={t} stats={poolStats} hasLoserBracket={hasLoserBracket} />}
+      {showPools && showSummary && (
+        <LiveTournamentPoolSummaryCards t={t} stats={poolStats} hasLoserBracket={hasLoserBracket} />
+      )}
       {showPools && !isPoolStagesView(viewMode) && !showGlobalQueue && (
         <MatchQueueSection {...queueProperties} />
       )}

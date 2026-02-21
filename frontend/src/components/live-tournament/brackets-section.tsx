@@ -61,7 +61,7 @@ const BracketsHeader = ({
     </div>
     {!isBracketsReadonly && (
       <div className="flex flex-wrap gap-2">
-        {[...brackets].reverse().map((bracket) => (
+        {brackets.toReversed().map((bracket) => (
           <button
             key={bracket.id}
             type="button"

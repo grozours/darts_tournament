@@ -172,6 +172,8 @@ docker compose logs -f backend frontend
 docker compose down
 ```
 
+Note : le docker-compose de développement monte des volumes nommés pour conserver les logs des tournois dans `/app/backend/logs` et les uploads (logos) dans `/app/backend/uploads`.
+
 ---
 
 ## Déploiement en production

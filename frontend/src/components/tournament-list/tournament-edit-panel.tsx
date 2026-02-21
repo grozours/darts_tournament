@@ -205,8 +205,6 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onFetchPlayers: properties.onFetchPlayers,
   onConfirmAllPlayers: properties.onConfirmAllPlayers,
   onTogglePlayerCheckIn: properties.onTogglePlayerCheckIn,
-  onApplySinglePoolPreset: properties.onApplySinglePoolPreset,
-  onApplyDoublePoolPreset: properties.onApplyDoublePoolPreset,
 });
 
 const getFooterProperties = (properties: TournamentEditPanelProperties) => ({

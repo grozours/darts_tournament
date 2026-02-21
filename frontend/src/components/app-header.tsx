@@ -34,6 +34,23 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
     || import.meta.env.VITE_APP_VERSION
     || 'local';
   const isDebugUiEnabled = import.meta.env.VITE_DEBUG_UI === 'true';
+  const screenParam = globalThis.window
+    ? new URLSearchParams(globalThis.window.location.search).get('screen')
+    : undefined;
+  const screenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
+
+  const buildScreenLink = (enable: boolean) => {
+    if (!globalThis.window) {
+      return enable ? '/?screen=1' : '/';
+    }
+    const url = new URL(globalThis.window.location.href);
+    if (enable) {
+      url.searchParams.set('screen', '1');
+    } else {
+      url.searchParams.delete('screen');
+    }
+    return `${url.pathname}${url.search}`;
+  };
 
   const handleCacheBust = () => {
     if (!globalThis.window) {
@@ -175,6 +192,50 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
         </nav>
 
         <div className="ml-auto" />
+        {(screenMode || isAdmin) && (
+          <a
+            className={`rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center gap-2 ${
+              screenMode ? 'text-rose-300' : 'text-slate-200'
+            }`}
+            href={buildScreenLink(!screenMode)}
+            aria-label={screenMode ? t('live.exitScreenMode') : t('live.screenMode')}
+            title={screenMode ? t('live.exitScreenMode') : t('live.screenMode')}
+          >
+            {screenMode ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="5" width="18" height="12" rx="2" />
+                <path d="M7 21h10" />
+                <path d="M12 17v4" />
+                <path d="M8 9l3 3-3 3" />
+                <path d="M16 9l-3 3 3 3" />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="5" width="18" height="12" rx="2" />
+                <path d="M7 21h10" />
+                <path d="M12 17v4" />
+              </svg>
+            )}
+          </a>
+        )}
         {isDebugUiEnabled && (
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span>Build:</span>
@@ -199,17 +260,19 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
         >
           {lang === 'en' ? '🇬🇧' : '🇫🇷'}
         </button>
-          <a className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center" href="/?view=notifications">
-            <span>{t('nav.notifications')}</span>
-            {unreadCount > 0 && (
-              <span
-                className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500/90 px-1 text-[11px] font-semibold text-white"
-                aria-label={`${unreadCount} unread notifications`}
-              >
-                {unreadCount}
-              </span>
-            )}
-          </a>
+          {isAuthenticated && (
+            <a className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center" href="/?view=notifications">
+              <span>{t('nav.notifications')}</span>
+              {unreadCount > 0 && (
+                <span
+                  className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500/90 px-1 text-[11px] font-semibold text-white"
+                  aria-label={`${unreadCount} unread notifications`}
+                >
+                  {unreadCount}
+                </span>
+              )}
+            </a>
+          )}
         </div>
       </div>
     </header>

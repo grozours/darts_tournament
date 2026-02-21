@@ -31,14 +31,30 @@ describe('live tournament view filters', () => {
         stageNumber: 1,
         name: 'Stage 1',
         status: 'NOT_STARTED',
-        pools: [{ id: 'p1', poolNumber: 1, name: 'Pool 1', status: 'NOT_STARTED' }],
+        pools: [
+          {
+            id: 'p1',
+            poolNumber: 1,
+            name: 'Pool 1',
+            status: 'NOT_STARTED',
+            assignments: [{ id: 'a1', player: { id: 'p1', firstName: 'Ava', lastName: 'Archer' } }],
+          },
+        ],
       },
       {
         id: 's2',
         stageNumber: 2,
         name: 'Stage 2',
         status: 'EDITION',
-        pools: [{ id: 'p2', poolNumber: 1, name: 'Pool 2', status: 'NOT_STARTED' }],
+        pools: [
+          {
+            id: 'p2',
+            poolNumber: 1,
+            name: 'Pool 2',
+            status: 'NOT_STARTED',
+            assignments: [{ id: 'a2', player: { id: 'p2', firstName: 'Bea', lastName: 'Bell' } }],
+          },
+        ],
       },
       {
         id: 's3',
@@ -52,11 +68,19 @@ describe('live tournament view filters', () => {
         stageNumber: 4,
         name: 'Stage 4',
         status: 'COMPLETED',
-        pools: [{ id: 'p4', poolNumber: 1, name: 'Pool 4', status: 'COMPLETED' }],
+        pools: [
+          {
+            id: 'p4',
+            poolNumber: 1,
+            name: 'Pool 4',
+            status: 'COMPLETED',
+            assignments: [{ id: 'a4', player: { id: 'p4', firstName: 'Cal', lastName: 'Cross' } }],
+          },
+        ],
       },
     ];
 
-    expect(filterPoolStagesForView('live', 'LIVE', stages)).toHaveLength(4);
+    expect(filterPoolStagesForView('live', 'LIVE', stages)).toHaveLength(3);
     expect(filterPoolStagesForView('pool-stages', 'FINISHED', stages).map((stage) => stage.id)).toEqual(['s4']);
     expect(filterPoolStagesForView('pool-stages', 'LIVE', stages, true).map((stage) => stage.id)).toEqual([
       's1',
@@ -71,7 +95,7 @@ describe('live tournament view filters', () => {
         status: 'EDITION',
         poolCount: 2,
       },
-    ], true).map((stage) => stage.id)).toEqual(['s5']);
+    ], true, true).map((stage) => stage.id)).toEqual(['s5']);
   });
 
   it('filters brackets based on view mode and status', () => {
@@ -81,6 +105,7 @@ describe('live tournament view filters', () => {
         name: 'Bracket 1',
         bracketType: 'MAIN',
         status: 'COMPLETED',
+        entries: [{ id: 'e1', seedNumber: 1, player: { id: 'p1', firstName: 'Ava', lastName: 'Archer' } }],
         matches: [makeMatch('m1', 'COMPLETED')],
       },
       {
@@ -88,6 +113,7 @@ describe('live tournament view filters', () => {
         name: 'Bracket 2',
         bracketType: 'MAIN',
         status: 'COMPLETED',
+        entries: [],
         matches: [],
       },
       {
@@ -95,12 +121,13 @@ describe('live tournament view filters', () => {
         name: 'Bracket 3',
         bracketType: 'MAIN',
         status: 'IN_PROGRESS',
+        entries: [{ id: 'e3', seedNumber: 1, player: { id: 'p3', firstName: 'Cal', lastName: 'Cross' } }],
         matches: [makeMatch('m2', 'IN_PROGRESS')],
       },
     ];
 
     expect(filterBracketsForView('live', 'LIVE', brackets)).toHaveLength(3);
-    expect(filterBracketsForView('brackets', 'LIVE', brackets)).toHaveLength(3);
+    expect(filterBracketsForView('brackets', 'LIVE', brackets)).toHaveLength(2);
     expect(filterBracketsForView('brackets', 'FINISHED', brackets).map((bracket) => bracket.id)).toEqual(['b1']);
   });
 });
@@ -140,7 +167,18 @@ describe('live tournament stats', () => {
       name: 'Tournament 1',
       status: 'LIVE',
       poolStages: [
-        { status: 'IN_PROGRESS', poolCount: 3 },
+        {
+          status: 'IN_PROGRESS',
+          pools: [
+            {
+              id: 'p1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              status: 'IN_PROGRESS',
+              assignments: [{ id: 'a1', player: { id: 'p1', firstName: 'Ava', lastName: 'Archer' } }],
+            },
+          ],
+        },
         { status: 'COMPLETED', pools: [] },
       ],
     };
@@ -164,7 +202,25 @@ describe('live tournament stats', () => {
 
   it('filters live views and resolves empty copy', () => {
     const views = [
-      { id: 't1', name: 'One', status: 'LIVE', poolStages: [{ status: 'IN_PROGRESS', poolCount: 1 }] },
+      {
+        id: 't1',
+        name: 'One',
+        status: 'LIVE',
+        poolStages: [
+          {
+            status: 'IN_PROGRESS',
+            pools: [
+              {
+                id: 'p1',
+                poolNumber: 1,
+                name: 'Pool 1',
+                status: 'IN_PROGRESS',
+                assignments: [{ id: 'a1', player: { id: 'p1', firstName: 'Ava', lastName: 'Archer' } }],
+              },
+            ],
+          },
+        ],
+      },
       { id: 't2', name: 'Two', status: 'LIVE', brackets: [{ status: 'IN_PROGRESS', matches: [{ id: 'm2' }] }] },
     ];
 

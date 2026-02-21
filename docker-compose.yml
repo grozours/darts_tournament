@@ -72,6 +72,34 @@ services:
       - sonarqube_data:/opt/sonarqube/data
       - sonarqube_extensions:/opt/sonarqube/extensions
       - sonarqube_logs:/opt/sonarqube/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+
+  sonar_init:
+    image: curlimages/curl:8.6.0
+    profiles:
+      - dev
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+    environment:
+      SONAR_HOST: http://sonarqube:9000
+      SONAR_ADMIN_OLD: ${SONAR_ADMIN_OLD:-admin}
+      SONAR_ADMIN_NEW: ${SONAR_ADMIN_NEW}
+      SONAR_TOKEN_NAME: ${SONAR_TOKEN_NAME:-ci-token}
+      SONAR_TOKEN_FILE: /sonar-token
+      SONAR_PROJECT_KEY: ${SONAR_PROJECT_KEY:-darts-tournament}
+      SONAR_PROJECT_NAME: ${SONAR_PROJECT_NAME:-Darts Tournament}
+      SONAR_REGENERATE_TOKEN: ${SONAR_REGENERATE_TOKEN:-false}
+      SONAR_WAIT_SECONDS: ${SONAR_WAIT_SECONDS:-180}
+    volumes:
+      - ./scripts/sonar_init.sh:/usr/local/bin/sonar_init.sh:ro
+      - ./.sonar-token:/sonar-token
+    entrypoint: ["/bin/sh", "/usr/local/bin/sonar_init.sh"]
+    restart: "no"
 
   backend:
     build:
@@ -90,6 +118,8 @@ services:
       - ./backend/src:/app/backend/src
       - ./backend/prisma:/app/backend/prisma
       - ./shared:/app/shared
+      - backend_logs:/app/backend/logs
+      - backend_uploads:/app/backend/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,6 +146,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  backend_logs:
+  backend_uploads:
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:

@@ -5,6 +5,7 @@ type TournamentListGroupsProperties = {
   groupedTournaments: TournamentListGroup[];
   normalizeStatus: (status?: string) => string;
   isAdmin: boolean;
+  isAuthenticated: boolean;
   t: Translator;
   userRegistrations: Set<string>;
   registeringTournamentId?: string | undefined;
@@ -22,6 +23,7 @@ const TournamentListGroups = ({
   groupedTournaments,
   normalizeStatus,
   isAdmin,
+  isAuthenticated,
   t,
   userRegistrations,
   registeringTournamentId,
@@ -65,6 +67,7 @@ const TournamentListGroups = ({
                   statusLabel={statusLabel}
                   showWaitingSignature={showWaitingSignature}
                   isAdmin={isAdmin}
+                  isAuthenticated={isAuthenticated}
                   t={t}
                   onEdit={onEdit}
                   onDelete={onDelete}

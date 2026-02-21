@@ -3,8 +3,12 @@ export type LiveViewStatus = string | undefined;
 
 type PoolStageLike = {
   status?: string;
-  pools?: Array<unknown>;
+  pools?: PoolLike[];
   poolCount?: number;
+};
+
+type PoolLike = {
+  assignments?: Array<unknown>;
 };
 
 type BracketLike = {
@@ -27,18 +31,22 @@ export const isBracketsView = (viewMode: LiveViewMode) => viewMode === 'brackets
 export const hasActivePoolStages = (
   view: LiveViewLike,
   viewStatus?: LiveViewStatus,
-  canViewEdition = false,
-  allowEmptyPools = false
+  allowEmptyPools = false,
+  screenMode = false
 ) => {
-  const allowedStatuses = viewStatus === 'FINISHED'
-    ? new Set(['COMPLETED'])
-    : new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'EDITION']);
+  let allowedStatuses = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'EDITION']);
+  if (viewStatus === 'FINISHED') {
+    allowedStatuses = new Set(['COMPLETED']);
+  }
+  if (screenMode) {
+    allowedStatuses = new Set(['IN_PROGRESS']);
+  }
   return (view.poolStages || []).some(
     (stage) => {
       if (!allowedStatuses.has(stage.status ?? '')) return false;
       const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
       if (poolCount <= 0) return false;
-      if (allowEmptyPools) return true;
+      if (!screenMode && allowEmptyPools) return true;
       return (stage.pools || []).some((pool) => (pool.assignments?.length ?? 0) > 0);
     }
   );
@@ -47,8 +55,14 @@ export const hasActivePoolStages = (
 export const hasActiveBrackets = (
   view: LiveViewLike,
   viewStatus?: LiveViewStatus,
-  canViewEdition = false
+  canViewEdition = false,
+  screenMode = false
 ) => {
+  if (screenMode) {
+    return (view.brackets || []).some(
+      (bracket) => bracket.status === 'IN_PROGRESS' && (bracket.entries?.length ?? 0) > 0
+    );
+  }
   if (viewStatus === 'FINISHED') {
     return (view.brackets || []).some(
       (bracket) => bracket.status === 'COMPLETED' && (bracket.matches?.length || 0) > 0
@@ -68,29 +82,31 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
   views: T[],
   viewStatus?: LiveViewStatus,
   canViewEditionByViewId?: (viewId: string) => boolean,
-  allowEmptyPoolsByViewId?: (viewId: string) => boolean
+  allowEmptyPoolsByViewId?: (viewId: string) => boolean,
+  screenMode = false
 ) => {
   if (isPoolStagesView(viewMode)) {
     return views.filter((view) => hasActivePoolStages(
       view,
       viewStatus,
-      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false,
-      allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false
+      allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false,
+      screenMode
     ));
   }
   if (isBracketsView(viewMode)) {
     return views.filter((view) => hasActiveBrackets(
       view,
       viewStatus,
-      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false
+      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false,
+      screenMode
     ));
   }
   if (viewMode === 'live') {
     return views.filter((view) => {
-      const canViewEdition = canViewEditionByViewId ? canViewEditionByViewId(view.id) : false;
       const allowEmptyPools = allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false;
-      return hasActivePoolStages(view, viewStatus, canViewEdition, allowEmptyPools)
-        || hasActiveBrackets(view, viewStatus, canViewEdition);
+      const canViewEdition = canViewEditionByViewId ? canViewEditionByViewId(view.id) : false;
+      return hasActivePoolStages(view, viewStatus, allowEmptyPools, screenMode)
+        || hasActiveBrackets(view, viewStatus, canViewEdition, screenMode);
     });
   }
   return views;

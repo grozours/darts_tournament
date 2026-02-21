@@ -130,8 +130,8 @@ function AccountView() {
           <h2 className="text-2xl font-semibold text-white mt-2">{t('account.signInRequired')}</h2>
         </div>
         <SignInPanel
-          title={t('account.signInTitle')}
-          description={t('account.signInDescription')}
+          title={t('auth.signIn')}
+          description={t('auth.protectedContinue')}
         />
       </div>
     );

@@ -45,7 +45,7 @@ describe('TournamentForm rendering', () => {
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
 
-  it('should render format options correctly', () => {
+  it('should render format options correctly', async () => {
     render(<TournamentForm {...defaultProps} />);
 
     const formatSelect = screen.getByLabelText(/format/i);
@@ -55,22 +55,21 @@ describe('TournamentForm rendering', () => {
     fireEvent.click(formatSelect);
 
     // Wait for options to appear and verify they contain expected values
-    waitFor(() => {
+    await waitFor(() => {
       // These might be options or data attributes depending on implementation
       expect(document.body).toHaveTextContent(/single/i);
       expect(document.body).toHaveTextContent(/double/i);
-      expect(document.body).toHaveTextContent(/knockout/i);
-      expect(document.body).toHaveTextContent(/pool/i);
+      expect(document.body).toHaveTextContent(/team/i);
     });
   });
 
-  it('should render duration type options correctly', () => {
+  it('should render duration type options correctly', async () => {
     render(<TournamentForm {...defaultProps} />);
 
     const durationSelect = screen.getByLabelText(/duration type/i);
     fireEvent.click(durationSelect);
 
-    waitFor(() => {
+    await waitFor(() => {
       expect(document.body).toHaveTextContent(/full day/i);
       expect(document.body).toHaveTextContent(/half day/i);
       expect(document.body).toHaveTextContent(/evening/i);

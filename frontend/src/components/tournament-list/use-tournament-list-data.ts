@@ -80,10 +80,8 @@ const useTournamentListData = ({
   }, [fetchTournaments, getSafeAccessToken]);
 
   useEffect(() => {
-    if (!authEnabled || isAuthenticated) {
-      void fetchTournaments();
-    }
-  }, [authEnabled, fetchTournaments, isAuthenticated]);
+    void fetchTournaments();
+  }, [fetchTournaments]);
 
   return {
     tournaments,

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
-import SignInPanel from '../auth/sign-in-panel';
 import { useI18n } from '../i18n';
 import { BracketType, TournamentFormat } from '@shared/types';
 import {
@@ -48,8 +47,8 @@ function TournamentList() { // NOSONAR
   const isEditPage = view === 'edit-tournament';
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
-    if (!authEnabled) {
-      console.log('[TournamentList] Auth not enabled, skipping token');
+    if (!authEnabled || !isAuthenticated) {
+      console.log('[TournamentList] Auth not enabled or not authenticated, skipping token');
       return undefined;
     }
     try {
@@ -61,7 +60,7 @@ function TournamentList() { // NOSONAR
       console.warn('[TournamentList] Failed to get access token, proceeding without auth:', error_);
       return undefined;
     }
-  }, [authEnabled, getAccessTokenSilently]);
+  }, [authEnabled, getAccessTokenSilently, isAuthenticated]);
   const getStatusLabel = useCallback(
     (scope: 'stage' | 'bracket', status: string) => getTournamentStatusLabel(t, scope, status),
     [t]
@@ -428,15 +427,6 @@ function TournamentList() { // NOSONAR
     );
   }
 
-  if (authEnabled && !isAuthenticated) {
-    return (
-      <SignInPanel
-        title={t('auth.signInToViewTournaments')}
-        description={t('auth.protectedContinue')}
-      />
-    );
-  }
-
   if (!isEditPage && loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -494,6 +484,7 @@ function TournamentList() { // NOSONAR
           groupedTournaments={groupedTournaments}
           normalizeStatus={normalizeTournamentStatus}
           isAdmin={isAdmin}
+          isAuthenticated={isAuthenticated}
           t={t}
           userRegistrations={userRegistrations}
           registeringTournamentId={registeringTournamentId ?? undefined}

@@ -1,46 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
 import SignInPanel from '../auth/sign-in-panel';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useI18n } from '../i18n';
-
-type MatchStartedPayload = {
-  matchId: string;
-  tournamentId: string;
-  tournamentName: string;
-  startedAt?: string;
-  target?: {
-    id: string;
-    targetNumber: number;
-    targetCode?: string;
-    name?: string;
-  };
-  match: {
-    source: 'pool' | 'bracket';
-    matchNumber: number;
-    roundNumber?: number;
-    stageNumber?: number;
-    poolNumber?: number;
-    bracketName?: string;
-  };
-  players: Array<{
-    id?: string;
-    firstName?: string;
-    lastName?: string;
-    surname?: string;
-    teamName?: string;
-  }>;
-};
-
-type NotificationItem = {
-  id: string;
-  receivedAt: string;
-  payload: MatchStartedPayload;
-  acknowledgedAt?: string;
-};
-
-const STORAGE_KEY = 'notifications:match-started';
-const STORAGE_LIMIT = 50;
+import type { MatchNotificationPayload, NotificationItem } from './notifications/notifications-types';
+import { NOTIFICATIONS_STORAGE_KEY } from './notifications/notifications-types';
 
 type TournamentSummary = {
   id: string;
@@ -55,7 +18,7 @@ type TournamentPlayersResponse = {
   }>;
 };
 
-const formatTargetLabel = (payload: MatchStartedPayload, t: (key: string) => string) => {
+const formatTargetLabel = (payload: MatchNotificationPayload, t: (key: string) => string) => {
   const target = payload.target;
   if (!target) return '';
   const rawLabel = target.targetCode || target.name || `#${target.targetNumber}`;
@@ -66,7 +29,7 @@ const formatTargetLabel = (payload: MatchStartedPayload, t: (key: string) => str
   return rawLabel;
 };
 
-const getPlayerDisplayName = (player: MatchStartedPayload['players'][number]) =>
+const getPlayerDisplayName = (player: MatchNotificationPayload['players'][number]) =>
   player.teamName
   || player.surname
   || `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim();
@@ -149,15 +112,14 @@ function NotificationsView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [connected, setConnected] = useState(false);
+  const connected = authEnabled && isAuthenticated;
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [joinedTournaments, setJoinedTournaments] = useState<string[]>([]);
-  const playerIdsReference = useRef<Set<string>>(new Set());
   const permissionReference = useRef<'default' | 'granted' | 'denied' | 'unsupported'>('default');
 
   const persistNotifications = useCallback((items: NotificationItem[]) => {
     try {
-      globalThis.window?.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      globalThis.window?.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(items));
       globalThis.window?.dispatchEvent(new Event('notifications:updated'));
     } catch (error) {
       console.warn('Failed to persist notifications:', error);
@@ -175,7 +137,7 @@ function NotificationsView() {
   }, [authEnabled, getAccessTokenSilently]);
 
   const buildMatchLabel = useCallback(
-    (payload: MatchStartedPayload) => {
+    (payload: MatchNotificationPayload) => {
       if (payload.match.source === 'pool') {
         const stage = payload.match.stageNumber ?? '-';
         const pool = payload.match.poolNumber ?? '-';
@@ -186,53 +148,30 @@ function NotificationsView() {
     [t]
   );
 
-  const shouldNotify = useCallback((payload: MatchStartedPayload) => {
-    if (playerIdsReference.current.size === 0) {
-      return false;
+  const buildScoreSummary = useCallback((payload: MatchNotificationPayload) => {
+    if (payload.event !== 'completed') {
+      return undefined;
     }
-    return payload.players.some((player) => player.id && playerIdsReference.current.has(player.id));
+
+    const scored = payload.players
+      .map((player) => ({ player, score: typeof player.scoreTotal === 'number' ? player.scoreTotal : null }))
+      .filter((item): item is { player: MatchNotificationPayload['players'][number]; score: number } => item.score !== null);
+
+    if (scored.length < 2) {
+      return undefined;
+    }
+
+    const winner = scored.find((item) => item.player.isWinner);
+    const sorted = [...scored].sort((a, b) => b.score - a.score);
+    const first = winner ?? sorted[0];
+    const second = sorted.find((item) => item !== first) ?? sorted[1];
+    if (!first || !second) {
+      return undefined;
+    }
+    return `${first.score} - ${second.score}`;
   }, []);
 
-  const appendNotification = useCallback((payload: MatchStartedPayload) => {
-    setNotifications((current) => {
-      const next = [
-        {
-          id: `${payload.matchId}-${Date.now()}`,
-          receivedAt: new Date().toISOString(),
-          payload,
-        },
-        ...current,
-      ].slice(0, STORAGE_LIMIT);
-      persistNotifications(next);
-      return next;
-    });
-  }, [persistNotifications]);
-
-  const maybeShowBrowserNotification = useCallback((payload: MatchStartedPayload) => {
-    if (permissionReference.current !== 'granted') {
-      return;
-    }
-    const targetLabel = formatTargetLabel(payload, t);
-    const matchLabel = buildMatchLabel(payload);
-    const title = `${t('notifications.calledToTarget')} ${targetLabel}`.trim();
-    const body = `${payload.tournamentName} · ${matchLabel}`;
-    try {
-      new Notification(title, { body });
-    } catch (error) {
-      console.warn('Failed to show notification:', error);
-    }
-  }, [buildMatchLabel, t]);
-
-  const handleMatchStarted = useCallback((payload: MatchStartedPayload) => {
-    if (!shouldNotify(payload)) {
-      return;
-    }
-    appendNotification(payload);
-    maybeShowBrowserNotification(payload);
-  }, [appendNotification, maybeShowBrowserNotification, shouldNotify]);
-
-  const updatePlayerIdsState = useCallback((payload: { playerIds: Set<string>; tournamentsToJoin: string[] }) => {
-    playerIdsReference.current = payload.playerIds;
+  const updatePlayerIdsState = useCallback((payload: { tournamentsToJoin: string[] }) => {
     setJoinedTournaments(payload.tournamentsToJoin);
   }, []);
 
@@ -253,7 +192,7 @@ function NotificationsView() {
         return;
       }
 
-      updatePlayerIdsState(data);
+      updatePlayerIdsState({ tournamentsToJoin: data.tournamentsToJoin });
     } catch (error) {
       if (!isMounted()) {
         return;
@@ -287,18 +226,30 @@ function NotificationsView() {
   }, []);
 
   useEffect(() => {
-    const stored = globalThis.window?.localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(stored) as NotificationItem[];
-      if (Array.isArray(parsed)) {
-        setNotifications(parsed);
+    const updateNotifications = () => {
+      const stored = globalThis.window?.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (!stored) {
+        setNotifications([]);
+        return;
       }
-    } catch (error) {
-      console.warn('Failed to parse stored notifications:', error);
-    }
+      try {
+        const parsed = JSON.parse(stored) as NotificationItem[];
+        if (Array.isArray(parsed)) {
+          setNotifications(parsed);
+        }
+      } catch (error) {
+        console.warn('Failed to parse stored notifications:', error);
+      }
+    };
+
+    updateNotifications();
+    globalThis.window?.addEventListener('notifications:updated', updateNotifications);
+    globalThis.window?.addEventListener('storage', updateNotifications);
+
+    return () => {
+      globalThis.window?.removeEventListener('notifications:updated', updateNotifications);
+      globalThis.window?.removeEventListener('storage', updateNotifications);
+    };
   }, []);
 
   useEffect(() => {
@@ -329,34 +280,13 @@ function NotificationsView() {
       return;
     }
 
-    if (joinedTournaments.length === 0) {
-      return;
-    }
-
-    const socket = io(globalThis.window?.location.origin ?? '', {
-      path: '/socket.io',
-      transports: ['websocket'],
-      withCredentials: true,
-    });
-
-    socket.on('connect', () => {
-      setConnected(true);
-      for (const tournamentId of joinedTournaments) {
-        socket.emit('join-tournament', tournamentId);
-      }
-    });
-
-    socket.on('disconnect', () => {
-      setConnected(false);
-    });
-
-    socket.on('match:started', handleMatchStarted);
+    let isMounted = true;
+    void loadPlayerIds(() => isMounted);
 
     return () => {
-      socket.removeAllListeners();
-      socket.disconnect();
+      isMounted = false;
     };
-  }, [authEnabled, isAuthenticated, joinedTournaments, handleMatchStarted]);
+  }, [authEnabled, isAuthenticated, loadPlayerIds]);
 
   const acknowledgeNotification = useCallback(
     (id: string) => {
@@ -486,6 +416,13 @@ function NotificationsView() {
               .map((player) => getPlayerDisplayName(player))
               .filter(Boolean);
             const isAcknowledged = Boolean(item.acknowledgedAt);
+            let title = t('notifications.matchCancelled');
+            if (item.payload.event === 'started') {
+              title = `${t('notifications.calledToTarget')} ${targetLabel}`.trim();
+            } else if (item.payload.event === 'completed') {
+              title = t('notifications.matchCompleted');
+            }
+            const scoreSummary = buildScoreSummary(item.payload);
             return (
               <div key={item.id} className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -508,9 +445,14 @@ function NotificationsView() {
                   </div>
                 </div>
                 <div className="mt-3 text-lg font-semibold text-white">
-                  {t('notifications.calledToTarget')} {targetLabel}
+                  {title}
                 </div>
                 <div className="mt-2 text-sm text-slate-300">{label}</div>
+                {scoreSummary && (
+                  <div className="mt-2 text-sm text-slate-300">
+                    {t('live.finalScore')}: {scoreSummary}
+                  </div>
+                )}
                 {players.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
                     {players.map((player) => (

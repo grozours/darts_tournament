@@ -29,6 +29,15 @@ export function useAdminStatus() {
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
   useEffect(() => {
+    const screenParam = globalThis.window
+      ? new URLSearchParams(globalThis.window.location.search).get('screen')
+      : undefined;
+    const isScreenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
+    if (isScreenMode) {
+      setIsAdmin(false);
+      return;
+    }
+
     // If auth is not enabled or user is not authenticated, they're not admin
     if (!enabled || !isAuthenticated) {
       setIsAdmin(false);

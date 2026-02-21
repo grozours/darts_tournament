@@ -1,16 +1,10 @@
 import { useEffect } from 'react';
 
 type UseLiveTournamentRefreshProperties = {
-  authEnabled: boolean;
-  isAuthenticated: boolean;
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
 };
 
-const useLiveTournamentRefresh = ({
-  authEnabled,
-  isAuthenticated,
-  reloadLiveViews,
-}: UseLiveTournamentRefreshProperties) => {
+const useLiveTournamentRefresh = ({ reloadLiveViews }: UseLiveTournamentRefreshProperties) => {
   useEffect(() => {
     void reloadLiveViews();
   }, [reloadLiveViews]);

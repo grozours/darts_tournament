@@ -148,7 +148,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
 
     if (status === MatchStatus.COMPLETED || status === MatchStatus.CANCELLED) {
-      await finalizeMatchStatus(matchId, match, status, now);
+      await finalizeMatchStatus(tournamentId, matchId, match, status, now);
       return;
     }
 
@@ -179,6 +179,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
   };
 
   const finalizeMatchStatus = async (
+    tournamentId: string,
     matchId: string,
     match: NonNullable<Awaited<ReturnType<TournamentModel['getMatchById']>>>,
     status: MatchStatus,
@@ -192,10 +193,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
         status,
         timestamps
       );
-      return;
+    } else {
+      await tournamentModel.updateMatchStatus(matchId, status, timestamps);
     }
 
-    await tournamentModel.updateMatchStatus(matchId, status, timestamps);
+    await emitMatchFinishedNotification(tournamentId, matchId, status, timestamps.completedAt ?? now);
   };
 
   const buildMatchCompletionTimestamps = (
@@ -335,6 +337,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
           roundNumber: matchDetails.roundNumber,
           stageNumber: matchDetails.pool.poolStage?.stageNumber,
           poolNumber: matchDetails.pool.poolNumber,
+          poolId: matchDetails.pool.id,
         }
       : {
           source: 'bracket' as const,
@@ -362,6 +365,109 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       ...(target ? { target } : {}),
       match: matchPayload,
       players,
+    });
+  };
+
+  const emitMatchFinishedNotification = async (
+    tournamentId: string,
+    matchId: string,
+    status: MatchStatus,
+    finishedAt: Date
+  ): Promise<void> => {
+    if (status !== MatchStatus.COMPLETED && status !== MatchStatus.CANCELLED) {
+      return;
+    }
+
+    const webSocketService = getWebSocketService();
+    if (!webSocketService) {
+      return;
+    }
+
+    const matchDetails = await tournamentModel.getMatchDetailsForNotification(matchId);
+    if (!matchDetails) {
+      return;
+    }
+
+    const tournament = await tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      return;
+    }
+
+    const players = (matchDetails.playerMatches ?? []).map((pm) => {
+      const summary: {
+        id?: string;
+        firstName?: string;
+        lastName?: string;
+        surname?: string;
+        teamName?: string;
+        scoreTotal?: number | null;
+        legsWon?: number | null;
+        setsWon?: number | null;
+        isWinner?: boolean | null;
+      } = {
+        id: pm.player?.id ?? pm.playerId,
+        firstName: pm.player?.firstName,
+        lastName: pm.player?.lastName,
+        scoreTotal: pm.scoreTotal ?? null,
+        legsWon: pm.legsWon ?? null,
+        setsWon: pm.setsWon ?? null,
+        isWinner: pm.isWinner ?? null,
+      };
+      if (pm.player?.surname) {
+        summary.surname = pm.player.surname;
+      }
+      if (pm.player?.teamName) {
+        summary.teamName = pm.player.teamName;
+      }
+      return summary;
+    });
+
+    const winner = players.find((player) => player.isWinner)
+      ?? (matchDetails.winner
+        ? {
+            id: matchDetails.winner.id,
+            firstName: matchDetails.winner.firstName,
+            lastName: matchDetails.winner.lastName,
+          }
+        : null);
+
+    const matchPayload = matchDetails.pool
+      ? {
+          source: 'pool' as const,
+          matchNumber: matchDetails.matchNumber,
+          roundNumber: matchDetails.roundNumber,
+          stageNumber: matchDetails.pool.poolStage?.stageNumber,
+          poolNumber: matchDetails.pool.poolNumber,
+          poolId: matchDetails.pool.id,
+        }
+      : {
+          source: 'bracket' as const,
+          matchNumber: matchDetails.matchNumber,
+          roundNumber: matchDetails.roundNumber,
+          // eslint-disable-next-line unicorn/no-null
+          bracketName: matchDetails.bracket?.name ?? null,
+        };
+
+    const target = matchDetails.target
+      ? {
+          id: matchDetails.target.id,
+          targetNumber: matchDetails.target.targetNumber,
+          ...(matchDetails.target.targetCode ? { targetCode: matchDetails.target.targetCode } : {}),
+          // eslint-disable-next-line unicorn/no-null
+          name: matchDetails.target.name ?? null,
+        }
+      : undefined;
+
+    await webSocketService.emitMatchFinished({
+      event: status === MatchStatus.COMPLETED ? 'completed' : 'cancelled',
+      matchId,
+      tournamentId: tournament.id,
+      tournamentName: tournament.name,
+      finishedAt: finishedAt.toISOString(),
+      target,
+      match: matchPayload,
+      players,
+      winner: winner ?? undefined,
     });
   };
 

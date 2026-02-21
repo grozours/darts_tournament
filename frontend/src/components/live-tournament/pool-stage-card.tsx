@@ -531,24 +531,7 @@ const PoolStageCard = ({
               const isActive = pool.id === activePool?.id;
               const playerCount = pool.assignments?.length ?? 0;
               return (
-                <div
-                  key={pool.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleSelectPool(pool.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      handleSelectPool(pool.id);
-                    }
-                  }}
-                  className={`group relative rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 ${
-                    isActive
-                      ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_20px_45px_-30px_rgba(245,158,11,0.8)]'
-                      : 'border-slate-800/70 bg-slate-950/60 hover:border-amber-500/40'
-                  }`}
-                  aria-pressed={isActive}
-                >
+                <div key={pool.id} className="relative">
                   {isAdmin && (
                     <button
                       type="button"
@@ -562,7 +545,7 @@ const PoolStageCard = ({
                       disabled={resettingPoolId === pool.id}
                       aria-label={t('live.resetPool')}
                       title={t('live.resetPool')}
-                      className="absolute right-3 top-3 rounded-full border border-rose-500/70 bg-rose-500/10 p-1 text-rose-200 transition hover:border-rose-300 hover:bg-rose-500/20 disabled:opacity-60"
+                      className="absolute right-3 top-3 z-10 rounded-full border border-rose-500/70 bg-rose-500/10 p-1 text-rose-200 transition hover:border-rose-300 hover:bg-rose-500/20 disabled:opacity-60"
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -574,7 +557,17 @@ const PoolStageCard = ({
                       </svg>
                     </button>
                   )}
-                  <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPool(pool.id)}
+                    className={`group w-full rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 ${
+                      isActive
+                        ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_20px_45px_-30px_rgba(245,158,11,0.8)]'
+                        : 'border-slate-800/70 bg-slate-950/60 hover:border-amber-500/40'
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Pool</p>
                       <p className="mt-2 text-lg font-semibold text-slate-100">
@@ -590,27 +583,28 @@ const PoolStageCard = ({
                       </span>
                     </div>
                   </div>
-                  <div className="mt-4 text-[11px] uppercase tracking-widest text-slate-500">
-                    {t('live.leaderboard')}
-                  </div>
-                  <div className="mt-2 space-y-2 text-xs text-slate-200">
-                    {leaderboard.length === 0 ? (
-                      <p className="text-slate-500">{t('live.noStandings')}</p>
-                    ) : (
-                      leaderboard.map((row) => (
-                        <div
-                          key={row.playerId}
-                          className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/50 px-2 py-1"
-                        >
-                          <span className="font-semibold text-amber-200">#{row.position}</span>
-                          <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
-                          <span className="w-16 text-right text-slate-300">
-                            {row.legsWon}-{row.legsLost}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                    <div className="mt-4 text-[11px] uppercase tracking-widest text-slate-500">
+                      {t('live.leaderboard')}
+                    </div>
+                    <div className="mt-2 space-y-2 text-xs text-slate-200">
+                      {leaderboard.length === 0 ? (
+                        <p className="text-slate-500">{t('live.noStandings')}</p>
+                      ) : (
+                        leaderboard.map((row) => (
+                          <div
+                            key={row.playerId}
+                            className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/50 px-2 py-1"
+                          >
+                            <span className="font-semibold text-amber-200">#{row.position}</span>
+                            <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
+                            <span className="w-16 text-right text-slate-300">
+                              {row.legsWon}-{row.legsLost}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </button>
                 </div>
               );
             })}

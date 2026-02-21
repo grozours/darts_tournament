@@ -4,9 +4,16 @@ set -euo pipefail
 SONAR_HOST_URL=${SONAR_HOST_URL:-http://localhost:9000}
 SONAR_TOKEN=${SONAR_TOKEN:-}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SONAR_TOKEN_FILE="$ROOT_DIR/.sonar-token"
 
 if [[ -z "$SONAR_TOKEN" ]]; then
-  echo "SONAR_TOKEN is required (generate one in SonarQube: User > My Account > Security)"
+  if [[ -f "$SONAR_TOKEN_FILE" ]]; then
+    SONAR_TOKEN="$(tr -d '\r\n' < "$SONAR_TOKEN_FILE")"
+  fi
+fi
+
+if [[ -z "$SONAR_TOKEN" ]]; then
+  echo "SONAR_TOKEN is required (set SONAR_TOKEN or provide .sonar-token in repo root)"
   exit 1
 fi
 

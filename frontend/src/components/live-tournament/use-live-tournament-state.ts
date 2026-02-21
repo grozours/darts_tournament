@@ -40,6 +40,7 @@ type LiveTournamentState = {
   tournamentId: string | undefined;
   bracketId: string | undefined;
   isAggregateView: boolean;
+  screenMode: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   liveViews: LiveViewData[];
   loading: boolean;
@@ -111,8 +112,19 @@ const useLiveTournamentState = (): LiveTournamentState => {
   } = useOptionalAuth();
   const { isAdmin } = useAdminStatus();
   const { getStatusLabel } = useLiveTournamentStatusLabels(t);
-  const { viewMode, viewStatus, tournamentId, bracketId, isAggregateView } = useLiveTournamentParameters();
-  const { getSafeAccessToken } = useLiveTournamentToken({ authEnabled, getAccessTokenSilently });
+  const {
+    viewMode,
+    viewStatus,
+    tournamentId,
+    bracketId,
+    isAggregateView,
+    screenMode,
+  } = useLiveTournamentParameters();
+  const { getSafeAccessToken } = useLiveTournamentToken({
+    authEnabled,
+    isAuthenticated,
+    getAccessTokenSilently,
+  });
   const {
     liveViews,
     loading,
@@ -144,6 +156,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
   } = useLiveTournamentSelection({
     viewMode,
     viewStatus,
+    screenMode,
     tournamentId,
     liveViews,
     canViewEditionByViewId,
@@ -155,7 +168,8 @@ const useLiveTournamentState = (): LiveTournamentState => {
     displayedLiveViews,
     selectedLiveTournamentId,
     visibleLiveViewsCount: visibleLiveViews.length,
-    allowEmptyPools: isAdmin,
+    allowEmptyPools: isAdmin && !screenMode,
+    screenMode,
   });
   const {
     availableTargetsByTournament,
@@ -225,7 +239,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
   }, [bracketId, handleSelectBracket, tournamentId]);
   const { isPoolStagesReadonly, isBracketsReadonly } = useLiveTournamentReadonly({ isAdmin, viewMode });
 
-  useLiveTournamentRefresh({ authEnabled, isAuthenticated, reloadLiveViews });
+  useLiveTournamentRefresh({ reloadLiveViews });
 
   return {
     t,
@@ -239,6 +253,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     tournamentId,
     bracketId,
     isAggregateView,
+    screenMode,
     getStatusLabel,
     liveViews,
     loading,

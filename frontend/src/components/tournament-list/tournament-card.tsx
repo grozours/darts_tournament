@@ -6,6 +6,7 @@ export type TournamentCardProperties = {
   statusLabel: string;
   showWaitingSignature: boolean;
   isAdmin: boolean;
+  isAuthenticated: boolean;
   t: Translator;
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
@@ -19,12 +20,124 @@ export type TournamentCardProperties = {
   userRegistrations: Set<string>;
 };
 
+type TournamentAdminActionProperties = {
+  tournament: Tournament;
+  normalizedStatus: string;
+  openingRegistrationId?: string | undefined;
+  openingSignatureId?: string | undefined;
+  onOpenRegistration: (tournamentId: string) => void;
+  onOpenSignature: (tournamentId: string) => void;
+  onEdit: (tournament: Tournament) => void;
+  onDelete: (tournamentId: string) => void;
+  t: Translator;
+};
+
+type TournamentRegistrationActionProperties = {
+  tournamentId: string;
+  showRegistrationActions: boolean;
+  isRegistered: boolean;
+  registeringTournamentId?: string | undefined;
+  onRegister: (tournamentId: string) => void;
+  onUnregister: (tournamentId: string) => void;
+  t: Translator;
+};
+
+const TournamentAdminActions = ({
+  tournament,
+  normalizedStatus,
+  openingRegistrationId,
+  openingSignatureId,
+  onOpenRegistration,
+  onOpenSignature,
+  onEdit,
+  onDelete,
+  t,
+}: TournamentAdminActionProperties) => (
+  <>
+    {normalizedStatus === 'DRAFT' && (
+      <button
+        onClick={() => onOpenRegistration(tournament.id)}
+        disabled={openingRegistrationId === tournament.id}
+        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        {openingRegistrationId === tournament.id
+          ? t('common.loading')
+          : t('tournaments.openRegistration')}
+      </button>
+    )}
+    {normalizedStatus === 'DRAFT' && (
+      <button
+        onClick={() => onOpenSignature(tournament.id)}
+        disabled={openingSignatureId === tournament.id}
+        className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        {openingSignatureId === tournament.id
+          ? t('common.loading')
+          : t('tournaments.openSignature')}
+      </button>
+    )}
+    <button
+      onClick={() => onEdit(tournament)}
+      className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
+    >
+      {t('tournaments.edit')}
+    </button>
+    <button
+      onClick={() => onDelete(tournament.id)}
+      className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
+    >
+      {t('tournaments.delete')}
+    </button>
+  </>
+);
+
+const TournamentRegistrationActions = ({
+  tournamentId,
+  showRegistrationActions,
+  isRegistered,
+  registeringTournamentId,
+  onRegister,
+  onUnregister,
+  t,
+}: TournamentRegistrationActionProperties) => {
+  if (!showRegistrationActions) {
+    return null;
+  }
+
+  if (isRegistered) {
+    return (
+      <button
+        onClick={() => onUnregister(tournamentId)}
+        disabled={registeringTournamentId === tournamentId}
+        className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        {registeringTournamentId === tournamentId
+          ? t('common.loading')
+          : t('tournaments.unregister')}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onRegister(tournamentId)}
+      disabled={registeringTournamentId === tournamentId}
+      className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+    >
+      {registeringTournamentId === tournamentId
+        ? t('common.loading')
+        : t('tournaments.register')}
+    </button>
+  );
+};
+
 const TournamentCard = ({
   tournament,
   normalizedStatus,
   statusLabel,
   showWaitingSignature,
   isAdmin,
+  isAuthenticated,
   t,
   onEdit,
   onDelete,
@@ -36,7 +149,16 @@ const TournamentCard = ({
   openingRegistrationId,
   openingSignatureId,
   userRegistrations,
-}: TournamentCardProperties) => (
+}: TournamentCardProperties) => {
+  const isLive = normalizedStatus === 'LIVE';
+  const isFinished = normalizedStatus === 'FINISHED';
+  const isRegistered = userRegistrations.has(tournament.id);
+  const showRegistrationActions = isAuthenticated && !isLive;
+  const tournamentId = tournament.id;
+  const poolStagesUrl = `/?view=pool-stages&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
+  const bracketsUrl = `/?view=brackets&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
+
+  return (
   <div
     className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
   >
@@ -58,7 +180,7 @@ const TournamentCard = ({
             {tournament.name}
           </h3>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
-          <p className="mt-1 break-all text-xs text-slate-500">ID: {tournament.id}</p>
+          <p className="mt-1 break-all text-xs text-slate-500">ID: {tournamentId}</p>
         </div>
       </div>
       <span className="w-fit rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
@@ -83,19 +205,19 @@ const TournamentCard = ({
     {!showWaitingSignature && (
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
         <a
-          href={`/?view=tournament-players&tournamentId=${tournament.id}`}
+          href={`/?view=tournament-players&tournamentId=${tournamentId}`}
           className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 sm:w-auto"
         >
           {t('tournaments.registered')}
         </a>
         <a
-          href={`/?view=pool-stages&tournamentId=${tournament.id}${normalizedStatus === 'FINISHED' ? '&status=FINISHED' : ''}`}
+          href={poolStagesUrl}
           className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
         >
           {t('nav.poolStagesShort')}
         </a>
         <a
-          href={`/?view=brackets&tournamentId=${tournament.id}${normalizedStatus === 'FINISHED' ? '&status=FINISHED' : ''}`}
+          href={bracketsUrl}
           className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
         >
           {t('nav.bracketsShort')}
@@ -109,70 +231,32 @@ const TournamentCard = ({
           </a>
         )}
         {isAdmin ? (
-          <>
-            {normalizedStatus === 'DRAFT' && (
-              <button
-                onClick={() => onOpenRegistration(tournament.id)}
-                disabled={openingRegistrationId === tournament.id}
-                className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                {openingRegistrationId === tournament.id
-                  ? t('common.loading')
-                  : t('tournaments.openRegistration')}
-              </button>
-            )}
-            {normalizedStatus === 'DRAFT' && (
-              <button
-                onClick={() => onOpenSignature(tournament.id)}
-                disabled={openingSignatureId === tournament.id}
-                className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                {openingSignatureId === tournament.id
-                  ? t('common.loading')
-                  : t('tournaments.openSignature')}
-              </button>
-            )}
-            <button
-              onClick={() => onEdit(tournament)}
-              className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
-            >
-              {t('tournaments.edit')}
-            </button>
-            <button
-              onClick={() => onDelete(tournament.id)}
-              className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
-            >
-              {t('tournaments.delete')}
-            </button>
-          </>
+          <TournamentAdminActions
+            tournament={tournament}
+            normalizedStatus={normalizedStatus}
+            openingRegistrationId={openingRegistrationId}
+            openingSignatureId={openingSignatureId}
+            onOpenRegistration={onOpenRegistration}
+            onOpenSignature={onOpenSignature}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            t={t}
+          />
         ) : (
-          <>
-            {userRegistrations.has(tournament.id) ? (
-              <button
-                onClick={() => onUnregister(tournament.id)}
-                disabled={registeringTournamentId === tournament.id}
-                className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                {registeringTournamentId === tournament.id
-                  ? t('common.loading')
-                  : t('tournaments.unregister')}
-              </button>
-            ) : (
-              <button
-                onClick={() => onRegister(tournament.id)}
-                disabled={registeringTournamentId === tournament.id}
-                className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                {registeringTournamentId === tournament.id
-                  ? t('common.loading')
-                  : t('tournaments.register')}
-              </button>
-            )}
-          </>
+          <TournamentRegistrationActions
+            tournamentId={tournamentId}
+            registeringTournamentId={registeringTournamentId}
+            showRegistrationActions={showRegistrationActions}
+            isRegistered={isRegistered}
+            onRegister={onRegister}
+            onUnregister={onUnregister}
+            t={t}
+          />
         )}
       </div>
     )}
   </div>
-);
+  );
+};
 
 export default TournamentCard;

@@ -8,32 +8,36 @@ type LiveTournamentParameters = {
   tournamentId?: string | undefined;
   bracketId?: string | undefined;
   isAggregateView: boolean;
+  screenMode: boolean;
 };
+
+const readQueryParam = (key: string): string | undefined => {
+  if (globalThis.window === undefined) return undefined;
+  const value = new URLSearchParams(globalThis.window.location.search).get(key);
+  // eslint-disable-next-line unicorn/no-useless-undefined
+  return value ?? undefined;
+};
+
+const isScreenMode = (value: string | undefined) => value === '1' || value === 'true' || value === 'screen';
 
 const useLiveTournamentParameters = (): LiveTournamentParameters => {
   const viewMode = useMemo<LiveViewMode | undefined>(() => {
-    if (globalThis.window === undefined) return;
-    const value = new URLSearchParams(globalThis.window.location.search).get('view');
-    return value ?? undefined;
+    return readQueryParam('view');
   }, []);
 
   const viewStatus = useMemo<LiveViewStatus | undefined>(() => {
-    if (globalThis.window === undefined) return;
-    const value = new URLSearchParams(globalThis.window.location.search).get('status');
-    return value ?? undefined;
+    return readQueryParam('status');
   }, []);
 
   const tournamentId = useMemo<string | undefined>(() => {
-    if (globalThis.window === undefined) return;
-    const value = new URLSearchParams(globalThis.window.location.search).get('tournamentId');
-    return value ?? undefined;
+    return readQueryParam('tournamentId');
   }, []);
 
   const bracketId = useMemo<string | undefined>(() => {
-    if (globalThis.window === undefined) return;
-    const value = new URLSearchParams(globalThis.window.location.search).get('bracketId');
-    return value ?? undefined;
+    return readQueryParam('bracketId');
   }, []);
+
+  const screenMode = useMemo(() => isScreenMode(readQueryParam('screen')), []);
 
   const resolvedViewMode = (() => {
     if (viewMode) return viewMode;
@@ -57,6 +61,7 @@ const useLiveTournamentParameters = (): LiveTournamentParameters => {
     tournamentId,
     bracketId,
     isAggregateView,
+    screenMode,
   };
 };
 

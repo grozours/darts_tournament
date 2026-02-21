@@ -5,6 +5,7 @@ import type { LiveViewData, LiveViewMode } from './types';
 type UseLiveTournamentSelectionProperties = {
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
+  screenMode?: boolean;
   tournamentId?: string | undefined;
   liveViews: LiveViewData[];
   canViewEditionByViewId?: (viewId: string) => boolean;
@@ -23,6 +24,7 @@ type LiveTournamentSelectionResult = {
 const useLiveTournamentSelection = ({
   viewMode,
   viewStatus,
+  screenMode = false,
   tournamentId,
   liveViews,
   canViewEditionByViewId,
@@ -33,7 +35,14 @@ const useLiveTournamentSelection = ({
 
   const visibleLiveViews = (viewMode === 'pool-stages' && tournamentId)
     ? liveViews
-    : getVisibleLiveViews(viewMode, liveViews, viewStatus, canViewEditionByViewId, allowEmptyPoolsByViewId);
+    : getVisibleLiveViews(
+      viewMode,
+      liveViews,
+      viewStatus,
+      canViewEditionByViewId,
+      allowEmptyPoolsByViewId,
+      screenMode
+    );
 
   useEffect(() => {
     if (viewMode === 'live') {
