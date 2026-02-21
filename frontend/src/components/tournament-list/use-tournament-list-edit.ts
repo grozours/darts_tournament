@@ -17,6 +17,7 @@ type UseTournamentListEditProperties = {
   resetStructureState: () => void;
   loadPoolStages: (tournamentId: string) => Promise<void>;
   loadBrackets: (tournamentId: string) => Promise<void>;
+  loadTargets: (tournamentId: string) => Promise<void>;
   fetchTournaments: () => void;
 };
 
@@ -54,6 +55,7 @@ const useTournamentListEdit = ({
   resetStructureState,
   loadPoolStages,
   loadBrackets,
+  loadTargets,
   fetchTournaments,
 }: UseTournamentListEditProperties): TournamentListEditResult => {
   const {
@@ -99,6 +101,7 @@ const useTournamentListEdit = ({
     resetStructureState,
     loadPoolStages,
     loadBrackets,
+    loadTargets,
     fetchTournaments: refreshTournaments,
     editingTournament,
     editForm,

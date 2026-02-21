@@ -28,6 +28,10 @@ export class TournamentModel {
   public create!: TournamentModelCoreHandlers['create'];
   public getMaxTargetNumber!: TournamentModelCoreHandlers['getMaxTargetNumber'];
   public createTargetsForTournament!: TournamentModelCoreHandlers['createTargetsForTournament'];
+  public getTargetRanges!: TournamentModelCoreHandlers['getTargetRanges'];
+  public getTargetsForTournament!: TournamentModelCoreHandlers['getTargetsForTournament'];
+  public getMatchCountForTargets!: TournamentModelCoreHandlers['getMatchCountForTargets'];
+  public rebuildTargetsForTournament!: TournamentModelCoreHandlers['rebuildTargetsForTournament'];
   public update!: TournamentModelCoreHandlers['update'];
   public delete!: TournamentModelCoreHandlers['delete'];
   public updateLogo!: TournamentModelCoreHandlers['updateLogo'];
@@ -79,6 +83,7 @@ export class TournamentModel {
   public createBracketEntries!: TournamentModelBracketHandlers['createBracketEntries'];
   public deleteBracketEntriesForBracket!: TournamentModelBracketHandlers['deleteBracketEntriesForBracket'];
   public getMatchCountForBracket!: TournamentModelBracketHandlers['getMatchCountForBracket'];
+  public getStartedBracketMatchCount!: TournamentModelBracketHandlers['getStartedBracketMatchCount'];
   public getBracketMatches!: TournamentModelBracketHandlers['getBracketMatches'];
   public resetBracketMatches!: TournamentModelBracketHandlers['resetBracketMatches'];
   public deleteMatchesForBracket!: TournamentModelBracketHandlers['deleteMatchesForBracket'];
@@ -95,6 +100,9 @@ export class TournamentModel {
   public createBracket!: TournamentModelBracketHandlers['createBracket'];
   public updateBracket!: TournamentModelBracketHandlers['updateBracket'];
   public deleteBracket!: TournamentModelBracketHandlers['deleteBracket'];
+  public getBracketTargetIds!: TournamentModelBracketHandlers['getBracketTargetIds'];
+  public getBracketTargetConflicts!: TournamentModelBracketHandlers['getBracketTargetConflicts'];
+  public setBracketTargets!: TournamentModelBracketHandlers['setBracketTargets'];
 
   public getMatchById!: TournamentModelMatchHandlers['getMatchById'];
   public getTargetById!: TournamentModelMatchHandlers['getTargetById'];

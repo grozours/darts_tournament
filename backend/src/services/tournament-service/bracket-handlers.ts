@@ -21,6 +21,10 @@ type BracketUpdateData = Partial<{
   status: BracketStatus;
 }>;
 
+type BracketTargetsUpdateData = {
+  targetIds: string[];
+};
+
 export type BracketHandlerContext = {
   tournamentModel: TournamentModel;
   validateUUID: (id: string) => void;
@@ -33,6 +37,29 @@ export type BracketHandlerContext = {
 
 export const createBracketHandlers = (context: BracketHandlerContext) => {
   const { tournamentModel, validateUUID, completeMatchWithRandomScores } = context;
+
+  const ensureBracketsEditable = async (
+    tournamentId: string,
+    status: TournamentStatus,
+    bracketId?: string
+  ): Promise<void> => {
+    if (status === TournamentStatus.FINISHED) {
+      throw new AppError(
+        'Brackets cannot be modified for finished tournaments',
+        400,
+        'BRACKET_NOT_EDITABLE'
+      );
+    }
+
+    const startedMatchCount = await tournamentModel.getStartedBracketMatchCount(tournamentId, bracketId);
+    if (startedMatchCount > 0) {
+      throw new AppError(
+        'Brackets cannot be modified once bracket matches have started',
+        400,
+        'BRACKET_MATCHES_STARTED'
+      );
+    }
+  };
 
   const completeBracketRoundWithRandomScores = async (
     tournamentId: string,
@@ -56,7 +83,10 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
       throw new AppError('Invalid round number', 400, 'BRACKET_ROUND_INVALID');
     }
 
-    const matches = await tournamentModel.getBracketMatchesByRoundWithPlayers(bracketId, roundNumber);
+    const matches = await tournamentModel.getBracketMatchesByRoundWithPlayers(
+      bracketId,
+      roundNumber
+    ) as MatchForCompletion[];
     if (matches.length === 0) {
       throw new AppError('Bracket round not found', 404, 'BRACKET_ROUND_NOT_FOUND');
     }
@@ -91,13 +121,7 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
     }
 
-    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE].includes(tournament.status)) {
-      throw new AppError(
-        'Brackets can only be modified for draft, open, or signature tournaments',
-        400,
-        'BRACKET_NOT_EDITABLE'
-      );
-    }
+    await ensureBracketsEditable(tournamentId, tournament.status);
 
     return await tournamentModel.createBracket(tournamentId, data);
   };
@@ -114,13 +138,7 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
     }
 
-    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE].includes(tournament.status)) {
-      throw new AppError(
-        'Brackets can only be modified for draft, open, or signature tournaments',
-        400,
-        'BRACKET_NOT_EDITABLE'
-      );
-    }
+    await ensureBracketsEditable(tournamentId, tournament.status, bracketId);
 
     return await tournamentModel.updateBracket(bracketId, data);
   };
@@ -133,15 +151,63 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
     }
 
-    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE].includes(tournament.status)) {
+    await ensureBracketsEditable(tournamentId, tournament.status);
+
+    await tournamentModel.deleteBracket(bracketId);
+  };
+
+  const updateBracketTargets = async (
+    tournamentId: string,
+    bracketId: string,
+    data: BracketTargetsUpdateData
+  ) => {
+    validateUUID(tournamentId);
+    validateUUID(bracketId);
+
+    const tournament = await tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    if (![TournamentStatus.DRAFT, TournamentStatus.OPEN, TournamentStatus.SIGNATURE, TournamentStatus.LIVE].includes(tournament.status)) {
       throw new AppError(
-        'Brackets can only be modified for draft, open, or signature tournaments',
+        'Bracket targets can only be updated for draft, open, signature, or live tournaments',
         400,
-        'BRACKET_NOT_EDITABLE'
+        'BRACKET_TARGETS_NOT_EDITABLE'
       );
     }
 
-    await tournamentModel.deleteBracket(bracketId);
+    const bracket = await tournamentModel.getBracketById(bracketId);
+    if (bracket?.tournamentId !== tournamentId) {
+      throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
+    }
+
+    const targetIds = Array.from(new Set(data.targetIds || [])).filter(Boolean);
+
+    const tournamentTargets = await tournamentModel.getTargetsForTournament(tournamentId);
+    const allowedTargets = new Set(tournamentTargets.map((target) => target.id));
+    const invalidTargets = targetIds.filter((targetId) => !allowedTargets.has(targetId));
+    if (invalidTargets.length > 0) {
+      throw new AppError(
+        'Targets must belong to the tournament',
+        400,
+        'BRACKET_TARGETS_INVALID',
+        { invalidTargets }
+      );
+    }
+
+    const conflicts = await tournamentModel.getBracketTargetConflicts(targetIds, bracketId);
+    if (conflicts.length > 0) {
+      throw new AppError(
+        'Targets already assigned to another bracket',
+        400,
+        'BRACKET_TARGETS_CONFLICT',
+        { conflicts }
+      );
+    }
+
+    await tournamentModel.setBracketTargets(bracketId, targetIds);
+    return await tournamentModel.getBracketById(bracketId);
   };
 
   const resetBracketMatches = async (tournamentId: string, bracketId: string): Promise<void> => {
@@ -180,6 +246,7 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
     createBracket,
     updateBracket,
     deleteBracket,
+    updateBracketTargets,
     resetBracketMatches,
   };
 };

@@ -23,6 +23,7 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 
 ### Docs
 - [docs/ADMIN_GUIDE.fr.md](./ADMIN_GUIDE.fr.md)
+- [docs/PLAYER_GUIDE.md](./PLAYER_GUIDE.md)
 - [docs/PLAYER_GUIDE.fr.md](./PLAYER_GUIDE.fr.md)
 - [docs/COMMANDS.md](./COMMANDS.md)
 - [docs/COMMANDS.fr.md](./COMMANDS.fr.md)

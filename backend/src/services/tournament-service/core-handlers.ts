@@ -1,4 +1,5 @@
 import type { TournamentModel } from '../../models/tournament-model';
+import type { TournamentLiveView } from '../../models/tournament-model/helpers';
 import type TournamentLogger from '../../utils/tournament-logger';
 import {
   Tournament,
@@ -18,6 +19,8 @@ export interface CreateTournamentData {
   endTime: string;
   totalParticipants: number;
   targetCount: number;
+  targetStartNumber?: number;
+  shareTargets?: boolean;
   doubleStageEnabled?: boolean;
 }
 
@@ -120,6 +123,16 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     }
   };
 
+  const validateTargetStartNumber = (startNumber: number): void => {
+    if (typeof startNumber !== 'number' || !Number.isInteger(startNumber)) {
+      throw new AppError('Target start number must be a valid number', 400, 'INVALID_TARGET_START');
+    }
+
+    if (startNumber < 1) {
+      throw new AppError('Target start number must be at least 1', 400, 'TARGET_START_TOO_LOW');
+    }
+  };
+
   const validateDates = (startTime: Date, endTime: Date, allowPastStart: boolean = false): void => {
     const now = new Date();
 
@@ -152,6 +165,9 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     validateDurationType(data.durationType);
     validateParticipantCount(data.totalParticipants);
     validateTargetCount(data.targetCount);
+    if (data.targetStartNumber !== undefined) {
+      validateTargetStartNumber(data.targetStartNumber);
+    }
 
     if (!data.startTime || !data.endTime) {
       throw new AppError('Start time and end time are required', 400, 'MISSING_TIME_DATA');
@@ -181,6 +197,14 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       validateTargetCount(sanitized.targetCount);
     }
 
+    if (sanitized.targetStartNumber !== undefined) {
+      validateTargetStartNumber(sanitized.targetStartNumber);
+    }
+
+    if (sanitized.shareTargets !== undefined) {
+      sanitized.shareTargets = Boolean(sanitized.shareTargets);
+    }
+
     if (sanitized.doubleStageEnabled !== undefined) {
       sanitized.doubleStageEnabled = Boolean(sanitized.doubleStageEnabled);
     }
@@ -205,6 +229,12 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     }
     if (updateData.targetCount !== undefined) {
       processedData.targetCount = updateData.targetCount;
+    }
+    if (updateData.targetStartNumber !== undefined) {
+      processedData.targetStartNumber = updateData.targetStartNumber;
+    }
+    if (updateData.shareTargets !== undefined) {
+      processedData.shareTargets = updateData.shareTargets;
     }
     if (updateData.doubleStageEnabled !== undefined) {
       processedData.doubleStageEnabled = updateData.doubleStageEnabled;
@@ -233,6 +263,66 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       existing?.status === TournamentStatus.FINISHED;
 
     validateDates(startTime, endTime, allowPastStart);
+  };
+
+  const buildTargetRange = (startNumber: number, count: number) => ({
+    start: startNumber,
+    end: startNumber + Math.max(0, count - 1),
+  });
+
+  const rangesOverlap = (first: { start: number; end: number }, second: { start: number; end: number }) => (
+    first.start <= second.end && second.start <= first.end
+  );
+
+  const ensureTargetRangeAvailable = async (
+    tournamentId: string | undefined,
+    startNumber: number,
+    count: number,
+    shareTargets: boolean
+  ): Promise<void> => {
+    if (count <= 0) return;
+
+    const ranges = await tournamentModel.getTargetRanges(tournamentId);
+    const requestedRange = buildTargetRange(startNumber, count);
+
+    const conflicts = ranges.filter((range) => {
+      const otherRange = buildTargetRange(range.targetStartNumber ?? 1, range.targetCount);
+      if (!rangesOverlap(requestedRange, otherRange)) return false;
+      return !shareTargets || !range.shareTargets;
+    });
+
+    if (conflicts.length > 0) {
+      const conflictNames = conflicts.map((range) => range.name).join(', ');
+      throw new AppError(
+        `Target range overlaps with another tournament: ${conflictNames}`,
+        400,
+        'TARGET_RANGE_CONFLICT',
+        { conflicts: conflicts.map((range) => range.id) }
+      );
+    }
+  };
+
+  const syncTournamentTargets = async (
+    tournamentId: string,
+    startNumber: number,
+    count: number
+  ): Promise<void> => {
+    const existingTargets = await tournamentModel.getTargetsForTournament(tournamentId);
+    const deleteTargets = existingTargets.slice(count);
+    if (deleteTargets.length > 0) {
+      const matchCount = await tournamentModel.getMatchCountForTargets(
+        deleteTargets.map((target) => target.id)
+      );
+      if (matchCount > 0) {
+        throw new AppError(
+          'Cannot reduce targets while matches are assigned',
+          400,
+          'TARGETS_IN_USE'
+        );
+      }
+    }
+
+    await tournamentModel.rebuildTargetsForTournament(tournamentId, startNumber, count);
   };
 
   const calculateTournamentDuration = (startTime: string, endTime: string): {
@@ -355,8 +445,12 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
         const startTime = new Date(data.startTime);
         const endTime = new Date(data.endTime);
+        const targetStartNumber = data.targetStartNumber ?? 1;
+        const shareTargets = data.shareTargets ?? true;
 
         validateDates(startTime, endTime);
+        validateTargetStartNumber(targetStartNumber);
+        await ensureTargetRangeAvailable(undefined, targetStartNumber, data.targetCount, shareTargets);
 
         const sanitizedName = sanitizeName(data.name);
 
@@ -368,6 +462,8 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
           endTime,
           totalParticipants: data.totalParticipants,
           targetCount: data.targetCount,
+          targetStartNumber,
+          shareTargets,
           doubleStageEnabled: data.doubleStageEnabled ?? false,
         });
 
@@ -376,6 +472,8 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
           durationType: tournament.durationType,
           totalParticipants: tournament.totalParticipants,
           targetCount: tournament.targetCount,
+          targetStartNumber: tournament.targetStartNumber,
+          shareTargets: tournament.shareTargets,
           startTime: tournament.startTime,
           endTime: tournament.endTime,
         });
@@ -410,7 +508,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       return tournament;
     },
 
-    getTournamentLiveView: async (tournamentId: string): Promise<unknown> => {
+    getTournamentLiveView: async (tournamentId: string): Promise<TournamentLiveView> => {
       validateUUID(tournamentId);
 
       const tournament = await tournamentModel.findLiveView(tournamentId);
@@ -476,12 +574,24 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
       }
 
+      const nextTargetCount = processedData.targetCount ?? existing.targetCount;
+      const nextTargetStartNumber = processedData.targetStartNumber
+        ?? (existing.targetStartNumber ?? 1);
+      const nextShareTargets = processedData.shareTargets ?? (existing.shareTargets ?? true);
+
+      if (processedData.targetStartNumber !== undefined || processedData.targetCount !== undefined || processedData.shareTargets !== undefined) {
+        validateTargetStartNumber(nextTargetStartNumber);
+        await ensureTargetRangeAvailable(id, nextTargetStartNumber, nextTargetCount, nextShareTargets);
+      }
+
       const updated = await tournamentModel.update(id, processedData);
 
-      if (processedData.targetCount !== undefined && processedData.targetCount > existing.targetCount) {
-        const startNumber = await tournamentModel.getMaxTargetNumber(id) + 1;
-        const count = processedData.targetCount - existing.targetCount;
-        await tournamentModel.createTargetsForTournament(id, startNumber, count);
+      const targetRangeChanged =
+        nextTargetCount !== existing.targetCount
+        || nextTargetStartNumber !== (existing.targetStartNumber ?? 1);
+
+      if (targetRangeChanged) {
+        await syncTournamentTargets(id, nextTargetStartNumber, nextTargetCount);
       }
 
       return updated;
@@ -571,6 +681,17 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         matchesCompleted,
         duration: calculateTournamentDuration(tournament.startTime.toString(), tournament.endTime.toString()),
       };
+    },
+
+    getTournamentTargets: async (id: string) => {
+      validateUUID(id);
+
+      const tournament = await tournamentModel.findById(id);
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      return await tournamentModel.getTargetsForTournament(id);
     },
 
     validateRegistrationConstraints: async (

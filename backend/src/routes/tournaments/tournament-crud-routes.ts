@@ -60,4 +60,12 @@ export const registerTournamentCrudRoutes = (
     validate(uuidSchema),
     tournamentController.getTournamentStats
   );
+
+  router.get(
+    '/:id/targets',
+    requireAuth,
+    requireAdmin,
+    validate(uuidSchema),
+    tournamentController.getTournamentTargets
+  );
 };

@@ -407,6 +407,12 @@ GET /api/tournaments/:id/pool-stages
       "playersPerPool": 4,
       "advanceCount": 2,
       "losersAdvanceToBracket": false,
+      "rankingDestinations": [
+        { "position": 1, "destinationType": "BRACKET", "bracketId": "uuid" },
+        { "position": 2, "destinationType": "POOL_STAGE", "poolStageId": "uuid" },
+        { "position": 3, "destinationType": "ELIMINATED" },
+        { "position": 4, "destinationType": "ELIMINATED" }
+      ],
       "status": "IN_PROGRESS",
       "createdAt": "2026-02-15T10:00:00Z"
     }
@@ -429,7 +435,13 @@ Authorization: Bearer ADMIN_TOKEN
   "poolCount": 4,
   "playersPerPool": 4,
   "advanceCount": 2,
-  "losersAdvanceToBracket": false
+  "losersAdvanceToBracket": false,
+  "rankingDestinations": [
+    { "position": 1, "destinationType": "BRACKET", "bracketId": "uuid" },
+    { "position": 2, "destinationType": "POOL_STAGE", "poolStageId": "uuid" },
+    { "position": 3, "destinationType": "ELIMINATED" },
+    { "position": 4, "destinationType": "ELIMINATED" }
+  ]
 }
 ```
 
@@ -440,6 +452,11 @@ Authorization: Bearer ADMIN_TOKEN
 - `playersPerPool`: 2-16
 - `advanceCount`: 1-16
 - `losersAdvanceToBracket`: Boolean (optional, default: false)
+- `rankingDestinations`: Array of per-rank destinations (optional)
+  - `position`: 1..playersPerPool
+  - `destinationType`: BRACKET | POOL_STAGE | ELIMINATED
+  - `bracketId`: Required when destinationType is BRACKET
+  - `poolStageId`: Required when destinationType is POOL_STAGE
 
 ### Update Pool Stage
 
@@ -455,6 +472,12 @@ Authorization: Bearer ADMIN_TOKEN
   "poolCount": 4,
   "playersPerPool": 4,
   "advanceCount": 2,
+  "rankingDestinations": [
+    { "position": 1, "destinationType": "BRACKET", "bracketId": "uuid" },
+    { "position": 2, "destinationType": "POOL_STAGE", "poolStageId": "uuid" },
+    { "position": 3, "destinationType": "ELIMINATED" },
+    { "position": 4, "destinationType": "ELIMINATED" }
+  ],
   "status": "EDITION"
 }
 ```
@@ -464,6 +487,10 @@ Authorization: Bearer ADMIN_TOKEN
 - `EDITION`: Being edited/configured
 - `IN_PROGRESS`: Matches being played
 - `COMPLETED`: All matches finished
+
+**Routing:**
+- When `rankingDestinations` is defined, stage completion routes players by rank to brackets or pool stages.
+- This overrides default `advanceCount` / `losersAdvanceToBracket` behavior for that stage.
 
 ### Complete Pool Stage (with Random Scores)
 
@@ -565,6 +592,25 @@ GET /api/tournaments/:id/brackets
   ]
 }
 ```
+
+### Populate Bracket from Pool Results
+
+```http
+POST /api/tournaments/:id/brackets/:bracketId/populate-from-pools
+Authorization: Bearer ADMIN_TOKEN
+```
+
+**Request Body:**
+```json
+{
+  "stageId": "uuid",
+  "role": "WINNER"
+}
+```
+
+**Notes:**
+- `role` is optional (WINNER or LOSER).
+- If the pool stage has `rankingDestinations`, only entries routed to this bracket are used.
 
 ### Create Bracket
 

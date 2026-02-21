@@ -95,8 +95,12 @@ const resolveScreenViewFlags = async (tournamentId?: string): Promise<ScreenView
   };
 };
 
-const resolveScreenViewsFromFlags = ({ hasPoolPlayers, hasBracketPlayers }: ScreenViewFlags) => {
-  const nextViews: Array<'pool-stages' | 'brackets' | 'targets'> = [];
+type ScreenView = 'pool-stages' | 'brackets' | 'targets';
+
+const resolveScreenViewsFromFlags = (
+  { hasPoolPlayers, hasBracketPlayers }: ScreenViewFlags
+): ScreenView[] => {
+  const nextViews: ScreenView[] = [];
   if (hasPoolPlayers) nextViews.push('pool-stages');
   if (hasBracketPlayers) nextViews.push('brackets');
   nextViews.push('targets');
@@ -185,7 +189,7 @@ function App() {
       return;
     }
     try {
-      const flags = await resolveScreenViewFlags(tournamentId);
+      const flags = await resolveScreenViewFlags(tournamentId ?? undefined);
       if (!flags) {
         return;
       }
@@ -250,7 +254,7 @@ function App() {
 
     const currentIndex = view ? screenViews.indexOf(view as (typeof screenViews)[number]) : -1;
     const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % screenViews.length;
-    const nextView = screenViews[nextIndex];
+    const nextView = screenViews[nextIndex] ?? 'targets';
     const delayMs = currentIndex === -1 ? 0 : 10_000;
 
     const timeoutId = windowReference.setTimeout(() => {

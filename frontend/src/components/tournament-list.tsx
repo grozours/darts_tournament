@@ -189,16 +189,20 @@ function TournamentList() { // NOSONAR
     newPoolStage,
     brackets,
     bracketsError,
+    targets,
+    targetsError,
     isAddingBracket,
     newBracket,
     loadPoolStages,
     loadBrackets,
+    loadTargets,
     handlePoolStageNumberChange,
     handlePoolStageNameChange,
     handlePoolStagePoolCountChange,
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
     handlePoolStageLosersAdvanceChange,
+    handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
     addPoolStage,
     savePoolStage,
@@ -211,12 +215,15 @@ function TournamentList() { // NOSONAR
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
     handleNewPoolStageLosersAdvanceChange,
+    handleNewPoolStageRankingDestinationChange,
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
     handleBracketStatusChange,
+    handleBracketTargetToggle,
     addBracket,
     saveBracket,
+    saveBracketTargets,
     removeBracket,
     startAddBracket,
     cancelAddBracket,
@@ -250,6 +257,7 @@ function TournamentList() { // NOSONAR
     resetStructureState,
     loadPoolStages,
     loadBrackets,
+    loadTargets,
     fetchTournaments: refreshTournaments,
     editingTournament,
     editForm,
@@ -503,6 +511,7 @@ function TournamentList() { // NOSONAR
         <TournamentEditPanel
           t={t}
           isEditPage={isEditPage}
+            isAdmin={isAdmin}
           editForm={editForm}
           editingTournament={editingTournament}
           formatOptions={formatOptions}
@@ -532,6 +541,7 @@ function TournamentList() { // NOSONAR
           onPoolStagePlayersPerPoolChange={handlePoolStagePlayersPerPoolChange}
           onPoolStageAdvanceCountChange={handlePoolStageAdvanceCountChange}
           onPoolStageLosersAdvanceChange={handlePoolStageLosersAdvanceChange}
+          onPoolStageRankingDestinationChange={handlePoolStageRankingDestinationChange}
           onPoolStageStatusChange={handlePoolStageStatusChange}
           onOpenPoolStageAssignments={(stage) => {
             void openPoolStageAssignments(stage);
@@ -552,6 +562,7 @@ function TournamentList() { // NOSONAR
           onNewPoolStagePlayersPerPoolChange={handleNewPoolStagePlayersPerPoolChange}
           onNewPoolStageAdvanceCountChange={handleNewPoolStageAdvanceCountChange}
           onNewPoolStageLosersAdvanceChange={handleNewPoolStageLosersAdvanceChange}
+          onNewPoolStageRankingDestinationChange={handleNewPoolStageRankingDestinationChange}
           onAddPoolStage={addPoolStage}
           isApplyingPreset={isApplyingPreset}
           onApplySinglePoolPreset={() => {
@@ -562,17 +573,24 @@ function TournamentList() { // NOSONAR
           }}
           brackets={brackets}
           bracketsError={bracketsError}
+          targets={targets}
+          targetsError={targetsError}
           onLoadBrackets={() => {
             if (editingTournament) {
               void loadBrackets(editingTournament.id);
+              void loadTargets(editingTournament.id);
             }
           }}
           onBracketNameChange={handleBracketNameChange}
           onBracketTypeChange={handleBracketTypeChange}
           onBracketRoundsChange={handleBracketRoundsChange}
           onBracketStatusChange={handleBracketStatusChange}
+          onBracketTargetToggle={handleBracketTargetToggle}
           onSaveBracket={(bracket) => {
             void saveBracket(bracket);
+          }}
+          onSaveBracketTargets={(bracket) => {
+            void saveBracketTargets(bracket);
           }}
           onRemoveBracket={(id) => {
             void removeBracket(id);

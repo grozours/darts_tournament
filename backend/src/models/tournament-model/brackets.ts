@@ -29,6 +29,21 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     }
   },
 
+  getStartedBracketMatchCount: async (tournamentId: string, bracketId?: string): Promise<number> => {
+    try {
+      return await prisma.match.count({
+        where: {
+          tournamentId,
+          ...(bracketId ? { bracketId } : { bracketId: { not: null } }),
+          status: { not: MatchStatus.SCHEDULED },
+        },
+      });
+    } catch (error) {
+      logModelError('getStartedBracketMatchCount', error);
+      return 0;
+    }
+  },
+
   getBracketMatches: async (bracketId: string) => {
     try {
       return await prisma.match.findMany({
@@ -304,13 +319,92 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
 
   getBrackets: async (tournamentId: string) => {
     try {
-      return await prisma.bracket.findMany({
+      const brackets = await prisma.bracket.findMany({
         where: { tournamentId },
         orderBy: { createdAt: 'asc' },
+        include: {
+          bracketTargets: {
+            select: { targetId: true },
+          },
+        },
       });
+      const bracketIds = brackets.map((bracket) => bracket.id);
+      const startedMatches = bracketIds.length > 0
+        ? await prisma.match.groupBy({
+          by: ['bracketId'],
+          where: {
+            bracketId: { in: bracketIds },
+            status: { not: MatchStatus.SCHEDULED },
+          },
+          _count: { _all: true },
+        })
+        : [];
+      const startedMatchesByBracket = new Map(
+        startedMatches
+          .filter((entry): entry is { bracketId: string; _count: { _all: number } } => Boolean(entry.bracketId))
+          .map((entry) => [entry.bracketId, entry._count._all])
+      );
+      return brackets.map((bracket) => ({
+        ...bracket,
+        targetIds: bracket.bracketTargets.map((target) => target.targetId),
+        hasStartedMatches: (startedMatchesByBracket.get(bracket.id) ?? 0) > 0,
+      }));
     } catch (error) {
       logModelError('getBrackets', error);
       throw new AppError('Failed to fetch brackets', 500, 'BRACKET_FETCH_FAILED');
+    }
+  },
+
+  getBracketTargetIds: async (bracketId: string): Promise<string[]> => {
+    try {
+      const targets = await prisma.bracketTarget.findMany({
+        where: { bracketId },
+        select: { targetId: true },
+      });
+      return targets.map((target) => target.targetId);
+    } catch (error) {
+      logModelError('getBracketTargetIds', error);
+      throw new AppError('Failed to fetch bracket targets', 500, 'BRACKET_TARGETS_FETCH_FAILED');
+    }
+  },
+
+  getBracketTargetConflicts: async (
+    targetIds: string[],
+    bracketId?: string
+  ): Promise<Array<{ bracketId: string; targetId: string }>> => {
+    if (targetIds.length === 0) return [];
+    try {
+      return await prisma.bracketTarget.findMany({
+        where: {
+          targetId: { in: targetIds },
+          ...(bracketId ? { bracketId: { not: bracketId } } : {}),
+        },
+        select: { bracketId: true, targetId: true },
+      });
+    } catch (error) {
+      logModelError('getBracketTargetConflicts', error);
+      throw new AppError('Failed to fetch bracket target conflicts', 500, 'BRACKET_TARGETS_FETCH_FAILED');
+    }
+  },
+
+  setBracketTargets: async (bracketId: string, targetIds: string[]): Promise<void> => {
+    try {
+      const createTargets = targetIds.length > 0
+        ? [
+          prisma.bracketTarget.createMany({
+            data: targetIds.map((targetId) => ({ bracketId, targetId })),
+            skipDuplicates: true,
+          }),
+        ]
+        : [];
+
+      await prisma.$transaction([
+        prisma.bracketTarget.deleteMany({ where: { bracketId } }),
+        ...createTargets,
+      ]);
+    } catch (error) {
+      logModelError('setBracketTargets', error);
+      throw new AppError('Failed to update bracket targets', 500, 'BRACKET_TARGETS_UPDATE_FAILED');
     }
   },
 

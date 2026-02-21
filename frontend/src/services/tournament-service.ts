@@ -8,6 +8,8 @@ export interface CreateTournamentPayload {
   endTime: string;
   totalParticipants: number;
   targetCount: number;
+  targetStartNumber?: number;
+  shareTargets?: boolean;
   doubleStageEnabled?: boolean;
 }
 
@@ -50,7 +52,17 @@ export interface PoolStageConfig {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  rankingDestinations?: PoolStageRankingDestination[];
   status: string;
+}
+
+export type PoolStageDestinationType = 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED';
+
+export interface PoolStageRankingDestination {
+  position: number;
+  destinationType: PoolStageDestinationType;
+  bracketId?: string;
+  poolStageId?: string;
 }
 
 export interface BracketConfig {
@@ -60,6 +72,13 @@ export interface BracketConfig {
   bracketType: string;
   totalRounds: number;
   status: string;
+  targetIds?: string[];
+  hasStartedMatches?: boolean;
+}
+
+export interface TournamentTarget {
+  id: string;
+  targetNumber: number;
 }
 
 export interface PoolAssignmentPlayer {
@@ -224,6 +243,21 @@ export async function fetchTournamentLiveView(
   }
 
   return response.json();
+}
+
+export async function fetchTournamentTargets(
+  tournamentId: string,
+  token?: string
+): Promise<TournamentTarget[]> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/targets`, buildAuthRequestOptions(token));
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to fetch tournament targets');
+  }
+
+  const data = await response.json();
+  return data.targets || [];
 }
 
 export async function fetchPoolStagePools(
@@ -440,6 +474,28 @@ export async function recomputeDoubleStageProgression(
   }
 }
 
+export async function populateBracketFromPools(
+  tournamentId: string,
+  bracketId: string,
+  stageId: string,
+  role: 'WINNER' | 'LOSER',
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}/populate-from-pools`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ stageId, role }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to populate bracket');
+  }
+}
+
 export async function updateMatchStatus(
   tournamentId: string,
   matchId: string,
@@ -611,6 +667,29 @@ export async function updateBracket(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Failed to update bracket');
+  }
+
+  return response.json();
+}
+
+export async function updateBracketTargets(
+  tournamentId: string,
+  bracketId: string,
+  targetIds: string[],
+  token?: string
+): Promise<BracketConfig> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}/targets`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ targetIds }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to update bracket targets');
   }
 
   return response.json();

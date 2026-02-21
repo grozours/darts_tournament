@@ -15,6 +15,7 @@ type UseTournamentEditLoaderProperties = {
   fetchTournamentDetails: (tournamentId: string) => Promise<void>;
   loadPoolStages: (tournamentId: string) => Promise<void>;
   loadBrackets: (tournamentId: string) => Promise<void>;
+  loadTargets: (tournamentId: string) => Promise<void>;
   setEditingTournament: (value: Tournament | undefined) => void;
   setEditForm: (value: EditFormState | undefined) => void;
   setEditError: (value: string | undefined) => void;
@@ -66,6 +67,16 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
     data.targetCount as number | undefined,
     data.target_count as number | undefined
   ),
+  targetStartNumber: resolveValue(
+    1,
+    data.targetStartNumber as number | undefined,
+    data.target_start_number as number | undefined
+  ),
+  shareTargets: resolveValue(
+    true,
+    data.shareTargets as boolean | undefined,
+    data.share_targets as boolean | undefined
+  ),
   createdAt: resolveValue(undefined, data.createdAt as string | undefined, data.created_at as string | undefined),
   completedAt: resolveValue(undefined, data.completedAt as string | undefined, data.completed_at as string | undefined),
   historicalFlag: resolveValue(
@@ -88,6 +99,8 @@ const buildEditFormState = (tournament: Tournament, toLocalInput: (value?: strin
   endTime: toLocalInput(tournament.endTime),
   totalParticipants: String(tournament.totalParticipants ?? 0),
   targetCount: String(tournament.targetCount ?? 0),
+  targetStartNumber: String(tournament.targetStartNumber ?? 1),
+  shareTargets: Boolean(tournament.shareTargets ?? true),
   doubleStageEnabled: Boolean(tournament.doubleStageEnabled),
 });
 
@@ -106,6 +119,7 @@ const useTournamentEditLoader = ({
   fetchTournamentDetails,
   loadPoolStages,
   loadBrackets,
+  loadTargets,
   setEditingTournament,
   setEditForm,
   setEditError,
@@ -130,7 +144,8 @@ const useTournamentEditLoader = ({
     void fetchTournamentDetails(tournament.id);
     void loadPoolStages(tournament.id);
     void loadBrackets(tournament.id);
-  }, [clearPlayers, clearPlayersError, fetchPlayers, fetchTournamentDetails, isEditPage, loadBrackets, loadPoolStages, setEditError, setEditForm, setEditingTournament, toLocalInput]);
+    void loadTargets(tournament.id);
+  }, [clearPlayers, clearPlayersError, fetchPlayers, fetchTournamentDetails, isEditPage, loadBrackets, loadPoolStages, loadTargets, setEditError, setEditForm, setEditingTournament, toLocalInput]);
 
   useEffect(() => {
     if (!isEditPage || !editTournamentId) return;

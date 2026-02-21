@@ -407,6 +407,12 @@ GET /api/tournaments/:id/pool-stages
       "playersPerPool": 4,
       "advanceCount": 2,
       "losersAdvanceToBracket": false,
+      "rankingDestinations": [
+        { "position": 1, "destinationType": "BRACKET", "bracketId": "uuid" },
+        { "position": 2, "destinationType": "POOL_STAGE", "poolStageId": "uuid" },
+        { "position": 3, "destinationType": "ELIMINATED" },
+        { "position": 4, "destinationType": "ELIMINATED" }
+      ],
       "status": "IN_PROGRESS",
       "createdAt": "2026-02-15T10:00:00Z"
     }
@@ -429,7 +435,13 @@ Authorization: Bearer ADMIN_TOKEN
   "poolCount": 4,
   "playersPerPool": 4,
   "advanceCount": 2,
-  "losersAdvanceToBracket": false
+  "losersAdvanceToBracket": false,
+  "rankingDestinations": [
+    { "position": 1, "destinationType": "BRACKET", "bracketId": "uuid" },
+    { "position": 2, "destinationType": "POOL_STAGE", "poolStageId": "uuid" },
+    { "position": 3, "destinationType": "ELIMINATED" },
+    { "position": 4, "destinationType": "ELIMINATED" }
+  ]
 }
 ```
 
@@ -440,6 +452,11 @@ Authorization: Bearer ADMIN_TOKEN
 - `playersPerPool` : 2-16
 - `advanceCount` : 1-16
 - `losersAdvanceToBracket` : booléen (optionnel, défaut : false)
+- `rankingDestinations` : tableau des destinations par rang (optionnel)
+  - `position` : 1..playersPerPool
+  - `destinationType` : BRACKET | POOL_STAGE | ELIMINATED
+  - `bracketId` : requis si destinationType vaut BRACKET
+  - `poolStageId` : requis si destinationType vaut POOL_STAGE
 
 ### Mettre à jour une phase de poules
 
@@ -455,6 +472,12 @@ Authorization: Bearer ADMIN_TOKEN
   "poolCount": 4,
   "playersPerPool": 4,
   "advanceCount": 2,
+  "rankingDestinations": [
+    { "position": 1, "destinationType": "BRACKET", "bracketId": "uuid" },
+    { "position": 2, "destinationType": "POOL_STAGE", "poolStageId": "uuid" },
+    { "position": 3, "destinationType": "ELIMINATED" },
+    { "position": 4, "destinationType": "ELIMINATED" }
+  ],
   "status": "EDITION"
 }
 ```
@@ -464,6 +487,10 @@ Authorization: Bearer ADMIN_TOKEN
 - `EDITION` : en configuration
 - `IN_PROGRESS` : matchs en cours
 - `COMPLETED` : matchs terminés
+
+**Routing :**
+- Si `rankingDestinations` est défini, la fin de phase route les joueurs par rang vers un arbre ou une autre phase.
+- Cela remplace les règles `advanceCount` / `losersAdvanceToBracket` pour la phase.
 
 ### Terminer une phase de poules (scores aléatoires)
 
@@ -564,6 +591,25 @@ GET /api/tournaments/:id/brackets
   ]
 }
 ```
+
+### Peupler un arbre depuis les poules
+
+```http
+POST /api/tournaments/:id/brackets/:bracketId/populate-from-pools
+Authorization: Bearer ADMIN_TOKEN
+```
+
+**Corps :**
+```json
+{
+  "stageId": "uuid",
+  "role": "WINNER"
+}
+```
+
+**Notes :**
+- `role` est optionnel (WINNER ou LOSER).
+- Si la phase a `rankingDestinations`, seuls les joueurs routés vers cet arbre sont utilisés.
 
 ### Créer un tableau
 

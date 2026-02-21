@@ -9,6 +9,15 @@ export const registerTournamentPoolStageRoutes = (
   router: Router,
   tournamentController: TournamentController
 ) => {
+  const rankingDestinationsSchema = z.array(
+    z.object({
+      position: z.number().int().min(1),
+      destinationType: z.enum(['BRACKET', 'POOL_STAGE', 'ELIMINATED']),
+      bracketId: z.string().uuid('Invalid bracket ID').optional(),
+      poolStageId: z.string().uuid('Invalid pool stage ID').optional(),
+    })
+  );
+
   router.get(
     '/:id/pool-stages',
     validate(uuidSchema),
@@ -28,6 +37,7 @@ export const registerTournamentPoolStageRoutes = (
         playersPerPool: z.number().int().min(2).max(16),
         advanceCount: z.number().int().min(1).max(16),
         losersAdvanceToBracket: z.boolean().optional(),
+        rankingDestinations: rankingDestinationsSchema.optional(),
       }),
     }),
     tournamentController.createPoolStage
@@ -49,6 +59,7 @@ export const registerTournamentPoolStageRoutes = (
         playersPerPool: z.number().int().min(2).max(16).optional(),
         advanceCount: z.number().int().min(1).max(16).optional(),
         losersAdvanceToBracket: z.boolean().optional(),
+        rankingDestinations: rankingDestinationsSchema.optional(),
         status: z.enum(['NOT_STARTED', 'EDITION', 'IN_PROGRESS', 'COMPLETED']).optional(),
       }),
     }),

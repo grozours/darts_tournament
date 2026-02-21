@@ -15,11 +15,9 @@ type TournamentListDataResult = {
   deleteTournament: (tournamentId: string) => Promise<void>;
 };
 
-const useTournamentListData = ({
-  authEnabled,
-  isAuthenticated,
-  getSafeAccessToken,
-}: UseTournamentListDataProperties): TournamentListDataResult => {
+const useTournamentListData = (
+  { getSafeAccessToken }: UseTournamentListDataProperties
+): TournamentListDataResult => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();

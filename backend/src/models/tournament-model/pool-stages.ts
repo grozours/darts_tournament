@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@prisma/client';
 import {
   AssignmentType,
   PoolStatus,
@@ -54,19 +54,23 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     playersPerPool: number;
     advanceCount: number;
     losersAdvanceToBracket?: boolean;
+    rankingDestinations?: Prisma.InputJsonValue;
   }) => {
     try {
-      return await prisma.poolStage.create({
-        data: {
-          tournamentId,
-          stageNumber: data.stageNumber,
-          name: data.name,
-          poolCount: data.poolCount,
-          playersPerPool: data.playersPerPool,
-          advanceCount: data.advanceCount,
-          losersAdvanceToBracket: data.losersAdvanceToBracket ?? false,
-        },
-      });
+      const payload: Parameters<typeof prisma.poolStage.create>[0]['data'] = {
+        tournamentId,
+        stageNumber: data.stageNumber,
+        name: data.name,
+        poolCount: data.poolCount,
+        playersPerPool: data.playersPerPool,
+        advanceCount: data.advanceCount,
+        losersAdvanceToBracket: data.losersAdvanceToBracket ?? false,
+      };
+      if (data.rankingDestinations !== undefined) {
+        payload.rankingDestinations = data.rankingDestinations;
+      }
+
+      return await prisma.poolStage.create({ data: payload });
     } catch (error) {
       logModelError('createPoolStage', error);
       if (getPrismaErrorCode(error) === 'P2002') {
@@ -89,6 +93,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
       playersPerPool: number;
       advanceCount: number;
       losersAdvanceToBracket: boolean;
+      rankingDestinations: Prisma.InputJsonValue;
       status: StageStatus;
       // eslint-disable-next-line unicorn/no-null
       completedAt: Date | null;
@@ -382,7 +387,8 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
 
   resetPoolMatches: async (poolId: string): Promise<void> => {
     try {
-      const matches = await prisma.match.findMany({
+      type MatchTargetRow = { id: string; targetId: string | null };
+      const matches: MatchTargetRow[] = await prisma.match.findMany({
         where: { poolId },
         select: { id: true, targetId: true },
       });

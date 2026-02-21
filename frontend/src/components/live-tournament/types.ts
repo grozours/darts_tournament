@@ -86,6 +86,8 @@ export interface LiveViewBracket {
   bracketType: string;
   status: string;
   totalRounds?: number;
+  targetIds?: string[];
+  bracketTargets?: Array<{ targetId: string }>;
   entries?: Array<{
     id: string;
     seedNumber: number;

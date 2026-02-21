@@ -69,6 +69,8 @@ describe('TournamentForm submission', () => {
         endTime: new Date(validFormData.endTime).toISOString(),
         totalParticipants: 16,
         targetCount: 3,
+        targetStartNumber: 1,
+        shareTargets: true,
         doubleStageEnabled: false,
       });
       expect(mockOnSubmit).toHaveBeenCalled();

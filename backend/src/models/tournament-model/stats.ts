@@ -7,6 +7,9 @@ export const createTournamentModelStats = (prisma: PrismaClient) => ({
     try {
       const totalTournaments = await prisma.tournament.count();
 
+      type StatusStat = { status: string; _count: { status: number } };
+      type FormatStat = { format: string; _count: { format: number } };
+
       const statusStats = await prisma.tournament.groupBy({
         by: ['status'],
         _count: {
@@ -38,9 +41,9 @@ export const createTournamentModelStats = (prisma: PrismaClient) => ({
 
       const currentParticipants = await prisma.player.count();
 
-      const completedTournaments = statusStats.find((stat) => stat.status === 'FINISHED')?._count.status || 0;
-      const inProgressTournaments = statusStats.find((stat) => stat.status === 'LIVE')?._count.status || 0;
-      const totalNonDraft = totalTournaments - (statusStats.find((stat) => stat.status === 'DRAFT')?._count.status || 0);
+      const completedTournaments = statusStats.find((stat: StatusStat) => stat.status === 'FINISHED')?._count.status || 0;
+      const inProgressTournaments = statusStats.find((stat: StatusStat) => stat.status === 'LIVE')?._count.status || 0;
+      const totalNonDraft = totalTournaments - (statusStats.find((stat: StatusStat) => stat.status === 'DRAFT')?._count.status || 0);
 
       const completionRate = totalNonDraft > 0 ? (completedTournaments / totalNonDraft) * 100 : 0;
 
@@ -71,12 +74,12 @@ export const createTournamentModelStats = (prisma: PrismaClient) => ({
           minParticipants: participantStats._min.totalParticipants || 0,
         },
         distribution: {
-          byStatus: statusStats.map((stat) => ({
+          byStatus: statusStats.map((stat: StatusStat) => ({
             status: stat.status,
             count: stat._count.status,
             percentage: Math.round((stat._count.status / totalTournaments) * 100 * 100) / 100,
           })),
-          byFormat: formatStats.map((stat) => ({
+          byFormat: formatStats.map((stat: FormatStat) => ({
             format: stat.format,
             count: stat._count.format,
             percentage: Math.round((stat._count.format / totalTournaments) * 100 * 100) / 100,

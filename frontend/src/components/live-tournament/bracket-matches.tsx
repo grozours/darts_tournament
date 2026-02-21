@@ -164,7 +164,12 @@ const BracketMatches = ({
     if (!match.playerMatches || match.playerMatches.length < 2) {
       return;
     }
-    const availableTargets = availableTargetsByTournament.get(matchTournamentId) || [];
+    const assignedTargetIds = bracket.targetIds
+      ?? bracket.bracketTargets?.map((target) => target.targetId)
+      ?? [];
+    const availableTargets = (availableTargetsByTournament.get(matchTournamentId) || []).filter((target) =>
+      assignedTargetIds.length === 0 || assignedTargetIds.includes(target.id)
+    );
     const selectedTargetNumber = matchTargetSelections[matchKey] || '';
     const selectedTargetId = getTargetIdForSelection(matchTournamentId, selectedTargetNumber);
     return (

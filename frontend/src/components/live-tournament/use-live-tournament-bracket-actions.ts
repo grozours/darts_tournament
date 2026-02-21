@@ -1,8 +1,13 @@
 import { useCallback, useState } from 'react';
-import { completeBracketRoundWithScores, resetBracketMatches } from '../../services/tournament-service';
-import type { LiveViewBracket } from './types';
+import {
+  completeBracketRoundWithScores,
+  populateBracketFromPools,
+  resetBracketMatches,
+} from '../../services/tournament-service';
+import type { LiveViewBracket, LiveViewPoolStage, Translator } from './types';
 
 type UseLiveTournamentBracketActionsProperties = {
+  t: Translator;
   getSafeAccessToken: () => Promise<string | undefined>;
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
   setError: (value: string | undefined) => void;
@@ -11,19 +16,28 @@ type UseLiveTournamentBracketActionsProperties = {
 type LiveTournamentBracketActionsResult = {
   updatingRoundKey?: string | undefined;
   resettingBracketId?: string | undefined;
+  populatingBracketId?: string | undefined;
   handleCompleteBracketRound: (matchTournamentId: string, bracket: LiveViewBracket) => Promise<void>;
   handleResetBracketMatches: (matchTournamentId: string, bracketId: string) => Promise<void>;
+  handlePopulateBracketFromPools: (
+    matchTournamentId: string,
+    bracketId: string,
+    stage: LiveViewPoolStage,
+    role: 'WINNER' | 'LOSER'
+  ) => Promise<void>;
   handleSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketByTournament: Record<string, string>;
 };
 
 const useLiveTournamentBracketActions = ({
+  t,
   getSafeAccessToken,
   reloadLiveViews,
   setError,
 }: UseLiveTournamentBracketActionsProperties): LiveTournamentBracketActionsResult => {
   const [updatingRoundKey, setUpdatingRoundKey] = useState<string | undefined>();
   const [resettingBracketId, setResettingBracketId] = useState<string | undefined>();
+  const [populatingBracketId, setPopulatingBracketId] = useState<string | undefined>();
   const [activeBracketByTournament, setActiveBracketByTournament] = useState<Record<string, string>>({});
 
   const handleCompleteBracketRound = useCallback(async (matchTournamentId: string, bracket: LiveViewBracket) => {
@@ -72,11 +86,34 @@ const useLiveTournamentBracketActions = ({
     }
   }, [getSafeAccessToken, reloadLiveViews, setError]);
 
+  const handlePopulateBracketFromPools = useCallback(
+    async (matchTournamentId: string, bracketId: string, stage: LiveViewPoolStage, role: 'WINNER' | 'LOSER') => {
+      if (!confirm(t('live.populateBracketConfirm'))) {
+        return;
+      }
+      setPopulatingBracketId(bracketId);
+      setError(undefined);
+      try {
+        const token = await getSafeAccessToken();
+        await populateBracketFromPools(matchTournamentId, bracketId, stage.id, role, token);
+        await reloadLiveViews({ showLoader: false });
+      } catch (error) {
+        console.error('Error populating bracket from pools:', error);
+        setError(error instanceof Error ? error.message : 'Failed to populate bracket');
+      } finally {
+        setPopulatingBracketId(undefined);
+      }
+    },
+    [getSafeAccessToken, reloadLiveViews, setError, t]
+  );
+
   return {
     updatingRoundKey,
     resettingBracketId,
+    populatingBracketId,
     handleCompleteBracketRound,
     handleResetBracketMatches,
+    handlePopulateBracketFromPools,
     handleSelectBracket,
     activeBracketByTournament,
   };

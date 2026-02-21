@@ -20,6 +20,7 @@ type UseTournamentListEditFlowProperties = {
   resetStructureState: () => void;
   loadPoolStages: (tournamentId: string) => Promise<void>;
   loadBrackets: (tournamentId: string) => Promise<void>;
+  loadTargets: (tournamentId: string) => Promise<void>;
   fetchTournaments: () => void;
   editingTournament: Tournament | undefined;
   editForm: EditFormState | undefined;
@@ -57,6 +58,7 @@ const useTournamentListEditFlow = ({
   resetStructureState,
   loadPoolStages,
   loadBrackets,
+    loadTargets,
   fetchTournaments,
   editingTournament,
   editForm,
@@ -109,6 +111,7 @@ const useTournamentListEditFlow = ({
     fetchTournamentDetails,
     loadPoolStages,
     loadBrackets,
+      loadTargets,
     setEditingTournament,
     setEditForm,
     setEditError,

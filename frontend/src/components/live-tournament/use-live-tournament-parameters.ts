@@ -14,7 +14,6 @@ type LiveTournamentParameters = {
 const readQueryParam = (key: string): string | undefined => {
   if (globalThis.window === undefined) return undefined;
   const value = new URLSearchParams(globalThis.window.location.search).get(key);
-  // eslint-disable-next-line unicorn/no-useless-undefined
   return value ?? undefined;
 };
 

@@ -22,6 +22,8 @@ model Tournament {
   endTime           DateTime      @map("end_time")
   totalParticipants Int           @map("total_participants")
   targetCount       Int           @map("target_count")
+  targetStartNumber Int           @default(1) @map("target_start_number")
+  shareTargets      Boolean       @default(true) @map("share_targets")
   status            TournamentStatus @default(DRAFT)
   createdAt         DateTime      @default(now()) @map("created_at")
   completedAt       DateTime?     @map("completed_at")
@@ -94,6 +96,7 @@ model PoolStage {
   playersPerPool Int       @map("players_per_pool")
   advanceCount   Int       @map("advance_count")
   losersAdvanceToBracket Boolean @default(false) @map("losers_advance_to_bracket")
+  rankingDestinations Json? @map("ranking_destinations")
   status         StageStatus @default(NOT_STARTED)
   createdAt      DateTime  @default(now()) @map("created_at")
   completedAt    DateTime? @map("completed_at")
@@ -158,8 +161,23 @@ model Bracket {
   tournament     Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   entries        BracketEntry[]
   matches        Match[]
+  bracketTargets BracketTarget[]
 
   @@map("brackets")
+}
+
+model BracketTarget {
+  id        String   @id @default(uuid())
+  bracketId String   @map("bracket_id")
+  targetId  String   @map("target_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bracket   Bracket  @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  target    Target   @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([bracketId, targetId])
+  @@unique([targetId])
+  @@map("bracket_targets")
 }
 
 // Bracket Entry Entity
@@ -198,6 +216,7 @@ model Target {
   matches        Match[]
   currentMatch   Match?        @relation("CurrentMatch", fields: [currentMatchId], references: [id])
   scheduledMatches ScheduledMatch[]
+  bracketTargets BracketTarget[]
 
   @@unique([tournamentId, targetNumber])
   @@unique([tournamentId, targetCode])

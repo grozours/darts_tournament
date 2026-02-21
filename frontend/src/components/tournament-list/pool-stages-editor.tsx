@@ -1,4 +1,4 @@
-import type { PoolStageConfig } from '../../services/tournament-service';
+import type { BracketConfig, PoolStageConfig, PoolStageDestinationType } from '../../services/tournament-service';
 import type { Translator } from './types';
 import { PoolStagesList, NewPoolStageForm } from './pool-stages-editor-components';
 
@@ -9,11 +9,18 @@ type PoolStageDraft = {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  rankingDestinations?: Array<{
+    position: number;
+    destinationType: PoolStageDestinationType;
+    bracketId?: string;
+    poolStageId?: string;
+  }>;
 };
 
 type PoolStagesEditorProperties = {
   t: Translator;
   poolStages: PoolStageConfig[];
+  brackets: BracketConfig[];
   isTournamentLive: boolean;
   poolStagesError?: string | undefined;
   isAddingPoolStage: boolean;
@@ -25,6 +32,11 @@ type PoolStagesEditorProperties = {
   onPoolStagePlayersPerPoolChange: (id: string, value: number) => void;
   onPoolStageAdvanceCountChange: (id: string, value: number) => void;
   onPoolStageLosersAdvanceChange: (id: string, value: boolean) => void;
+  onPoolStageRankingDestinationChange: (
+    id: string,
+    position: number,
+    destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+  ) => void;
   onPoolStageStatusChange: (stage: PoolStageConfig, status: string) => void;
   onOpenPoolStageAssignments: (stage: PoolStageConfig) => void;
   onSavePoolStage: (stage: PoolStageConfig) => void;
@@ -37,6 +49,10 @@ type PoolStagesEditorProperties = {
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
+  onNewPoolStageRankingDestinationChange: (
+    position: number,
+    destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+  ) => void;
   onAddPoolStage: () => Promise<boolean>;
   getStatusLabel: (kind: 'stage' | 'bracket', status: string) => string;
   normalizeStageStatus: (status?: string) => string;
@@ -46,6 +62,7 @@ type PoolStagesEditorProperties = {
 const PoolStagesEditor = ({
   t,
   poolStages,
+  brackets,
   isTournamentLive,
   poolStagesError,
   isAddingPoolStage,
@@ -57,6 +74,7 @@ const PoolStagesEditor = ({
   onPoolStagePlayersPerPoolChange,
   onPoolStageAdvanceCountChange,
   onPoolStageLosersAdvanceChange,
+  onPoolStageRankingDestinationChange,
   onPoolStageStatusChange,
   onOpenPoolStageAssignments,
   onSavePoolStage,
@@ -69,6 +87,7 @@ const PoolStagesEditor = ({
   onNewPoolStagePlayersPerPoolChange,
   onNewPoolStageAdvanceCountChange,
   onNewPoolStageLosersAdvanceChange,
+  onNewPoolStageRankingDestinationChange,
   onAddPoolStage,
   getStatusLabel,
   normalizeStageStatus,
@@ -89,6 +108,7 @@ const PoolStagesEditor = ({
     <PoolStagesList
       t={t}
       poolStages={poolStages}
+      brackets={brackets}
       isTournamentLive={isTournamentLive}
       onPoolStageNumberChange={onPoolStageNumberChange}
       onPoolStageNameChange={onPoolStageNameChange}
@@ -96,6 +116,7 @@ const PoolStagesEditor = ({
       onPoolStagePlayersPerPoolChange={onPoolStagePlayersPerPoolChange}
       onPoolStageAdvanceCountChange={onPoolStageAdvanceCountChange}
       onPoolStageLosersAdvanceChange={onPoolStageLosersAdvanceChange}
+      onPoolStageRankingDestinationChange={onPoolStageRankingDestinationChange}
       onPoolStageStatusChange={onPoolStageStatusChange}
       onOpenPoolStageAssignments={onOpenPoolStageAssignments}
       onSavePoolStage={onSavePoolStage}
@@ -106,6 +127,8 @@ const PoolStagesEditor = ({
 
     <NewPoolStageForm
       t={t}
+      brackets={brackets}
+      poolStages={poolStages}
       isAddingPoolStage={isAddingPoolStage}
       newPoolStage={newPoolStage}
       onStartAddPoolStage={onStartAddPoolStage}
@@ -116,6 +139,7 @@ const PoolStagesEditor = ({
       onNewPoolStagePlayersPerPoolChange={onNewPoolStagePlayersPerPoolChange}
       onNewPoolStageAdvanceCountChange={onNewPoolStageAdvanceCountChange}
       onNewPoolStageLosersAdvanceChange={onNewPoolStageLosersAdvanceChange}
+      onNewPoolStageRankingDestinationChange={onNewPoolStageRankingDestinationChange}
       onAddPoolStage={onAddPoolStage}
     />
   </div>

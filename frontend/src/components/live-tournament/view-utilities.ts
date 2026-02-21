@@ -39,10 +39,14 @@ export const filterBracketsForView = (
   viewMode: LiveViewMode,
   viewStatus: LiveViewStatus,
   brackets?: LiveViewBracket[],
-  screenMode = false
+  screenMode = false,
+  allowEmptyBrackets = false
 ) => {
   const bracketList = brackets || [];
   if (!isBracketsView(viewMode)) {
+    return bracketList;
+  }
+  if (allowEmptyBrackets && viewStatus !== 'FINISHED') {
     return bracketList;
   }
   if (screenMode) {

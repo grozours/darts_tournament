@@ -34,6 +34,8 @@ export interface Tournament {
   endTime: Date;
   totalParticipants: number;
   targetCount: number;
+  targetStartNumber: number;
+  shareTargets: boolean;
   status: TournamentStatus;
   createdAt: Date;
   completedAt?: Date;
@@ -85,6 +87,15 @@ export enum AssignmentType {
   BYE = 'BYE',
 }
 
+export type PoolStageDestinationType = 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED';
+
+export interface PoolStageRankingDestination {
+  position: number;
+  destinationType: PoolStageDestinationType;
+  bracketId?: string;
+  poolStageId?: string;
+}
+
 export interface PoolStage {
   id: string;
   tournamentId: string;
@@ -93,6 +104,7 @@ export interface PoolStage {
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
+  rankingDestinations?: PoolStageRankingDestination[];
   status: StageStatus;
   createdAt: Date;
   completedAt?: Date;
@@ -246,6 +258,8 @@ export interface CreateTournamentRequest {
   endTime: string;
   totalParticipants: number;
   targetCount: number;
+  targetStartNumber?: number;
+  shareTargets?: boolean;
 }
 
 export interface CreatePlayerRequest {

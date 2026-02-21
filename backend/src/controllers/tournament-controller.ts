@@ -12,6 +12,7 @@ export class TournamentController {
   public registerPlayer!: (request: Request, response: Response) => Promise<void>;
   public registerPlayerDetails!: (request: Request, response: Response) => Promise<void>;
   public unregisterPlayer!: (request: Request, response: Response) => Promise<void>;
+    public getTournamentTargets!: (request: Request, response: Response) => Promise<void>;
   public getTournamentParticipants!: (request: Request, response: Response) => Promise<void>;
   public getTournamentPlayers!: (request: Request, response: Response) => Promise<void>;
   public getOrphanPlayers!: (request: Request, response: Response) => Promise<void>;
@@ -19,6 +20,7 @@ export class TournamentController {
   public createPoolStage!: (request: Request, response: Response) => Promise<void>;
   public updatePoolStage!: (request: Request, response: Response) => Promise<void>;
   public recomputeDoubleStageProgression!: (request: Request, response: Response) => Promise<void>;
+  public populateBracketFromPools!: (request: Request, response: Response) => Promise<void>;
   public completePoolStageWithScores!: (request: Request, response: Response) => Promise<void>;
   public deletePoolStage!: (request: Request, response: Response) => Promise<void>;
   public getPoolStagePools!: (request: Request, response: Response) => Promise<void>;
@@ -32,6 +34,7 @@ export class TournamentController {
   public getBrackets!: (request: Request, response: Response) => Promise<void>;
   public createBracket!: (request: Request, response: Response) => Promise<void>;
   public updateBracket!: (request: Request, response: Response) => Promise<void>;
+  public updateBracketTargets!: (request: Request, response: Response) => Promise<void>;
   public deleteBracket!: (request: Request, response: Response) => Promise<void>;
   public updateTournamentPlayer!: (request: Request, response: Response) => Promise<void>;
   public updateTournamentPlayerCheckIn!: (request: Request, response: Response) => Promise<void>;
@@ -79,6 +82,61 @@ export class TournamentController {
     });
   }
 
+  private buildTournamentFilters(query: Request['query']): TournamentFilters {
+    const {
+      status,
+      format,
+      name,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = query;
+
+    const parsedPage = Number(page);
+    const parsedLimit = Number(limit);
+
+    const filters: TournamentFilters = {
+      page: Number.isFinite(parsedPage) ? parsedPage : 1,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : 10,
+      sortBy: sortBy as 'name' | 'startTime' | 'createdAt',
+      sortOrder: sortOrder as 'asc' | 'desc',
+    };
+
+    if (typeof status === 'string') {
+      filters.status = status as TournamentStatus;
+    }
+    if (typeof format === 'string') {
+      filters.format = format as TournamentFormat;
+    }
+    if (typeof name === 'string') {
+      filters.name = name;
+    }
+
+    return filters;
+  }
+
+  private applyTournamentAccessFilters(
+    request: Request,
+    response: Response,
+    filters: TournamentFilters
+  ): boolean {
+    const isAdminRequest = isAdmin(request);
+    if (!isAdminRequest && filters.status === TournamentStatus.DRAFT) {
+      response.json({
+        tournaments: [],
+        total: 0,
+        page: filters.page ?? 1,
+        limit: filters.limit ?? 10,
+      });
+      return false;
+    }
+    if (!isAdminRequest) {
+      filters.excludeDraft = true;
+    }
+    return true;
+  }
+
   /**
    * Create a new tournament
    * POST /api/tournaments
@@ -95,6 +153,8 @@ export class TournamentController {
         endTime,
         totalParticipants,
         targetCount,
+        targetStartNumber,
+        shareTargets,
       } = request.body;
 
       const tournament = await tournamentService.createTournament({
@@ -105,6 +165,8 @@ export class TournamentController {
         endTime,
         totalParticipants,
         targetCount,
+        targetStartNumber,
+        shareTargets,
       });
 
       response.status(201).json(tournament);
@@ -192,43 +254,9 @@ export class TournamentController {
    */
   getTournaments = async (request: Request, response: Response): Promise<void> => {
     try {
-      const {
-        status,
-        format,
-        name,
-        page = 1,
-        limit = 10,
-        sortBy = 'createdAt',
-        sortOrder = 'desc',
-      } = request.query;
-
-      const parsedPage = Number(page);
-      const parsedLimit = Number(limit);
-
-      const filters: TournamentFilters = {
-        page: Number.isFinite(parsedPage) ? parsedPage : 1,
-        limit: Number.isFinite(parsedLimit) ? parsedLimit : 10,
-        sortBy: sortBy as 'name' | 'startTime' | 'createdAt',
-        sortOrder: sortOrder as 'asc' | 'desc',
-      };
-
-      if (typeof status === 'string') {
-        filters.status = status as TournamentStatus;
-      }
-      if (typeof format === 'string') {
-        filters.format = format as TournamentFormat;
-      }
-      if (typeof name === 'string') {
-        filters.name = name;
-      }
-
-      const isAdminRequest = isAdmin(request);
-      if (!isAdminRequest && filters.status === TournamentStatus.DRAFT) {
-        response.json({ tournaments: [], total: 0, page: filters.page ?? 1, limit: filters.limit ?? 10 });
+      const filters = this.buildTournamentFilters(request.query);
+      if (!this.applyTournamentAccessFilters(request, response, filters)) {
         return;
-      }
-      if (!isAdminRequest) {
-        filters.excludeDraft = true;
       }
 
       const result = await this.getTournamentService(request).getTournaments(filters);

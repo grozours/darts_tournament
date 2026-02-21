@@ -49,6 +49,22 @@ export const registerTournamentBracketRoutes = (
     tournamentController.updateBracket
   );
 
+  router.patch(
+    '/:id/brackets/:bracketId/targets',
+    requireAuth,
+    requireAdmin,
+    validate({
+      params: z.object({
+        id: z.string().uuid('Invalid tournament ID'),
+        bracketId: z.string().uuid('Invalid bracket ID'),
+      }),
+      body: z.object({
+        targetIds: z.array(z.string().uuid('Invalid target ID')).default([]),
+      }),
+    }),
+    tournamentController.updateBracketTargets
+  );
+
   router.delete(
     '/:id/brackets/:bracketId',
     requireAuth,
@@ -87,5 +103,22 @@ export const registerTournamentBracketRoutes = (
       }),
     }),
     tournamentController.resetBracketMatches
+  );
+
+  router.post(
+    '/:id/brackets/:bracketId/populate-from-pools',
+    requireAuth,
+    requireAdmin,
+    validate({
+      params: z.object({
+        id: z.string().uuid('Invalid tournament ID'),
+        bracketId: z.string().uuid('Invalid bracket ID'),
+      }),
+      body: z.object({
+        stageId: z.string().uuid('Invalid pool stage ID'),
+        role: z.enum(['WINNER', 'LOSER']).optional(),
+      }),
+    }),
+    tournamentController.populateBracketFromPools
   );
 };

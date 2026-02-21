@@ -129,6 +129,25 @@ const EditFormFields = ({
         className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
       />
     </label>
+    <label className="text-sm text-slate-300">
+      {t('edit.targetStartNumber')}
+      <input
+        type="number"
+        value={editForm.targetStartNumber}
+        onChange={(event_) => onEditFormChange({ ...editForm, targetStartNumber: event_.target.value })}
+        className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+        min={1}
+      />
+    </label>
+    <label className="flex items-center gap-2 text-sm text-slate-300">
+      <input
+        type="checkbox"
+        checked={editForm.shareTargets}
+        onChange={(event_) => onEditFormChange({ ...editForm, shareTargets: event_.target.checked })}
+        className="h-4 w-4 rounded border border-slate-700 bg-slate-950/60"
+      />
+      {t('edit.shareTargets')}
+    </label>
   </div>
 );
 

@@ -10,8 +10,12 @@ type BracketDraft = {
 
 type BracketsEditorProperties = {
   t: Translator;
+  canEditBrackets: boolean;
+  canAddBrackets: boolean;
   brackets: BracketConfig[];
   bracketsError?: string | undefined;
+  targets: Array<{ id: string; targetNumber: number }>;
+  targetsError?: string | undefined;
   isAddingBracket: boolean;
   newBracket: BracketDraft;
   onLoadBrackets: () => void;
@@ -19,7 +23,9 @@ type BracketsEditorProperties = {
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
   onBracketStatusChange: (id: string, value: string) => void;
+  onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
+  onSaveBracketTargets: (bracket: BracketConfig) => void;
   onRemoveBracket: (id: string) => void;
   onStartAddBracket: () => void;
   onCancelAddBracket: () => void;
@@ -32,30 +38,41 @@ type BracketsEditorProperties = {
 
 type BracketsListProperties = {
   t: Translator;
+  canEditBrackets: boolean;
   brackets: BracketConfig[];
+  targets: Array<{ id: string; targetNumber: number }>;
+  targetOwners: Map<string, string>;
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
   onBracketStatusChange: (id: string, value: string) => void;
+  onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
+  onSaveBracketTargets: (bracket: BracketConfig) => void;
   onRemoveBracket: (id: string) => void;
   getStatusLabel: (kind: 'stage' | 'bracket', status: string) => string;
 };
 
 type BracketItemProperties = {
   t: Translator;
+  canEditBrackets: boolean;
   bracket: BracketConfig;
+  targets: Array<{ id: string; targetNumber: number }>;
+  targetOwners: Map<string, string>;
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
   onBracketStatusChange: (id: string, value: string) => void;
+  onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
+  onSaveBracketTargets: (bracket: BracketConfig) => void;
   onRemoveBracket: (id: string) => void;
   getStatusLabel: (kind: 'stage' | 'bracket', status: string) => string;
 };
 
 type NewBracketFormProperties = {
   t: Translator;
+  canEditBrackets: boolean;
   isAddingBracket: boolean;
   newBracket: BracketDraft;
   onStartAddBracket: () => void;
@@ -68,24 +85,33 @@ type NewBracketFormProperties = {
 
 const BracketItem = ({
   t,
+  canEditBrackets,
   bracket,
+  targets,
+  targetOwners,
   onBracketNameChange,
   onBracketTypeChange,
   onBracketRoundsChange,
   onBracketStatusChange,
+  onBracketTargetToggle,
   onSaveBracket,
+  onSaveBracketTargets,
   onRemoveBracket,
   getStatusLabel,
-}: BracketItemProperties) => (
-  <div className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-4">
-    <div className="grid gap-3 md:grid-cols-4">
+}: BracketItemProperties) => {
+  const isBracketLocked = !canEditBrackets || Boolean(bracket.hasStartedMatches);
+
+  return (
+    <div className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-4">
+      <div className="grid gap-3 md:grid-cols-4">
       <label className="text-xs text-slate-400 md:col-span-2">
         {t('edit.name')}
         <input
           type="text"
           value={bracket.name}
           onChange={(event_) => onBracketNameChange(bracket.id, event_.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+            disabled={isBracketLocked}
+          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
         />
       </label>
       <label className="text-xs text-slate-400">
@@ -93,7 +119,8 @@ const BracketItem = ({
         <select
           value={bracket.bracketType}
           onChange={(event_) => onBracketTypeChange(bracket.id, event_.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+            disabled={isBracketLocked}
+          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
         >
           {Object.values(BracketType).map((type) => (
             <option key={type} value={type}>
@@ -108,15 +135,52 @@ const BracketItem = ({
           type="number"
           value={bracket.totalRounds}
           onChange={(event_) => onBracketRoundsChange(bracket.id, Number(event_.target.value))}
-          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+            disabled={isBracketLocked}
+          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
         />
       </label>
+    </div>
+    <div className="mt-4">
+      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+        {t('edit.bracketTargets')}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {targets.length === 0 ? (
+          <span className="text-xs text-slate-500">{t('edit.noTargets')}</span>
+        ) : (
+          targets.map((target) => {
+            const isSelected = (bracket.targetIds ?? []).includes(target.id);
+            const owner = targetOwners.get(target.id);
+            const isOwnedByOther = Boolean(owner && owner !== bracket.id);
+            return (
+              <label
+                key={target.id}
+                className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
+                  isOwnedByOther
+                    ? 'border-slate-800 text-slate-500'
+                    : 'border-slate-700 text-slate-200'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  disabled={isBracketLocked || isOwnedByOther}
+                  onChange={() => onBracketTargetToggle(bracket.id, target.id)}
+                  className="h-3.5 w-3.5 rounded border border-slate-700 bg-slate-950/60"
+                />
+                {t('targets.target')} {target.targetNumber}
+              </label>
+            );
+          })
+        )}
+      </div>
     </div>
     <div className="mt-3 flex flex-wrap justify-end gap-2">
       <select
         value={bracket.status}
         onChange={(event_) => onBracketStatusChange(bracket.id, event_.target.value)}
-        className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
+        disabled={isBracketLocked}
+        className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200 disabled:opacity-60"
       >
         {Object.values(BracketStatus).map((status) => (
           <option key={status} value={status}>
@@ -126,28 +190,43 @@ const BracketItem = ({
       </select>
       <button
         onClick={() => onSaveBracket(bracket)}
-        className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs text-emerald-200 hover:border-emerald-300"
+        disabled={isBracketLocked}
+        className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs text-emerald-200 hover:border-emerald-300 disabled:opacity-60"
       >
         {t('common.save')}
       </button>
       <button
+        onClick={() => onSaveBracketTargets(bracket)}
+        disabled={isBracketLocked}
+        className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200 hover:border-sky-300 disabled:opacity-60"
+      >
+        {t('edit.saveTargets')}
+      </button>
+      <button
         onClick={() => onRemoveBracket(bracket.id)}
-        className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
+        disabled={isBracketLocked}
+        className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
       >
         {t('common.delete')}
       </button>
     </div>
-  </div>
-);
+    </div>
+  );
+};
 
 const BracketsList = ({
   t,
+  canEditBrackets,
   brackets,
+  targets,
+  targetOwners,
   onBracketNameChange,
   onBracketTypeChange,
   onBracketRoundsChange,
   onBracketStatusChange,
+  onBracketTargetToggle,
   onSaveBracket,
+  onSaveBracketTargets,
   onRemoveBracket,
   getStatusLabel,
 }: BracketsListProperties) => (
@@ -159,12 +238,17 @@ const BracketsList = ({
         <BracketItem
           key={bracket.id}
           t={t}
+          canEditBrackets={canEditBrackets}
           bracket={bracket}
+          targets={targets}
+          targetOwners={targetOwners}
           onBracketNameChange={onBracketNameChange}
           onBracketTypeChange={onBracketTypeChange}
           onBracketRoundsChange={onBracketRoundsChange}
           onBracketStatusChange={onBracketStatusChange}
+          onBracketTargetToggle={onBracketTargetToggle}
           onSaveBracket={onSaveBracket}
+          onSaveBracketTargets={onSaveBracketTargets}
           onRemoveBracket={onRemoveBracket}
           getStatusLabel={getStatusLabel}
         />
@@ -175,6 +259,7 @@ const BracketsList = ({
 
 const NewBracketForm = ({
   t,
+  canEditBrackets,
   isAddingBracket,
   newBracket,
   onStartAddBracket,
@@ -189,7 +274,8 @@ const NewBracketForm = ({
       <div className="mt-5 flex justify-end">
         <button
           onClick={onStartAddBracket}
-          className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+          disabled={!canEditBrackets}
+          className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
         >
           {t('edit.addBracket')}
         </button>
@@ -206,7 +292,8 @@ const NewBracketForm = ({
             type="text"
             value={newBracket.name}
             onChange={(event_) => onNewBracketNameChange(event_.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+            disabled={!canEditBrackets}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
           />
         </label>
         <label className="text-xs text-slate-400">
@@ -214,7 +301,8 @@ const NewBracketForm = ({
           <select
             value={newBracket.bracketType}
             onChange={(event_) => onNewBracketTypeChange(event_.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+            disabled={!canEditBrackets}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
           >
             {Object.values(BracketType).map((type) => (
               <option key={type} value={type}>
@@ -229,7 +317,8 @@ const NewBracketForm = ({
             type="number"
             value={newBracket.totalRounds}
             onChange={(event_) => onNewBracketRoundsChange(Number(event_.target.value))}
-            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+            disabled={!canEditBrackets}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
           />
         </label>
       </div>
@@ -242,8 +331,8 @@ const NewBracketForm = ({
         </button>
         <button
           onClick={onAddBracket}
-          disabled={!newBracket.name.trim()}
-          className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400"
+          disabled={!canEditBrackets || !newBracket.name.trim()}
+          className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
         >
           {t('edit.addBracket')}
         </button>
@@ -254,8 +343,12 @@ const NewBracketForm = ({
 
 const BracketsEditor = ({
   t,
+  canEditBrackets,
+  canAddBrackets,
   brackets,
   bracketsError,
+  targets,
+  targetsError,
   isAddingBracket,
   newBracket,
   onLoadBrackets,
@@ -263,7 +356,9 @@ const BracketsEditor = ({
   onBracketTypeChange,
   onBracketRoundsChange,
   onBracketStatusChange,
+  onBracketTargetToggle,
   onSaveBracket,
+  onSaveBracketTargets,
   onRemoveBracket,
   onStartAddBracket,
   onCancelAddBracket,
@@ -272,8 +367,16 @@ const BracketsEditor = ({
   onNewBracketRoundsChange,
   onAddBracket,
   getStatusLabel,
-}: BracketsEditorProperties) => (
-  <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
+}: BracketsEditorProperties) => {
+  const targetOwners = new Map<string, string>();
+  for (const bracket of brackets) {
+    for (const targetId of bracket.targetIds ?? []) {
+      targetOwners.set(targetId, bracket.id);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h4 className="text-base font-semibold text-white">{t('edit.brackets')}</h4>
       <button
@@ -286,20 +389,29 @@ const BracketsEditor = ({
     {bracketsError && (
       <p className="mt-3 text-sm text-rose-300">{bracketsError}</p>
     )}
+    {targetsError && (
+      <p className="mt-3 text-sm text-rose-300">{targetsError}</p>
+    )}
     <BracketsList
       t={t}
+      canEditBrackets={canEditBrackets}
       brackets={brackets}
+      targets={targets}
+      targetOwners={targetOwners}
       onBracketNameChange={onBracketNameChange}
       onBracketTypeChange={onBracketTypeChange}
       onBracketRoundsChange={onBracketRoundsChange}
       onBracketStatusChange={onBracketStatusChange}
+      onBracketTargetToggle={onBracketTargetToggle}
       onSaveBracket={onSaveBracket}
+      onSaveBracketTargets={onSaveBracketTargets}
       onRemoveBracket={onRemoveBracket}
       getStatusLabel={getStatusLabel}
     />
 
     <NewBracketForm
       t={t}
+      canEditBrackets={canAddBrackets}
       isAddingBracket={isAddingBracket}
       newBracket={newBracket}
       onStartAddBracket={onStartAddBracket}
@@ -309,7 +421,8 @@ const BracketsEditor = ({
       onNewBracketRoundsChange={onNewBracketRoundsChange}
       onAddBracket={onAddBracket}
     />
-  </div>
-);
+    </div>
+  );
+};
 
 export default BracketsEditor;

@@ -114,19 +114,18 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
 
         const skip = (page - 1) * limit;
 
-        const [tournaments, total] = await Promise.all([
-          prisma.tournament.findMany({
-            where,
-            skip,
-            take: limit,
-            orderBy: {
-              [sortBy]: sortOrder,
-            },
-          }),
-          prisma.tournament.count({ where }),
-        ]);
+        const tournaments = await prisma.tournament.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: {
+            [sortBy]: sortOrder,
+          },
+        });
+        const total = await prisma.tournament.count({ where });
 
         const tournamentIds = tournaments.map((tournament) => tournament.id);
+        type ParticipantCountRow = { tournamentId: string | null; _count: { _all: number } };
         const participantCounts = tournamentIds.length > 0
           ? await prisma.player.groupBy({
             by: ['tournamentId'],
@@ -135,7 +134,9 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
           })
           : [];
         const participantCountByTournament = new Map(
-          participantCounts.map((entry) => [entry.tournamentId, entry._count._all])
+          participantCounts
+            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+            .map((entry) => [entry.tournamentId, entry._count._all])
         );
 
         return {
@@ -161,10 +162,14 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       endTime: Date;
       totalParticipants: number;
       targetCount: number;
+      targetStartNumber?: number;
+      shareTargets?: boolean;
       logoUrl?: string;
       doubleStageEnabled?: boolean;
     }): Promise<Tournament> => {
       try {
+        const targetStartNumber = tournamentData.targetStartNumber ?? 1;
+        const shareTargets = tournamentData.shareTargets ?? true;
         const tournament = await prisma.tournament.create({
           data: {
             name: tournamentData.name,
@@ -174,6 +179,8 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
             endTime: tournamentData.endTime,
             totalParticipants: tournamentData.totalParticipants,
             targetCount: tournamentData.targetCount,
+            targetStartNumber,
+            shareTargets,
             doubleStageEnabled: tournamentData.doubleStageEnabled ?? false,
             // eslint-disable-next-line unicorn/no-null
             logoUrl: tournamentData.logoUrl ?? null,
@@ -183,11 +190,14 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         });
 
         if (tournamentData.targetCount > 0) {
-          const targets = Array.from({ length: tournamentData.targetCount }, (_, index) => ({
+          const targets = Array.from({ length: tournamentData.targetCount }, (_, index) => {
+            const targetNumber = targetStartNumber + index;
+            return {
             tournamentId: tournament.id,
-            targetNumber: index + 1,
-            targetCode: `target${index + 1}`,
-          }));
+              targetNumber,
+              targetCode: `target${targetNumber}`,
+            };
+          });
           await prisma.target.createMany({ data: targets });
         }
 
@@ -242,6 +252,8 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         endTime: Date;
         totalParticipants: number;
         targetCount: number;
+        targetStartNumber: number;
+        shareTargets: boolean;
         logoUrl: string;
         status: TournamentStatus;
         doubleStageEnabled: boolean;
@@ -270,6 +282,127 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         }
         throw new AppError('Failed to update tournament', 500, 'TOURNAMENT_UPDATE_FAILED');
       }
+    },
+
+    getTargetRanges: async (excludeId?: string): Promise<Array<{
+      id: string;
+      name: string;
+      targetStartNumber: number;
+      targetCount: number;
+      shareTargets: boolean;
+    }>> => {
+      try {
+        const query: Prisma.TournamentFindManyArgs = {
+          select: {
+            id: true,
+            name: true,
+            targetStartNumber: true,
+            targetCount: true,
+            shareTargets: true,
+          },
+          ...(excludeId ? { where: { id: { not: excludeId } } } : {}),
+        };
+        const tournaments = await prisma.tournament.findMany(query);
+        return tournaments.map((tournament) => ({
+          id: tournament.id,
+          name: tournament.name,
+          targetStartNumber: tournament.targetStartNumber ?? 1,
+          targetCount: tournament.targetCount,
+          shareTargets: tournament.shareTargets ?? true,
+        }));
+      } catch (error) {
+        logModelError('getTargetRanges', error);
+        throw new AppError('Failed to fetch target ranges', 500, 'TARGET_RANGE_FETCH_FAILED');
+      }
+    },
+
+    getTargetsForTournament: async (tournamentId: string): Promise<Array<{
+      id: string;
+      targetNumber: number;
+    }>> => {
+      try {
+        return await prisma.target.findMany({
+          where: { tournamentId },
+          select: { id: true, targetNumber: true },
+          orderBy: { targetNumber: 'asc' },
+        });
+      } catch (error) {
+        logModelError('getTargetsForTournament', error);
+        throw new AppError('Failed to fetch tournament targets', 500, 'TARGET_FETCH_FAILED');
+      }
+    },
+
+    getMatchCountForTargets: async (targetIds: string[]): Promise<number> => {
+      if (targetIds.length === 0) return 0;
+      try {
+        return await prisma.match.count({
+          where: { targetId: { in: targetIds } },
+        });
+      } catch (error) {
+        logModelError('getMatchCountForTargets', error);
+        throw new AppError('Failed to fetch target usage', 500, 'TARGET_USAGE_FETCH_FAILED');
+      }
+    },
+
+    rebuildTargetsForTournament: async (
+      tournamentId: string,
+      startNumber: number,
+      count: number
+    ): Promise<void> => {
+      type TargetRow = { id: string; targetNumber: number };
+      const targets: TargetRow[] = await prisma.target.findMany({
+        where: { tournamentId },
+        select: { id: true, targetNumber: true },
+        orderBy: { targetNumber: 'asc' },
+      });
+
+      const keepTargets = targets.slice(0, count);
+      const deleteTargets = targets.slice(count);
+      const tempOffset = 1000;
+
+      const tempUpdates = keepTargets.map((target) => prisma.target.update({
+        where: { id: target.id },
+        data: {
+          targetNumber: target.targetNumber + tempOffset,
+          targetCode: `temp-${target.id}`,
+        },
+      }));
+
+      const finalUpdates = keepTargets.map((target, index) => {
+        const targetNumber = startNumber + index;
+        return prisma.target.update({
+          where: { id: target.id },
+          data: {
+            targetNumber,
+            targetCode: `target${targetNumber}`,
+          },
+        });
+      });
+
+      const deleteOperations = deleteTargets.length > 0
+        ? [prisma.target.deleteMany({ where: { id: { in: deleteTargets.map((target) => target.id) } } })]
+        : [];
+
+      const createCount = count - keepTargets.length;
+      const createOperations = createCount > 0
+        ? [prisma.target.createMany({
+          data: Array.from({ length: createCount }, (_, index) => {
+            const targetNumber = startNumber + keepTargets.length + index;
+            return {
+              tournamentId,
+              targetNumber,
+              targetCode: `target${targetNumber}`,
+            };
+          }),
+        })]
+        : [];
+
+      await prisma.$transaction([
+        ...tempUpdates,
+        ...finalUpdates,
+        ...deleteOperations,
+        ...createOperations,
+      ]);
     },
 
     delete: async (id: string): Promise<boolean> => {

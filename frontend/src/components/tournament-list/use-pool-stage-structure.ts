@@ -1,5 +1,5 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
-import type { PoolStageConfig } from '../../services/tournament-service';
+import type { PoolStageConfig, PoolStageDestinationType } from '../../services/tournament-service';
 import {
   createPoolStage,
   deletePoolStage,
@@ -20,6 +20,11 @@ type PoolStageStructureResult = {
   handlePoolStagePlayersPerPoolChange: (stageId: string, value: number) => void;
   handlePoolStageAdvanceCountChange: (stageId: string, value: number) => void;
   handlePoolStageLosersAdvanceChange: (stageId: string, value: boolean) => void;
+  handlePoolStageRankingDestinationChange: (
+    stageId: string,
+    position: number,
+    destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+  ) => void;
   handlePoolStageStatusChange: (stage: PoolStageConfig, nextStatus: string) => void;
   addPoolStage: () => Promise<boolean>;
   savePoolStage: (stage: PoolStageConfig) => Promise<void>;
@@ -32,6 +37,10 @@ type PoolStageStructureResult = {
   handleNewPoolStagePlayersPerPoolChange: (value: number) => void;
   handleNewPoolStageAdvanceCountChange: (value: number) => void;
   handleNewPoolStageLosersAdvanceChange: (value: boolean) => void;
+  handleNewPoolStageRankingDestinationChange: (
+    position: number,
+    destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+  ) => void;
   resetPoolStageState: () => void;
 };
 
@@ -56,6 +65,12 @@ const initialPoolStageDraft: PoolStageDraft = {
   playersPerPool: 4,
   advanceCount: 2,
   losersAdvanceToBracket: false,
+  rankingDestinations: [
+    { position: 1, destinationType: 'ELIMINATED' },
+    { position: 2, destinationType: 'ELIMINATED' },
+    { position: 3, destinationType: 'ELIMINATED' },
+    { position: 4, destinationType: 'ELIMINATED' },
+  ],
 };
 
 const usePoolStageState = (): PoolStageState & PoolStageStateSetters & {
@@ -84,6 +99,37 @@ const usePoolStageState = (): PoolStageState & PoolStageStateSetters & {
     setIsAddingPoolStage,
     resetPoolStageState,
   };
+};
+
+const validateRankingDestinations = (
+  stage: {
+    playersPerPool: number;
+    rankingDestinations?: Array<{
+      position: number;
+      destinationType: PoolStageDestinationType;
+      bracketId?: string;
+      poolStageId?: string;
+    }>;
+  },
+  t: TournamentStructureBaseProperties['t']
+): string | undefined => {
+  const destinations = stage.rankingDestinations;
+  if (!destinations || destinations.length === 0) {
+    return t('edit.error.poolDestinationsIncomplete');
+  }
+  const positions = new Set(destinations.map((destination) => destination.position));
+  if (positions.size !== stage.playersPerPool) {
+    return t('edit.error.poolDestinationsIncomplete');
+  }
+  for (const destination of destinations) {
+    if (destination.destinationType === 'BRACKET' && !destination.bracketId) {
+      return t('edit.error.poolDestinationsMissingBracket');
+    }
+    if (destination.destinationType === 'POOL_STAGE' && !destination.poolStageId) {
+      return t('edit.error.poolDestinationsMissingPoolStage');
+    }
+  }
+  return undefined;
 };
 
 const usePoolStageLoaders = ({
@@ -135,6 +181,11 @@ const usePoolStageMutations = ({
       setPoolStagesError(t('edit.error.stageNameRequired'));
       return false;
     }
+    const routingError = validateRankingDestinations(newPoolStage, t);
+    if (routingError) {
+      setPoolStagesError(routingError);
+      return false;
+    }
     setPoolStagesError(undefined);
     try {
       const token = await getSafeAccessToken();
@@ -151,10 +202,15 @@ const usePoolStageMutations = ({
 
   const savePoolStage = useCallback(async (stage: PoolStageConfig) => {
     if (!editingTournament) return;
+    const routingError = validateRankingDestinations(stage, t);
+    if (routingError) {
+      setPoolStagesError(routingError);
+      return;
+    }
     setPoolStagesError(undefined);
     try {
       const token = await getSafeAccessToken();
-      await updatePoolStage(editingTournament.id, stage.id, {
+      const payload: Partial<Omit<PoolStageConfig, 'id' | 'tournamentId'>> = {
         stageNumber: stage.stageNumber,
         name: stage.name,
         poolCount: stage.poolCount,
@@ -162,7 +218,11 @@ const usePoolStageMutations = ({
         advanceCount: stage.advanceCount,
         losersAdvanceToBracket: stage.losersAdvanceToBracket,
         status: stage.status,
-      }, token);
+      };
+      if (stage.rankingDestinations) {
+        payload.rankingDestinations = stage.rankingDestinations;
+      }
+      await updatePoolStage(editingTournament.id, stage.id, payload, token);
       await loadPoolStages(editingTournament.id);
     } catch (error_) {
       setPoolStagesError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdatePoolStage'));
@@ -185,6 +245,30 @@ const usePoolStageMutations = ({
   return { addPoolStage, savePoolStage, removePoolStage };
 };
 
+const buildRankingDestination = (
+  position: number,
+  destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+) => {
+  if (destination.destinationType === 'BRACKET') {
+    return {
+      position,
+      destinationType: 'BRACKET' as const,
+      ...(destination.bracketId ? { bracketId: destination.bracketId } : {}),
+    };
+  }
+  if (destination.destinationType === 'POOL_STAGE') {
+    return {
+      position,
+      destinationType: 'POOL_STAGE' as const,
+      ...(destination.poolStageId ? { poolStageId: destination.poolStageId } : {}),
+    };
+  }
+  return {
+    position,
+    destinationType: 'ELIMINATED' as const,
+  };
+};
+
 const usePoolStageFieldHandlers = ({
   setPoolStages,
   savePoolStage,
@@ -192,6 +276,20 @@ const usePoolStageFieldHandlers = ({
   setPoolStages: PoolStageStateSetters['setPoolStages'];
   savePoolStage: (stage: PoolStageConfig) => Promise<void>;
 }) => {
+  const normalizeDestinations = useCallback(
+    (destinations: PoolStageConfig['rankingDestinations'] | undefined, playersPerPool: number) => {
+      const map = new Map((destinations ?? []).map((destination) => [destination.position, destination]));
+      const next: NonNullable<PoolStageConfig['rankingDestinations']> = [];
+      for (let position = 1; position <= playersPerPool; position += 1) {
+        next.push(
+          map.get(position) ?? { position, destinationType: 'ELIMINATED' }
+        );
+      }
+      return next;
+    },
+    []
+  );
+
   const updatePoolStageField = useCallback(
     (stageId: string, updater: (stage: PoolStageConfig) => PoolStageConfig) => {
       setPoolStages((current) =>
@@ -214,8 +312,12 @@ const usePoolStageFieldHandlers = ({
   }, [updatePoolStageField]);
 
   const handlePoolStagePlayersPerPoolChange = useCallback((stageId: string, value: number) => {
-    updatePoolStageField(stageId, (item) => ({ ...item, playersPerPool: value }));
-  }, [updatePoolStageField]);
+    updatePoolStageField(stageId, (item) => ({
+      ...item,
+      playersPerPool: value,
+      rankingDestinations: normalizeDestinations(item.rankingDestinations, value),
+    }));
+  }, [normalizeDestinations, updatePoolStageField]);
 
   const handlePoolStageAdvanceCountChange = useCallback((stageId: string, value: number) => {
     updatePoolStageField(stageId, (item) => ({ ...item, advanceCount: value }));
@@ -224,6 +326,24 @@ const usePoolStageFieldHandlers = ({
   const handlePoolStageLosersAdvanceChange = useCallback((stageId: string, value: boolean) => {
     updatePoolStageField(stageId, (item) => ({ ...item, losersAdvanceToBracket: value }));
   }, [updatePoolStageField]);
+
+  const handlePoolStageRankingDestinationChange = useCallback(
+    (
+      stageId: string,
+      position: number,
+      destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+    ) => {
+      updatePoolStageField(stageId, (item) => {
+        const current = normalizeDestinations(item.rankingDestinations, item.playersPerPool);
+        const nextDestination = buildRankingDestination(position, destination);
+        const next = current.map((entry) =>
+          entry.position === position ? nextDestination : entry
+        );
+        return { ...item, rankingDestinations: next };
+      });
+    },
+    [normalizeDestinations, updatePoolStageField]
+  );
 
   const handlePoolStageStatusChange = useCallback((stage: PoolStageConfig, nextStatus: string) => {
     updatePoolStageField(stage.id, (item) => ({ ...item, status: nextStatus }));
@@ -237,6 +357,7 @@ const usePoolStageFieldHandlers = ({
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
     handlePoolStageLosersAdvanceChange,
+    handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
   };
 };
@@ -248,6 +369,20 @@ const usePoolStageDraftHandlers = ({
   setNewPoolStage: PoolStageStateSetters['setNewPoolStage'];
   setIsAddingPoolStage: PoolStageStateSetters['setIsAddingPoolStage'];
 }) => {
+  const normalizeDestinations = useCallback(
+    (destinations: PoolStageDraft['rankingDestinations'] | undefined, playersPerPool: number) => {
+      const map = new Map((destinations ?? []).map((destination) => [destination.position, destination]));
+      const next: NonNullable<PoolStageDraft['rankingDestinations']> = [];
+      for (let position = 1; position <= playersPerPool; position += 1) {
+        next.push(
+          map.get(position) ?? { position, destinationType: 'ELIMINATED' }
+        );
+      }
+      return next;
+    },
+    []
+  );
+
   const startAddPoolStage = useCallback(() => {
     setIsAddingPoolStage(true);
   }, [setIsAddingPoolStage]);
@@ -269,8 +404,12 @@ const usePoolStageDraftHandlers = ({
   }, [setNewPoolStage]);
 
   const handleNewPoolStagePlayersPerPoolChange = useCallback((value: number) => {
-    setNewPoolStage((current) => ({ ...current, playersPerPool: value }));
-  }, [setNewPoolStage]);
+    setNewPoolStage((current) => ({
+      ...current,
+      playersPerPool: value,
+      rankingDestinations: normalizeDestinations(current.rankingDestinations, value),
+    }));
+  }, [normalizeDestinations, setNewPoolStage]);
 
   const handleNewPoolStageAdvanceCountChange = useCallback((value: number) => {
     setNewPoolStage((current) => ({ ...current, advanceCount: value }));
@@ -279,6 +418,23 @@ const usePoolStageDraftHandlers = ({
   const handleNewPoolStageLosersAdvanceChange = useCallback((value: boolean) => {
     setNewPoolStage((current) => ({ ...current, losersAdvanceToBracket: value }));
   }, [setNewPoolStage]);
+
+  const handleNewPoolStageRankingDestinationChange = useCallback(
+    (
+      position: number,
+      destination: { destinationType: PoolStageDestinationType; bracketId?: string; poolStageId?: string }
+    ) => {
+      setNewPoolStage((current) => {
+        const normalized = normalizeDestinations(current.rankingDestinations, current.playersPerPool);
+        const nextDestination = buildRankingDestination(position, destination);
+        const next = normalized.map((entry) =>
+          entry.position === position ? nextDestination : entry
+        );
+        return { ...current, rankingDestinations: next };
+      });
+    },
+    [normalizeDestinations, setNewPoolStage]
+  );
 
   return {
     startAddPoolStage,
@@ -289,6 +445,7 @@ const usePoolStageDraftHandlers = ({
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
     handleNewPoolStageLosersAdvanceChange,
+    handleNewPoolStageRankingDestinationChange,
   };
 };
 
@@ -335,6 +492,7 @@ const usePoolStageStructure = ({
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
     handlePoolStageLosersAdvanceChange,
+    handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
   } = usePoolStageFieldHandlers({ setPoolStages, savePoolStage });
 
@@ -347,6 +505,7 @@ const usePoolStageStructure = ({
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
     handleNewPoolStageLosersAdvanceChange,
+    handleNewPoolStageRankingDestinationChange,
   } = usePoolStageDraftHandlers({ setIsAddingPoolStage, setNewPoolStage });
 
   return {
@@ -361,6 +520,7 @@ const usePoolStageStructure = ({
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
     handlePoolStageLosersAdvanceChange,
+    handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
     addPoolStage,
     savePoolStage,
@@ -373,6 +533,7 @@ const usePoolStageStructure = ({
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
     handleNewPoolStageLosersAdvanceChange,
+    handleNewPoolStageRankingDestinationChange,
     resetPoolStageState,
   };
 };

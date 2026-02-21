@@ -1,4 +1,5 @@
 import type { Tournament, Translator } from './types';
+import type { PoolStageRankingDestination } from '../../services/tournament-service';
 
 type PoolStageDraft = {
   stageNumber: number;
@@ -7,6 +8,7 @@ type PoolStageDraft = {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  rankingDestinations?: PoolStageRankingDestination[];
 };
 
 type BracketDraft = {

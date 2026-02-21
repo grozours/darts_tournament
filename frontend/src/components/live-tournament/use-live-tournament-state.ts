@@ -92,8 +92,15 @@ type LiveTournamentState = {
   cancelEditStage: () => void;
   updatingRoundKey?: string | undefined;
   resettingBracketId?: string | undefined;
+  populatingBracketId?: string | undefined;
   handleCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => Promise<void>;
   handleResetBracketMatches: (tournamentId: string, bracketId: string) => Promise<void>;
+  handlePopulateBracketFromPools: (
+    tournamentId: string,
+    bracketId: string,
+    stage: LiveViewPoolStage,
+    role: 'WINNER' | 'LOSER'
+  ) => Promise<void>;
   handleSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketByTournament: Record<string, string>;
   isPoolStagesReadonly: boolean;
@@ -138,12 +145,12 @@ const useLiveTournamentState = (): LiveTournamentState => {
     tournamentId,
     isAggregateView,
   });
-    const { playerIdByTournament } = useLiveTournamentPlayerIds({
-      liveViews,
-      isAuthenticated,
-      ...(user ? { user } : {}),
-      getSafeAccessToken,
-    });
+  const { playerIdByTournament } = useLiveTournamentPlayerIds({
+    liveViews,
+    isAuthenticated,
+    ...(user ? { user } : {}),
+    getSafeAccessToken,
+  });
   const canViewEditionByViewId = (viewId: string) => isAdmin || Boolean(playerIdByTournament[viewId]);
   const allowEmptyPoolsByViewId = () => isAdmin;
   const {
@@ -223,11 +230,14 @@ const useLiveTournamentState = (): LiveTournamentState => {
   const {
     updatingRoundKey,
     resettingBracketId,
+    populatingBracketId,
     handleCompleteBracketRound,
     handleResetBracketMatches,
+    handlePopulateBracketFromPools,
     handleSelectBracket,
     activeBracketByTournament,
   } = useLiveTournamentBracketActions({
+    t,
     getSafeAccessToken,
     reloadLiveViews,
     setError,
@@ -305,8 +315,10 @@ const useLiveTournamentState = (): LiveTournamentState => {
     cancelEditStage,
     updatingRoundKey,
     resettingBracketId,
+    populatingBracketId,
     handleCompleteBracketRound,
     handleResetBracketMatches,
+    handlePopulateBracketFromPools,
     handleSelectBracket,
     activeBracketByTournament,
     isPoolStagesReadonly,

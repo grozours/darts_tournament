@@ -44,6 +44,7 @@ type TransitionConfig = {
 
 const useSaveEditAction = ({
   t,
+  isEditPage,
   editingTournament,
   editForm,
   getSafeAccessToken,
@@ -51,7 +52,7 @@ const useSaveEditAction = ({
   fetchTournaments,
   setEditError,
   setIsSaving,
-}: Omit<TournamentEditActionShared, 'isEditPage'> & {
+}: TournamentEditActionShared & {
   editForm: EditFormState | undefined;
 }) => useCallback(async () => {
   if (!editingTournament || !editForm) return;
@@ -70,6 +71,8 @@ const useSaveEditAction = ({
       durationType: editForm.durationType,
       totalParticipants: Number(editForm.totalParticipants || 0),
       targetCount: Number(editForm.targetCount || 0),
+      targetStartNumber: Number(editForm.targetStartNumber || 1),
+      shareTargets: editForm.shareTargets,
       doubleStageEnabled: editForm.doubleStageEnabled,
     };
     if (editForm.startTime) {
@@ -80,14 +83,16 @@ const useSaveEditAction = ({
     }
 
     await updateTournament(editingTournament.id, payload, token);
-    closeEdit();
+    if (!isEditPage) {
+      closeEdit();
+    }
     fetchTournaments();
   } catch (error_) {
     setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdateTournament'));
   } finally {
     setIsSaving(false);
   }
-}, [closeEdit, editForm, editingTournament, fetchTournaments, getSafeAccessToken, setEditError, setIsSaving, t]);
+}, [closeEdit, editForm, editingTournament, fetchTournaments, getSafeAccessToken, isEditPage, setEditError, setIsSaving, t]);
 
 const useStatusTransitionAction = (
   shared: TournamentEditActionShared,
@@ -135,6 +140,7 @@ const useTournamentEditActions = ({
 }: UseTournamentEditActionsProperties): TournamentEditActionsResult => {
   const saveEdit = useSaveEditAction({
     t,
+    isEditPage,
     editingTournament,
     editForm,
     getSafeAccessToken,

@@ -1,5 +1,4 @@
 import js from '@eslint/js';
-import unicorn from 'eslint-plugin-unicorn';
 import { FlatCompat } from '@eslint/eslintrc';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -16,5 +15,4 @@ const compat = new FlatCompat({
 
 export default [
   ...compat.config(require('./.eslintrc.cjs')),
-  unicorn.configs['flat/recommended'] ?? unicorn.configs.recommended,
 ];

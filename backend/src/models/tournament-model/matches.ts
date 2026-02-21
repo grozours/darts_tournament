@@ -199,6 +199,7 @@ export const createTournamentModelMatches = (prisma: PrismaClient) => ({
           target: true,
           pool: { include: { poolStage: true } },
           bracket: true,
+          winner: true,
           playerMatches: { include: { player: true } },
         },
       });

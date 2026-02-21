@@ -3,6 +3,7 @@ import type {
   CreatePlayerPayload,
   PoolStageConfig,
   TournamentPlayer,
+  TournamentTarget,
 } from '../../services/tournament-service';
 import type { EditFormState, Translator } from './types';
 import TournamentEditHeader from './tournament-edit-header';
@@ -12,6 +13,7 @@ import TournamentEditFooter from './tournament-edit-footer';
 export type TournamentEditPanelProperties = {
   t: Translator;
   isEditPage: boolean;
+  isAdmin: boolean;
   editForm: EditFormState;
   editingTournament: {
     id: string;
@@ -45,6 +47,11 @@ export type TournamentEditPanelProperties = {
   onPoolStagePlayersPerPoolChange: (id: string, value: number) => void;
   onPoolStageAdvanceCountChange: (id: string, value: number) => void;
   onPoolStageLosersAdvanceChange: (id: string, value: boolean) => void;
+  onPoolStageRankingDestinationChange: (
+    id: string,
+    position: number,
+    destination: { destinationType: 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED'; bracketId?: string; poolStageId?: string }
+  ) => void;
   onPoolStageStatusChange: (stage: PoolStageConfig, status: string) => void;
   onOpenPoolStageAssignments: (stage: PoolStageConfig) => void;
   onSavePoolStage: (stage: PoolStageConfig) => void;
@@ -57,6 +64,12 @@ export type TournamentEditPanelProperties = {
     playersPerPool: number;
     advanceCount: number;
     losersAdvanceToBracket: boolean;
+    rankingDestinations?: Array<{
+      position: number;
+      destinationType: 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED';
+      bracketId?: string;
+      poolStageId?: string;
+    }>;
   };
   onStartAddPoolStage: () => void;
   onCancelAddPoolStage: () => void;
@@ -66,15 +79,23 @@ export type TournamentEditPanelProperties = {
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
+  onNewPoolStageRankingDestinationChange: (
+    position: number,
+    destination: { destinationType: 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED'; bracketId?: string; poolStageId?: string }
+  ) => void;
   onAddPoolStage: () => Promise<boolean>;
   brackets: BracketConfig[];
   bracketsError?: string | undefined;
+  targets: TournamentTarget[];
+  targetsError?: string | undefined;
   onLoadBrackets: () => void;
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
   onBracketStatusChange: (id: string, value: string) => void;
+  onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
+  onSaveBracketTargets: (bracket: BracketConfig) => void;
   onRemoveBracket: (id: string) => void;
   isAddingBracket: boolean;
   newBracket: {
@@ -129,6 +150,7 @@ const getPanelClassNames = (isEditPage: boolean) => ({
 
 const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   t: properties.t,
+  isAdmin: properties.isAdmin,
   editForm: properties.editForm,
   editingTournament: properties.editingTournament,
   formatOptions: properties.formatOptions,
@@ -142,6 +164,8 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   newPoolStage: properties.newPoolStage,
   brackets: properties.brackets,
   bracketsError: properties.bracketsError,
+  targets: properties.targets,
+  targetsError: properties.targetsError,
   isAddingBracket: properties.isAddingBracket,
   newBracket: properties.newBracket,
   players: properties.players,
@@ -168,6 +192,7 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onPoolStagePlayersPerPoolChange: properties.onPoolStagePlayersPerPoolChange,
   onPoolStageAdvanceCountChange: properties.onPoolStageAdvanceCountChange,
   onPoolStageLosersAdvanceChange: properties.onPoolStageLosersAdvanceChange,
+  onPoolStageRankingDestinationChange: properties.onPoolStageRankingDestinationChange,
   onPoolStageStatusChange: properties.onPoolStageStatusChange,
   onOpenPoolStageAssignments: properties.onOpenPoolStageAssignments,
   onSavePoolStage: properties.onSavePoolStage,
@@ -180,13 +205,16 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onNewPoolStagePlayersPerPoolChange: properties.onNewPoolStagePlayersPerPoolChange,
   onNewPoolStageAdvanceCountChange: properties.onNewPoolStageAdvanceCountChange,
   onNewPoolStageLosersAdvanceChange: properties.onNewPoolStageLosersAdvanceChange,
+  onNewPoolStageRankingDestinationChange: properties.onNewPoolStageRankingDestinationChange,
   onAddPoolStage: properties.onAddPoolStage,
   onLoadBrackets: properties.onLoadBrackets,
   onBracketNameChange: properties.onBracketNameChange,
   onBracketTypeChange: properties.onBracketTypeChange,
   onBracketRoundsChange: properties.onBracketRoundsChange,
   onBracketStatusChange: properties.onBracketStatusChange,
+  onBracketTargetToggle: properties.onBracketTargetToggle,
   onSaveBracket: properties.onSaveBracket,
+  onSaveBracketTargets: properties.onSaveBracketTargets,
   onRemoveBracket: properties.onRemoveBracket,
   onStartAddBracket: properties.onStartAddBracket,
   onCancelAddBracket: properties.onCancelAddBracket,

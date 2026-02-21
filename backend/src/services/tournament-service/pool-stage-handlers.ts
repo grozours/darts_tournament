@@ -21,6 +21,7 @@ type PoolStageUpdateData = Partial<{
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  rankingDestinations: PoolStageRankingDestinationInput[];
   status: StageStatus;
   // eslint-disable-next-line unicorn/no-null
   completedAt: Date | null;
@@ -33,6 +34,14 @@ type PoolStageCreateData = {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket?: boolean;
+  rankingDestinations?: PoolStageRankingDestinationInput[];
+};
+
+type PoolStageRankingDestinationInput = {
+  position: number;
+  destinationType: 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED';
+  bracketId?: string;
+  poolStageId?: string;
 };
 
 type PoolStandingsEntry = {
@@ -69,6 +78,22 @@ const compareByPoolAndPosition = (
 ): number => {
   if (first.poolNumber !== second.poolNumber) return first.poolNumber - second.poolNumber;
   return first.position - second.position;
+};
+
+const buildRankDestinationMap = (
+  destinations: PoolStageRankingDestinationInput[]
+): Map<number, PoolStageRankingDestinationInput> => {
+  const map = new Map<number, PoolStageRankingDestinationInput>();
+  for (const destination of destinations) {
+    map.set(destination.position, destination);
+  }
+  return map;
+};
+
+const getStageRankingDestinations = (stage: { rankingDestinations?: unknown }) => {
+  return Array.isArray(stage.rankingDestinations)
+    ? (stage.rankingDestinations as PoolStageRankingDestinationInput[])
+    : undefined;
 };
 
 export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
@@ -113,6 +138,170 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     return { nextData, shouldRedistribute };
+  };
+
+  const validatePoolStageRankingDestinations = async (
+    tournamentId: string,
+    playersPerPool: number,
+    destinations?: PoolStageRankingDestinationInput[],
+    stageId?: string
+  ): Promise<void> => {
+    if (!destinations) return;
+    const { positions, bracketIds, poolStageIds } =
+      collectRankingDestinationInfo(destinations, playersPerPool);
+    ensureRankingCoverage(positions, playersPerPool);
+    await ensureBracketDestinations(tournamentId, bracketIds);
+    await ensurePoolStageDestinations(tournamentId, poolStageIds, stageId);
+  };
+
+  const validateRankingPosition = (position: number, playersPerPool: number) => {
+    if (!Number.isInteger(position) || position < 1) {
+      throw new AppError('Invalid ranking destination position', 400, 'POOL_STAGE_ROUTING_INVALID');
+    }
+    if (position > playersPerPool) {
+      throw new AppError('Ranking destination exceeds players per pool', 400, 'POOL_STAGE_ROUTING_INVALID');
+    }
+  };
+
+  const collectRankingDestinationInfo = (
+    destinations: PoolStageRankingDestinationInput[],
+    playersPerPool: number
+  ) => {
+    const positions = new Set<number>();
+    const bracketIds = new Set<string>();
+    const poolStageIds = new Set<string>();
+
+    for (const destination of destinations) {
+      validateRankingPosition(destination.position, playersPerPool);
+      if (positions.has(destination.position)) {
+        throw new AppError('Duplicate ranking destination position', 400, 'POOL_STAGE_ROUTING_INVALID');
+      }
+      positions.add(destination.position);
+
+      if (destination.destinationType === 'BRACKET') {
+        if (!destination.bracketId) {
+          throw new AppError('Bracket destination requires a bracket', 400, 'POOL_STAGE_ROUTING_INVALID');
+        }
+        bracketIds.add(destination.bracketId);
+      } else if (destination.destinationType === 'POOL_STAGE') {
+        if (!destination.poolStageId) {
+          throw new AppError('Pool stage destination requires a stage', 400, 'POOL_STAGE_ROUTING_INVALID');
+        }
+        poolStageIds.add(destination.poolStageId);
+      }
+    }
+
+    return { positions, bracketIds, poolStageIds };
+  };
+
+  const ensureRankingCoverage = (positions: Set<number>, playersPerPool: number) => {
+    if (positions.size !== playersPerPool) {
+      throw new AppError(
+        'Ranking destinations must cover all positions in the pool',
+        400,
+        'POOL_STAGE_ROUTING_INCOMPLETE'
+      );
+    }
+  };
+
+  const ensureBracketDestinations = async (tournamentId: string, bracketIds: Set<string>) => {
+    if (bracketIds.size === 0) return;
+    const brackets = await tournamentModel.getBrackets(tournamentId);
+    const allowedBracketIds = new Set(brackets.map((bracket) => bracket.id));
+    const invalidBracketIds = [...bracketIds].filter((id) => !allowedBracketIds.has(id));
+    if (invalidBracketIds.length > 0) {
+      throw new AppError(
+        'Ranking destinations must reference tournament brackets',
+        400,
+        'POOL_STAGE_ROUTING_INVALID',
+        { invalidBracketIds }
+      );
+    }
+  };
+
+  const ensurePoolStageDestinations = async (
+    tournamentId: string,
+    poolStageIds: Set<string>,
+    stageId?: string
+  ) => {
+    if (poolStageIds.size === 0) return;
+    const stages = await tournamentModel.getPoolStages(tournamentId);
+    const allowedStageIds = new Set(stages.map((stage) => stage.id));
+    const invalidStageIds = [...poolStageIds].filter((id) => !allowedStageIds.has(id));
+    if (invalidStageIds.length > 0) {
+      throw new AppError(
+        'Ranking destinations must reference tournament pool stages',
+        400,
+        'POOL_STAGE_ROUTING_INVALID',
+        { invalidStageIds }
+      );
+    }
+    if (stageId && poolStageIds.has(stageId)) {
+      throw new AppError(
+        'Ranking destinations cannot target the same pool stage',
+        400,
+        'POOL_STAGE_ROUTING_INVALID'
+      );
+    }
+  };
+
+  const addEntryToBucket = <T>(bucketMap: Map<string, T[]>, key: string, entry: T) => {
+    const bucket = bucketMap.get(key) ?? [];
+    bucket.push(entry);
+    bucketMap.set(key, bucket);
+  };
+
+  const buildPoolEntry = (
+    pool: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>[number],
+    row: { playerId: string; position: number; legsWon: number; legsLost: number; name: string }
+  ): PoolStandingsEntry => ({
+    playerId: row.playerId,
+    seedKey: `${pool.poolNumber}-${row.position}`,
+    poolNumber: pool.poolNumber,
+    position: row.position,
+    legsWon: row.legsWon,
+    legsLost: row.legsLost,
+    name: row.name,
+  });
+
+  const buildEntriesFromRankingDestinations = (
+    pools: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>,
+    destinations: PoolStageRankingDestinationInput[]
+  ) => {
+    const destinationMap = buildRankDestinationMap(destinations);
+    const entriesByBracket = new Map<string, PoolStandingsEntry[]>();
+    const entriesByStage = new Map<string, PoolStandingsEntry[]>();
+
+    for (const pool of pools) {
+      const standings = buildPoolStandings(pool);
+      for (const row of standings) {
+        const destination = destinationMap.get(row.position);
+        if (!destination) continue;
+        const entry = buildPoolEntry(pool, row);
+
+        if (destination.destinationType === 'BRACKET' && destination.bracketId) {
+          addEntryToBucket(entriesByBracket, destination.bracketId, entry);
+        } else if (destination.destinationType === 'POOL_STAGE' && destination.poolStageId) {
+          addEntryToBucket(entriesByStage, destination.poolStageId, entry);
+        }
+      }
+    }
+
+    const bracketEntries = new Map<string, Array<{ playerId: string; seedNumber: number }>>();
+    for (const [bracketId, entries] of entriesByBracket) {
+      const ordered = [...entries].sort(compareByPoolAndPosition);
+      bracketEntries.set(
+        bracketId,
+        ordered.map((entry, index) => ({ playerId: entry.playerId, seedNumber: index + 1 }))
+      );
+    }
+
+    const stageEntries = new Map<string, PoolStandingsEntry[]>();
+    for (const [stageKey, entries] of entriesByStage) {
+      stageEntries.set(stageKey, [...entries].sort(compareByPoolAndPosition));
+    }
+
+    return { bracketEntries, stageEntries };
   };
 
   const applyPoolStageStatusUpdates = async (
@@ -358,9 +547,41 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     await tournamentModel.updateBracket(bracketId, { status: BracketStatus.IN_PROGRESS, totalRounds });
   };
 
+  const populateStageRouting = async (
+    tournamentId: string,
+    pools: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>,
+    routing: PoolStageRankingDestinationInput[]
+  ): Promise<void> => {
+    const { bracketEntries, stageEntries } = buildEntriesFromRankingDestinations(pools, routing);
+    for (const [bracketId, entries] of bracketEntries) {
+      await populateBracket(tournamentId, bracketId, entries);
+    }
+
+    if (stageEntries.size === 0) return;
+    const stages = await tournamentModel.getPoolStages(tournamentId);
+    const stageMap = new Map(stages.map((item) => [item.id, item]));
+    for (const [targetStageId, entries] of stageEntries) {
+      const targetStage = stageMap.get(targetStageId);
+      if (!targetStage) continue;
+      await assignPlayersToStage(targetStage, entries);
+    }
+  };
+
   const populateBracketsForStage = async (tournamentId: string, stageId: string): Promise<void> => {
-    const stage = await getFinalPoolStage(tournamentId, stageId);
-    if (!stage) {
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    if (stage?.tournamentId !== tournamentId) {
+      return;
+    }
+
+    const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
+    const routing = getStageRankingDestinations(stage);
+    if (routing && routing.length > 0) {
+      await populateStageRouting(tournamentId, pools, routing);
+      return;
+    }
+
+    const finalStage = await getFinalPoolStage(tournamentId, stageId);
+    if (!finalStage) {
       return;
     }
 
@@ -369,8 +590,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       return;
     }
 
-    const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
-    const { winners, losers } = collectPoolStandings(pools, stage.advanceCount);
+    const { winners, losers } = collectPoolStandings(pools, finalStage.advanceCount);
     const { winnerEntries, loserEntries } = buildBracketEntriesFromPools(winners, losers);
     const { winnerBracket, loserBracket } = selectWinnerLoserBrackets(brackets);
 
@@ -382,19 +602,6 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       await populateBracket(tournamentId, loserBracket.id, loserEntries);
     }
   };
-
-  const buildPoolEntry = (
-    pool: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>[number],
-    row: { playerId: string; position: number; legsWon: number; legsLost: number; name: string }
-  ): PoolStandingsEntry => ({
-    playerId: row.playerId,
-    seedKey: `${pool.poolNumber}-${row.position}`,
-    poolNumber: pool.poolNumber,
-    position: row.position,
-    legsWon: row.legsWon,
-    legsLost: row.legsLost,
-    name: row.name,
-  });
 
   const tokenizeBracketName = (name: string) =>
     name
@@ -980,6 +1187,12 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         );
       }
 
+      await validatePoolStageRankingDestinations(
+        tournamentId,
+        data.playersPerPool,
+        data.rankingDestinations
+      );
+
       const poolStage = await tournamentModel.createPoolStage(tournamentId, data);
       if (poolStage.poolCount > 0) {
         await tournamentModel.createPoolsForStage(poolStage.id, poolStage.poolCount);
@@ -990,6 +1203,21 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       validateUUID(tournamentId);
       validateUUID(stageId);
       const tournament = await getEditableTournamentForPoolStage(tournamentId);
+
+      const currentStage = await tournamentModel.getPoolStageById(stageId);
+      if (currentStage?.tournamentId !== tournamentId) {
+        throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+      }
+
+      if (data.rankingDestinations) {
+        const playersPerPool = data.playersPerPool ?? currentStage.playersPerPool;
+        await validatePoolStageRankingDestinations(
+          tournamentId,
+          playersPerPool,
+          data.rankingDestinations,
+          stageId
+        );
+      }
 
       const { nextData, shouldRedistribute } = buildPoolStageUpdateData(data);
       if (nextData.status === StageStatus.IN_PROGRESS && tournament.status !== TournamentStatus.LIVE) {
@@ -1032,6 +1260,85 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       if (!handled) {
         await populateBracketsForStage(tournamentId, stageId);
       }
+    },
+    populateBracketFromPools: async (
+      tournamentId: string,
+      stageId: string,
+      bracketId: string,
+      role?: 'WINNER' | 'LOSER'
+    ): Promise<void> => {
+      validateUUID(tournamentId);
+      validateUUID(stageId);
+      validateUUID(bracketId);
+
+      const tournament = await tournamentModel.findById(tournamentId);
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      if (tournament.status !== TournamentStatus.LIVE) {
+        throw new AppError(
+          'Brackets can only be populated for live tournaments',
+          400,
+          'BRACKET_POPULATE_NOT_LIVE'
+        );
+      }
+
+      const stage = await tournamentModel.getPoolStageById(stageId);
+      if (stage?.tournamentId !== tournamentId) {
+        throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+      }
+
+      if (stage.status !== StageStatus.COMPLETED) {
+        throw new AppError(
+          'Pool stage must be completed to populate brackets',
+          400,
+          'POOL_STAGE_NOT_COMPLETED'
+        );
+      }
+
+      const bracket = await tournamentModel.getBracketById(bracketId);
+      if (bracket?.tournamentId !== tournamentId) {
+        throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
+      }
+
+      const startedMatchCount = await tournamentModel.getStartedBracketMatchCount(
+        tournamentId,
+        bracketId
+      );
+      if (startedMatchCount > 0) {
+        throw new AppError(
+          'Bracket cannot be populated once matches have started',
+          400,
+          'BRACKET_MATCHES_STARTED'
+        );
+      }
+
+      const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
+      const routing = getStageRankingDestinations(stage);
+      if (routing && routing.length > 0) {
+        const { bracketEntries } = buildEntriesFromRankingDestinations(pools, routing);
+        const entries = bracketEntries.get(bracketId) ?? [];
+        await populateBracket(tournamentId, bracketId, entries);
+        return;
+      }
+
+      const finalStage = await getFinalPoolStage(tournamentId, stageId);
+      if (!finalStage) {
+        throw new AppError(
+          'Pool stage must be the final stage to populate brackets',
+          400,
+          'POOL_STAGE_NOT_FINAL'
+        );
+      }
+
+      const { winners, losers } = collectPoolStandings(pools, finalStage.advanceCount);
+      const { winnerEntries, loserEntries } = buildBracketEntriesFromPools(winners, losers);
+      const resolvedRole = role
+        ?? (/loser/i.test(bracket.name) ? 'LOSER' : 'WINNER');
+      const entries = resolvedRole === 'LOSER' ? loserEntries : winnerEntries;
+
+      await populateBracket(tournamentId, bracketId, entries);
     },
     completePoolStageWithRandomScores: async (tournamentId: string, stageId: string): Promise<void> => {
       validateUUID(tournamentId);

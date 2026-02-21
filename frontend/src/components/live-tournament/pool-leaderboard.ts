@@ -77,9 +77,6 @@ export const buildPoolLeaderboard = (pool: LiveViewPool): PoolLeaderboardRow[] =
     if (match.status !== 'COMPLETED') {
       continue;
     }
-    for (const playerMatch of match.playerMatches ?? []) {
-      ensureLeaderboardRow(rows, playerMatch.player);
-    }
   }
 
   for (const match of pool.matches ?? []) {

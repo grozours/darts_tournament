@@ -237,6 +237,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     const targetToUse = resolveTargetSelection(match, targetId);
     const target = await tournamentModel.getTargetById(targetToUse);
     ensureTargetExistsForTournament(target, tournamentId);
+    await ensureTargetAssignedToBracket(match?.bracketId, targetToUse);
     await ensureTargetAvailability(target);
     return targetToUse;
   };
@@ -274,6 +275,24 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
     if (target.status !== TargetStatus.AVAILABLE) {
       throw new AppError('Target is not available', 400, 'TARGET_NOT_AVAILABLE');
+    }
+  };
+
+  const ensureTargetAssignedToBracket = async (
+    bracketId: string | null | undefined,
+    targetId: string
+  ): Promise<void> => {
+    if (!bracketId) return;
+    const targetIds = await tournamentModel.getBracketTargetIds(bracketId);
+    if (targetIds.length === 0) {
+      return;
+    }
+    if (!targetIds.includes(targetId)) {
+      throw new AppError(
+        'Target is not assigned to this bracket',
+        400,
+        'TARGET_NOT_ASSIGNED_TO_BRACKET'
+      );
     }
   };
 
@@ -315,12 +334,28 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       return;
     }
 
-    const players = (matchDetails.playerMatches ?? []).map((pm) => {
-      const summary: { id?: string; firstName?: string; lastName?: string; surname?: string; teamName?: string } = {
-        id: pm.player?.id ?? pm.playerId,
-        firstName: pm.player?.firstName,
-        lastName: pm.player?.lastName,
+    type PlayerMatchRow = {
+      playerId?: string | null;
+      player?: {
+        id?: string;
+        firstName?: string;
+        lastName?: string;
+        surname?: string | null;
+        teamName?: string | null;
       };
+    };
+    const players = (matchDetails.playerMatches ?? []).map((pm: PlayerMatchRow) => {
+      const summary: { id?: string; firstName?: string; lastName?: string; surname?: string; teamName?: string } = {};
+      const playerId = pm.player?.id ?? pm.playerId ?? undefined;
+      if (playerId !== undefined) {
+        summary.id = playerId;
+      }
+      if (pm.player?.firstName !== undefined) {
+        summary.firstName = pm.player.firstName;
+      }
+      if (pm.player?.lastName !== undefined) {
+        summary.lastName = pm.player.lastName;
+      }
       if (pm.player?.surname) {
         summary.surname = pm.player.surname;
       }
@@ -393,7 +428,21 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       return;
     }
 
-    const players = (matchDetails.playerMatches ?? []).map((pm) => {
+    type PlayerMatchRow = {
+      playerId?: string | null;
+      player?: {
+        id?: string;
+        firstName?: string;
+        lastName?: string;
+        surname?: string | null;
+        teamName?: string | null;
+      };
+      scoreTotal?: number | null;
+      legsWon?: number | null;
+      setsWon?: number | null;
+      isWinner?: boolean | null;
+    };
+    const players = (matchDetails.playerMatches ?? []).map((pm: PlayerMatchRow) => {
       const summary: {
         id?: string;
         firstName?: string;
@@ -405,14 +454,21 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
         setsWon?: number | null;
         isWinner?: boolean | null;
       } = {
-        id: pm.player?.id ?? pm.playerId,
-        firstName: pm.player?.firstName,
-        lastName: pm.player?.lastName,
         scoreTotal: pm.scoreTotal ?? null,
         legsWon: pm.legsWon ?? null,
         setsWon: pm.setsWon ?? null,
         isWinner: pm.isWinner ?? null,
       };
+      const playerId = pm.player?.id ?? pm.playerId ?? undefined;
+      if (playerId !== undefined) {
+        summary.id = playerId;
+      }
+      if (pm.player?.firstName !== undefined) {
+        summary.firstName = pm.player.firstName;
+      }
+      if (pm.player?.lastName !== undefined) {
+        summary.lastName = pm.player.lastName;
+      }
       if (pm.player?.surname) {
         summary.surname = pm.player.surname;
       }
@@ -464,10 +520,10 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       tournamentId: tournament.id,
       tournamentName: tournament.name,
       finishedAt: finishedAt.toISOString(),
-      target,
+      ...(target ? { target } : {}),
       match: matchPayload,
       players,
-      winner: winner ?? undefined,
+      winner,
     });
   };
 

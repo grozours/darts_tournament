@@ -21,6 +21,8 @@ export type Tournament = {
   startTime?: string | undefined;
   endTime?: string | undefined;
   targetCount?: number | undefined;
+  targetStartNumber?: number | undefined;
+  shareTargets?: boolean | undefined;
   createdAt?: string | undefined;
   completedAt?: string | undefined;
   historicalFlag?: boolean | undefined;
@@ -35,6 +37,8 @@ export type EditFormState = {
   endTime: string;
   totalParticipants: string;
   targetCount: string;
+  targetStartNumber: string;
+  shareTargets: boolean;
   doubleStageEnabled: boolean;
 };
 

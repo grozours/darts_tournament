@@ -31,6 +31,8 @@ export interface Tournament {
   endTime: Date;
   totalParticipants: number;
   targetCount: number;
+  targetStartNumber: number;
+  shareTargets: boolean;
   status: TournamentStatus;
   createdAt: Date;
   completedAt?: Date;
@@ -45,6 +47,8 @@ export interface CreateTournamentData {
   endTime: string;
   totalParticipants: number;
   targetCount: number;
+  targetStartNumber?: number;
+  shareTargets?: boolean;
 }
 
 export interface TournamentFilters {

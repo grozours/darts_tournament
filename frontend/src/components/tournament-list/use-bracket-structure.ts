@@ -1,26 +1,33 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
 import { BracketType } from '@shared/types';
-import type { BracketConfig, PoolStageConfig } from '../../services/tournament-service';
+import type { BracketConfig, PoolStageConfig, TournamentTarget } from '../../services/tournament-service';
 import {
   createBracket,
   deleteBracket,
   fetchBrackets,
+  fetchTournamentTargets,
   updateBracket,
+  updateBracketTargets,
 } from '../../services/tournament-service';
 import type { BracketDraft, TournamentStructureBaseProperties } from './tournament-structure-types';
 
 type BracketStructureResult = {
   brackets: BracketConfig[];
   bracketsError: string | undefined;
+  targets: TournamentTarget[];
+  targetsError: string | undefined;
   isAddingBracket: boolean;
   newBracket: BracketDraft;
   loadBrackets: (tournamentId: string) => Promise<void>;
+  loadTargets: (tournamentId: string) => Promise<void>;
   handleBracketNameChange: (bracketId: string, value: string) => void;
   handleBracketTypeChange: (bracketId: string, value: string) => void;
   handleBracketRoundsChange: (bracketId: string, value: number) => void;
   handleBracketStatusChange: (bracketId: string, value: string) => void;
+  handleBracketTargetToggle: (bracketId: string, targetId: string) => void;
   addBracket: () => Promise<void>;
   saveBracket: (bracket: BracketConfig) => Promise<void>;
+  saveBracketTargets: (bracket: BracketConfig) => Promise<void>;
   removeBracket: (bracketId: string) => Promise<void>;
   startAddBracket: () => void;
   cancelAddBracket: () => void;
@@ -37,6 +44,8 @@ type BracketStructureProperties = TournamentStructureBaseProperties & {
 type BracketState = {
   brackets: BracketConfig[];
   bracketsError: string | undefined;
+  targets: TournamentTarget[];
+  targetsError: string | undefined;
   newBracket: BracketDraft;
   isAddingBracket: boolean;
   isBracketRoundsAuto: boolean;
@@ -44,6 +53,8 @@ type BracketState = {
 type BracketStateSetters = {
   setBrackets: Dispatch<SetStateAction<BracketConfig[]>>;
   setBracketsError: Dispatch<SetStateAction<string | undefined>>;
+  setTargets: Dispatch<SetStateAction<TournamentTarget[]>>;
+  setTargetsError: Dispatch<SetStateAction<string | undefined>>;
   setNewBracket: Dispatch<SetStateAction<BracketDraft>>;
   setIsAddingBracket: Dispatch<SetStateAction<boolean>>;
   setIsBracketRoundsAuto: Dispatch<SetStateAction<boolean>>;
@@ -59,6 +70,8 @@ const useBracketState = (): BracketState & BracketStateSetters & {
 } => {
   const [brackets, setBrackets] = useState<BracketConfig[]>([]);
   const [bracketsError, setBracketsError] = useState<string | undefined>();
+  const [targets, setTargets] = useState<TournamentTarget[]>([]);
+  const [targetsError, setTargetsError] = useState<string | undefined>();
   const [newBracket, setNewBracket] = useState<BracketDraft>(initialBracketDraft);
   const [isAddingBracket, setIsAddingBracket] = useState(false);
   const [isBracketRoundsAuto, setIsBracketRoundsAuto] = useState(true);
@@ -66,6 +79,8 @@ const useBracketState = (): BracketState & BracketStateSetters & {
   const resetBracketState = useCallback(() => {
     setBrackets([]);
     setBracketsError(undefined);
+    setTargets([]);
+    setTargetsError(undefined);
     setNewBracket(initialBracketDraft);
     setIsAddingBracket(false);
     setIsBracketRoundsAuto(true);
@@ -74,11 +89,15 @@ const useBracketState = (): BracketState & BracketStateSetters & {
   return {
     brackets,
     bracketsError,
+    targets,
+    targetsError,
     newBracket,
     isAddingBracket,
     isBracketRoundsAuto,
     setBrackets,
     setBracketsError,
+    setTargets,
+    setTargetsError,
     setNewBracket,
     setIsAddingBracket,
     setIsBracketRoundsAuto,
@@ -118,11 +137,13 @@ const useBracketLoaders = ({
   getSafeAccessToken,
   setBrackets,
   setBracketsError,
+  setTargets,
+  setTargetsError,
   setIsAddingBracket,
   setIsBracketRoundsAuto,
 }: Pick<TournamentStructureBaseProperties, 't' | 'getSafeAccessToken'>
-  & Pick<BracketStateSetters, 'setBrackets' | 'setBracketsError' | 'setIsAddingBracket' | 'setIsBracketRoundsAuto'>) =>
-  useCallback(async (tournamentId: string) => {
+  & Pick<BracketStateSetters, 'setBrackets' | 'setBracketsError' | 'setTargets' | 'setTargetsError' | 'setIsAddingBracket' | 'setIsBracketRoundsAuto'>) => {
+  const loadBrackets = useCallback(async (tournamentId: string) => {
     setBracketsError(undefined);
     try {
       const token = await getSafeAccessToken();
@@ -136,12 +157,28 @@ const useBracketLoaders = ({
     }
   }, [getSafeAccessToken, setBrackets, setBracketsError, setIsAddingBracket, setIsBracketRoundsAuto, t]);
 
+  const loadTargets = useCallback(async (tournamentId: string) => {
+    setTargetsError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      const data = await fetchTournamentTargets(tournamentId, token);
+      setTargets(data);
+    } catch (error_) {
+      console.error('Error fetching targets:', error_);
+      setTargetsError(error_ instanceof Error ? error_.message : t('edit.error.failedLoadTargets'));
+    }
+  }, [getSafeAccessToken, setTargets, setTargetsError, t]);
+
+  return { loadBrackets, loadTargets };
+};
+
 const useBracketMutations = ({
   t,
   editingTournament,
   getSafeAccessToken,
   newBracket,
   loadBrackets,
+  loadTargets,
   setBracketsError,
   setNewBracket,
   setIsAddingBracket,
@@ -152,6 +189,7 @@ const useBracketMutations = ({
   getSafeAccessToken: TournamentStructureBaseProperties['getSafeAccessToken'];
   newBracket: BracketDraft;
   loadBrackets: (tournamentId: string) => Promise<void>;
+  loadTargets: (tournamentId: string) => Promise<void>;
   setBracketsError: BracketStateSetters['setBracketsError'];
   setNewBracket: BracketStateSetters['setNewBracket'];
   setIsAddingBracket: BracketStateSetters['setIsAddingBracket'];
@@ -168,13 +206,14 @@ const useBracketMutations = ({
       const token = await getSafeAccessToken();
       await createBracket(editingTournament.id, newBracket, token);
       await loadBrackets(editingTournament.id);
+      await loadTargets(editingTournament.id);
       setNewBracket((current) => ({ ...current, name: '' }));
       setIsAddingBracket(false);
       setIsBracketRoundsAuto(true);
     } catch (error_) {
       setBracketsError(error_ instanceof Error ? error_.message : t('edit.error.failedAddBracket'));
     }
-  }, [editingTournament, getSafeAccessToken, loadBrackets, newBracket, setBracketsError, setIsAddingBracket, setIsBracketRoundsAuto, setNewBracket, t]);
+  }, [editingTournament, getSafeAccessToken, loadBrackets, loadTargets, newBracket, setBracketsError, setIsAddingBracket, setIsBracketRoundsAuto, setNewBracket, t]);
 
   const saveBracket = useCallback(async (bracket: BracketConfig) => {
     if (!editingTournament) return;
@@ -193,6 +232,18 @@ const useBracketMutations = ({
     }
   }, [editingTournament, getSafeAccessToken, loadBrackets, setBracketsError, t]);
 
+  const saveBracketTargets = useCallback(async (bracket: BracketConfig) => {
+    if (!editingTournament) return;
+    setBracketsError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      await updateBracketTargets(editingTournament.id, bracket.id, bracket.targetIds ?? [], token);
+      await loadBrackets(editingTournament.id);
+    } catch (error_) {
+      setBracketsError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdateBracketTargets'));
+    }
+  }, [editingTournament, getSafeAccessToken, loadBrackets, setBracketsError, t]);
+
   const removeBracket = useCallback(async (bracketId: string) => {
     if (!editingTournament) return;
     if (!confirm('Delete this bracket?')) return;
@@ -206,7 +257,7 @@ const useBracketMutations = ({
     }
   }, [editingTournament, getSafeAccessToken, loadBrackets, setBracketsError, t]);
 
-  return { addBracket, saveBracket, removeBracket };
+  return { addBracket, saveBracket, saveBracketTargets, removeBracket };
 };
 
 const useBracketFieldHandlers = ({
@@ -239,11 +290,24 @@ const useBracketFieldHandlers = ({
     updateBracketField(bracketId, (item) => ({ ...item, status: value }));
   }, [updateBracketField]);
 
+  const handleBracketTargetToggle = useCallback((bracketId: string, targetId: string) => {
+    updateBracketField(bracketId, (item) => {
+      const current = new Set(item.targetIds ?? []);
+      if (current.has(targetId)) {
+        current.delete(targetId);
+      } else {
+        current.add(targetId);
+      }
+      return { ...item, targetIds: Array.from(current) };
+    });
+  }, [updateBracketField]);
+
   return {
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
     handleBracketStatusChange,
+    handleBracketTargetToggle,
   };
 };
 
@@ -320,11 +384,15 @@ const useBracketStructure = ({
   const {
     brackets,
     bracketsError,
+    targets,
+    targetsError,
     newBracket,
     isAddingBracket,
     isBracketRoundsAuto,
     setBrackets,
     setBracketsError,
+    setTargets,
+    setTargetsError,
     setNewBracket,
     setIsAddingBracket,
     setIsBracketRoundsAuto,
@@ -333,21 +401,24 @@ const useBracketStructure = ({
 
   const getDefaultBracketRounds = useBracketRounds(poolStages);
 
-  const loadBrackets = useBracketLoaders({
+  const { loadBrackets, loadTargets } = useBracketLoaders({
     t,
     getSafeAccessToken,
     setBrackets,
     setBracketsError,
+    setTargets,
+    setTargetsError,
     setIsAddingBracket,
     setIsBracketRoundsAuto,
   });
 
-  const { addBracket, saveBracket, removeBracket } = useBracketMutations({
+  const { addBracket, saveBracket, saveBracketTargets, removeBracket } = useBracketMutations({
     t,
     editingTournament,
     getSafeAccessToken,
     newBracket,
     loadBrackets,
+    loadTargets,
     setBracketsError,
     setNewBracket,
     setIsAddingBracket,
@@ -359,6 +430,7 @@ const useBracketStructure = ({
     handleBracketTypeChange,
     handleBracketRoundsChange,
     handleBracketStatusChange,
+    handleBracketTargetToggle,
   } = useBracketFieldHandlers({ setBrackets });
 
   const {
@@ -378,15 +450,20 @@ const useBracketStructure = ({
   return {
     brackets,
     bracketsError,
+    targets,
+    targetsError,
     isAddingBracket,
     newBracket,
     loadBrackets,
+    loadTargets,
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
     handleBracketStatusChange,
+    handleBracketTargetToggle,
     addBracket,
     saveBracket,
+    saveBracketTargets,
     removeBracket,
     startAddBracket,
     cancelAddBracket,

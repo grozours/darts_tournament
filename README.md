@@ -35,11 +35,13 @@ A full-stack application for managing darts tournaments with support for single 
 - **Pool Status Tracking**: NOT_STARTED, EDITION, IN_PROGRESS, COMPLETED
 - **Advancement Rules**: Configurable number of players advancing from each pool
 - **Loser Bracket Integration**: Optionally advance non-qualifiers to loser brackets
+- **Ranking Destinations**: Route each rank to a bracket, another pool stage, or elimination
 
 ### Brackets
 - **Single/Double Elimination**: Winner and loser bracket support
 - **Configurable Rounds**: Flexible round configuration (1-10 rounds)
 - **Automatic Seeding**: Bracket entries from pool stage results
+- **Admin Populate**: Populate a bracket from pool results with a winner/loser role
 - **Match Progression**: Automatic winner advancement through rounds
 
 ### Match & Scoring

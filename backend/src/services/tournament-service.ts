@@ -35,6 +35,7 @@ export class TournamentService {
   public getTournamentsByDateRange!: TournamentCoreHandlers['getTournamentsByDateRange'];
   public isTournamentNameAvailable!: TournamentCoreHandlers['isTournamentNameAvailable'];
   public getTournamentStats!: TournamentCoreHandlers['getTournamentStats'];
+  public getTournamentTargets!: TournamentCoreHandlers['getTournamentTargets'];
   public validateRegistrationConstraints!: TournamentCoreHandlers['validateRegistrationConstraints'];
   public getOverallTournamentStats!: TournamentCoreHandlers['getOverallTournamentStats'];
 
@@ -52,6 +53,7 @@ export class TournamentService {
   public createBracket!: BracketHandlers['createBracket'];
   public updateBracket!: BracketHandlers['updateBracket'];
   public deleteBracket!: BracketHandlers['deleteBracket'];
+  public updateBracketTargets!: BracketHandlers['updateBracketTargets'];
   public completeBracketRoundWithRandomScores!: BracketHandlers['completeBracketRoundWithRandomScores'];
   public resetBracketMatches!: BracketHandlers['resetBracketMatches'];
 
@@ -69,6 +71,7 @@ export class TournamentService {
   public updatePoolStage!: PoolStageHandlers['updatePoolStage'];
   public recomputeDoubleStageProgression!: PoolStageHandlers['recomputeDoubleStageProgression'];
   public completePoolStageWithRandomScores!: PoolStageHandlers['completePoolStageWithRandomScores'];
+  public populateBracketFromPools!: PoolStageHandlers['populateBracketFromPools'];
   public deletePoolStage!: PoolStageHandlers['deletePoolStage'];
   public getPoolStagePools!: PoolStageHandlers['getPoolStagePools'];
   public resetPoolMatches!: PoolStageHandlers['resetPoolMatches'];

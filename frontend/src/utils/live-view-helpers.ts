@@ -60,7 +60,7 @@ export const hasActiveBrackets = (
 ) => {
   if (screenMode) {
     return (view.brackets || []).some(
-      (bracket) => bracket.status === 'IN_PROGRESS' && (bracket.entries?.length ?? 0) > 0
+      (bracket) => bracket.status === 'IN_PROGRESS' && (bracket.matches?.length ?? 0) > 0
     );
   }
   if (viewStatus === 'FINISHED') {
@@ -73,7 +73,11 @@ export const hasActiveBrackets = (
     allowedStatuses.add('NOT_STARTED');
   }
   return (view.brackets || []).some(
-    (bracket) => allowedStatuses.has(bracket.status ?? '') && (bracket.matches?.length || 0) > 0
+    (bracket) => {
+      if (!allowedStatuses.has(bracket.status ?? '')) return false;
+      if (canViewEdition) return true;
+      return (bracket.matches?.length || 0) > 0;
+    }
   );
 };
 

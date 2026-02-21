@@ -21,6 +21,8 @@ type FormState = {
   endTime: string;
   totalParticipants: string;
   targetCount: string;
+  targetStartNumber: string;
+  shareTargets: boolean;
   doubleStageEnabled: boolean;
 };
 
@@ -62,6 +64,8 @@ export default function TournamentForm({
     endTime: '',
     totalParticipants: '',
     targetCount: '',
+    targetStartNumber: '',
+    shareTargets: true,
     doubleStageEnabled: false,
   });
   const [errors, setErrors] = useState<ErrorState>({});
@@ -114,6 +118,14 @@ export default function TournamentForm({
     return undefined;
   };
 
+  const validateTargetStartNumber = (value: string): string | undefined => {
+    if (!value) return undefined;
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return t('tournamentForm.errors.targetStartMin');
+    if (parsed < 1) return t('tournamentForm.errors.targetStartMin');
+    return undefined;
+  };
+
   const validateStartTime = (value: string): string | undefined => {
     if (!value) return undefined;
     const start = new Date(value);
@@ -147,6 +159,9 @@ export default function TournamentForm({
       error = validateParticipants(formState.totalParticipants);
     }
     if (field === 'targetCount') error = validateTargets(formState.targetCount);
+    if (field === 'targetStartNumber') {
+      error = validateTargetStartNumber(formState.targetStartNumber);
+    }
     if (field === 'startTime') error = validateStartTime(formState.startTime);
     if (field === 'endTime') {
       error = validateEndTime(formState.startTime, formState.endTime);
@@ -184,6 +199,9 @@ export default function TournamentForm({
     const targetsValidation = validateTargets(state.targetCount);
     if (targetsValidation) nextErrors.targetCount = targetsValidation;
 
+    const targetStartValidation = validateTargetStartNumber(state.targetStartNumber);
+    if (targetStartValidation) nextErrors.targetStartNumber = targetStartValidation;
+
     const startTimeValidation = validateStartTime(state.startTime);
     if (startTimeValidation) nextErrors.startTime = startTimeValidation;
 
@@ -210,6 +228,8 @@ export default function TournamentForm({
       durationType: formState.durationType || DurationType.FULL_DAY,
       startTime: formState.startTime || toLocalInput(startFallback),
       endTime: formState.endTime || toLocalInput(endFallback),
+      targetStartNumber: formState.targetStartNumber || '1',
+      shareTargets: formState.shareTargets ?? true,
     };
   };
 
@@ -258,6 +278,8 @@ export default function TournamentForm({
       endTime: '',
       totalParticipants: '',
       targetCount: '',
+      targetStartNumber: '',
+      shareTargets: true,
       doubleStageEnabled: false,
     });
     setLogoFile(undefined);
@@ -294,6 +316,8 @@ export default function TournamentForm({
         endTime: toIsoString(submissionState.endTime),
         totalParticipants: Number(submissionState.totalParticipants || 0),
         targetCount: Number(submissionState.targetCount || 0),
+        targetStartNumber: Number(submissionState.targetStartNumber || 1),
+        shareTargets: submissionState.shareTargets,
         doubleStageEnabled: submissionState.doubleStageEnabled,
       }, token);
 
@@ -444,6 +468,39 @@ export default function TournamentForm({
             min={1}
           />
           {errors.targetCount && <p role="alert" className="text-xs text-rose-300">{errors.targetCount}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="target-start" className="text-sm text-slate-300">
+            {t('tournamentForm.targetStartLabel')}
+          </label>
+          <input
+            id="target-start"
+            type="number"
+            value={formState.targetStartNumber}
+            onChange={(event) => setField('targetStartNumber', event.target.value)}
+            onBlur={() => handleBlur('targetStartNumber')}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            min={1}
+          />
+          {errors.targetStartNumber && (
+            <p role="alert" className="text-xs text-rose-300">{errors.targetStartNumber}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={formState.shareTargets}
+              onChange={(event) => setFormState((previous) => ({
+                ...previous,
+                shareTargets: event.target.checked,
+              }))}
+              className="h-4 w-4 rounded border border-slate-800 bg-slate-950/60 text-cyan-400"
+            />
+            {t('tournamentForm.shareTargets')}
+          </label>
         </div>
 
         <div className="space-y-3">

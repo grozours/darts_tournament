@@ -49,6 +49,9 @@ export const liveViewArguments = {
     brackets: {
       orderBy: { createdAt: 'asc' },
       include: {
+        bracketTargets: {
+          select: { targetId: true },
+        },
         entries: {
           orderBy: { seedNumber: 'asc' },
           include: { player: true },
@@ -81,6 +84,8 @@ export const mapToTournament = (
     endTime: prismaResult.endTime,
     totalParticipants: prismaResult.totalParticipants,
     targetCount: prismaResult.targetCount,
+    targetStartNumber: prismaResult.targetStartNumber ?? 1,
+    shareTargets: prismaResult.shareTargets ?? true,
     ...(prismaResult.logoUrl ? { logoUrl: prismaResult.logoUrl } : {}),
     createdAt: prismaResult.createdAt,
     ...(prismaResult.completedAt ? { completedAt: prismaResult.completedAt } : {}),

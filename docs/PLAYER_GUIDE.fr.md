@@ -11,6 +11,7 @@ Suivre ses matchs en direct et recevoir les appels vers une cible.
 ## Pendant le tournoi
 - Consulter `En direct` pour voir les poules, classements et matchs.
 - Quand une notification arrive, se rendre a la cible indiquee.
+- La progression depend du classement : elimination, autre phase de poules, ou arbre.
 
 ## Conseils
 - Garder la page `Notifications` ouverte si possible.

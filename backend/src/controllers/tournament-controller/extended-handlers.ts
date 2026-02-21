@@ -46,6 +46,12 @@ type TournamentServiceLike = {
     }>
   ) => Promise<unknown>;
   recomputeDoubleStageProgression: (tournamentId: string, stageId: string) => Promise<void>;
+  populateBracketFromPools: (
+    tournamentId: string,
+    stageId: string,
+    bracketId: string,
+    role?: 'WINNER' | 'LOSER'
+  ) => Promise<void>;
   completePoolStageWithRandomScores: (tournamentId: string, stageId: string) => Promise<void>;
   deletePoolStage: (tournamentId: string, stageId: string) => Promise<void>;
   getPoolStagePools: (tournamentId: string, stageId: string) => Promise<unknown>;
@@ -92,7 +98,13 @@ type TournamentServiceLike = {
     bracketId: string,
     data: Partial<{ name: string; bracketType: BracketType; totalRounds: number; status: BracketStatus }>
   ) => Promise<unknown>;
+  updateBracketTargets: (
+    tournamentId: string,
+    bracketId: string,
+    data: { targetIds: string[] }
+  ) => Promise<unknown>;
   deleteBracket: (tournamentId: string, bracketId: string) => Promise<void>;
+  getTournamentTargets: (tournamentId: string) => Promise<unknown>;
   updateTournamentPlayer: (tournamentId: string, playerId: string, data: CreatePlayerRequest) => Promise<Player>;
   updateTournamentPlayerCheckIn: (
     tournamentId: string,
@@ -341,6 +353,19 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     }
   },
 
+  populateBracketFromPools: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, bracketId } = request.params as { id: string; bracketId: string };
+      const { stageId, role } = request.body as { stageId: string; role?: 'WINNER' | 'LOSER' };
+      await context
+        .getTournamentService(request)
+        .populateBracketFromPools(id, stageId, bracketId, role);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
   completePoolStageWithScores: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id, stageId } = request.params as { id: string; stageId: string };
@@ -472,6 +497,19 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     }
   },
 
+  updateBracketTargets: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, bracketId } = request.params as { id: string; bracketId: string };
+      const { targetIds } = request.body as { targetIds: string[] };
+      const bracket = await context
+        .getTournamentService(request)
+        .updateBracketTargets(id, bracketId, { targetIds });
+      response.json(bracket);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
   createBracket: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id } = request.params as { id: string };
@@ -501,6 +539,16 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
       const { id, bracketId } = request.params as { id: string; bracketId: string };
       await context.getTournamentService(request).deleteBracket(id, bracketId);
       response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  getTournamentTargets: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const targets = await context.getTournamentService(request).getTournamentTargets(id);
+      response.json({ targets });
     } catch (error) {
       context.handleError(response, error);
     }
