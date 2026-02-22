@@ -135,40 +135,85 @@ const buildMatchBlocker = (activePlayerKeys: Set<string>) => (match: LiveViewMat
   return false;
 };
 
+const getBracketTargetIds = (bracket: LiveViewData['brackets'][number]) => (
+  bracket.targetIds
+    ?? bracket.bracketTargets?.map((target) => target.targetId)
+    ?? []
+);
+
+const getBracketMaxRound = (bracket: LiveViewData['brackets'][number]) => (
+  Math.max(0, ...((bracket.matches ?? []).map((match) => match.roundNumber)))
+);
+
+const getBracketRoundMatchCount = (
+  bracket: LiveViewData['brackets'][number],
+  roundNumber: number
+) => (bracket.matches ?? []).filter((match) => match.roundNumber === roundNumber).length;
+
+const isQueueableBracketMatch = (match: LiveViewMatch) => !(
+  match.status === 'COMPLETED'
+  || match.status === 'CANCELLED'
+  || match.status === 'IN_PROGRESS'
+);
+
+const buildBracketQueueItem = (
+  view: LiveViewData,
+  bracket: LiveViewData['brackets'][number],
+  match: LiveViewMatch,
+  bracketTargetIds: string[],
+  maxRoundNumber: number,
+  maxRoundMatchCount: number
+): MatchQueueItem => {
+  const players = getMatchPlayers(match);
+  const targetCode = match.target?.targetCode;
+  const targetNumber = match.target?.targetNumber;
+
+  return {
+    tournamentId: view.id,
+    tournamentName: view.name,
+    source: 'bracket',
+    matchId: match.id,
+    poolId: '',
+    stageNumber: 0,
+    stageName: '',
+    poolNumber: 0,
+    poolName: '',
+    bracketId: bracket.id,
+    bracketName: bracket.name,
+    ...(bracketTargetIds.length > 0 ? { bracketTargetIds } : {}),
+    matchNumber: match.matchNumber,
+    roundNumber: match.roundNumber,
+    status: match.status,
+    isBracketFinal: maxRoundNumber > 0
+      && match.roundNumber === maxRoundNumber
+      && maxRoundMatchCount === 1,
+    ...(targetCode ? { targetCode } : {}),
+    ...(typeof targetNumber === 'number' ? { targetNumber } : {}),
+    players,
+    blocked: false,
+  };
+};
+
 const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
   const bracketItems: MatchQueueItem[] = [];
   for (const bracket of view.brackets ?? []) {
-    const bracketTargetIds = bracket.targetIds
-      ?? bracket.bracketTargets?.map((target) => target.targetId)
-      ?? [];
+    const bracketTargetIds = getBracketTargetIds(bracket);
+    const maxRoundNumber = getBracketMaxRound(bracket);
+    const maxRoundMatchCount = maxRoundNumber > 0
+      ? getBracketRoundMatchCount(bracket, maxRoundNumber)
+      : 0;
     for (const match of bracket.matches ?? []) {
-      if (match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.status === 'IN_PROGRESS') {
+      if (!isQueueableBracketMatch(match)) {
         continue;
       }
-      const players = getMatchPlayers(match);
-      const targetCode = match.target?.targetCode;
-      const targetNumber = match.target?.targetNumber;
-      bracketItems.push({
-        tournamentId: view.id,
-        tournamentName: view.name,
-        source: 'bracket',
-        matchId: match.id,
-        poolId: '',
-        stageNumber: 0,
-        stageName: '',
-        poolNumber: 0,
-        poolName: '',
-        bracketId: bracket.id,
-        bracketName: bracket.name,
-        ...(bracketTargetIds.length > 0 ? { bracketTargetIds } : {}),
-        matchNumber: match.matchNumber,
-        roundNumber: match.roundNumber,
-        status: match.status,
-        ...(targetCode ? { targetCode } : {}),
-        ...(typeof targetNumber === 'number' ? { targetNumber } : {}),
-        players,
-        blocked: false,
-      });
+      bracketItems.push(buildBracketQueueItem(
+        view,
+        bracket,
+        match,
+        bracketTargetIds,
+        maxRoundNumber,
+        maxRoundMatchCount
+      ));
     }
   }
   return bracketItems;

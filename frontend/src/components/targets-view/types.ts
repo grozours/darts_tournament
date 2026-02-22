@@ -97,6 +97,7 @@ export type MatchQueueItem = {
   targetNumber?: number;
   players: string[];
   blocked: boolean;
+  isBracketFinal?: boolean;
 };
 
 export type PoolQueue = {

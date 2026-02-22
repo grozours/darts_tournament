@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { LiveViewMatch, LiveViewData, Translator } from './types';
+import type { LiveViewMatch, LiveViewData, Translator } from '../live-tournament/types';
 import { useCallback, useState } from 'react';
 import { updateMatchStatus } from '../../services/tournament-service';
 import useTargetsViewCompleteMatch from './use-targets-view-complete-match';

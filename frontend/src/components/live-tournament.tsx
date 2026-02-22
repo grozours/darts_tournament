@@ -85,6 +85,7 @@ const LiveTournamentFilters = ({
               { value: 'ALL', label: t('common.all') },
               { value: 'LIVE', label: t('nav.live') },
               { value: 'OPEN', label: t('nav.open') },
+              { value: 'SIGNATURE', label: t('nav.signature') },
             ] as const).map((option) => (
               <button
                 key={option.value}

@@ -81,8 +81,7 @@ type LiveTournamentViewProperties = {
   onPopulateBracketFromPools: (
     matchTournamentId: string,
     bracketId: string,
-    stage: LiveViewPoolStage,
-    role: 'WINNER' | 'LOSER'
+    stage: LiveViewPoolStage
   ) => void;
   onSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketId: string;

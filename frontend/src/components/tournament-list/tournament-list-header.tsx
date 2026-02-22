@@ -1,4 +1,5 @@
 import type { Tournament, Translator } from './types';
+import { normalizeTournamentStatus } from './tournament-status-helpers';
 
 type TournamentListHeaderProperties = {
   isEditPage: boolean;
@@ -14,6 +15,10 @@ const TournamentListHeader = ({
   t,
 }: TournamentListHeaderProperties) => {
   if (isEditPage) {
+    const normalizedStatus = normalizeTournamentStatus(editingTournament?.status);
+    const canShowLiveLinks = Boolean(
+      editingTournament && ['OPEN', 'SIGNATURE', 'LIVE'].includes(normalizedStatus)
+    );
     return (
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -23,7 +28,15 @@ const TournamentListHeader = ({
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {editingTournament && (
+          {canShowLiveLinks && (
+            <a
+              href={`/?view=pool-stages&tournamentId=${editingTournament.id}`}
+              className="rounded-full border border-emerald-400/70 px-4 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-300"
+            >
+              {t('nav.poolStagesRunning')}
+            </a>
+          )}
+          {canShowLiveLinks && (
             <a
               href={`/?view=brackets&tournamentId=${editingTournament.id}`}
               className="rounded-full border border-amber-400/70 px-4 py-2 text-xs font-semibold text-amber-200 hover:border-amber-300"
@@ -31,7 +44,7 @@ const TournamentListHeader = ({
               {t('nav.bracketsRunning')}
             </a>
           )}
-          {editingTournament && (
+          {canShowLiveLinks && (
             <a
               href={`/?view=brackets&tournamentId=${editingTournament.id}&status=FINISHED`}
               className="rounded-full border border-slate-600/80 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"

@@ -478,7 +478,7 @@ export async function populateBracketFromPools(
   tournamentId: string,
   bracketId: string,
   stageId: string,
-  role: 'WINNER' | 'LOSER',
+  role: 'WINNER' | 'LOSER' | undefined,
   token?: string
 ): Promise<void> {
   const response = await fetch(`/api/tournaments/${tournamentId}/brackets/${bracketId}/populate-from-pools`, {
@@ -487,7 +487,7 @@ export async function populateBracketFromPools(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ stageId, role }),
+    body: JSON.stringify({ stageId, ...(role ? { role } : {}) }),
   });
 
   if (!response.ok) {

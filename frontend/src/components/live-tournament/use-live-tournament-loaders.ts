@@ -21,7 +21,7 @@ type LiveTournamentLoadersResult = {
 
 const getStatusList = (viewMode?: string, viewStatus?: LiveViewStatus): string[] => {
   if (viewMode === 'pool-stages' && !viewStatus) {
-    return ['LIVE', 'OPEN'];
+    return ['LIVE', 'OPEN', 'SIGNATURE'];
   }
   return [(viewStatus ?? 'LIVE').toUpperCase()];
 };

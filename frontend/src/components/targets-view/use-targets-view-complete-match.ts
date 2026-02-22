@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { completeMatch } from '../../services/tournament-service';
-import type { LiveViewMatch, Translator } from './types';
+import type { LiveViewMatch, Translator } from '../live-tournament/types';
 
 type MatchTournamentInfo = { tournamentId: string; tournamentName: string };
 

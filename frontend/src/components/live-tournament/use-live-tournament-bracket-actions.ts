@@ -22,8 +22,7 @@ type LiveTournamentBracketActionsResult = {
   handlePopulateBracketFromPools: (
     matchTournamentId: string,
     bracketId: string,
-    stage: LiveViewPoolStage,
-    role: 'WINNER' | 'LOSER'
+    stage: LiveViewPoolStage
   ) => Promise<void>;
   handleSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketByTournament: Record<string, string>;
@@ -87,7 +86,7 @@ const useLiveTournamentBracketActions = ({
   }, [getSafeAccessToken, reloadLiveViews, setError]);
 
   const handlePopulateBracketFromPools = useCallback(
-    async (matchTournamentId: string, bracketId: string, stage: LiveViewPoolStage, role: 'WINNER' | 'LOSER') => {
+    async (matchTournamentId: string, bracketId: string, stage: LiveViewPoolStage) => {
       if (!confirm(t('live.populateBracketConfirm'))) {
         return;
       }
@@ -95,7 +94,7 @@ const useLiveTournamentBracketActions = ({
       setError(undefined);
       try {
         const token = await getSafeAccessToken();
-        await populateBracketFromPools(matchTournamentId, bracketId, stage.id, role, token);
+        await populateBracketFromPools(matchTournamentId, bracketId, stage.id, undefined, token);
         await reloadLiveViews({ showLoader: false });
       } catch (error) {
         console.error('Error populating bracket from pools:', error);

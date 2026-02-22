@@ -520,7 +520,9 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
         return poolCount > 0;
       });
-      const isViewableOpenTournament = tournament.status === TournamentStatus.OPEN && hasConfiguredPools;
+      const isViewableOpenTournament =
+        (tournament.status === TournamentStatus.OPEN || tournament.status === TournamentStatus.SIGNATURE)
+        && hasConfiguredPools;
 
       if (
         tournament.status !== TournamentStatus.LIVE

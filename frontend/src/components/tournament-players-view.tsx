@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
 import {
   fetchTournamentPlayers,
   updateTournamentPlayerCheckIn,
+  removeTournamentPlayer,
   type TournamentPlayer,
 } from '../services/tournament-service';
 
@@ -21,6 +22,10 @@ function TournamentPlayersView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [checkingInId, setCheckingInId] = useState<string | undefined>();
+  const [removingPlayerId, setRemovingPlayerId] = useState<string | undefined>();
+  const [expandedContacts, setExpandedContacts] = useState<Record<string, boolean>>({});
+  const [search, setSearch] = useState('');
+  const [confirmationFilter, setConfirmationFilter] = useState<'ALL' | 'CONFIRMED' | 'UNCONFIRMED'>('ALL');
 
   const parameters = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
@@ -100,6 +105,43 @@ function TournamentPlayersView() {
     }
   }, [getSafeAccessToken, isAdmin, t, tournament?.status, tournamentId]);
 
+  const removePlayer = useCallback(async (player: TournamentPlayer) => {
+    if (!tournamentId || !player.playerId) {
+      return;
+    }
+    if (!isAdmin) {
+      return;
+    }
+    if (!globalThis.confirm(t('players.deleteConfirm'))) {
+      return;
+    }
+
+    setRemovingPlayerId(player.playerId);
+    try {
+      const token = await getSafeAccessToken();
+      if (!token) {
+        throw new Error(t('auth.signInRequired'));
+      }
+      await removeTournamentPlayer(tournamentId, player.playerId, token);
+      setPlayers((current) => current.filter((entry) => entry.playerId !== player.playerId));
+    } catch (error_) {
+      console.error('[TournamentPlayersView] Error removing player:', error_);
+      alert(error_ instanceof Error ? error_.message : t('players.deleteFailed'));
+    } finally {
+      setRemovingPlayerId(undefined);
+    }
+  }, [getSafeAccessToken, isAdmin, t, tournamentId]);
+
+  const toggleContactDetails = useCallback((playerId?: string) => {
+    if (!playerId) {
+      return;
+    }
+    setExpandedContacts((current) => ({
+      ...current,
+      [playerId]: !current[playerId],
+    }));
+  }, []);
+
   useEffect(() => {
     if (tournamentId) {
       fetchTournamentDetails(tournamentId);
@@ -108,6 +150,30 @@ function TournamentPlayersView() {
   }, [tournamentId, fetchTournamentDetails, fetchPlayers]);
 
   const playerCountLabel = players.length === 1 ? t('common.player') : t('common.players');
+  const filteredPlayers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return players.filter((player) => {
+      if (confirmationFilter === 'CONFIRMED' && !player.checkedIn) {
+        return false;
+      }
+      if (confirmationFilter === 'UNCONFIRMED' && player.checkedIn) {
+        return false;
+      }
+      if (!term) {
+        return true;
+      }
+      const haystack = [
+        player.firstName,
+        player.lastName,
+        player.surname,
+        player.teamName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [players, search, confirmationFilter]);
 
   if (!tournamentId) {
     return (
@@ -164,23 +230,56 @@ function TournamentPlayersView() {
         <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
           <div className="mb-6">
             <p className="text-slate-400 text-sm">
-              {players.length} {playerCountLabel}
+              {filteredPlayers.length} {playerCountLabel}
             </p>
+            <div className="mt-3 space-y-3">
+              <label className="sr-only" htmlFor="tournament-players-search">
+                {t('players.searchRegistered')}
+              </label>
+              <input
+                id="tournament-players-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={t('players.searchRegistered')}
+                className="w-full rounded-full border border-slate-800 bg-slate-950/60 px-4 py-2 text-sm text-slate-100"
+              />
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'ALL', label: t('players.filterAll') },
+                  { value: 'CONFIRMED', label: t('players.filterConfirmed') },
+                  { value: 'UNCONFIRMED', label: t('players.filterUnconfirmed') },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setConfirmationFilter(option.value as typeof confirmationFilter)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      confirmationFilter === option.value
+                        ? 'border-cyan-400/70 text-cyan-200'
+                        : 'border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {players.length === 0 ? (
+          {filteredPlayers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
               {t('edit.noPlayersRegistered')}
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {players.map((player) => {
+              {filteredPlayers.map((player) => {
                 let presenceLabel = t('players.confirmPresence');
                 if (player.checkedIn) {
                   presenceLabel = t('players.confirmed');
                 } else if (checkingInId === player.playerId) {
                   presenceLabel = t('common.loading');
                 }
+                const isContactExpanded = Boolean(expandedContacts[player.playerId]);
 
                 return (
                   <div
@@ -206,10 +305,19 @@ function TournamentPlayersView() {
                     )}
                   </div>
                   <div className="mt-3 space-y-1 text-xs text-slate-400">
-                    {isAdmin && player.email && (
+                    {isAdmin && (player.email || player.phone) && (
+                      <button
+                        type="button"
+                        onClick={() => toggleContactDetails(player.playerId)}
+                        className="text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
+                      >
+                        {isContactExpanded ? t('players.hideContact') : t('players.showContact')}
+                      </button>
+                    )}
+                    {isAdmin && isContactExpanded && player.email && (
                       <p className="truncate">📧 {player.email}</p>
                     )}
-                    {isAdmin && player.phone && (
+                    {isAdmin && isContactExpanded && player.phone && (
                       <p>📱 {player.phone}</p>
                     )}
                     {player.skillLevel && (
@@ -220,14 +328,23 @@ function TournamentPlayersView() {
                       </p>
                     )}
                   </div>
-                    {isAdmin && tournament?.status === 'SIGNATURE' && (
-                      <div className="mt-4">
+                    {isAdmin && (
+                      <div className="mt-4 space-y-2">
+                        {tournament?.status === 'SIGNATURE' && (
+                          <button
+                            onClick={() => confirmPresence(player)}
+                            disabled={player.checkedIn || checkingInId === player.playerId}
+                            className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {presenceLabel}
+                          </button>
+                        )}
                         <button
-                          onClick={() => confirmPresence(player)}
-                          disabled={player.checkedIn || checkingInId === player.playerId}
-                          className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => removePlayer(player)}
+                          disabled={removingPlayerId === player.playerId}
+                          className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {presenceLabel}
+                          {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
                         </button>
                       </div>
                     )}

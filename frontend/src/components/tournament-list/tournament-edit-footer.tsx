@@ -6,6 +6,7 @@ type TournamentEditFooterProperties = {
   normalizedStatus: string;
   isSaving: boolean;
   players: TournamentPlayer[];
+  canOpenRegistration: boolean;
   onClose: () => void;
   onMoveToSignature: () => void;
   onMoveToLive: () => void;
@@ -18,6 +19,7 @@ const TournamentEditFooter = ({
   normalizedStatus,
   isSaving,
   players,
+  canOpenRegistration,
   onClose,
   onMoveToSignature,
   onMoveToLive,
@@ -53,7 +55,7 @@ const TournamentEditFooter = ({
         {t('edit.startLive')}
       </button>
     )}
-    {normalizedStatus !== 'LIVE' && (
+    {normalizedStatus !== 'LIVE' && canOpenRegistration && (
       <button
         onClick={onOpenRegistration}
         disabled={isSaving || normalizedStatus === 'OPEN'}

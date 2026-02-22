@@ -1,7 +1,6 @@
 import type { LiveViewBracket, LiveViewMatch, LiveViewPoolStage, LiveViewTarget, Translator } from './types';
 import BracketMatches from './bracket-matches';
 import SectionEmptyState from './section-empty-state';
-import { useState } from 'react';
 
 type BracketsSectionProperties = {
   t: Translator;
@@ -35,8 +34,7 @@ type BracketsSectionProperties = {
   onPopulateBracketFromPools: (
     tournamentId: string,
     bracketId: string,
-    stage: LiveViewPoolStage,
-    role: 'WINNER' | 'LOSER'
+    stage: LiveViewPoolStage
   ) => void;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketId: string;
@@ -95,22 +93,11 @@ type BracketSummaryProperties = {
   bracket: LiveViewBracket;
   isBracketsReadonly: boolean;
   canManageBrackets: boolean;
-  canPopulateFromPools: boolean;
-  isPopulating: boolean;
   isUpdatingRound: boolean;
   isResettingBracket: boolean;
-  populateStage?: LiveViewPoolStage | undefined;
-  populateRole: 'WINNER' | 'LOSER';
-  onPopulateRoleChange: (role: 'WINNER' | 'LOSER') => void;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   onCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => void;
   onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
-  onPopulateBracketFromPools: (
-    tournamentId: string,
-    bracketId: string,
-    stage: LiveViewPoolStage,
-    role: 'WINNER' | 'LOSER'
-  ) => void;
 };
 
 const BracketSummaryHeader = ({
@@ -119,17 +106,11 @@ const BracketSummaryHeader = ({
   bracket,
   isBracketsReadonly,
   canManageBrackets,
-  canPopulateFromPools,
-  isPopulating,
   isUpdatingRound,
   isResettingBracket,
-  populateStage,
-  populateRole,
-  onPopulateRoleChange,
   getStatusLabel,
   onCompleteBracketRound,
   onResetBracketMatches,
-  onPopulateBracketFromPools,
 }: BracketSummaryProperties) => (
   <div className="flex flex-wrap items-center justify-between gap-3">
     <div>
@@ -139,31 +120,6 @@ const BracketSummaryHeader = ({
       </p>
     </div>
     <div className="flex flex-wrap items-center gap-2">
-      {canManageBrackets && !isBracketsReadonly && (
-        <label className="flex items-center gap-2 text-xs text-slate-300">
-          {t('live.populateBracketRole')}
-          <select
-            value={populateRole}
-            onChange={(event_) => onPopulateRoleChange(event_.target.value as 'WINNER' | 'LOSER')}
-            disabled={!canPopulateFromPools || isPopulating}
-            className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
-          >
-            <option value="WINNER">{t('live.populateBracketRoleWinner')}</option>
-            <option value="LOSER">{t('live.populateBracketRoleLoser')}</option>
-          </select>
-        </label>
-      )}
-      {canManageBrackets && !isBracketsReadonly && (
-        <button
-          type="button"
-          onClick={() =>
-            populateStage && onPopulateBracketFromPools(tournamentId, bracket.id, populateStage, populateRole)}
-          disabled={!canPopulateFromPools || isPopulating}
-          className="rounded-full border border-emerald-500/70 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
-        >
-          {isPopulating ? t('live.populatingBracket') : t('live.populateBracket')}
-        </button>
-      )}
       {canManageBrackets && !isBracketsReadonly && (
         <button
           type="button"
@@ -229,7 +185,6 @@ const BracketsSection = ({
   onSelectBracket,
   activeBracketId,
 }: BracketsSectionProperties) => {
-  const [populateRoleByBracket, setPopulateRoleByBracket] = useState<Record<string, 'WINNER' | 'LOSER'>>({});
   if (brackets.length === 0) {
     return <SectionEmptyState title={t('live.bracketStages')} message={t('live.noBrackets')} />;
   }
@@ -242,13 +197,6 @@ const BracketsSection = ({
   const isUpdatingRound = updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false;
   const isResettingBracket = resettingBracketId === activeBracket.id;
   const canManageBrackets = isAdmin;
-  const completedStages = (poolStages || []).filter((stage) => stage.status === 'COMPLETED');
-  const populateStage = completedStages.reduce<LiveViewPoolStage | undefined>((latest, stage) => {
-    if (!latest || stage.stageNumber > latest.stageNumber) {
-      return stage;
-    }
-    return latest;
-  }, undefined);
   const activeBracketTargetIds = activeBracket.targetIds
     ?? activeBracket.bracketTargets?.map((target) => target.targetId)
     ?? [];
@@ -259,11 +207,6 @@ const BracketsSection = ({
         .flatMap((bracket) => bracket.targetIds ?? bracket.bracketTargets?.map((target) => target.targetId) ?? [])
     )
   );
-  const canPopulateFromPools = Boolean(populateStage);
-  const isPopulating = populatingBracketId === activeBracket.id;
-  const populateRole = populateRoleByBracket[activeBracket.id]
-    ?? (/loser/i.test(activeBracket.name) ? 'LOSER' : 'WINNER');
-
   return (
     <div className="space-y-6">
       <BracketsHeader
@@ -283,18 +226,11 @@ const BracketsSection = ({
           bracket={activeBracket}
           isBracketsReadonly={isBracketsReadonly}
           canManageBrackets={canManageBrackets}
-          canPopulateFromPools={canPopulateFromPools}
-          isPopulating={isPopulating}
           isUpdatingRound={isUpdatingRound}
           isResettingBracket={isResettingBracket}
-          populateStage={populateStage}
-          populateRole={populateRole}
-          onPopulateRoleChange={(role) =>
-            setPopulateRoleByBracket((current) => ({ ...current, [activeBracket.id]: role }))}
           getStatusLabel={getStatusLabel}
           onCompleteBracketRound={onCompleteBracketRound}
           onResetBracketMatches={onResetBracketMatches}
-          onPopulateBracketFromPools={onPopulateBracketFromPools}
         />
 
         <div className="mt-4">

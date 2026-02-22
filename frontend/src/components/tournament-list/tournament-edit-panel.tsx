@@ -240,6 +240,7 @@ const getFooterProperties = (properties: TournamentEditPanelProperties) => ({
   normalizedStatus: properties.normalizedStatus,
   isSaving: properties.isSaving,
   players: properties.players,
+  canOpenRegistration: properties.players.length < properties.editingTournament.totalParticipants,
   onClose: properties.onClose,
   onMoveToSignature: properties.onMoveToSignature,
   onMoveToLive: properties.onMoveToLive,

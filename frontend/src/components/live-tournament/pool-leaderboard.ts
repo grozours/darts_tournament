@@ -53,6 +53,56 @@ const applyMatchResults = (
   }
 };
 
+const getPlayerScore = (playerMatch: LiveViewMatchPlayer) => (
+  playerMatch.scoreTotal ?? playerMatch.legsWon ?? 0
+);
+
+const applyHeadToHeadBonus = (rows: Map<string, PoolLeaderboardRow>, matches: LiveViewMatch[]) => {
+  const groups = new Map<number, PoolLeaderboardRow[]>();
+  for (const row of rows.values()) {
+    const bucket = groups.get(row.legsWon) ?? [];
+    bucket.push(row);
+    groups.set(row.legsWon, bucket);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length !== 2) {
+      continue;
+    }
+    const [first, second] = group;
+    if (!first || !second) {
+      continue;
+    }
+
+    const headToHead = matches.find((match) => {
+      if (match.status !== 'COMPLETED') return false;
+      const ids = (match.playerMatches ?? [])
+        .map((playerMatch) => playerMatch.player?.id)
+        .filter((id): id is string => Boolean(id));
+      return ids.includes(first.playerId) && ids.includes(second.playerId);
+    });
+
+    if (!headToHead) {
+      continue;
+    }
+
+    const playerMatches = headToHead.playerMatches ?? [];
+    const firstMatch = playerMatches.find((playerMatch) => playerMatch.player?.id === first.playerId);
+    const secondMatch = playerMatches.find((playerMatch) => playerMatch.player?.id === second.playerId);
+    if (!firstMatch || !secondMatch) {
+      continue;
+    }
+
+    const firstScore = getPlayerScore(firstMatch);
+    const secondScore = getPlayerScore(secondMatch);
+    if (firstScore === secondScore) {
+      continue;
+    }
+    const winner = firstScore > secondScore ? first : second;
+    winner.legsWon += 1;
+  }
+};
+
 const sortLeaderboardRows = (rows: Map<string, PoolLeaderboardRow>) => {
   const sorted = [...rows.values()].toSorted((a, b) => {
     if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
@@ -82,6 +132,8 @@ export const buildPoolLeaderboard = (pool: LiveViewPool): PoolLeaderboardRow[] =
   for (const match of pool.matches ?? []) {
     applyMatchResults(rows, match);
   }
+
+  applyHeadToHeadBonus(rows, pool.matches ?? []);
 
   return sortLeaderboardRows(rows);
 };
