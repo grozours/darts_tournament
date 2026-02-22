@@ -16,34 +16,30 @@ import { useAdminStatus } from './auth/use-admin-status';
 import AppHeader from './components/app-header';
 
 type LiveViewPoolStageSummary = {
+  id: string;
+  status?: string;
   pools?: Array<{ assignments?: Array<{ player?: { id?: string } }> }>;
+  poolCount?: number;
 };
 
 type LiveViewBracketSummary = {
+  id: string;
+  status?: string;
   entries?: Array<{ player?: { id?: string } }>;
 };
 
 type LiveViewSummary = {
+  id: string;
   poolStages?: LiveViewPoolStageSummary[];
   brackets?: LiveViewBracketSummary[];
 };
 
-type ScreenViewFlags = {
-  hasPoolPlayers: boolean;
-  hasBracketPlayers: boolean;
+type ScreenRotationItem = {
+  view: 'pool-stages' | 'brackets' | 'targets';
+  tournamentId?: string;
+  stageId?: string;
+  bracketId?: string;
 };
-
-const hasPoolPlayers = (data: LiveViewSummary): boolean =>
-  (data.poolStages || []).some((stage) =>
-    (stage.pools || []).some((pool) =>
-      (pool.assignments || []).some((assignment) => Boolean(assignment?.player?.id))
-    )
-  );
-
-const hasBracketPlayers = (data: LiveViewSummary): boolean =>
-  (data.brackets || []).some((bracket) =>
-    (bracket.entries || []).some((entry) => Boolean(entry?.player?.id))
-  );
 
 const loadLiveView = async (tournamentId: string): Promise<LiveViewSummary | undefined> => {
   const response = await fetch(`/api/tournaments/${tournamentId}/live`);
@@ -53,16 +49,45 @@ const loadLiveView = async (tournamentId: string): Promise<LiveViewSummary | und
   return response.json();
 };
 
-const resolveScreenViewFlags = async (tournamentId?: string): Promise<ScreenViewFlags | undefined> => {
+const isLivePoolStage = (stage: LiveViewPoolStageSummary) => (
+  stage.status === 'IN_PROGRESS'
+  && ((stage.pools?.length ?? stage.poolCount ?? 0) > 0)
+  && (stage.pools || []).some((pool) => (pool.assignments || []).some((assignment) => Boolean(assignment?.player?.id)))
+);
+
+const isLiveBracket = (bracket: LiveViewBracketSummary) => (
+  bracket.status === 'IN_PROGRESS'
+  && (bracket.entries || []).some((entry) => Boolean(entry?.player?.id))
+);
+
+const toRotationItems = (data: LiveViewSummary, fallbackTournamentId?: string): ScreenRotationItem[] => {
+  const resolvedTournamentId = fallbackTournamentId || data.id;
+  const poolStageItems = (data.poolStages || [])
+    .filter(isLivePoolStage)
+    .map((stage) => ({
+      view: 'pool-stages' as const,
+      tournamentId: resolvedTournamentId,
+      stageId: stage.id,
+    }));
+  const bracketItems = (data.brackets || [])
+    .filter(isLiveBracket)
+    .map((bracket) => ({
+      view: 'brackets' as const,
+      tournamentId: resolvedTournamentId,
+      bracketId: bracket.id,
+    }));
+
+  return [...poolStageItems, ...bracketItems];
+};
+
+const resolveScreenRotationItems = async (tournamentId?: string): Promise<ScreenRotationItem[] | undefined> => {
   if (tournamentId) {
     const data = await loadLiveView(tournamentId);
     if (!data) {
       return undefined;
     }
-    return {
-      hasPoolPlayers: hasPoolPlayers(data),
-      hasBracketPlayers: hasBracketPlayers(data),
-    };
+    const items = toRotationItems(data, tournamentId);
+    return [...items, { view: 'targets', tournamentId }];
   }
 
   const listResponse = await fetch('/api/tournaments?status=LIVE');
@@ -72,8 +97,7 @@ const resolveScreenViewFlags = async (tournamentId?: string): Promise<ScreenView
   const listData = await listResponse.json();
   const tournaments = Array.isArray(listData?.tournaments) ? listData.tournaments : [];
 
-  let hasPools = false;
-  let hasBrackets = false;
+  const items: ScreenRotationItem[] = [];
   for (const tournament of tournaments) {
     if (!tournament?.id) {
       continue;
@@ -82,29 +106,10 @@ const resolveScreenViewFlags = async (tournamentId?: string): Promise<ScreenView
     if (!data) {
       continue;
     }
-    hasPools = hasPools || hasPoolPlayers(data);
-    hasBrackets = hasBrackets || hasBracketPlayers(data);
-    if (hasPools && hasBrackets) {
-      break;
-    }
+    items.push(...toRotationItems(data, tournament.id));
   }
 
-  return {
-    hasPoolPlayers: hasPools,
-    hasBracketPlayers: hasBrackets,
-  };
-};
-
-type ScreenView = 'pool-stages' | 'brackets' | 'targets';
-
-const resolveScreenViewsFromFlags = (
-  { hasPoolPlayers, hasBracketPlayers }: ScreenViewFlags
-): ScreenView[] => {
-  const nextViews: ScreenView[] = [];
-  if (hasPoolPlayers) nextViews.push('pool-stages');
-  if (hasBracketPlayers) nextViews.push('brackets');
-  nextViews.push('targets');
-  return nextViews.length > 0 ? nextViews : ['targets'];
+  return [...items, { view: 'targets' }];
 };
 
 function App() {
@@ -120,6 +125,8 @@ function App() {
   const view = parameters.get('view');
   const status = parameters.get('status');
   const tournamentId = parameters.get('tournamentId');
+  const stageId = parameters.get('stageId');
+  const bracketId = parameters.get('bracketId');
   const screenParam = parameters.get('screen');
   const screenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
   const normalizedStatus = status?.toLowerCase();
@@ -180,30 +187,42 @@ function App() {
     }
   }
 
-  const [screenViews, setScreenViews] = useState<Array<'pool-stages' | 'brackets' | 'targets'>>(
-    ['pool-stages', 'brackets', 'targets']
-  );
+  const [screenRotationItems, setScreenRotationItems] = useState<ScreenRotationItem[]>([
+    { view: 'pool-stages', ...(tournamentId ? { tournamentId } : {}) },
+    { view: 'brackets', ...(tournamentId ? { tournamentId } : {}) },
+    { view: 'targets', ...(tournamentId ? { tournamentId } : {}) },
+  ]);
+  const [screenRotationReady, setScreenRotationReady] = useState(!screenMode);
 
   const resolveScreenViews = useCallback(async () => {
     if (!screenMode) {
       return;
     }
     try {
-      const flags = await resolveScreenViewFlags(tournamentId ?? undefined);
-      if (!flags) {
+      const items = await resolveScreenRotationItems(tournamentId ?? undefined);
+      if (!items || items.length === 0) {
+        setScreenRotationReady(true);
         return;
       }
-      setScreenViews(resolveScreenViewsFromFlags(flags));
+      setScreenRotationItems(items);
     } catch (error) {
       console.warn('Failed to resolve screen rotation views:', error);
+    } finally {
+      setScreenRotationReady(true);
     }
   }, [screenMode, tournamentId]);
 
   useEffect(() => {
     if (!screenMode) {
-      setScreenViews(['pool-stages', 'brackets', 'targets']);
+      setScreenRotationItems([
+        { view: 'pool-stages' },
+        { view: 'brackets' },
+        { view: 'targets' },
+      ]);
+      setScreenRotationReady(true);
       return undefined;
     }
+    setScreenRotationReady(false);
     void resolveScreenViews();
     const intervalId = globalThis.window?.setInterval(resolveScreenViews, 300_000);
     return () => {
@@ -244,7 +263,10 @@ function App() {
     if (!screenMode) {
       return undefined;
     }
-    if (screenViews.length === 0) {
+    if (!screenRotationReady) {
+      return undefined;
+    }
+    if (screenRotationItems.length === 0) {
       return undefined;
     }
     const windowReference = globalThis.window;
@@ -252,19 +274,35 @@ function App() {
       return undefined;
     }
 
-    const currentIndex = view ? screenViews.indexOf(view as (typeof screenViews)[number]) : -1;
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % screenViews.length;
-    const nextView = screenViews[nextIndex] ?? 'targets';
-    const delayMs = currentIndex === -1 ? 0 : 10_000;
+    const currentIndex = screenRotationItems.findIndex((item) => {
+      if (item.view !== view) return false;
+      if ((item.tournamentId ?? '') !== (tournamentId ?? '')) return false;
+      if ((item.stageId ?? '') !== (stageId ?? '')) return false;
+      if ((item.bracketId ?? '') !== (bracketId ?? '')) return false;
+      return true;
+    });
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % screenRotationItems.length;
+    const nextItem = screenRotationItems[nextIndex] ?? { view: 'targets' as const };
+    const delayMs = 10_000;
 
     const timeoutId = windowReference.setTimeout(() => {
       const url = new URL(windowReference.location.href);
-      url.searchParams.set('view', nextView);
+      url.searchParams.set('view', nextItem.view);
       url.searchParams.set('screen', '1');
-      if (tournamentId) {
-        url.searchParams.set('tournamentId', tournamentId);
+      if (nextItem.tournamentId) {
+        url.searchParams.set('tournamentId', nextItem.tournamentId);
       } else {
         url.searchParams.delete('tournamentId');
+      }
+      if (nextItem.stageId) {
+        url.searchParams.set('stageId', nextItem.stageId);
+      } else {
+        url.searchParams.delete('stageId');
+      }
+      if (nextItem.bracketId) {
+        url.searchParams.set('bracketId', nextItem.bracketId);
+      } else {
+        url.searchParams.delete('bracketId');
       }
       if (status) {
         url.searchParams.set('status', status);
@@ -277,7 +315,7 @@ function App() {
     return () => {
       windowReference.clearTimeout(timeoutId);
     };
-  }, [screenMode, screenViews, status, tournamentId, view]);
+  }, [bracketId, screenMode, screenRotationItems, screenRotationReady, stageId, status, tournamentId, view]);
 
 
   return (
@@ -291,16 +329,22 @@ function App() {
         </div>
       )}
 
-      <AppHeader
-        t={t}
-        isAdmin={headerIsAdmin}
-        isAuthenticated={headerIsAuthenticated}
-        lang={lang}
-        toggleLang={toggleLang}
-      />
+      {!screenMode && (
+        <AppHeader
+          t={t}
+          isAdmin={headerIsAdmin}
+          isAuthenticated={headerIsAuthenticated}
+          lang={lang}
+          toggleLang={toggleLang}
+        />
+      )}
 
-      <main className="max-w-6xl mx-auto px-6 py-16">
-        <section className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
+      <main className={screenMode
+        ? 'mx-auto flex w-full max-w-[1800px] justify-center px-4 py-6'
+        : 'max-w-6xl mx-auto px-6 py-16'}>
+        <section className={screenMode
+          ? 'w-full rounded-3xl border border-slate-800/40 bg-slate-900/30 p-4'
+          : 'rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8'}>
           {mainContent}
         </section>
       </main>

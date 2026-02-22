@@ -6,6 +6,7 @@ type BracketsSectionProperties = {
   t: Translator;
   tournamentId: string;
   brackets: LiveViewBracket[];
+  screenMode: boolean;
   hasLoserBracket: boolean;
   isAdmin: boolean;
   isBracketsReadonly: boolean;
@@ -149,6 +150,7 @@ const BracketsSection = ({
   t,
   tournamentId,
   brackets,
+  screenMode,
   hasLoserBracket,
   isAdmin,
   isBracketsReadonly,
@@ -197,6 +199,39 @@ const BracketsSection = ({
         .flatMap((bracket) => bracket.targetIds ?? bracket.bracketTargets?.map((target) => target.targetId) ?? [])
     )
   );
+
+  if (screenMode) {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs uppercase tracking-[0.3em] text-amber-300/80">{activeBracket.name}</p>
+        <BracketMatches
+          t={t}
+          tournamentId={tournamentId}
+          bracket={activeBracket}
+          screenMode
+          isBracketsReadonly={isBracketsReadonly}
+          updatingMatchId={updatingMatchId}
+          editingMatchId={editingMatchId}
+          matchScores={matchScores}
+          matchTargetSelections={matchTargetSelections}
+          availableTargetsByTournament={availableTargetsByTournament}
+          reservedTargetIds={activeBracketTargetIds.length > 0 ? [] : reservedTargetIds}
+          getStatusLabel={getStatusLabel}
+          getMatchKey={getMatchKey}
+          getTargetIdForSelection={getTargetIdForSelection}
+          getTargetLabel={getTargetLabel}
+          onTargetSelectionChange={onTargetSelectionChange}
+          onStartMatch={onStartMatch}
+          onCompleteMatch={onCompleteMatch}
+          onEditMatch={onEditMatch}
+          onUpdateCompletedMatch={onUpdateCompletedMatch}
+          onCancelMatchEdit={onCancelMatchEdit}
+          onScoreChange={onScoreChange}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <BracketsHeader
@@ -229,6 +264,7 @@ const BracketsSection = ({
             t={t}
             tournamentId={tournamentId}
             bracket={activeBracket}
+            screenMode={screenMode}
             isBracketsReadonly={isBracketsReadonly}
             updatingMatchId={updatingMatchId}
             editingMatchId={editingMatchId}

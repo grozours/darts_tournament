@@ -33,12 +33,12 @@ const getRoundPositions = (roundNumber: number, matchCount: number, baseStep: nu
   ));
 };
 
-const getBracketLayout = (bracket: LiveViewBracket, rounds: BracketRound[]) => {
+const getBracketLayout = (bracket: LiveViewBracket, rounds: BracketRound[], screenMode = false) => {
   const totalRounds = rounds.length;
   const finalRound = rounds.at(-1);
   const earlyRounds = rounds.slice(0, -1);
-  const bracketGap = 40;
-  const bracketCardHeight = 220;
+  const bracketGap = screenMode ? 12 : 40;
+  const bracketCardHeight = screenMode ? 150 : 220;
   const baseStep = (bracketCardHeight + bracketGap) / 2;
   const columnHeight = (Math.pow(2, totalRounds) - 2) * baseStep + bracketCardHeight;
   const showWinnerColumn = (finalRound?.matches?.length ?? 0) === 1;
@@ -117,6 +117,7 @@ type BracketMatchesProperties = {
   t: Translator;
   tournamentId: string;
   bracket: LiveViewBracket;
+  screenMode?: boolean;
   isBracketsReadonly: boolean;
   updatingMatchId: string | undefined;
   editingMatchId: string | undefined;
@@ -142,6 +143,7 @@ const BracketMatches = ({
   t,
   tournamentId,
   bracket,
+  screenMode = false,
   isBracketsReadonly,
   updatingMatchId,
   editingMatchId,
@@ -289,20 +291,20 @@ const BracketMatches = ({
   ) => (
     <div className="relative">
       <div
-        className={`rounded-xl border px-3 py-2 text-xs shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${options.tone.card}`}
-        style={{ minHeight: 220, width: 200 }}
+        className={`rounded-xl border text-xs shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${options.tone.card} ${screenMode ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}
+        style={{ minHeight: screenMode ? 150 : 220, width: 200 }}
       >
         <div className={`flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.3em] ${options.tone.accent}`}>
           <span>{t('live.queue.matchLabel')} {match.matchNumber}</span>
           <span>{getStatusLabel('match', match.status)}</span>
         </div>
-        <div className="mt-3 space-y-2">
+        <div className={screenMode ? 'mt-1.5 space-y-1' : 'mt-3 space-y-2'}>
           {[1, 2].map((position) => {
             const playerMatch = match.playerMatches?.find((item) => item.playerPosition === position) || { playerPosition: position };
             return (
               <div
                 key={`${match.id}-${position}`}
-                className={`flex items-center justify-between rounded-lg border px-3 py-2 ${options.tone.row}`}
+                className={`flex items-center justify-between rounded-lg border ${screenMode ? 'px-2 py-1' : 'px-3 py-2'} ${options.tone.row}`}
               >
                 <span className={playerMatch.player?.id === match.winner?.id ? options.tone.winner : options.tone.accent}>
                   {getBracketPlayerLabel(playerMatch)}
@@ -349,7 +351,7 @@ const BracketMatches = ({
       columnHeight,
       showWinnerColumn,
       finalLeftOffset,
-    } = getBracketLayout(bracket, rounds);
+    } = getBracketLayout(bracket, rounds, screenMode);
 
     const renderRoundColumn = (round: { roundNumber: number; matches: BracketMatchSlot[] }, index: number) => {
       const tone = getBracketTone(index, totalRounds);
@@ -360,11 +362,11 @@ const BracketMatches = ({
       const connectorToNext = connectorGap + 8;
       const positions = getRoundPositions(round.roundNumber, round.matches.length, baseStep);
       return (
-        <div key={`${bracket.id}-round-${round.roundNumber}`} className="min-w-[220px]">
+        <div key={`${bracket.id}-round-${round.roundNumber}`} className={screenMode ? 'min-w-[208px]' : 'min-w-[220px]'}>
           <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
             {getBracketRoundLabel(round.roundNumber, totalRounds, t)}
           </p>
-          <div className="relative mt-5" style={{ height: Math.max(260, columnHeight) }}>
+          <div className="relative mt-5" style={{ height: Math.max(screenMode ? 180 : 260, columnHeight) }}>
             {round.matches.map((match, matchIndex) => {
               const top = positions[matchIndex] ?? 0;
               return (
@@ -394,12 +396,12 @@ const BracketMatches = ({
 
     return (
       <div className="mt-6 overflow-x-auto pb-6">
-        <div className="flex min-w-[960px] items-start gap-12">
-          <div className="flex gap-12">
+        <div className={`flex items-start ${screenMode ? 'min-w-[820px] gap-6' : 'min-w-[960px] gap-12'}`}>
+          <div className={`flex ${screenMode ? 'gap-6' : 'gap-12'}`}>
             {roundsToRender.map((round, index) => renderRoundColumn(round, index))}
           </div>
           {showWinnerColumn && (
-            <div className="flex min-w-[220px] flex-col items-center gap-4 pt-6">
+            <div className={`flex flex-col items-center gap-3 ${screenMode ? 'min-w-[208px] pt-3' : 'min-w-[220px] pt-6'}`}>
               <div className="flex items-center gap-2 text-amber-300" style={{ marginLeft: finalLeftOffset }}>
                 <span className="text-[11px] uppercase tracking-[0.4em]">
                   {getBracketRoundLabel(totalRounds, totalRounds, t)}
@@ -407,11 +409,11 @@ const BracketMatches = ({
                 <span aria-hidden="true">🏆</span>
               </div>
               {finalRound?.matches?.[0] && (
-                <div className="relative min-w-[200px]" style={{ height: Math.max(260, columnHeight) }}>
+                <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeight) }}>
                   <div
                     className="absolute"
                     style={{
-                      top: (Math.max(260, columnHeight) - bracketCardHeight) / 2,
+                      top: (Math.max(screenMode ? 180 : 260, columnHeight) - bracketCardHeight) / 2,
                       left: finalLeftOffset,
                     }}
                   >

@@ -6,6 +6,7 @@ type LiveTournamentParameters = {
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
   tournamentId?: string | undefined;
+  stageId?: string | undefined;
   bracketId?: string | undefined;
   isAggregateView: boolean;
   screenMode: boolean;
@@ -30,6 +31,10 @@ const useLiveTournamentParameters = (): LiveTournamentParameters => {
 
   const tournamentId = useMemo<string | undefined>(() => {
     return readQueryParam('tournamentId');
+  }, []);
+
+  const stageId = useMemo<string | undefined>(() => {
+    return readQueryParam('stageId');
   }, []);
 
   const bracketId = useMemo<string | undefined>(() => {
@@ -58,6 +63,7 @@ const useLiveTournamentParameters = (): LiveTournamentParameters => {
     viewMode: resolvedViewMode,
     viewStatus,
     tournamentId,
+    stageId,
     bracketId,
     isAggregateView,
     screenMode,

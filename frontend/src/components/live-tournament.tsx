@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import LiveTournamentGate from './live-tournament/live-tournament-gate';
 import MatchQueueSection from './live-tournament/match-queue-section';
 import LiveTournamentView from './live-tournament/live-tournament-view';
-import { resolveEmptyLiveCopy } from '../utils/live-view-helpers';
+import { hasActiveBrackets, hasActivePoolStages, resolveEmptyLiveCopy } from '../utils/live-view-helpers';
 import useLiveTournamentState from './live-tournament/use-live-tournament-state';
 import type { LiveViewData, LiveViewMode, Translator } from './live-tournament/types';
 
@@ -128,6 +129,7 @@ function LiveTournament() {
     viewMode,
     viewStatus,
     tournamentId,
+    stageId,
     isAggregateView,
     screenMode,
     getStatusLabel,
@@ -188,6 +190,32 @@ function LiveTournament() {
     isPoolStagesReadonly,
     isBracketsReadonly,
   } = useLiveTournamentState();
+
+  useEffect(() => {
+    if (!screenMode || viewMode !== 'pool-stages') {
+      return;
+    }
+    const windowReference = globalThis.window;
+    if (windowReference === undefined) {
+      return;
+    }
+
+    const scopedViews = tournamentId
+      ? liveViews.filter((view) => view.id === tournamentId)
+      : liveViews;
+    if (scopedViews.length === 0) {
+      return;
+    }
+
+    const hasPools = scopedViews.some((view) => hasActivePoolStages(view, viewStatus, false, true));
+    const hasBrackets = scopedViews.some((view) => hasActiveBrackets(view, viewStatus, isAdmin, true));
+
+    if (!hasPools && hasBrackets) {
+      const url = new URL(windowReference.location.href);
+      url.searchParams.set('view', 'brackets');
+      windowReference.location.replace(`${url.pathname}${url.search}`);
+    }
+  }, [isAdmin, liveViews, screenMode, tournamentId, viewMode, viewStatus]);
 
   const handleStartMatch = (matchTournamentId: string, matchId: string, targetId?: string) => {
     handleMatchStatusUpdate(matchTournamentId, matchId, 'IN_PROGRESS', targetId);
@@ -259,6 +287,7 @@ function LiveTournament() {
       isAdmin,
       viewMode,
       viewStatus,
+      stageId,
       isAggregateView,
       screenMode,
       visibleLiveViewsCount: visibleLiveViews.length,

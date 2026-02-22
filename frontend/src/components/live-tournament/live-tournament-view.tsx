@@ -33,6 +33,7 @@ type LiveTournamentViewProperties = {
   isAdmin: boolean;
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
+  stageId?: string | undefined;
   isAggregateView: boolean;
   screenMode: boolean;
   visibleLiveViewsCount: number;
@@ -189,25 +190,35 @@ const LiveTournamentViewHeader = ({
         </button>
       </div>
       {viewMode === 'live' && (poolStages.length > 0 || brackets.length > 0) && (
-        <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-slate-300">
-          {poolStages.map((stage) => (
-            <a
-              key={stage.id}
-              href={`#pool-stage-${view.id}-${stage.id}`}
-              className="rounded-full border border-slate-700 px-3 py-1 hover:border-cyan-400/70 hover:text-cyan-100"
-            >
-              {stage.name}
-            </a>
-          ))}
-          {brackets.map((bracket) => (
-            <a
-              key={bracket.id}
-              href={`/?view=brackets&tournamentId=${view.id}&bracketId=${bracket.id}`}
-              className="rounded-full border border-slate-700 px-3 py-1 hover:border-amber-400/70 hover:text-amber-100"
-            >
-              {bracket.name}
-            </a>
-          ))}
+        <div className="flex flex-wrap items-start justify-end gap-3 text-xs text-slate-300">
+          {poolStages.length > 0 && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('live.poolStages')}</span>
+              {poolStages.map((stage) => (
+                <a
+                  key={stage.id}
+                  href={`#pool-stage-${view.id}-${stage.id}`}
+                  className="rounded-full border border-slate-700 px-3 py-1 hover:border-cyan-400/70 hover:text-cyan-100"
+                >
+                  {stage.name}
+                </a>
+              ))}
+            </div>
+          )}
+          {brackets.length > 0 && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('live.bracketStages')}</span>
+              {brackets.map((bracket) => (
+                <a
+                  key={bracket.id}
+                  href={`/?view=brackets&tournamentId=${view.id}&bracketId=${bracket.id}`}
+                  className="rounded-full border border-slate-700 px-3 py-1 hover:border-amber-400/70 hover:text-amber-100"
+                >
+                  {bracket.name}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -245,6 +256,7 @@ const LiveTournamentView = ({
   isAdmin,
   viewMode,
   viewStatus,
+  stageId,
   isAggregateView,
   screenMode,
   visibleLiveViewsCount,
@@ -303,6 +315,9 @@ const LiveTournamentView = ({
     isAdmin,
     screenMode
   );
+  const displayedPoolStages = (screenMode && stageId)
+    ? filteredPoolStages.filter((stage) => stage.id === stageId)
+    : filteredPoolStages;
   const filteredBrackets = filterBracketsForView(
     viewMode,
     viewStatus,
@@ -311,27 +326,30 @@ const LiveTournamentView = ({
     isAdmin
   );
   const headerPoolStages = isAdmin
-    ? filteredPoolStages
-    : filteredPoolStages.filter((stage) =>
+    ? displayedPoolStages
+    : displayedPoolStages.filter((stage) =>
       (stage.pools || []).some((pool) => (pool.assignments?.length ?? 0) > 0)
     );
   const headerBrackets = isAdmin
     ? filteredBrackets
     : filteredBrackets.filter((bracket) => (bracket.entries?.length ?? 0) > 0);
   const hasLiveBrackets = hasActiveBrackets(view, viewStatus, false, screenMode);
-  const hasCompletedPoolStage = filteredPoolStages.some((stage) => stage.status === 'COMPLETED');
+  const hasCompletedPoolStage = displayedPoolStages.some((stage) => stage.status === 'COMPLETED');
   const showBracketsLink = hasCompletedPoolStage && hasLiveBrackets && isPoolStagesView(viewMode);
-  const showPoolsLink = isBracketsView(viewMode) && filteredPoolStages.length > 0;
+  const showPoolsLink = isBracketsView(viewMode) && displayedPoolStages.length > 0;
   const hasLoserBracket = getHasLoserBracket(view.brackets);
-  const poolStats = getPoolStageStats(filteredPoolStages);
-  const queue = buildMatchQueue(view, filteredPoolStages);
+  const poolStats = getPoolStageStats(displayedPoolStages);
+  const queue = buildMatchQueue(view, displayedPoolStages);
   const showTournamentName = isAggregateView && visibleLiveViewsCount > 1;
-  const showPools = !isBracketsView(viewMode);
+  const hasActivePoolStagesForScreen = displayedPoolStages.length > 0;
+  const showPools = !isBracketsView(viewMode)
+    && (!screenMode || hasActivePoolStagesForScreen || !hasLiveBrackets);
   const hasRunningPoolStages = (view.poolStages || []).some(
     (stage) => stage.status !== 'COMPLETED' && (stage.pools?.length || 0) > 0
   );
   const showBrackets = !isPoolStagesView(viewMode)
     && (isAdmin || viewMode === 'brackets' || !hasRunningPoolStages);
+  const showViewHeader = !(screenMode && isBracketsView(viewMode));
 
   const queueProperties = {
     t,
@@ -355,7 +373,7 @@ const LiveTournamentView = ({
     tournamentId: view.id,
     tournamentStatus: view.status,
     doubleStageEnabled: Boolean(view.doubleStageEnabled),
-    stages: filteredPoolStages,
+    stages: displayedPoolStages,
     isPoolStagesReadonly,
     getStatusLabel,
     getMatchTargetLabel,
@@ -398,6 +416,7 @@ const LiveTournamentView = ({
     t,
     tournamentId: view.id,
     brackets: filteredBrackets,
+    screenMode,
     hasLoserBracket,
     isAdmin,
     isBracketsReadonly,
@@ -427,20 +446,22 @@ const LiveTournamentView = ({
 
   return (
     <div className="space-y-10">
-      <LiveTournamentViewHeader
-        t={t}
-        view={view}
-        isAdmin={isAdmin}
-        screenMode={screenMode}
-        onRefresh={onRefresh}
-        showSummary={showSummary}
-        onToggleSummary={handleToggleSummary}
-        showBracketsLink={showBracketsLink}
-        showPoolsLink={showPoolsLink}
-        poolStages={headerPoolStages}
-        brackets={headerBrackets}
-        viewMode={viewMode}
-      />
+      {showViewHeader && (
+        <LiveTournamentViewHeader
+          t={t}
+          view={view}
+          isAdmin={isAdmin}
+          screenMode={screenMode}
+          onRefresh={onRefresh}
+          showSummary={showSummary}
+          onToggleSummary={handleToggleSummary}
+          showBracketsLink={showBracketsLink}
+          showPoolsLink={showPoolsLink}
+          poolStages={headerPoolStages}
+          brackets={headerBrackets}
+          viewMode={viewMode}
+        />
+      )}
       {showPools && showSummary && (
         <LiveTournamentPoolSummaryCards t={t} stats={poolStats} hasLoserBracket={hasLoserBracket} />
       )}

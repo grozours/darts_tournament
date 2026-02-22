@@ -38,6 +38,7 @@ type LiveTournamentState = {
   viewMode: LiveViewMode;
   viewStatus: string | undefined;
   tournamentId: string | undefined;
+  stageId: string | undefined;
   bracketId: string | undefined;
   isAggregateView: boolean;
   screenMode: boolean;
@@ -123,6 +124,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     viewMode,
     viewStatus,
     tournamentId,
+    stageId,
     bracketId,
     isAggregateView,
     screenMode,
@@ -261,6 +263,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     viewMode,
     viewStatus,
     tournamentId,
+    stageId,
     bracketId,
     isAggregateView,
     screenMode,
