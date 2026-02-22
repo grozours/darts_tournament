@@ -43,6 +43,31 @@ const TargetsGridCard = ({
   const activeMatchId = matchInfo?.matchId;
   const activeMatch = activeMatchId ? matchDetailsById.get(activeMatchId) : undefined;
   const selectedMatchId = matchSelectionByTarget[targetKey] || '';
+  const targetIdForTournament = (tournamentId: string) =>
+    target.targetIdsByTournament.get(tournamentId);
+  const dedicatedBracketIds = new Set(
+    queueItems
+      .filter((item) => item.source === 'bracket')
+      .filter((item) => {
+        const allowedTargets = item.bracketTargetIds ?? [];
+        if (allowedTargets.length === 0) return false;
+        const targetId = targetIdForTournament(item.tournamentId);
+        return targetId ? allowedTargets.includes(targetId) : false;
+      })
+      .map((item) => item.bracketId)
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const hasDedicatedBracket = dedicatedBracketIds.size > 0;
+  const queueItemsForTarget = queueItems.filter((item) => {
+    if (item.source === 'bracket') {
+      if (hasDedicatedBracket) {
+        return item.bracketId ? dedicatedBracketIds.has(item.bracketId) : false;
+      }
+      return (item.bracketTargetIds ?? []).length === 0;
+    }
+    return !hasDedicatedBracket;
+  });
   const canStart = !isInUse && selectedMatchId.length > 0 && startingMatchId !== selectedMatchId;
 
   return (
@@ -115,7 +140,7 @@ const TargetsGridCard = ({
                 className="w-full rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200 sm:flex-1 sm:min-w-0"
               >
                 <option value="">{t('targets.selectMatch')}</option>
-                {queueItems.map((item) => (
+                {queueItemsForTarget.map((item) => (
                   <option key={item.matchId} value={item.matchId}>
                     {item.tournamentName} · {item.source === 'pool'
                       ? `${t('live.queue.stageLabel')} ${item.stageNumber} · ${t('live.queue.poolLabel')} ${item.poolNumber}`

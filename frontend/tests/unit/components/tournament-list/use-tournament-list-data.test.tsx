@@ -42,6 +42,9 @@ describe('useTournamentListData', () => {
   it('skips deletion when confirmation is rejected', async () => {
     getSafeAccessToken.mockResolvedValue('token');
     (globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      createResponse({ ok: true, json: { tournaments: [] } })
+    );
 
     const { result } = renderHook(() => useTournamentListData({
       authEnabled: true,
@@ -53,7 +56,10 @@ describe('useTournamentListData', () => {
       await result.current.deleteTournament('t1');
     });
 
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/tournaments', expect.objectContaining({
+      headers: { Authorization: 'Bearer token' },
+    }));
+    expect(globalThis.fetch).not.toHaveBeenCalledWith('/api/tournaments/t1', expect.anything());
   });
 
   it('deletes a tournament and refreshes the list', async () => {

@@ -249,6 +249,16 @@ const BracketsSection = ({
     }
     return latest;
   }, undefined);
+  const activeBracketTargetIds = activeBracket.targetIds
+    ?? activeBracket.bracketTargets?.map((target) => target.targetId)
+    ?? [];
+  const reservedTargetIds = Array.from(
+    new Set(
+      brackets
+        .filter((bracket) => bracket.id !== activeBracket.id)
+        .flatMap((bracket) => bracket.targetIds ?? bracket.bracketTargets?.map((target) => target.targetId) ?? [])
+    )
+  );
   const canPopulateFromPools = Boolean(populateStage);
   const isPopulating = populatingBracketId === activeBracket.id;
   const populateRole = populateRoleByBracket[activeBracket.id]
@@ -299,6 +309,7 @@ const BracketsSection = ({
             matchScores={matchScores}
             matchTargetSelections={matchTargetSelections}
             availableTargetsByTournament={availableTargetsByTournament}
+            reservedTargetIds={activeBracketTargetIds.length > 0 ? [] : reservedTargetIds}
             getStatusLabel={getStatusLabel}
             getMatchKey={getMatchKey}
             getTargetIdForSelection={getTargetIdForSelection}

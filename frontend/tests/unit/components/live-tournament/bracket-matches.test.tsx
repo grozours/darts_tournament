@@ -10,8 +10,19 @@ vi.mock('../../../../src/components/live-tournament/match-score-inputs', () => (
 }));
 
 vi.mock('../../../../src/components/live-tournament/match-target-selector', () => ({
-  default: ({ selectedTargetNumber }: { selectedTargetNumber: string }) => (
-    <div data-testid="target-selector">{selectedTargetNumber}</div>
+  default: ({
+    selectedTargetNumber,
+    availableTargets,
+  }: {
+    selectedTargetNumber: string;
+    availableTargets: Array<{ id: string }>;
+  }) => (
+    <div>
+      <div data-testid="target-selector">{selectedTargetNumber}</div>
+      <div data-testid="available-targets">
+        {availableTargets.map((target) => target.id).join(',')}
+      </div>
+    </div>
   ),
 }));
 
@@ -27,6 +38,7 @@ describe('BracketMatches', () => {
     availableTargetsByTournament: new Map([
       ['t1', [{ id: 'target-1', targetNumber: 1 }]],
     ]),
+    reservedTargetIds: [],
     getStatusLabel: (_scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => status ?? 'status',
     getMatchKey: (_matchTournamentId: string, matchId: string) => `t1:${matchId}`,
     getTargetIdForSelection: (_tournamentId: string, selection: string) => (selection ? 'target-1' : ''),
@@ -123,5 +135,23 @@ describe('BracketMatches', () => {
     render(<BracketMatches {...baseMatchProperties} bracket={bracket} />);
 
     expect(screen.getByText('live.winnerShort')).toBeInTheDocument();
+  });
+
+  it('filters out targets reserved for other brackets when none are assigned', () => {
+    const availableTargetsByTournament = new Map([
+      ['t1', [{ id: 'target-1', targetNumber: 1 }, { id: 'target-2', targetNumber: 2 }]],
+    ]);
+
+    render(
+      <BracketMatches
+        {...baseMatchProperties}
+        bracket={{ ...bracket, targetIds: undefined, bracketTargets: undefined }}
+        availableTargetsByTournament={availableTargetsByTournament}
+        reservedTargetIds={['target-2']}
+      />
+    );
+
+    expect(screen.getByTestId('available-targets')).toHaveTextContent('target-1');
+    expect(screen.getByTestId('available-targets')).not.toHaveTextContent('target-2');
   });
 });

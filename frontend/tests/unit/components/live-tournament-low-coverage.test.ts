@@ -95,7 +95,24 @@ describe('live tournament view filters', () => {
         status: 'EDITION',
         poolCount: 2,
       },
-    ], true, true).map((stage) => stage.id)).toEqual(['s5']);
+    ], true, true).map((stage) => stage.id)).toEqual([]);
+    expect(filterPoolStagesForView('pool-stages', 'LIVE', [
+      {
+        id: 's6',
+        stageNumber: 6,
+        name: 'Stage 6',
+        status: 'IN_PROGRESS',
+        pools: [
+          {
+            id: 'p6',
+            poolNumber: 1,
+            name: 'Pool 6',
+            status: 'IN_PROGRESS',
+            assignments: [{ id: 'a6', player: { id: 'p6', firstName: 'Dee', lastName: 'Dawson' } }],
+          },
+        ],
+      },
+    ], true, true).map((stage) => stage.id)).toEqual(['s6']);
   });
 
   it('filters brackets based on view mode and status', () => {

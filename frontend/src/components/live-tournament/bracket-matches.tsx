@@ -123,6 +123,7 @@ type BracketMatchesProperties = {
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
+  reservedTargetIds: string[];
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   getTargetIdForSelection: (tournamentId: string, targetNumberValue: string) => string | undefined;
@@ -147,6 +148,7 @@ const BracketMatches = ({
   matchScores,
   matchTargetSelections,
   availableTargetsByTournament,
+  reservedTargetIds,
   getStatusLabel,
   getMatchKey,
   getTargetIdForSelection,
@@ -168,7 +170,9 @@ const BracketMatches = ({
       ?? bracket.bracketTargets?.map((target) => target.targetId)
       ?? [];
     const availableTargets = (availableTargetsByTournament.get(matchTournamentId) || []).filter((target) =>
-      assignedTargetIds.length === 0 || assignedTargetIds.includes(target.id)
+      assignedTargetIds.length > 0
+        ? assignedTargetIds.includes(target.id)
+        : !reservedTargetIds.includes(target.id)
     );
     const selectedTargetNumber = matchTargetSelections[matchKey] || '';
     const selectedTargetId = getTargetIdForSelection(matchTournamentId, selectedTargetNumber);

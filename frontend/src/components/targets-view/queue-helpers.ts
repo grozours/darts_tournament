@@ -138,6 +138,9 @@ const buildMatchBlocker = (activePlayerKeys: Set<string>) => (match: LiveViewMat
 const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
   const bracketItems: MatchQueueItem[] = [];
   for (const bracket of view.brackets ?? []) {
+    const bracketTargetIds = bracket.targetIds
+      ?? bracket.bracketTargets?.map((target) => target.targetId)
+      ?? [];
     for (const match of bracket.matches ?? []) {
       if (match.status === 'COMPLETED' || match.status === 'CANCELLED' || match.status === 'IN_PROGRESS') {
         continue;
@@ -155,7 +158,9 @@ const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
         stageName: '',
         poolNumber: 0,
         poolName: '',
+        bracketId: bracket.id,
         bracketName: bracket.name,
+        ...(bracketTargetIds.length > 0 ? { bracketTargetIds } : {}),
         matchNumber: match.matchNumber,
         roundNumber: match.roundNumber,
         status: match.status,

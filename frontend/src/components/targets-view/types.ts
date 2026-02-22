@@ -55,6 +55,8 @@ export type LiveViewBracket = {
   id: string;
   name: string;
   matches?: LiveViewMatch[];
+  targetIds?: string[];
+  bracketTargets?: Array<{ targetId: string }>;
 };
 
 export type LiveViewData = {
@@ -85,7 +87,9 @@ export type MatchQueueItem = {
   stageName: string;
   poolNumber: number;
   poolName: string;
+  bracketId?: string;
   bracketName?: string;
+  bracketTargetIds?: string[];
   matchNumber: number;
   roundNumber: number;
   status: string;
