@@ -1,4 +1,4 @@
-import type { LiveViewData, LiveViewMatch, LiveViewTarget, SharedTarget, TargetMatchInfo, Translator } from '../live-tournament/types';
+import type { LiveViewData, LiveViewMatch, LiveViewTarget, SharedTarget, TargetMatchInfo, Translator } from './types';
 import { getMatchPlayers, getTargetLabel } from './target-labels';
 
 const shouldReplaceTargetMatch = (existingStatus: string | undefined, nextStatus: string) => {

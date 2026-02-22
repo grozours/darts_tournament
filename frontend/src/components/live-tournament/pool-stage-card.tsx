@@ -296,7 +296,18 @@ const PoolStageCard = ({
                 <tr key={row.playerId} className="text-slate-200">
                   <td className="px-2 py-2 text-center font-semibold text-slate-300">#{row.position}</td>
                   <td className="px-3 py-2">{row.name}</td>
-                  <td className="px-3 py-2 text-right">{row.legsWon}</td>
+                  <td className="px-3 py-2 text-right">
+                    {row.legsWon}
+                    {(row.headToHeadBonus ?? 0) > 0 && (
+                      <span
+                        className="ml-1 text-amber-300"
+                        title={t('live.headToHeadBonusTooltip')}
+                        aria-label={t('live.headToHeadBonusTooltip')}
+                      >
+                        (+{row.headToHeadBonus})
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">{row.legsLost}</td>
                 </tr>
               ))}
@@ -598,7 +609,17 @@ const PoolStageCard = ({
                             <span className="font-semibold text-amber-200">#{row.position}</span>
                             <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
                             <span className="w-16 text-right text-slate-300">
-                              {row.legsWon}-{row.legsLost}
+                              {row.legsWon}
+                              {(row.headToHeadBonus ?? 0) > 0 && (
+                                <span
+                                  className="ml-1 text-amber-300"
+                                  title={t('live.headToHeadBonusTooltip')}
+                                  aria-label={t('live.headToHeadBonusTooltip')}
+                                >
+                                  (+{row.headToHeadBonus})
+                                </span>
+                              )}
+                              -{row.legsLost}
                             </span>
                           </div>
                         ))

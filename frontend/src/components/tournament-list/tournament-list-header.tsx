@@ -16,8 +16,9 @@ const TournamentListHeader = ({
 }: TournamentListHeaderProperties) => {
   if (isEditPage) {
     const normalizedStatus = normalizeTournamentStatus(editingTournament?.status);
+    const editingTournamentId = editingTournament?.id;
     const canShowLiveLinks = Boolean(
-      editingTournament && ['OPEN', 'SIGNATURE', 'LIVE'].includes(normalizedStatus)
+      editingTournamentId && ['OPEN', 'SIGNATURE', 'LIVE'].includes(normalizedStatus)
     );
     return (
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -30,7 +31,7 @@ const TournamentListHeader = ({
         <div className="flex flex-wrap items-center gap-2">
           {canShowLiveLinks && (
             <a
-              href={`/?view=pool-stages&tournamentId=${editingTournament.id}`}
+              href={`/?view=pool-stages&tournamentId=${editingTournamentId}`}
               className="rounded-full border border-emerald-400/70 px-4 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-300"
             >
               {t('nav.poolStagesRunning')}
@@ -38,7 +39,7 @@ const TournamentListHeader = ({
           )}
           {canShowLiveLinks && (
             <a
-              href={`/?view=brackets&tournamentId=${editingTournament.id}`}
+              href={`/?view=brackets&tournamentId=${editingTournamentId}`}
               className="rounded-full border border-amber-400/70 px-4 py-2 text-xs font-semibold text-amber-200 hover:border-amber-300"
             >
               {t('nav.bracketsRunning')}
@@ -46,7 +47,7 @@ const TournamentListHeader = ({
           )}
           {canShowLiveLinks && (
             <a
-              href={`/?view=brackets&tournamentId=${editingTournament.id}&status=FINISHED`}
+              href={`/?view=brackets&tournamentId=${editingTournamentId}&status=FINISHED`}
               className="rounded-full border border-slate-600/80 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
             >
               {t('nav.bracketsFinished')}

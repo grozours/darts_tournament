@@ -1,7 +1,7 @@
 import TargetsGrid from './targets-grid';
 import TargetsQueuePanel from './targets-queue-panel';
 import TargetsViewHeader from './targets-view-header';
-import type { LiveViewData, LiveViewMatch, MatchQueueItem, SharedTarget, Translator } from '../live-tournament/types';
+import type { LiveViewData, LiveViewMatch, MatchQueueItem, SharedTarget, Translator } from './types';
 
 type TargetsViewContentProperties = {
   t: Translator;

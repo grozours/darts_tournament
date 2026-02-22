@@ -9,6 +9,8 @@ type BuildQueueItemsProperties = {
   ignoreBlocking?: boolean;
 };
 
+type LiveViewBracket = NonNullable<LiveViewData['brackets']>[number];
+
 const isFinalMatchStatus = (status: string) => (
   status === 'COMPLETED' || status === 'CANCELLED' || status === 'IN_PROGRESS'
 );
@@ -135,20 +137,20 @@ const buildMatchBlocker = (activePlayerKeys: Set<string>) => (match: LiveViewMat
   return false;
 };
 
-const getBracketTargetIds = (bracket: LiveViewData['brackets'][number]) => (
+const getBracketTargetIds = (bracket: LiveViewBracket) => (
   bracket.targetIds
-    ?? bracket.bracketTargets?.map((target) => target.targetId)
+    ?? bracket.bracketTargets?.map((target: { targetId: string }) => target.targetId)
     ?? []
 );
 
-const getBracketMaxRound = (bracket: LiveViewData['brackets'][number]) => (
-  Math.max(0, ...((bracket.matches ?? []).map((match) => match.roundNumber)))
+const getBracketMaxRound = (bracket: LiveViewBracket) => (
+  Math.max(0, ...((bracket.matches ?? []).map((match: LiveViewMatch) => match.roundNumber)))
 );
 
 const getBracketRoundMatchCount = (
-  bracket: LiveViewData['brackets'][number],
+  bracket: LiveViewBracket,
   roundNumber: number
-) => (bracket.matches ?? []).filter((match) => match.roundNumber === roundNumber).length;
+) => (bracket.matches ?? []).filter((match: LiveViewMatch) => match.roundNumber === roundNumber).length;
 
 const isQueueableBracketMatch = (match: LiveViewMatch) => !(
   match.status === 'COMPLETED'
@@ -158,7 +160,7 @@ const isQueueableBracketMatch = (match: LiveViewMatch) => !(
 
 const buildBracketQueueItem = (
   view: LiveViewData,
-  bracket: LiveViewData['brackets'][number],
+  bracket: LiveViewBracket,
   match: LiveViewMatch,
   bracketTargetIds: string[],
   maxRoundNumber: number,

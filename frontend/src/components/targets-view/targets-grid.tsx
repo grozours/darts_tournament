@@ -1,5 +1,5 @@
 import TargetsGridCard from './targets-grid-card';
-import type { LiveViewMatch, MatchQueueItem, SharedTarget, Translator } from '../live-tournament/types';
+import type { LiveViewMatch, MatchQueueItem, SharedTarget, Translator } from './types';
 
 type TargetsGridProperties = {
   t: Translator;

@@ -66,6 +66,7 @@ export interface PoolLeaderboardRow {
   name: string;
   legsWon: number;
   legsLost: number;
+  headToHeadBonus?: number;
   position: number;
 }
 

@@ -1,4 +1,4 @@
-import type { LiveViewMatch, LiveViewTarget, Translator } from '../live-tournament/types';
+import type { LiveViewMatch, LiveViewTarget, Translator } from './types';
 
 type PlayerIdentity = {
   id?: string;

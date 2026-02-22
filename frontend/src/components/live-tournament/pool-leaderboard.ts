@@ -16,6 +16,7 @@ const ensureLeaderboardRow = (
       name: getLeaderboardPlayerLabel(player),
       legsWon: 0,
       legsLost: 0,
+      headToHeadBonus: 0,
       position: 0,
     });
   }
@@ -76,10 +77,12 @@ const applyHeadToHeadBonus = (rows: Map<string, PoolLeaderboardRow>, matches: Li
 
     const headToHead = matches.find((match) => {
       if (match.status !== 'COMPLETED') return false;
-      const ids = (match.playerMatches ?? [])
-        .map((playerMatch) => playerMatch.player?.id)
-        .filter((id): id is string => Boolean(id));
-      return ids.includes(first.playerId) && ids.includes(second.playerId);
+      const ids = new Set(
+        (match.playerMatches ?? [])
+          .map((playerMatch) => playerMatch.player?.id)
+          .filter((id): id is string => Boolean(id))
+      );
+      return ids.has(first.playerId) && ids.has(second.playerId);
     });
 
     if (!headToHead) {
@@ -100,6 +103,7 @@ const applyHeadToHeadBonus = (rows: Map<string, PoolLeaderboardRow>, matches: Li
     }
     const winner = firstScore > secondScore ? first : second;
     winner.legsWon += 1;
+    winner.headToHeadBonus = (winner.headToHeadBonus ?? 0) + 1;
   }
 };
 

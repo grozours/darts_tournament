@@ -1,4 +1,4 @@
-import type { LiveViewMatch, Translator } from '../live-tournament/types';
+import type { LiveViewMatch, Translator } from './types';
 
 type ActiveMatchScorePanelProperties = {
   match: LiveViewMatch;

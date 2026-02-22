@@ -11,7 +11,7 @@ type UseTargetsViewDerivedProperties = {
 
 type TargetsViewDerivedResult = {
   scopedViews: LiveViewData[];
-  matchDetailsById: Map<string, import('../live-tournament/types').LiveViewMatch>;
+  matchDetailsById: Map<string, import('./types').LiveViewMatch>;
   matchTournamentById: Map<string, { tournamentId: string; tournamentName: string }>;
   sharedTargets: import('./types').SharedTarget[];
   queueItems: import('./types').MatchQueueItem[];

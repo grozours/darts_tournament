@@ -78,14 +78,8 @@ type LiveTournamentViewProperties = {
   playerIdByTournament: Record<string, string>;
   onCompleteBracketRound: (matchTournamentId: string, bracket: LiveViewBracket) => void;
   onResetBracketMatches: (matchTournamentId: string, bracketId: string) => void;
-  onPopulateBracketFromPools: (
-    matchTournamentId: string,
-    bracketId: string,
-    stage: LiveViewPoolStage
-  ) => void;
   onSelectBracket: (matchTournamentId: string, bracketId: string) => void;
   activeBracketId: string;
-  populatingBracketId?: string | undefined;
   onRefresh: () => void;
 };
 
@@ -296,10 +290,8 @@ const LiveTournamentView = ({
   playerIdByTournament = {},
   onCompleteBracketRound,
   onResetBracketMatches,
-  onPopulateBracketFromPools,
   onSelectBracket,
   activeBracketId,
-  populatingBracketId,
   onRefresh,
 }: LiveTournamentViewProperties) => {
   const [showSummary, setShowSummary] = useState(false);
@@ -406,7 +398,6 @@ const LiveTournamentView = ({
     t,
     tournamentId: view.id,
     brackets: filteredBrackets,
-    poolStages: view.poolStages ?? [],
     hasLoserBracket,
     isAdmin,
     isBracketsReadonly,
@@ -414,7 +405,6 @@ const LiveTournamentView = ({
     editingMatchId,
     updatingRoundKey,
     resettingBracketId,
-    populatingBracketId,
     matchScores,
     matchTargetSelections,
     availableTargetsByTournament,
@@ -431,7 +421,6 @@ const LiveTournamentView = ({
     onScoreChange,
     onCompleteBracketRound,
     onResetBracketMatches,
-    onPopulateBracketFromPools,
     onSelectBracket,
     activeBracketId,
   };

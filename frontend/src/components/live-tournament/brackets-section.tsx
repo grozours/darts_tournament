@@ -1,4 +1,4 @@
-import type { LiveViewBracket, LiveViewMatch, LiveViewPoolStage, LiveViewTarget, Translator } from './types';
+import type { LiveViewBracket, LiveViewMatch, LiveViewTarget, Translator } from './types';
 import BracketMatches from './bracket-matches';
 import SectionEmptyState from './section-empty-state';
 
@@ -6,7 +6,6 @@ type BracketsSectionProperties = {
   t: Translator;
   tournamentId: string;
   brackets: LiveViewBracket[];
-  poolStages: LiveViewPoolStage[];
   hasLoserBracket: boolean;
   isAdmin: boolean;
   isBracketsReadonly: boolean;
@@ -14,7 +13,6 @@ type BracketsSectionProperties = {
   editingMatchId?: string | undefined;
   updatingRoundKey?: string | undefined;
   resettingBracketId?: string | undefined;
-  populatingBracketId?: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
@@ -31,11 +29,6 @@ type BracketsSectionProperties = {
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
   onCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => void;
   onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
-  onPopulateBracketFromPools: (
-    tournamentId: string,
-    bracketId: string,
-    stage: LiveViewPoolStage
-  ) => void;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketId: string;
 };
@@ -156,7 +149,6 @@ const BracketsSection = ({
   t,
   tournamentId,
   brackets,
-  poolStages,
   hasLoserBracket,
   isAdmin,
   isBracketsReadonly,
@@ -164,7 +156,6 @@ const BracketsSection = ({
   editingMatchId,
   updatingRoundKey,
   resettingBracketId,
-  populatingBracketId,
   matchScores,
   matchTargetSelections,
   availableTargetsByTournament,
@@ -181,7 +172,6 @@ const BracketsSection = ({
   onScoreChange,
   onCompleteBracketRound,
   onResetBracketMatches,
-  onPopulateBracketFromPools,
   onSelectBracket,
   activeBracketId,
 }: BracketsSectionProperties) => {
