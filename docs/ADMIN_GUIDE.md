@@ -64,6 +64,16 @@ flowchart TD
 - Cancel a running match to free the target and return it to the queue.
 - Update scores for completed matches when needed.
 
+## Screen mode (TV / projection)
+- Enable with `?screen=1` on live pages (`view=live`, `view=pool-stages`, `view=brackets`, `view=targets`).
+- In screen mode, the top navigation header is hidden and the main content is centered for better readability.
+- Rotation runs automatically every ~10 seconds across active live items:
+	- each active pool stage (one by one),
+	- each active bracket (one by one),
+	- then targets view.
+- In bracket screen view, the UI is simplified: only the bracket name and the bracket tree card are shown.
+- If no active pool stage remains but active brackets exist, screen mode automatically switches to brackets.
+
 ### Example (start a match)
 - Go to Targets view.
 - Pick a match from the queue.

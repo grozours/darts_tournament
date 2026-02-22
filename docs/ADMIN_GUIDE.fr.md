@@ -64,6 +64,16 @@ flowchart TD
 - Annuler un match en cours pour liberer la cible et remettre le match en file.
 - Corriger un score sur un match termine si besoin.
 
+## Mode ecran (TV / projection)
+- Activer avec `?screen=1` sur les vues live (`view=live`, `view=pool-stages`, `view=brackets`, `view=targets`).
+- En mode ecran, le menu haut est masque et le contenu principal est centre pour une meilleure lisibilite.
+- La rotation se fait automatiquement toutes les ~10 secondes sur les elements live actifs :
+	- chaque phase de poules active (une par une),
+	- chaque arbre actif (un par un),
+	- puis la vue cibles.
+- En affichage arbre mode ecran, l'interface est simplifiee : nom de l'arbre + carte de l'arbre uniquement.
+- S'il n'y a plus de phase de poules active mais qu'il reste des arbres actifs, le mode ecran bascule automatiquement sur les arbres.
+
 ### Exemple (lancer un match)
 - Aller sur la vue Cibles.
 - Choisir un match dans la file.
