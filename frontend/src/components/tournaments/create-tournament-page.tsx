@@ -7,6 +7,7 @@ import {
   createTournament,
   createPoolStage,
   createBracket,
+  updatePoolStage,
 } from '../../services/tournament-service';
 
 type PresetErrors = {
@@ -75,14 +76,14 @@ export default function CreateTournamentPage() {
       double: (poolCount, stage2PoolCount, stage3PoolCount, losersAdvanceToBracket) => ({
         format: TournamentFormat.DOUBLE,
         stages: [
-          { stageNumber: 1, name: 'Stage 1', poolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket },
-          { stageNumber: 2, name: 'Stage A', poolCount: stage2PoolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket: false },
-          { stageNumber: 3, name: 'Stage B', poolCount: stage3PoolCount, playersPerPool: 5, advanceCount: 2, losersAdvanceToBracket: false },
+          { stageNumber: 1, name: 'Brassage', poolCount, playersPerPool: 5, advanceCount: 5, losersAdvanceToBracket },
+          { stageNumber: 2, name: 'Niveau A', poolCount: stage2PoolCount, playersPerPool: 4, advanceCount: 2, losersAdvanceToBracket: false },
+          { stageNumber: 3, name: 'Niveau B', poolCount: stage3PoolCount, playersPerPool: 4, advanceCount: 2, losersAdvanceToBracket: false },
         ],
         brackets: [
-          { name: 'A Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-          { name: 'B Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-          { name: 'C Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          { name: 'Niveau A', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          { name: 'Niveau B', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
+          { name: 'Niveau C', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
         ],
       }),
     }),
@@ -128,8 +129,8 @@ export default function CreateTournamentPage() {
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const poolCount = Math.max(1, Math.floor(totalParticipants / 5));
-      const stage2PoolCount = Math.max(1, Math.floor(poolCount / 2));
-      const stage3PoolCount = Math.max(1, Math.floor(poolCount / 2));
+      const stage2PoolCount = Math.max(1, Math.ceil(poolCount / 2));
+      const stage3PoolCount = Math.max(1, Math.ceil(poolCount / 2));
       const templateBuilder = presetTemplates[preset];
       const template = templateBuilder(poolCount, stage2PoolCount, stage3PoolCount, presetLosersAdvance);
       const { startTime, endTime } = getDateOffsets();
@@ -145,11 +146,52 @@ export default function CreateTournamentPage() {
         doubleStageEnabled: preset === 'double',
       }, token);
 
+      const createdStages = [];
       for (const stage of template.stages) {
-        await createPoolStage(created.id, stage, token);
+        const createdStage = await createPoolStage(created.id, stage, token);
+        createdStages.push(createdStage);
       }
+      const createdBrackets = [];
       for (const bracket of template.brackets) {
-        await createBracket(created.id, bracket, token);
+        const createdBracket = await createBracket(created.id, bracket, token);
+        createdBrackets.push(createdBracket);
+      }
+
+      if (preset === 'double') {
+        const stageBrassage = createdStages.find((stage) => stage.stageNumber === 1);
+        const stageA = createdStages.find((stage) => stage.stageNumber === 2);
+        const stageB = createdStages.find((stage) => stage.stageNumber === 3);
+        const bracketA = createdBrackets.find((bracket) => bracket.name === 'Niveau A');
+        const bracketB = createdBrackets.find((bracket) => bracket.name === 'Niveau B');
+        const bracketC = createdBrackets.find((bracket) => bracket.name === 'Niveau C');
+
+        if (stageBrassage && stageA && stageB && bracketA && bracketB && bracketC) {
+          await updatePoolStage(created.id, stageBrassage.id, {
+            rankingDestinations: [
+              { position: 1, destinationType: 'POOL_STAGE', poolStageId: stageA.id },
+              { position: 2, destinationType: 'POOL_STAGE', poolStageId: stageA.id },
+              { position: 3, destinationType: 'POOL_STAGE', poolStageId: stageB.id },
+              { position: 4, destinationType: 'POOL_STAGE', poolStageId: stageB.id },
+              { position: 5, destinationType: 'BRACKET', bracketId: bracketC.id },
+            ],
+          }, token);
+          await updatePoolStage(created.id, stageA.id, {
+            rankingDestinations: [
+              { position: 1, destinationType: 'BRACKET', bracketId: bracketA.id },
+              { position: 2, destinationType: 'BRACKET', bracketId: bracketA.id },
+              { position: 3, destinationType: 'ELIMINATED' },
+              { position: 4, destinationType: 'ELIMINATED' },
+            ],
+          }, token);
+          await updatePoolStage(created.id, stageB.id, {
+            rankingDestinations: [
+              { position: 1, destinationType: 'BRACKET', bracketId: bracketB.id },
+              { position: 2, destinationType: 'BRACKET', bracketId: bracketB.id },
+              { position: 3, destinationType: 'ELIMINATED' },
+              { position: 4, destinationType: 'ELIMINATED' },
+            ],
+          }, token);
+        }
       }
 
       if (globalThis.window) {
