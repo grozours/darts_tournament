@@ -4,25 +4,25 @@
   "description": "Darts Tournament Manager - Backend API",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "node ./node_modules/ts-node-dev/lib/bin.js --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "test": "prisma generate && jest",
+    "test": "node ./node_modules/prisma/build/index.js generate && jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write src/**/*.ts",
-    "postinstall": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:push": "prisma db push",
-    "db:seed": "ts-node prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force",
-    "db:studio": "prisma studio"
+    "postinstall": "node ./node_modules/prisma/build/index.js generate",
+    "db:migrate": "node ./node_modules/prisma/build/index.js migrate deploy",
+    "db:push": "node ./node_modules/prisma/build/index.js db push",
+    "db:seed": "node ./node_modules/ts-node/dist/bin.js prisma/seed.ts",
+    "db:reset": "node ./node_modules/prisma/build/index.js migrate reset --force",
+    "db:studio": "node ./node_modules/prisma/build/index.js studio"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node ./node_modules/ts-node/dist/bin.js prisma/seed.ts"
   },
   "keywords": [
     "darts",

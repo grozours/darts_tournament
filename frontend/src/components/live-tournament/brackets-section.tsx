@@ -39,7 +39,6 @@ type BracketsHeaderProperties = {
   tournamentId: string;
   brackets: LiveViewBracket[];
   hasLoserBracket: boolean;
-  isBracketsReadonly: boolean;
   activeBracketId: string;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
 };
@@ -49,7 +48,6 @@ const BracketsHeader = ({
   tournamentId,
   brackets,
   hasLoserBracket,
-  isBracketsReadonly,
   activeBracketId,
   onSelectBracket,
 }: BracketsHeaderProperties) => (
@@ -60,24 +58,22 @@ const BracketsHeader = ({
         {t('live.loserBracket')}: {hasLoserBracket ? t('common.yes') : t('common.no')}
       </p>
     </div>
-    {!isBracketsReadonly && (
-      <div className="flex flex-wrap gap-2">
-        {[...brackets].reverse().map((bracket) => (
-          <button
-            key={bracket.id}
-            type="button"
-            onClick={() => onSelectBracket(tournamentId, bracket.id)}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-              bracket.id === activeBracketId
-                ? 'border-amber-400/80 text-amber-200'
-                : 'border-slate-700 text-slate-200 hover:border-slate-500'
-            }`}
-          >
-            {bracket.name}
-          </button>
-        ))}
-      </div>
-    )}
+    <div className="flex flex-wrap gap-2">
+      {[...brackets].reverse().map((bracket) => (
+        <button
+          key={bracket.id}
+          type="button"
+          onClick={() => onSelectBracket(tournamentId, bracket.id)}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+            bracket.id === activeBracketId
+              ? 'border-amber-400/80 text-amber-200'
+              : 'border-slate-700 text-slate-200 hover:border-slate-500'
+          }`}
+        >
+          {bracket.name}
+        </button>
+      ))}
+    </div>
   </div>
 );
 
@@ -239,7 +235,6 @@ const BracketsSection = ({
         tournamentId={tournamentId}
         brackets={brackets}
         hasLoserBracket={hasLoserBracket}
-        isBracketsReadonly={isBracketsReadonly}
         activeBracketId={activeBracket.id}
         onSelectBracket={onSelectBracket}
       />

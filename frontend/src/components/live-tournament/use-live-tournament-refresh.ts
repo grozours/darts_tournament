@@ -15,6 +15,17 @@ const useLiveTournamentRefresh = ({ reloadLiveViews }: UseLiveTournamentRefreshP
     }, 10_000);
     return () => globalThis.clearInterval(intervalId);
   }, [reloadLiveViews]);
+
+  useEffect(() => {
+    const handleBracketsUpdated = () => {
+      void reloadLiveViews({ showLoader: false });
+    };
+
+    globalThis.window?.addEventListener('tournament:brackets-updated', handleBracketsUpdated);
+    return () => {
+      globalThis.window?.removeEventListener('tournament:brackets-updated', handleBracketsUpdated);
+    };
+  }, [reloadLiveViews]);
 };
 
 export default useLiveTournamentRefresh;

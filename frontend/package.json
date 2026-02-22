@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "build:prod": "vite build",
+    "build": "tsc && node ./node_modules/vite/bin/vite.js build",
+    "build:prod": "node ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",

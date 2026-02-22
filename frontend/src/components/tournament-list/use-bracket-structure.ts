@@ -227,6 +227,9 @@ const useBracketMutations = ({
         status: bracket.status,
       }, token);
       await loadBrackets(editingTournament.id);
+      globalThis.window?.dispatchEvent(new CustomEvent('tournament:brackets-updated', {
+        detail: { tournamentId: editingTournament.id },
+      }));
     } catch (error_) {
       setBracketsError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdateBracket'));
     }

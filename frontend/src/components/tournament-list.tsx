@@ -43,8 +43,10 @@ function TournamentList() { // NOSONAR
     ? new URLSearchParams(globalThis.window.location.search)
     : new URLSearchParams();
   const view = parameters.get('view');
+  const status = parameters.get('status');
   const editTournamentId = parameters.get('tournamentId');
   const isEditPage = view === 'edit-tournament';
+  const hideOpenSignatureAction = normalizeTournamentStatus(status ?? undefined) === 'DRAFT';
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled || !isAuthenticated) {
@@ -502,6 +504,7 @@ function TournamentList() { // NOSONAR
           onUnregister={handleUnregisterSelf}
           onOpenRegistration={openRegistrationFromCard}
           onOpenSignature={openSignatureFromCard}
+          hideOpenSignatureAction={hideOpenSignatureAction}
           openingRegistrationId={openingRegistrationId ?? undefined}
           openingSignatureId={openingSignatureId ?? undefined}
         />

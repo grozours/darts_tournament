@@ -8,6 +8,7 @@ type TournamentListGroupsProperties = {
   isAuthenticated: boolean;
   t: Translator;
   userRegistrations: Set<string>;
+  hideOpenSignatureAction?: boolean;
   registeringTournamentId?: string | undefined;
   openingRegistrationId?: string | undefined;
   openingSignatureId?: string | undefined;
@@ -26,6 +27,7 @@ const TournamentListGroups = ({
   isAuthenticated,
   t,
   userRegistrations,
+  hideOpenSignatureAction = false,
   registeringTournamentId,
   openingRegistrationId,
   openingSignatureId,
@@ -75,6 +77,7 @@ const TournamentListGroups = ({
                   onUnregister={onUnregister}
                   onOpenRegistration={onOpenRegistration}
                   onOpenSignature={onOpenSignature}
+                  hideOpenSignatureAction={hideOpenSignatureAction}
                   registeringTournamentId={registeringTournamentId}
                   openingRegistrationId={openingRegistrationId}
                   openingSignatureId={openingSignatureId}

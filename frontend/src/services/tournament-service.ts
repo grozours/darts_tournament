@@ -616,7 +616,10 @@ export async function fetchBrackets(
   tournamentId: string,
   token?: string
 ): Promise<BracketConfig[]> {
-  const response = await fetch(`/api/tournaments/${tournamentId}/brackets`, buildAuthRequestOptions(token));
+  const response = await fetch(`/api/tournaments/${tournamentId}/brackets`, {
+    cache: 'no-store',
+    ...buildAuthRequestOptions(token),
+  });
 
   if (!response.ok) {
     const message = await response.text();

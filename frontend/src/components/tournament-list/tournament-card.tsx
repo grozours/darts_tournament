@@ -14,6 +14,7 @@ export type TournamentCardProperties = {
   onUnregister: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
+  hideOpenSignatureAction?: boolean;
   registeringTournamentId?: string | undefined;
   openingRegistrationId?: string | undefined;
   openingSignatureId?: string | undefined;
@@ -27,6 +28,7 @@ type TournamentAdminActionProperties = {
   openingSignatureId?: string | undefined;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
+  hideOpenSignatureAction?: boolean;
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
   t: Translator;
@@ -49,6 +51,7 @@ const TournamentAdminActions = ({
   openingSignatureId,
   onOpenRegistration,
   onOpenSignature,
+  hideOpenSignatureAction = false,
   onEdit,
   onDelete,
   t,
@@ -65,7 +68,7 @@ const TournamentAdminActions = ({
           : t('tournaments.openRegistration')}
       </button>
     )}
-    {normalizedStatus === 'DRAFT' && (
+    {normalizedStatus === 'DRAFT' && !hideOpenSignatureAction && (
       <button
         onClick={() => onOpenSignature(tournament.id)}
         disabled={openingSignatureId === tournament.id}
@@ -145,6 +148,7 @@ const TournamentCard = ({
   onUnregister,
   onOpenRegistration,
   onOpenSignature,
+  hideOpenSignatureAction = false,
   registeringTournamentId,
   openingRegistrationId,
   openingSignatureId,
@@ -238,6 +242,7 @@ const TournamentCard = ({
             openingSignatureId={openingSignatureId}
             onOpenRegistration={onOpenRegistration}
             onOpenSignature={onOpenSignature}
+            hideOpenSignatureAction={hideOpenSignatureAction}
             onEdit={onEdit}
             onDelete={onDelete}
             t={t}

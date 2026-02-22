@@ -31,6 +31,10 @@ function TournamentPlayersView() {
     ? new URLSearchParams(globalThis.window.location.search)
     : new URLSearchParams();
   const tournamentId = parameters.get('tournamentId');
+  const normalizedTournamentStatus = (tournament?.status ?? '').trim().toUpperCase();
+  const canDeletePlayers = isAdmin
+    && normalizedTournamentStatus !== 'LIVE'
+    && normalizedTournamentStatus !== 'FINISHED';
 
   // Helper to safely get access token
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
@@ -112,6 +116,9 @@ function TournamentPlayersView() {
     if (!isAdmin) {
       return;
     }
+    if (normalizedTournamentStatus === 'LIVE' || normalizedTournamentStatus === 'FINISHED') {
+      return;
+    }
     if (!globalThis.confirm(t('players.deleteConfirm'))) {
       return;
     }
@@ -130,7 +137,7 @@ function TournamentPlayersView() {
     } finally {
       setRemovingPlayerId(undefined);
     }
-  }, [getSafeAccessToken, isAdmin, t, tournamentId]);
+  }, [getSafeAccessToken, isAdmin, normalizedTournamentStatus, t, tournamentId]);
 
   const toggleContactDetails = useCallback((playerId?: string) => {
     if (!playerId) {
@@ -339,13 +346,15 @@ function TournamentPlayersView() {
                             {presenceLabel}
                           </button>
                         )}
-                        <button
-                          onClick={() => removePlayer(player)}
-                          disabled={removingPlayerId === player.playerId}
-                          className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
-                        </button>
+                        {canDeletePlayers && (
+                          <button
+                            onClick={() => removePlayer(player)}
+                            disabled={removingPlayerId === player.playerId}
+                            className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
