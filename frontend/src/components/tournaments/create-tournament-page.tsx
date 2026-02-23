@@ -57,7 +57,6 @@ export default function CreateTournamentPage() {
   const [presetName, setPresetName] = useState('');
   const [presetParticipants, setPresetParticipants] = useState('16');
   const [presetTargets, setPresetTargets] = useState('4');
-  const [presetLosersAdvance, setPresetLosersAdvance] = useState(true);
   const [presetErrors, setPresetErrors] = useState<PresetErrors>({});
   const [presetSubmitting, setPresetSubmitting] = useState(false);
 
@@ -132,7 +131,7 @@ export default function CreateTournamentPage() {
       const stage2PoolCount = Math.max(1, Math.ceil(poolCount / 2));
       const stage3PoolCount = Math.max(1, Math.ceil(poolCount / 2));
       const templateBuilder = presetTemplates[preset];
-      const template = templateBuilder(poolCount, stage2PoolCount, stage3PoolCount, presetLosersAdvance);
+      const template = templateBuilder(poolCount, stage2PoolCount, stage3PoolCount, true);
       const { startTime, endTime } = getDateOffsets();
 
       const created = await createTournament({
@@ -274,18 +273,6 @@ export default function CreateTournamentPage() {
             )}
           </div>
 
-          <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-            <label htmlFor="preset-losers" className="text-sm text-slate-300">{t('edit.losers')}</label>
-            <select
-              id="preset-losers"
-              className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-              value={presetLosersAdvance ? 'bracket' : 'out'}
-              onChange={(event) => setPresetLosersAdvance(event.target.value === 'bracket')}
-            >
-              <option value="out">{t('edit.losersOut')}</option>
-              <option value="bracket">{t('edit.losersToBracket')}</option>
-            </select>
-          </div>
         </div>
 
         {presetErrors.submit && (

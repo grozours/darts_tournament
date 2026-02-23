@@ -1,4 +1,4 @@
-import { BracketStatus, BracketType } from '@shared/types';
+import { BracketStatus } from '@shared/types';
 import type { BracketConfig } from '../../services/tournament-service';
 import type { Translator } from './types';
 
@@ -113,21 +113,6 @@ const BracketItem = ({
             disabled={isBracketLocked}
           className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
         />
-      </label>
-      <label className="text-xs text-slate-400">
-        {t('edit.type')}
-        <select
-          value={bracket.bracketType}
-          onChange={(event_) => onBracketTypeChange(bracket.id, event_.target.value)}
-            disabled={isBracketLocked}
-          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
-        >
-          {Object.values(BracketType).map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
       </label>
       <label className="text-xs text-slate-400">
         {t('edit.rounds')}
@@ -285,7 +270,7 @@ const NewBracketForm = ({
 
   return (
     <>
-      <div className="mt-5 grid gap-3 md:grid-cols-4">
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
         <label className="text-xs text-slate-400 md:col-span-2">
           {t('edit.name')}
           <input
@@ -295,21 +280,6 @@ const NewBracketForm = ({
             disabled={!canEditBrackets}
             className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
           />
-        </label>
-        <label className="text-xs text-slate-400">
-          {t('edit.type')}
-          <select
-            value={newBracket.bracketType}
-            onChange={(event_) => onNewBracketTypeChange(event_.target.value)}
-            disabled={!canEditBrackets}
-            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
-          >
-            {Object.values(BracketType).map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
         </label>
         <label className="text-xs text-slate-400">
           {t('edit.rounds')}
