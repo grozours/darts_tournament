@@ -33,6 +33,7 @@ type PoolStageCardProperties = {
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
   onStartMatch: (matchTournamentId: string, matchId: string, targetId: string) => void;
   onCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
+  onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
@@ -77,6 +78,7 @@ const PoolStageCard = ({
   onScoreChange,
   onStartMatch,
   onCompleteMatch,
+  onCancelMatch,
   onEditMatch,
   onUpdateCompletedMatch,
   onCancelMatchEdit,
@@ -375,6 +377,18 @@ const PoolStageCard = ({
                 className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
               >
                 {updatingMatchId === getMatchKey(matchTournamentId, match.id) ? t('live.savingMatch') : t('live.completeMatch')}
+              </button>
+              <button
+                onClick={() => {
+                  if (!globalThis.window?.confirm(t('targets.cancelMatchConfirm'))) {
+                    return;
+                  }
+                  onCancelMatch(matchTournamentId, match);
+                }}
+                disabled={updatingMatchId === getMatchKey(matchTournamentId, match.id)}
+                className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+              >
+                {updatingMatchId === getMatchKey(matchTournamentId, match.id) ? t('common.loading') : t('targets.cancelMatch')}
               </button>
             </div>
           </div>

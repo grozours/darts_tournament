@@ -96,6 +96,7 @@ const PoolStagesEditor = ({
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h4 className="text-base font-semibold text-white">{t('edit.poolStages')}</h4>
       <button
+        type="button"
         onClick={onLoadPoolStages}
         className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
       >

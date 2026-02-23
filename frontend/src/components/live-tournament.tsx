@@ -4,7 +4,7 @@ import MatchQueueSection from './live-tournament/match-queue-section';
 import LiveTournamentView from './live-tournament/live-tournament-view';
 import { hasActiveBrackets, hasActivePoolStages, resolveEmptyLiveCopy } from '../utils/live-view-helpers';
 import useLiveTournamentState from './live-tournament/use-live-tournament-state';
-import type { LiveViewData, LiveViewMode, Translator } from './live-tournament/types';
+import type { LiveViewData, LiveViewMatch, LiveViewMode, Translator } from './live-tournament/types';
 
 type LiveTournamentFiltersProperties = {
   t: Translator;
@@ -220,6 +220,9 @@ function LiveTournament() {
   const handleStartMatch = (matchTournamentId: string, matchId: string, targetId?: string) => {
     handleMatchStatusUpdate(matchTournamentId, matchId, 'IN_PROGRESS', targetId);
   };
+  const handleCancelMatch = (matchTournamentId: string, match: LiveViewMatch) => {
+    handleMatchStatusUpdate(matchTournamentId, match.id, 'SCHEDULED');
+  };
   const handleRefresh = () => {
     void reloadLiveViews();
   };
@@ -312,6 +315,7 @@ function LiveTournament() {
       onCompleteMatch: handleCompleteMatch,
       onEditMatch: handleEditMatch,
       onUpdateCompletedMatch: handleUpdateCompletedMatch,
+      onCancelMatch: handleCancelMatch,
       onCancelMatchEdit: cancelMatchEdit,
       onResetPoolMatches: handleResetPoolMatches,
       onScoreChange: handleScoreChange,

@@ -45,6 +45,7 @@ const TargetsGridCard = ({
   const selectedMatchId = matchSelectionByTarget[targetKey] || '';
   const targetIdForTournament = (tournamentId: string) =>
     target.targetIdsByTournament.get(tournamentId);
+  const allowedTournamentIds = new Set(target.targetIdsByTournament.keys());
   const dedicatedBracketIdsGlobal = new Set(
     queueItems
       .filter((item) => item.source === 'bracket')
@@ -67,6 +68,9 @@ const TargetsGridCard = ({
 
   const hasDedicatedBracket = dedicatedBracketIds.size > 0;
   const queueItemsForTarget = queueItems.filter((item) => {
+    if (!allowedTournamentIds.has(item.tournamentId)) {
+      return false;
+    }
     const isBracketFinal = item.source === 'bracket' && item.isBracketFinal;
     if (isBracketFinal && !hasDedicatedBracket) {
       return true;

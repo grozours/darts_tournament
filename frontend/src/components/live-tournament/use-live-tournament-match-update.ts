@@ -49,7 +49,7 @@ const useLiveTournamentMatchUpdate = ({
       const token = await getSafeAccessToken();
       await updateMatchStatus(matchTournamentId, matchId, status, targetId, token);
       await reloadLiveViews({ showLoader: false });
-      if (status === 'IN_PROGRESS' || status === 'COMPLETED' || status === 'CANCELLED') {
+      if (status === 'IN_PROGRESS' || status === 'COMPLETED' || status === 'CANCELLED' || status === 'SCHEDULED') {
         clearMatchTargetSelection(matchKey);
       }
     } catch (error) {

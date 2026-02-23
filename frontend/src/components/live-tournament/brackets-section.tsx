@@ -26,6 +26,7 @@ type BracketsSectionProperties = {
   onCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
+  onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
   onCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => void;
@@ -166,6 +167,7 @@ const BracketsSection = ({
   onCompleteMatch,
   onEditMatch,
   onUpdateCompletedMatch,
+  onCancelMatch,
   onCancelMatchEdit,
   onScoreChange,
   onCompleteBracketRound,
@@ -221,6 +223,7 @@ const BracketsSection = ({
           onCompleteMatch={onCompleteMatch}
           onEditMatch={onEditMatch}
           onUpdateCompletedMatch={onUpdateCompletedMatch}
+          onCancelMatch={onCancelMatch}
           onCancelMatchEdit={onCancelMatchEdit}
           onScoreChange={onScoreChange}
         />
@@ -276,6 +279,7 @@ const BracketsSection = ({
             onCompleteMatch={onCompleteMatch}
             onEditMatch={onEditMatch}
             onUpdateCompletedMatch={onUpdateCompletedMatch}
+            onCancelMatch={onCancelMatch}
             onCancelMatchEdit={onCancelMatchEdit}
             onScoreChange={onScoreChange}
           />

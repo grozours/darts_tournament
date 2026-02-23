@@ -57,6 +57,7 @@ type LiveTournamentViewProperties = {
   onTargetSelectionChange: (matchKey: string, targetId: string) => void;
   onStartMatch: (matchTournamentId: string, matchId: string, targetId?: string) => void;
   onCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
+  onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
@@ -280,6 +281,7 @@ const LiveTournamentView = ({
   onTargetSelectionChange,
   onStartMatch,
   onCompleteMatch,
+  onCancelMatch,
   onEditMatch,
   onUpdateCompletedMatch,
   onCancelMatchEdit,
@@ -390,6 +392,7 @@ const LiveTournamentView = ({
     onScoreChange,
     onStartMatch,
     onCompleteMatch,
+    onCancelMatch,
     onEditMatch,
     onUpdateCompletedMatch,
     onCancelMatchEdit,
@@ -434,6 +437,7 @@ const LiveTournamentView = ({
     onTargetSelectionChange,
     onStartMatch,
     onCompleteMatch,
+    onCancelMatch,
     onEditMatch,
     onUpdateCompletedMatch,
     onCancelMatchEdit,

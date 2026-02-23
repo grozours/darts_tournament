@@ -2,6 +2,7 @@ import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useOptionalAuth } from '../../auth/optional-auth';
 import { useI18n } from '../../i18n';
 import { TournamentFormat, DurationType } from '@shared/types';
+import { localInputToIso } from '../tournament-list/tournament-date-helpers';
 import {
   createTournament,
   uploadTournamentLogo,
@@ -36,13 +37,6 @@ const toLocalInput = (value: Date) =>
   `${value.getFullYear()}-${padNumber(value.getMonth() + 1)}-${padNumber(
     value.getDate()
   )}T${padNumber(value.getHours())}:${padNumber(value.getMinutes())}`;
-
-const toIsoString = (value: string): string => {
-  if (!value) return value;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toISOString();
-};
 
 export default function TournamentForm({
   onSubmit,
@@ -218,16 +212,10 @@ export default function TournamentForm({
     const hasName = formState.name.trim().length > 0;
     if (!hasName) return formState;
 
-    const now = new Date();
-    const startFallback = new Date(now.getTime() + 60 * 60 * 1000);
-    const endFallback = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-
     return {
       ...formState,
       format: formState.format || TournamentFormat.SINGLE,
       durationType: formState.durationType || DurationType.FULL_DAY,
-      startTime: formState.startTime || toLocalInput(startFallback),
-      endTime: formState.endTime || toLocalInput(endFallback),
       targetStartNumber: formState.targetStartNumber || '1',
       shareTargets: formState.shareTargets ?? true,
     };
@@ -312,8 +300,8 @@ export default function TournamentForm({
         name: submissionState.name.trim(),
         format: submissionState.format,
         durationType: submissionState.durationType,
-        startTime: toIsoString(submissionState.startTime),
-        endTime: toIsoString(submissionState.endTime),
+        startTime: localInputToIso(submissionState.startTime),
+        endTime: localInputToIso(submissionState.endTime),
         totalParticipants: Number(submissionState.totalParticipants || 0),
         targetCount: Number(submissionState.targetCount || 0),
         targetStartNumber: Number(submissionState.targetStartNumber || 1),
@@ -431,6 +419,7 @@ export default function TournamentForm({
           <input
             id="start-time"
             type="datetime-local"
+            required
             value={formState.startTime}
             onChange={(event) => setField('startTime', event.target.value)}
             onBlur={() => handleBlur('startTime')}
@@ -446,6 +435,7 @@ export default function TournamentForm({
           <input
             id="end-time"
             type="datetime-local"
+            required
             value={formState.endTime}
             onChange={(event) => setField('endTime', event.target.value)}
             onBlur={() => handleBlur('endTime')}

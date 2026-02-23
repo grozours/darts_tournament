@@ -303,6 +303,7 @@ export const PoolStageItem = ({
           ))}
         </select>
         <button
+          type="button"
           onClick={() => onOpenPoolStageAssignments(stage)}
           disabled={normalizeStageStatus(stage.status) !== StageStatus.EDITION}
           className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
@@ -310,6 +311,7 @@ export const PoolStageItem = ({
           {t('edit.editPlayers')}
         </button>
         <button
+          type="button"
           onClick={() => onSavePoolStage({
             ...stage,
             rankingDestinations: stage.rankingDestinations ?? destinations,
@@ -319,6 +321,7 @@ export const PoolStageItem = ({
           {t('common.save')}
         </button>
         <button
+          type="button"
           onClick={() => onRemovePoolStage(stage.id)}
           className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/20"
         >
@@ -400,6 +403,7 @@ export const NewPoolStageForm = ({
     return (
       <div className="mt-5 flex justify-end">
         <button
+          type="button"
           onClick={onStartAddPoolStage}
           className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400"
         >
@@ -528,12 +532,14 @@ export const NewPoolStageForm = ({
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         <button
+          type="button"
           onClick={onCancelAddPoolStage}
           className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
         >
           {t('common.cancel')}
         </button>
         <button
+          type="button"
           onClick={onAddPoolStage}
           disabled={!newPoolStage.name.trim()}
           className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400"

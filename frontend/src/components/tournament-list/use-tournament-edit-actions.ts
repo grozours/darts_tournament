@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { TournamentPlayer, CreateTournamentPayload } from '../../services/tournament-service';
 import { updateTournament, updateTournamentStatus } from '../../services/tournament-service';
 import { normalizeTournamentStatus } from './tournament-status-helpers';
+import { localInputToIso } from './tournament-date-helpers';
 import type { EditFormState, Tournament, Translator } from './types';
 
 type UseTournamentEditActionsProperties = {
@@ -76,10 +77,10 @@ const useSaveEditAction = ({
       doubleStageEnabled: editForm.doubleStageEnabled,
     };
     if (editForm.startTime) {
-      payload.startTime = new Date(editForm.startTime).toISOString();
+      payload.startTime = localInputToIso(editForm.startTime);
     }
     if (editForm.endTime) {
-      payload.endTime = new Date(editForm.endTime).toISOString();
+      payload.endTime = localInputToIso(editForm.endTime);
     }
 
     await updateTournament(editingTournament.id, payload, token);
