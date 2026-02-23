@@ -68,7 +68,7 @@ const TournamentAdminActions = ({
           : t('tournaments.openRegistration')}
       </button>
     )}
-    {normalizedStatus === 'DRAFT' && !hideOpenSignatureAction && (
+    {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && (
       <button
         onClick={() => onOpenSignature(tournament.id)}
         disabled={openingSignatureId === tournament.id}
