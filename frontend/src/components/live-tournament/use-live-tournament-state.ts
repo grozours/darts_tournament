@@ -251,7 +251,10 @@ const useLiveTournamentState = (): LiveTournamentState => {
   }, [bracketId, handleSelectBracket, tournamentId]);
   const { isPoolStagesReadonly, isBracketsReadonly } = useLiveTournamentReadonly({ isAdmin, viewMode });
 
-  useLiveTournamentRefresh({ reloadLiveViews });
+  useLiveTournamentRefresh({
+    reloadLiveViews,
+    canRefresh: !authEnabled || !authLoading,
+  });
 
   return {
     t,

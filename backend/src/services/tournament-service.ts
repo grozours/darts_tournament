@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import TournamentLogger from '../utils/tournament-logger';
 import { Request } from 'express';
 import { AppError } from '../middleware/error-handler';
+import { isAdmin } from '../middleware/auth';
 import { createBracketHandlers } from './tournament-service/bracket-handlers';
 import { createPlayerHandlers } from './tournament-service/player-handlers';
 import { createPoolStageHandlers } from './tournament-service/pool-stage-handlers';
@@ -80,6 +81,7 @@ export class TournamentService {
   constructor(prisma: PrismaClient, request?: Request) {
     this.tournamentModel = new TournamentModel(prisma);
     this.logger = new TournamentLogger(request);
+    const isAdminRequest = request ? isAdmin(request) : false;
     const loggerProxy = {
       accessError: (...arguments_: Parameters<TournamentLogger['accessError']>) =>
         this.logger.accessError(...arguments_),
@@ -146,6 +148,7 @@ export class TournamentService {
       logger: loggerProxy,
       validateUUID: this.validateUUID.bind(this),
       registerPlayer: (tournamentId, playerId) => this.registerPlayer(tournamentId, playerId),
+      canViewDraftLive: () => isAdminRequest,
     });
 
     Object.assign(

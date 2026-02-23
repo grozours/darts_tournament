@@ -10,6 +10,10 @@ type LiveTournamentTokenResult = {
   getSafeAccessToken: () => Promise<string | undefined>;
 };
 
+const wait = (durationMs: number): Promise<void> => new Promise((resolve) => {
+  globalThis.setTimeout(resolve, durationMs);
+});
+
 const useLiveTournamentToken = ({
   authEnabled,
   isAuthenticated,
@@ -17,12 +21,22 @@ const useLiveTournamentToken = ({
 }: UseLiveTournamentTokenProperties): LiveTournamentTokenResult => {
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled || !isAuthenticated) return undefined;
-    try {
-      return await getAccessTokenSilently();
-    } catch (error) {
-      console.warn('Failed to get access token, proceeding without auth:', error);
-      return undefined;
+
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await getAccessTokenSilently();
+      } catch (error) {
+        if (attempt < maxAttempts) {
+          await wait(400);
+          continue;
+        }
+        console.warn('Failed to get access token, proceeding without auth:', error);
+        return undefined;
+      }
     }
+
+    return undefined;
   }, [authEnabled, getAccessTokenSilently, isAuthenticated]);
 
   return { getSafeAccessToken };

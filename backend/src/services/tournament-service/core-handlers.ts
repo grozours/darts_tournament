@@ -42,10 +42,11 @@ type TournamentCoreContext = {
   logger: TournamentLogger;
   validateUUID: (id: string) => void;
   registerPlayer: (tournamentId: string, playerId: string) => Promise<void>;
+  canViewDraftLive?: () => boolean;
 };
 
 export const createTournamentCoreHandlers = (context: TournamentCoreContext) => {
-  const { tournamentModel, logger, validateUUID, registerPlayer } = context;
+  const { tournamentModel, logger, validateUUID, registerPlayer, canViewDraftLive } = context;
 
   const sanitizeName = (name: string): string => {
     let sanitized = '';
@@ -523,11 +524,13 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       const isViewableOpenTournament =
         (tournament.status === TournamentStatus.OPEN || tournament.status === TournamentStatus.SIGNATURE)
         && hasConfiguredPools;
+      const isAdminDraftView = tournament.status === TournamentStatus.DRAFT && (canViewDraftLive?.() ?? false);
 
       if (
         tournament.status !== TournamentStatus.LIVE
         && tournament.status !== TournamentStatus.FINISHED
         && !isViewableOpenTournament
+        && !isAdminDraftView
       ) {
         throw new AppError('Tournament is not live', 400, 'TOURNAMENT_NOT_LIVE');
       }

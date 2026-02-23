@@ -7,7 +7,6 @@ type BracketsSectionProperties = {
   tournamentId: string;
   brackets: LiveViewBracket[];
   screenMode: boolean;
-  hasLoserBracket: boolean;
   isAdmin: boolean;
   isBracketsReadonly: boolean;
   updatingMatchId: string | undefined;
@@ -39,7 +38,6 @@ type BracketsHeaderProperties = {
   t: Translator;
   tournamentId: string;
   brackets: LiveViewBracket[];
-  hasLoserBracket: boolean;
   activeBracketId: string;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
 };
@@ -48,16 +46,12 @@ const BracketsHeader = ({
   t,
   tournamentId,
   brackets,
-  hasLoserBracket,
   activeBracketId,
   onSelectBracket,
 }: BracketsHeaderProperties) => (
   <div className="flex flex-wrap items-center justify-between gap-3">
     <div>
       <h3 className="text-lg font-semibold text-white">{t('live.bracketStages')}</h3>
-      <p className="text-xs text-slate-500">
-        {t('live.loserBracket')}: {hasLoserBracket ? t('common.yes') : t('common.no')}
-      </p>
     </div>
     <div className="flex flex-wrap gap-2">
       {[...brackets].reverse().map((bracket) => (
@@ -148,7 +142,6 @@ const BracketsSection = ({
   tournamentId,
   brackets,
   screenMode,
-  hasLoserBracket,
   isAdmin,
   isBracketsReadonly,
   updatingMatchId,
@@ -237,7 +230,6 @@ const BracketsSection = ({
         t={t}
         tournamentId={tournamentId}
         brackets={brackets}
-        hasLoserBracket={hasLoserBracket}
         activeBracketId={activeBracket.id}
         onSelectBracket={onSelectBracket}
       />

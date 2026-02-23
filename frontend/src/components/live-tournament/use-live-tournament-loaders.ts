@@ -19,6 +19,32 @@ type LiveTournamentLoadersResult = {
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
 };
 
+const getErrorCode = (value: unknown): string | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const candidate = value as { code?: unknown };
+  return typeof candidate.code === 'string' ? candidate.code : undefined;
+};
+
+const getUserFacingError = (value: unknown): string => {
+  const code = getErrorCode(value);
+  if (code === 'TOURNAMENT_NOT_LIVE') {
+    return 'Tournament is not open for live view yet';
+  }
+  if (value instanceof Error && value.message.trim() !== '') {
+    return value.message;
+  }
+  return 'Failed to load live view';
+};
+
+const wait = (durationMs: number): Promise<void> => new Promise((resolve) => {
+  globalThis.setTimeout(resolve, durationMs);
+});
+
+const MAX_NOT_LIVE_RETRIES = 4;
+const NOT_LIVE_RETRY_DELAY_MS = 1200;
+
 const getStatusList = (viewMode?: string, viewStatus?: LiveViewStatus): string[] => {
   if (viewMode === 'pool-stages' && !viewStatus) {
     return ['LIVE', 'OPEN', 'SIGNATURE'];
@@ -69,12 +95,29 @@ const useLiveTournamentLoaders = ({
     setError(undefined);
 
     try {
-      const token = await getSafeAccessToken();
-      const data = (await fetchTournamentLiveView(tournamentId, token)) as LiveViewData;
-      setLiveViews([data]);
+      for (let attempt = 0; attempt <= MAX_NOT_LIVE_RETRIES; attempt += 1) {
+        try {
+          const token = await getSafeAccessToken();
+          const data = (await fetchTournamentLiveView(tournamentId, token)) as LiveViewData;
+          setLiveViews([data]);
+          return;
+        } catch (error_) {
+          const isTransientNotLive = getErrorCode(error_) === 'TOURNAMENT_NOT_LIVE';
+          const hasAttemptsLeft = attempt < MAX_NOT_LIVE_RETRIES;
+
+          if (isTransientNotLive && hasAttemptsLeft) {
+            await wait(NOT_LIVE_RETRY_DELAY_MS);
+            continue;
+          }
+
+          console.error('Error fetching live view:', error_);
+          setError(getUserFacingError(error_));
+          return;
+        }
+      }
     } catch (error_) {
       console.error('Error fetching live view:', error_);
-      setError(error_ instanceof Error ? error_.message : 'Failed to load live view');
+      setError(getUserFacingError(error_));
     } finally {
       if (showLoader) {
         setLoading(false);
@@ -105,7 +148,7 @@ const useLiveTournamentLoaders = ({
       setLiveViews([...viewMap.values()]);
     } catch (error_) {
       console.error('Error fetching live view:', error_);
-      setError(error_ instanceof Error ? error_.message : 'Failed to load live view');
+      setError(getUserFacingError(error_));
     } finally {
       if (showLoader) {
         setLoading(false);

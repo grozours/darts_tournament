@@ -111,6 +111,60 @@ const buildAuthRequestOptions = (token?: string): RequestInit => (
   token ? { headers: { Authorization: `Bearer ${token}` } } : {}
 );
 
+type ApiErrorPayload = {
+  message?: string;
+  code?: string;
+  error?: string | { message?: string; code?: string };
+};
+
+const parseJsonSafely = (value: string): unknown => {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+};
+
+const readApiErrorBody = async (response: Response): Promise<{ payload?: ApiErrorPayload; textBody: string }> => {
+  const contentType = response.headers.get('content-type') ?? '';
+  const isJson = contentType.includes('application/json');
+
+  if (isJson) {
+    const parsedBody = await response.json().catch(() => undefined);
+    const payload = parsedBody && typeof parsedBody === 'object'
+      ? parsedBody as ApiErrorPayload
+      : undefined;
+    return { payload, textBody: '' };
+  }
+
+  const textBody = await response.text().catch(() => '');
+  const parsedBody = textBody.trim().startsWith('{') ? parseJsonSafely(textBody) : undefined;
+  const payload = parsedBody && typeof parsedBody === 'object'
+    ? parsedBody as ApiErrorPayload
+    : undefined;
+  return { payload, textBody };
+};
+
+const buildApiError = async (response: Response, fallbackMessage: string): Promise<Error & { code?: string; status?: number }> => {
+  const { payload, textBody } = await readApiErrorBody(response);
+
+  const messageFromPayload = payload?.message
+    ?? (typeof payload?.error === 'object' ? payload.error?.message : undefined)
+    ?? (typeof payload?.error === 'string' ? payload.error : undefined);
+  const codeFromPayload = payload?.code
+    ?? (typeof payload?.error === 'object' ? payload.error?.code : undefined);
+
+  const error = new Error(messageFromPayload || textBody || fallbackMessage) as Error & {
+    code?: string;
+    status?: number;
+  };
+  if (codeFromPayload) {
+    error.code = codeFromPayload;
+  }
+  error.status = response.status;
+  return error;
+};
+
 export async function createTournament(
   payload: CreateTournamentPayload,
   token?: string
@@ -238,8 +292,7 @@ export async function fetchTournamentLiveView(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Failed to fetch live tournament view');
+    throw await buildApiError(response, 'Failed to fetch live tournament view');
   }
 
   return response.json();

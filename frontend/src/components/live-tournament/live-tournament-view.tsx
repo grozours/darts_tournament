@@ -244,9 +244,8 @@ const LiveTournamentPoolSummaryCards = ({ t, stats, hasLoserBracket }: LiveTourn
       <p className="mt-1 text-xs text-slate-400">{t('live.playersPerPoolNote')}</p>
     </div>
     <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
-      <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.loserBracket')}</p>
+      <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.afterPools')}</p>
       <p className="mt-2 text-lg font-semibold text-white">{hasLoserBracket ? t('common.yes') : t('common.no')}</p>
-      <p className="mt-1 text-xs text-slate-400">{t('live.afterPools')}</p>
     </div>
   </div>
 );
@@ -420,7 +419,6 @@ const LiveTournamentView = ({
     tournamentId: view.id,
     brackets: filteredBrackets,
     screenMode,
-    hasLoserBracket,
     isAdmin,
     isBracketsReadonly,
     updatingMatchId,
