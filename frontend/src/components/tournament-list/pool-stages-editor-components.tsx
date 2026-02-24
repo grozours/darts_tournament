@@ -22,6 +22,8 @@ type PoolStagesListProperties = {
   poolStages: PoolStageConfig[];
   brackets: BracketConfig[];
   isTournamentLive: boolean;
+  showStageStatusControl?: boolean;
+  showEditPlayersButton?: boolean;
   onPoolStageNumberChange: (id: string, value: number) => void;
   onPoolStageNameChange: (id: string, value: string) => void;
   onPoolStagePoolCountChange: (id: string, value: number) => void;
@@ -47,6 +49,8 @@ type PoolStageItemProperties = {
   brackets: BracketConfig[];
   poolStages: PoolStageConfig[];
   isTournamentLive: boolean;
+  showStageStatusControl?: boolean;
+  showEditPlayersButton?: boolean;
   onPoolStageNumberChange: (id: string, value: number) => void;
   onPoolStageNameChange: (id: string, value: string) => void;
   onPoolStagePoolCountChange: (id: string, value: number) => void;
@@ -152,6 +156,8 @@ export const PoolStageItem = ({
   brackets,
   poolStages,
   isTournamentLive,
+  showStageStatusControl = true,
+  showEditPlayersButton = true,
   onPoolStageNumberChange,
   onPoolStageNameChange,
   onPoolStagePoolCountChange,
@@ -287,29 +293,33 @@ export const PoolStageItem = ({
         </div>
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
-        <select
-          value={stage.status}
-          onChange={(event_) => onPoolStageStatusChange(stage, event_.target.value)}
-          className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
-        >
-          {Object.values(StageStatus).map((status) => (
-            <option
-              key={status}
-              value={status}
-              disabled={!isTournamentLive && status === StageStatus.IN_PROGRESS}
-            >
-              {getStatusLabel('stage', status)}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => onOpenPoolStageAssignments(stage)}
-          disabled={normalizeStageStatus(stage.status) !== StageStatus.EDITION}
-          className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {t('edit.editPlayers')}
-        </button>
+        {showStageStatusControl && (
+          <select
+            value={stage.status}
+            onChange={(event_) => onPoolStageStatusChange(stage, event_.target.value)}
+            className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200"
+          >
+            {Object.values(StageStatus).map((status) => (
+              <option
+                key={status}
+                value={status}
+                disabled={!isTournamentLive && status === StageStatus.IN_PROGRESS}
+              >
+                {getStatusLabel('stage', status)}
+              </option>
+            ))}
+          </select>
+        )}
+        {showEditPlayersButton && (
+          <button
+            type="button"
+            onClick={() => onOpenPoolStageAssignments(stage)}
+            disabled={normalizeStageStatus(stage.status) !== StageStatus.EDITION}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {t('edit.editPlayers')}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onSavePoolStage({
@@ -337,6 +347,8 @@ export const PoolStagesList = ({
   poolStages,
   brackets,
   isTournamentLive,
+  showStageStatusControl = true,
+  showEditPlayersButton = true,
   onPoolStageNumberChange,
   onPoolStageNameChange,
   onPoolStagePoolCountChange,
@@ -363,6 +375,8 @@ export const PoolStagesList = ({
           brackets={brackets}
           poolStages={poolStages}
           isTournamentLive={isTournamentLive}
+          showStageStatusControl={showStageStatusControl}
+          showEditPlayersButton={showEditPlayersButton}
           onPoolStageNumberChange={onPoolStageNumberChange}
           onPoolStageNameChange={onPoolStageNameChange}
           onPoolStagePoolCountChange={onPoolStagePoolCountChange}

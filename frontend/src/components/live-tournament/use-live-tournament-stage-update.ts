@@ -20,6 +20,8 @@ type UseLiveTournamentStageUpdateProperties = {
 
 type LiveTournamentStageUpdateResult = {
   updatingStageId?: string | undefined;
+  handleLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
+  handleResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleDeleteStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
@@ -37,6 +39,51 @@ const useLiveTournamentStageUpdate = ({
   onFinishEdit,
 }: UseLiveTournamentStageUpdateProperties): LiveTournamentStageUpdateResult => {
   const [updatingStageId, setUpdatingStageId] = useState<string | undefined>();
+
+  const handleLaunchStage = useCallback(async (stageTournamentId: string, stage: LiveViewPoolStage) => {
+    setUpdatingStageId(stage.id);
+    setError(undefined);
+    try {
+      const hasPoolAssignments = (stage.pools ?? []).some((pool) => (pool.assignments?.length ?? 0) > 0);
+      const targetStatus = hasPoolAssignments ? 'IN_PROGRESS' : 'EDITION';
+      const token = await getSafeAccessToken();
+      await updatePoolStage(
+        stageTournamentId,
+        stage.id,
+        { status: targetStatus },
+        token
+      );
+      await reloadLiveViews({ showLoader: false });
+    } catch (error) {
+      console.error('Error launching pool stage:', error);
+      setError(error instanceof Error ? error.message : 'Failed to launch pool stage');
+    } finally {
+      setUpdatingStageId(undefined);
+    }
+  }, [getSafeAccessToken, reloadLiveViews, setError]);
+
+  const handleResetStage = useCallback(async (stageTournamentId: string, stage: LiveViewPoolStage) => {
+    if (!confirm(t('live.resetStageConfirm'))) {
+      return;
+    }
+    setUpdatingStageId(stage.id);
+    setError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      await updatePoolStage(
+        stageTournamentId,
+        stage.id,
+        { status: 'NOT_STARTED' },
+        token
+      );
+      await reloadLiveViews({ showLoader: false });
+    } catch (error) {
+      console.error('Error resetting pool stage:', error);
+      setError(error instanceof Error ? error.message : 'Failed to reset pool stage');
+    } finally {
+      setUpdatingStageId(undefined);
+    }
+  }, [getSafeAccessToken, reloadLiveViews, setError, t]);
 
   const handleUpdateStage = useCallback(async (stageTournamentId: string, stage: LiveViewPoolStage) => {
     const nextStatus = stageStatusDrafts[stage.id] || stage.status;
@@ -128,6 +175,8 @@ const useLiveTournamentStageUpdate = ({
 
   return {
     updatingStageId,
+    handleLaunchStage,
+    handleResetStage,
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,

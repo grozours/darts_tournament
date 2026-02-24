@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { TournamentService, TournamentFilters } from '../services/tournament-service';
 import { TournamentFormat, TournamentStatus } from '../../../shared/src/types';
 import { AppError } from '../middleware/error-handler';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { isAdmin } from '../middleware/auth';
 import { createExtendedHandlers } from './tournament-controller/extended-handlers';
 
@@ -187,6 +187,121 @@ export class TournamentController {
           },
         });
       }
+    }
+  };
+
+  /**
+   * Get all tournament presets
+   * GET /api/tournaments/presets
+   */
+  getTournamentPresets = async (_request: Request, response: Response): Promise<void> => {
+    try {
+      const presets = await this.prisma.tournamentPreset.findMany({
+        orderBy: { updatedAt: 'desc' },
+      });
+      response.json({ presets });
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Create tournament preset
+   * POST /api/tournaments/presets
+   */
+  createTournamentPreset = async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { name, presetType, totalParticipants, targetCount, templateConfig } = request.body as {
+        name: string;
+        presetType: 'single-pool-stage' | 'three-pool-stages' | 'custom';
+        totalParticipants: number;
+        targetCount: number;
+        templateConfig?: unknown;
+      };
+
+      const preset = await this.prisma.tournamentPreset.create({
+        data: {
+          name,
+          presetType,
+          totalParticipants,
+          targetCount,
+          ...(templateConfig === undefined
+            ? {}
+            : {
+              templateConfig: templateConfig === null
+                ? Prisma.JsonNull
+                : templateConfig as Prisma.InputJsonValue,
+            }),
+        },
+      });
+
+      response.status(201).json(preset);
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Update tournament preset
+   * PATCH /api/tournaments/presets/:presetId
+   */
+  updateTournamentPreset = async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { presetId } = request.params as { presetId: string };
+      const existing = await this.prisma.tournamentPreset.findUnique({ where: { id: presetId } });
+      if (!existing) {
+        throw new AppError('Preset not found', 404, 'PRESET_NOT_FOUND');
+      }
+
+      const { name, presetType, totalParticipants, targetCount, templateConfig } = request.body as Partial<{
+        name: string;
+        presetType: 'single-pool-stage' | 'three-pool-stages' | 'custom';
+        totalParticipants: number;
+        targetCount: number;
+        templateConfig: unknown;
+      }>;
+
+      const templateConfigValue = templateConfig === undefined
+        ? existing.templateConfig
+        : templateConfig;
+
+      const updateData = {
+        name: name ?? existing.name,
+        presetType: presetType ?? existing.presetType,
+        totalParticipants: totalParticipants ?? existing.totalParticipants,
+        targetCount: targetCount ?? existing.targetCount,
+        templateConfig: templateConfigValue === null
+          ? Prisma.JsonNull
+          : templateConfigValue as Prisma.InputJsonValue,
+      };
+
+      const preset = await this.prisma.tournamentPreset.update({
+        where: { id: presetId },
+        data: updateData,
+      });
+
+      response.json(preset);
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Delete tournament preset
+   * DELETE /api/tournaments/presets/:presetId
+   */
+  deleteTournamentPreset = async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { presetId } = request.params as { presetId: string };
+      const existing = await this.prisma.tournamentPreset.findUnique({ where: { id: presetId } });
+      if (!existing) {
+        throw new AppError('Preset not found', 404, 'PRESET_NOT_FOUND');
+      }
+
+      await this.prisma.tournamentPreset.delete({ where: { id: presetId } });
+      response.status(204).send();
+    } catch (error) {
+      this.handleError(response, error);
     }
   };
 

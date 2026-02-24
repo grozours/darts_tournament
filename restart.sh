@@ -3,12 +3,14 @@
 # Darts Tournament Manager - Service Restart Script (Docker Compose)
 # Usage: ./restart.sh [-d] [-dev] [backend|backend+deps|frontend|both|stop|status|logs]
 
-PROJECT_ROOT="/home/tangi/darts_tournament"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
 COMPOSE_CMD=()
 BACKEND_PORT=3000
 FRONTEND_PORT=3001
 DEBUG_UI=${DEBUG_UI:-false}
 DEV_PROFILE=${DEV_PROFILE:-false}
+BUILD_ID=${BUILD_ID:-$(date +%s)}
 DEV_SERVICES=(postgres_test redis_test sonarqube)
 
 # Colors for output
@@ -178,6 +180,7 @@ set -- "${POSITIONAL_ARGS[@]}"
 COMMAND="${1:-both}"
 export DEBUG_UI
 export DEV_PROFILE
+export BUILD_ID
 
 COMPOSE_PROFILE_ARGS=()
 if [[ "$DEV_PROFILE" == "true" ]]; then

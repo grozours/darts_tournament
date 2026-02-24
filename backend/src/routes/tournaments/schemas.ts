@@ -123,9 +123,146 @@ export const updateTournamentSchema = {
   }),
 };
 
+const tournamentPresetTypeSchema = z.enum(['single-pool-stage', 'three-pool-stages', 'custom']);
+
+const presetRoutingRuleSchema = z
+  .object({
+    stageNumber: z.number().int().min(1),
+    position: z.number().int().min(1),
+    destinationType: z.enum(['POOL_STAGE', 'BRACKET', 'ELIMINATED']),
+    destinationStageNumber: z.number().int().min(1).optional(),
+    destinationBracketName: z.string().min(1).max(100).optional(),
+  })
+  .superRefine((rule, context) => {
+    if (rule.destinationType === 'POOL_STAGE' && rule.destinationStageNumber === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'destinationStageNumber is required when destinationType is POOL_STAGE',
+      });
+    }
+
+    if (rule.destinationType === 'BRACKET' && !rule.destinationBracketName) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'destinationBracketName is required when destinationType is BRACKET',
+      });
+    }
+  });
+
+const presetTemplateConfigSchema = z
+  .object({
+    format: z.nativeEnum(TournamentFormat),
+    stages: z.array(
+      z.object({
+        name: z.string().min(1).max(100),
+        poolCount: z.number().int().min(1).max(256),
+        playersPerPool: z.number().int().min(2).max(16),
+        advanceCount: z.number().int().min(1).max(16),
+      })
+    ).min(1).max(16),
+    brackets: z.array(
+      z.object({
+        name: z.string().min(1).max(100),
+        totalRounds: z.number().int().min(1).max(16),
+      })
+    ).min(1).max(16),
+    routingRules: z.array(presetRoutingRuleSchema),
+  })
+  .superRefine((config, context) => {
+    const stageNumbers = new Set(config.stages.map((_, index) => index + 1));
+    for (const rule of config.routingRules) {
+      if (!stageNumbers.has(rule.stageNumber)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'routingRules contains invalid stageNumber',
+        });
+      }
+      if (rule.destinationType === 'POOL_STAGE' && rule.destinationStageNumber !== undefined) {
+        if (!stageNumbers.has(rule.destinationStageNumber)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'routingRules contains invalid destinationStageNumber',
+          });
+        }
+      }
+      if (rule.destinationType === 'BRACKET' && rule.destinationBracketName) {
+        const bracketExists = config.brackets.some((bracket) => bracket.name === rule.destinationBracketName);
+        if (!bracketExists) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'routingRules contains unknown destinationBracketName',
+          });
+        }
+      }
+    }
+  });
+
+export const createTournamentPresetSchema = {
+  body: z.object({
+    name: z
+      .string({ required_error: 'Preset name is required' })
+      .min(3, 'Preset name must be at least 3 characters long')
+      .max(100, 'Preset name cannot exceed 100 characters')
+      .trim(),
+    presetType: tournamentPresetTypeSchema,
+    totalParticipants: z
+      .number({ required_error: 'Total participants is required' })
+      .int({ message: 'Total participants must be an integer' })
+      .min(4, 'Participants must be at least 4')
+      .max(512, 'Participants cannot exceed 512'),
+    targetCount: z
+      .number({ required_error: 'Target count is required' })
+      .int({ message: 'Target count must be an integer' })
+      .min(1, 'Target count must be at least 1')
+      .max(32, 'Target count cannot exceed 32'),
+    templateConfig: presetTemplateConfigSchema.optional(),
+  }),
+};
+
+export const updateTournamentPresetSchema = {
+  body: z
+    .object({
+      name: z
+        .string()
+        .min(3, 'Preset name must be at least 3 characters long')
+        .max(100, 'Preset name cannot exceed 100 characters')
+        .trim()
+        .optional(),
+      presetType: tournamentPresetTypeSchema.optional(),
+      totalParticipants: z
+        .number()
+        .int({ message: 'Total participants must be an integer' })
+        .min(4, 'Participants must be at least 4')
+        .max(512, 'Participants cannot exceed 512')
+        .optional(),
+      targetCount: z
+        .number()
+        .int({ message: 'Target count must be an integer' })
+        .min(1, 'Target count must be at least 1')
+        .max(32, 'Target count cannot exceed 32')
+        .optional(),
+      templateConfig: presetTemplateConfigSchema.optional(),
+    })
+    .refine(
+      (data) =>
+        data.name !== undefined
+        || data.presetType !== undefined
+        || data.totalParticipants !== undefined
+        || data.targetCount !== undefined
+        || data.templateConfig !== undefined,
+      { message: 'At least one field is required for update' }
+    ),
+};
+
 export const uuidSchema = {
   params: z.object({
     id: z.string().uuid('Invalid UUID format'),
+  }),
+};
+
+export const presetUuidSchema = {
+  params: z.object({
+    presetId: z.string().uuid('Invalid preset UUID format'),
   }),
 };
 

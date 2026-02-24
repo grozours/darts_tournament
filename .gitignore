@@ -59,6 +59,8 @@ playwright-report/
 *.temp
 .cache/
 
+backend/.tmp-seed
+
 # IDE (uncomment if you don't want to share IDE settings)
 # .vscode/
 # .idea/

@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import LiveTournamentGate from './live-tournament/live-tournament-gate';
 import MatchQueueSection from './live-tournament/match-queue-section';
+import PoolStageAssignmentsModal from './live-tournament/pool-stage-assignments-modal';
 import LiveTournamentView from './live-tournament/live-tournament-view';
 import { hasActiveBrackets, hasActivePoolStages, resolveEmptyLiveCopy } from '../utils/live-view-helpers';
+import useLiveTournamentPoolStageAssignments from './live-tournament/use-live-tournament-pool-stage-assignments';
 import useLiveTournamentState from './live-tournament/use-live-tournament-state';
-import type { LiveViewData, LiveViewMatch, LiveViewMode, Translator } from './live-tournament/types';
+import type { LiveViewData, LiveViewMatch, LiveViewMode, LiveViewPoolStage, Translator } from './live-tournament/types';
 
 type LiveTournamentFiltersProperties = {
   t: Translator;
@@ -136,6 +138,8 @@ function LiveTournament() {
     liveViews,
     loading,
     error,
+    setError,
+    getSafeAccessToken,
     reloadLiveViews,
     visibleLiveViews,
     displayedLiveViews,
@@ -170,7 +174,8 @@ function LiveTournament() {
     stagePoolCountDrafts,
     stagePlayersPerPoolDrafts,
     updatingStageId,
-    handleEditStage,
+    handleLaunchStage,
+    handleResetStage,
     handleStageStatusChange,
     handleStagePoolCountChange,
     handleStagePlayersPerPoolChange,
@@ -190,6 +195,23 @@ function LiveTournament() {
     isPoolStagesReadonly,
     isBracketsReadonly,
   } = useLiveTournamentState();
+  const {
+    editingPoolStage,
+    poolStagePools,
+    poolStagePlayers,
+    poolStageAssignments,
+    poolStageEditError,
+    isSavingAssignments,
+    openPoolStageAssignments,
+    closePoolStageAssignments,
+    updatePoolStageAssignment,
+    savePoolStageAssignments,
+  } = useLiveTournamentPoolStageAssignments({
+    t,
+    getSafeAccessToken,
+    reloadLiveViews,
+    setError,
+  });
 
   useEffect(() => {
     if (!screenMode || viewMode !== 'pool-stages') {
@@ -319,7 +341,9 @@ function LiveTournament() {
       onCancelMatchEdit: cancelMatchEdit,
       onResetPoolMatches: handleResetPoolMatches,
       onScoreChange: handleScoreChange,
-      onEditStage: handleEditStage,
+      onEditStage: (stageTournamentId: string, stage: LiveViewPoolStage) => {
+        void openPoolStageAssignments(stageTournamentId, stage);
+      },
       onCancelEditStage: cancelEditStage,
       onUpdateStage: handleUpdateStage,
       onCompleteStageWithScores: handleCompleteStageWithScores,
@@ -328,6 +352,9 @@ function LiveTournament() {
       onStagePoolCountChange: handleStagePoolCountChange,
       onStagePlayersPerPoolChange: handleStagePlayersPerPoolChange,
       onStageStatusChange: handleStageStatusChange,
+      onLaunchStage: handleLaunchStage,
+      onResetStage: handleResetStage,
+      canDeleteStage: viewMode !== 'pool-stages',
       editingStageId,
       updatingStageId,
       stageStatusDrafts,
@@ -384,6 +411,20 @@ function LiveTournament() {
           activeBracketId={activeBracketByTournament[view.id] ?? ''}
         />
       ))}
+      <PoolStageAssignmentsModal
+        t={t}
+        editingPoolStage={editingPoolStage}
+        poolStagePools={poolStagePools}
+        poolStagePlayers={poolStagePlayers}
+        poolStageAssignments={poolStageAssignments}
+        poolStageEditError={poolStageEditError}
+        isSavingAssignments={isSavingAssignments}
+        onClose={closePoolStageAssignments}
+        onSave={() => {
+          void savePoolStageAssignments();
+        }}
+        onUpdateAssignment={updatePoolStageAssignment}
+      />
     </div>
     );
   }

@@ -1,4 +1,5 @@
 import { useOptionalAuth } from '../auth/optional-auth';
+import { useAdminStatus } from '../auth/use-admin-status';
 import SignInPanel from '../auth/sign-in-panel';
 import { useI18n } from '../i18n';
 
@@ -17,10 +18,11 @@ type AccountUserDetails = {
 type AccountProfileProperties = {
   t: Translator;
   userDetails: AccountUserDetails;
-  onSignOut: () => void;
+  onSignOut?: () => void;
+  showDetails: boolean;
 };
 
-const AccountProfile = ({ t, userDetails, onSignOut }: AccountProfileProperties) => (
+const AccountProfile = ({ t, userDetails, onSignOut, showDetails }: AccountProfileProperties) => (
   <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
     <div className="flex items-start gap-6">
       {userDetails.picture && (
@@ -41,40 +43,44 @@ const AccountProfile = ({ t, userDetails, onSignOut }: AccountProfileProperties)
       </div>
     </div>
 
-    <div className="mt-6 pt-6 border-t border-slate-800/70">
-      <h4 className="text-sm font-semibold text-slate-300 mb-4">{t('account.accountDetails')}</h4>
-      <div className="space-y-3">
-        {userDetails.sub && (
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">{t('account.userId')}</span>
-            <span className="text-slate-300 font-mono text-xs">{userDetails.sub}</span>
-          </div>
-        )}
-        {userDetails.email_verified !== undefined && (
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">{t('account.emailVerified')}</span>
-            <span className={userDetails.email_verified ? 'text-emerald-400' : 'text-amber-400'}>
-              {userDetails.email_verified ? t('common.yes') : t('common.no')}
-            </span>
-          </div>
-        )}
-        {userDetails.updated_at && (
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-500">{t('account.lastUpdated')}</span>
-            <span className="text-slate-300">{new Date(userDetails.updated_at).toLocaleDateString()}</span>
-          </div>
-        )}
+    {showDetails && (
+      <div className="mt-6 pt-6 border-t border-slate-800/70">
+        <h4 className="text-sm font-semibold text-slate-300 mb-4">{t('account.accountDetails')}</h4>
+        <div className="space-y-3">
+          {userDetails.sub && (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">{t('account.userId')}</span>
+              <span className="text-slate-300 font-mono text-xs">{userDetails.sub}</span>
+            </div>
+          )}
+          {userDetails.email_verified !== undefined && (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">{t('account.emailVerified')}</span>
+              <span className={userDetails.email_verified ? 'text-emerald-400' : 'text-amber-400'}>
+                {userDetails.email_verified ? t('common.yes') : t('common.no')}
+              </span>
+            </div>
+          )}
+          {userDetails.updated_at && (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">{t('account.lastUpdated')}</span>
+              <span className="text-slate-300">{new Date(userDetails.updated_at).toLocaleDateString()}</span>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    )}
 
-    <div className="mt-8 flex justify-end">
-      <button
-        onClick={onSignOut}
-        className="rounded-full border border-rose-500/60 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
-      >
-        {t('account.signOut')}
-      </button>
-    </div>
+    {onSignOut && (
+      <div className="mt-8 flex justify-end">
+        <button
+          onClick={onSignOut}
+          className="rounded-full border border-rose-500/60 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+        >
+          {t('account.signOut')}
+        </button>
+      </div>
+    )}
   </div>
 );
 
@@ -94,6 +100,7 @@ const AccountRawData = ({ t, user }: AccountRawDataProperties) => (
 
 function AccountView() {
   const { t } = useI18n();
+  const { isAdmin, adminUser } = useAdminStatus();
   const {
     enabled: authEnabled,
     isAuthenticated,
@@ -101,14 +108,6 @@ function AccountView() {
     user,
     logout,
   } = useOptionalAuth();
-
-  if (!authEnabled) {
-    return (
-      <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-        <p className="text-slate-300">{t('account.notConfigured')}</p>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -122,7 +121,21 @@ function AccountView() {
     );
   }
 
-  if (!isAuthenticated || !user) {
+  const hasAuthSession = isAuthenticated && Boolean(user);
+  let effectiveUser = user;
+  if (!hasAuthSession && isAdmin) {
+    effectiveUser = adminUser;
+  }
+
+  if (!effectiveUser) {
+    if (!authEnabled) {
+      return (
+        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
+          <p className="text-slate-300">{t('account.notConfigured')}</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
         <div>
@@ -138,7 +151,7 @@ function AccountView() {
   }
 
   // Type assertion to access Auth0 user properties
-  const userDetails = user as AccountUserDetails;
+  const userDetails = effectiveUser as AccountUserDetails;
 
   return (
     <div className="space-y-8">
@@ -150,9 +163,14 @@ function AccountView() {
       <AccountProfile
         t={t}
         userDetails={userDetails}
-        onSignOut={() => logout({ logoutParams: { returnTo: globalThis.window?.location.origin } })}
+        showDetails={isAdmin}
+        {...(hasAuthSession
+          ? {
+              onSignOut: () => logout({ logoutParams: { returnTo: globalThis.window?.location.origin } }),
+            }
+          : {})}
       />
-      <AccountRawData t={t} user={user} />
+      {isAdmin && <AccountRawData t={t} user={effectiveUser} />}
     </div>
   );
 }

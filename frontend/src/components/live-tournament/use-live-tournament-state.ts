@@ -47,6 +47,7 @@ type LiveTournamentState = {
   loading: boolean;
   error: string | undefined;
   setError: (value: string | undefined) => void;
+  getSafeAccessToken: () => Promise<string | undefined>;
   reloadLiveViews: () => Promise<void>;
   visibleLiveViews: LiveViewData[];
   displayedLiveViews: LiveViewData[];
@@ -82,6 +83,8 @@ type LiveTournamentState = {
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   updatingStageId?: string | undefined;
+  handleLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
+  handleResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleEditStage: (stage: LiveViewPoolStage) => void;
   handleStageStatusChange: (stageId: string, status: string) => void;
   handleStagePoolCountChange: (stageId: string, value: string) => void;
@@ -214,6 +217,8 @@ const useLiveTournamentState = (): LiveTournamentState => {
     stagePoolCountDrafts,
     stagePlayersPerPoolDrafts,
     updatingStageId,
+    handleLaunchStage,
+    handleResetStage,
     handleEditStage,
     handleStageStatusChange,
     handleStagePoolCountChange,
@@ -275,6 +280,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     loading,
     error,
     setError,
+    getSafeAccessToken,
     reloadLiveViews,
     visibleLiveViews,
     displayedLiveViews,
@@ -310,6 +316,8 @@ const useLiveTournamentState = (): LiveTournamentState => {
     stagePoolCountDrafts,
     stagePlayersPerPoolDrafts,
     updatingStageId,
+    handleLaunchStage,
+    handleResetStage,
     handleEditStage,
     handleStageStatusChange,
     handleStagePoolCountChange,

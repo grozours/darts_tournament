@@ -194,6 +194,15 @@ AUTH_ISSUER_BASE_URL=https://your-tenant.eu.auth0.com
 AUTH_AUDIENCE=https://api.yourdomain.com
 ```
 
+Mode local sans callback Auth0 (optionnel, développement uniquement) :
+
+```env
+# Permet un autologin admin backend si aucun Bearer token n’est fourni
+AUTH_DEV_AUTOLOGIN_ADMIN_EMAIL=your-email@gmail.com
+```
+
+Utilisez ce mode uniquement en local/dev, et laissez cette variable vide en production.
+
 **Variables d’environnement requises :**
 
 ```env

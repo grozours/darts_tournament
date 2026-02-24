@@ -26,6 +26,7 @@ export interface AdminStatusResponse {
 export function useAdminStatus() {
   const { enabled, isAuthenticated, isLoading, getAccessTokenSilently } = useOptionalAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUser, setAdminUser] = useState<AdminStatusResponse['user'] | undefined>();
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
   useEffect(() => {
@@ -35,12 +36,7 @@ export function useAdminStatus() {
     const isScreenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
     if (isScreenMode) {
       setIsAdmin(false);
-      return;
-    }
-
-    // If auth is not enabled or user is not authenticated, they're not admin
-    if (!enabled || !isAuthenticated) {
-      setIsAdmin(false);
+      setAdminUser(undefined);
       return;
     }
 
@@ -53,13 +49,17 @@ export function useAdminStatus() {
     const fetchAdminStatus = async () => {
       setCheckingAdmin(true);
       try {
-        const token = await getAccessTokenSilently();
         const apiUrl = globalThis.window?.location.origin.replace(':5173', ':3000') ?? 'http://localhost:3000';
         debugLog('[useAdminStatus] Fetching admin status from:', `${apiUrl}/api/auth/me`);
+
+        const headers: HeadersInit = {};
+        if (enabled && isAuthenticated) {
+          const token = await getAccessTokenSilently();
+          headers.Authorization = `Bearer ${token}`;
+        }
+
         const response = await fetch(`${apiUrl}/api/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers,
         });
 
         debugLog('[useAdminStatus] Response status:', response.status);
@@ -67,14 +67,17 @@ export function useAdminStatus() {
           const data: AdminStatusResponse = await response.json();
           debugLog('[useAdminStatus] Admin status data:', data);
           setIsAdmin(data.isAdmin);
+          setAdminUser(data.user);
         } else {
           const errorText = await response.text();
           debugError('[useAdminStatus] Failed to fetch admin status:', response.status, errorText);
           setIsAdmin(false);
+          setAdminUser(undefined);
         }
       } catch (error) {
         debugError('[useAdminStatus] Error fetching admin status:', error);
         setIsAdmin(false);
+        setAdminUser(undefined);
       } finally {
         setCheckingAdmin(false);
       }
@@ -83,5 +86,5 @@ export function useAdminStatus() {
     fetchAdminStatus();
   }, [enabled, isAuthenticated, isLoading, getAccessTokenSilently]);
 
-  return { isAdmin, checkingAdmin };
+  return { isAdmin, checkingAdmin, adminUser };
 }

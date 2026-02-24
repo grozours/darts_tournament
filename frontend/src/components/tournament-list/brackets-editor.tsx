@@ -12,6 +12,8 @@ type BracketsEditorProperties = {
   t: Translator;
   canEditBrackets: boolean;
   canAddBrackets: boolean;
+  showBracketStatusControl?: boolean;
+  showSaveTargetsButton?: boolean;
   brackets: BracketConfig[];
   bracketsError?: string | undefined;
   targets: Array<{ id: string; targetNumber: number }>;
@@ -39,6 +41,8 @@ type BracketsEditorProperties = {
 type BracketsListProperties = {
   t: Translator;
   canEditBrackets: boolean;
+  showBracketStatusControl?: boolean;
+  showSaveTargetsButton?: boolean;
   brackets: BracketConfig[];
   targets: Array<{ id: string; targetNumber: number }>;
   targetOwners: Map<string, string>;
@@ -56,6 +60,8 @@ type BracketsListProperties = {
 type BracketItemProperties = {
   t: Translator;
   canEditBrackets: boolean;
+  showBracketStatusControl?: boolean;
+  showSaveTargetsButton?: boolean;
   bracket: BracketConfig;
   targets: Array<{ id: string; targetNumber: number }>;
   targetOwners: Map<string, string>;
@@ -86,11 +92,13 @@ type NewBracketFormProperties = {
 const BracketItem = ({
   t,
   canEditBrackets,
+  showBracketStatusControl = true,
+  showSaveTargetsButton = true,
   bracket,
   targets,
   targetOwners,
   onBracketNameChange,
-  onBracketTypeChange,
+  onBracketTypeChange: _onBracketTypeChange,
   onBracketRoundsChange,
   onBracketStatusChange,
   onBracketTargetToggle,
@@ -161,18 +169,20 @@ const BracketItem = ({
       </div>
     </div>
     <div className="mt-3 flex flex-wrap justify-end gap-2">
-      <select
-        value={bracket.status}
-        onChange={(event_) => onBracketStatusChange(bracket.id, event_.target.value)}
-        disabled={isBracketLocked}
-        className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200 disabled:opacity-60"
-      >
-        {Object.values(BracketStatus).map((status) => (
-          <option key={status} value={status}>
-            {getStatusLabel('bracket', status)}
-          </option>
-        ))}
-      </select>
+      {showBracketStatusControl && (
+        <select
+          value={bracket.status}
+          onChange={(event_) => onBracketStatusChange(bracket.id, event_.target.value)}
+          disabled={isBracketLocked}
+          className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-200 disabled:opacity-60"
+        >
+          {Object.values(BracketStatus).map((status) => (
+            <option key={status} value={status}>
+              {getStatusLabel('bracket', status)}
+            </option>
+          ))}
+        </select>
+      )}
       <button
         onClick={() => onSaveBracket(bracket)}
         disabled={isBracketLocked}
@@ -180,13 +190,15 @@ const BracketItem = ({
       >
         {t('common.save')}
       </button>
-      <button
-        onClick={() => onSaveBracketTargets(bracket)}
-        disabled={isBracketLocked}
-        className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200 hover:border-sky-300 disabled:opacity-60"
-      >
-        {t('edit.saveTargets')}
-      </button>
+      {showSaveTargetsButton && (
+        <button
+          onClick={() => onSaveBracketTargets(bracket)}
+          disabled={isBracketLocked}
+          className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200 hover:border-sky-300 disabled:opacity-60"
+        >
+          {t('edit.saveTargets')}
+        </button>
+      )}
       <button
         onClick={() => onRemoveBracket(bracket.id)}
         disabled={isBracketLocked}
@@ -202,6 +214,8 @@ const BracketItem = ({
 const BracketsList = ({
   t,
   canEditBrackets,
+  showBracketStatusControl = true,
+  showSaveTargetsButton = true,
   brackets,
   targets,
   targetOwners,
@@ -224,6 +238,8 @@ const BracketsList = ({
           key={bracket.id}
           t={t}
           canEditBrackets={canEditBrackets}
+          showBracketStatusControl={showBracketStatusControl}
+          showSaveTargetsButton={showSaveTargetsButton}
           bracket={bracket}
           targets={targets}
           targetOwners={targetOwners}
@@ -250,7 +266,7 @@ const NewBracketForm = ({
   onStartAddBracket,
   onCancelAddBracket,
   onNewBracketNameChange,
-  onNewBracketTypeChange,
+  onNewBracketTypeChange: _onNewBracketTypeChange,
   onNewBracketRoundsChange,
   onAddBracket,
 }: NewBracketFormProperties) => {
@@ -315,6 +331,8 @@ const BracketsEditor = ({
   t,
   canEditBrackets,
   canAddBrackets,
+  showBracketStatusControl = true,
+  showSaveTargetsButton = true,
   brackets,
   bracketsError,
   targets,
@@ -365,6 +383,8 @@ const BracketsEditor = ({
     <BracketsList
       t={t}
       canEditBrackets={canEditBrackets}
+        showBracketStatusControl={showBracketStatusControl}
+        showSaveTargetsButton={showSaveTargetsButton}
       brackets={brackets}
       targets={targets}
       targetOwners={targetOwners}

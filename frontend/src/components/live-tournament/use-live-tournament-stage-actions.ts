@@ -15,6 +15,8 @@ type LiveTournamentStageActionsResult = {
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   updatingStageId?: string | undefined;
+  handleLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
+  handleResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleEditStage: (stage: LiveViewPoolStage) => void;
   handleStageStatusChange: (stageId: string, status: string) => void;
   handleStagePoolCountChange: (stageId: string, value: string) => void;
@@ -45,6 +47,8 @@ const useLiveTournamentStageActions = ({
   } = useLiveTournamentStageDrafts();
   const {
     updatingStageId,
+    handleLaunchStage,
+    handleResetStage,
     handleUpdateStage,
     handleDeleteStage,
     handleCompleteStageWithScores,
@@ -66,6 +70,8 @@ const useLiveTournamentStageActions = ({
     stagePoolCountDrafts,
     stagePlayersPerPoolDrafts,
     updatingStageId,
+    handleLaunchStage,
+    handleResetStage,
     handleEditStage,
     handleStageStatusChange,
     handleStagePoolCountChange,

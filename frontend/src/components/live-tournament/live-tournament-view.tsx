@@ -63,7 +63,7 @@ type LiveTournamentViewProperties = {
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
   onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
-  onEditStage: (stage: LiveViewPoolStage) => void;
+  onEditStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCancelEditStage: () => void;
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
@@ -72,6 +72,9 @@ type LiveTournamentViewProperties = {
   onStagePoolCountChange: (stageId: string, value: string) => void;
   onStagePlayersPerPoolChange: (stageId: string, value: string) => void;
   onStageStatusChange: (stageId: string, status: string) => void;
+  onLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  canDeleteStage: boolean;
   editingStageId?: string | undefined;
   updatingStageId?: string | undefined;
   stageStatusDrafts: Record<string, string>;
@@ -295,6 +298,9 @@ const LiveTournamentView = ({
   onStagePoolCountChange,
   onStagePlayersPerPoolChange,
   onStageStatusChange,
+  onLaunchStage,
+  onResetStage,
+  canDeleteStage,
   editingStageId,
   updatingStageId,
   stageStatusDrafts,
@@ -405,6 +411,9 @@ const LiveTournamentView = ({
     onStagePoolCountChange,
     onStagePlayersPerPoolChange,
     onStageStatusChange,
+    onLaunchStage,
+    onResetStage,
+    canDeleteStage,
     editingStageId,
     updatingStageId,
     stageStatusDrafts,

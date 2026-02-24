@@ -41,6 +41,20 @@ model Tournament {
   @@map("tournaments")
 }
 
+model TournamentPreset {
+  id                String   @id @default(uuid())
+  name              String   @unique @db.VarChar(100)
+  presetType        String   @map("preset_type") @db.VarChar(50)
+  totalParticipants Int      @map("total_participants")
+  targetCount       Int      @map("target_count")
+  templateConfig    Json?    @map("template_config")
+  isSystem          Boolean  @default(false) @map("is_system")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("tournament_presets")
+}
+
 // Player Entity
 model Player {
   id                String         @id @default(uuid())

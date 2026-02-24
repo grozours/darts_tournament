@@ -16,6 +16,11 @@ Piloter le tournoi du debut a la fin.
 - Configurer les poules et les cibles.
 - Verifier que les joueurs sont bien inscrits et pointes.
 
+## Presets de tournoi (admin)
+- Vue liste des presets : `/?view=tournament-presets`
+- Vue editeur de preset : `/?view=tournament-preset-editor&presetId=<preset-id>`
+- Les presets peuvent definir phases de poules, arbres et destinations par classement dans un template reutilisable.
+
 ## Options des poules
 - Numero et nom de la phase (ordre des phases).
 - Nombre de poules et joueurs par poule (capacite).
@@ -24,6 +29,10 @@ Piloter le tournoi du debut a la fin.
 - Destinations par classement : arbre, autre phase de poules, ou elimination.
 - Statut : NOT_STARTED, EDITION, IN_PROGRESS, COMPLETED.
 - En EDITION, utiliser "Edit players" pour ajuster les affectations.
+- En vue live des phases de poules, le bouton d'action est contextuel :
+	- **Remplir** apparait si aucun joueur n'est encore affecte.
+	- **Remplir** conserve la phase en EDITION et lance l'auto-affectation backend (equilibrage par niveaux).
+	- **Lancer** apparait une fois les affectations presentes et passe la phase en IN_PROGRESS.
 
 ### Exemple (poules vers arbre et elimination)
 - 4 joueurs par poule.

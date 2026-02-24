@@ -2,6 +2,7 @@ import type {
   BracketConfig,
   CreatePlayerPayload,
   PoolStageConfig,
+  TournamentPreset,
   TournamentPlayer,
   TournamentTarget,
 } from '../../services/tournament-service';
@@ -131,8 +132,9 @@ export type TournamentEditPanelProperties = {
   onFetchPlayers: () => void;
   onConfirmAllPlayers: () => void;
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;
-  onApplySinglePoolPreset: () => void;
-  onApplyDoublePoolPreset: () => void;
+  quickStructurePresets: TournamentPreset[];
+  quickStructurePresetsLoading: boolean;
+  onApplyStructurePreset: (preset: Pick<TournamentPreset, 'name' | 'presetType' | 'templateConfig'>) => void;
   onMoveToSignature: () => void;
   onMoveToLive: () => void;
   onOpenRegistration: () => void;
@@ -179,12 +181,13 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   isAutoFillingPlayers: properties.isAutoFillingPlayers,
   isConfirmingAll: properties.isConfirmingAll,
   isApplyingPreset: properties.isApplyingPreset,
+  quickStructurePresets: properties.quickStructurePresets,
+  quickStructurePresetsLoading: properties.quickStructurePresetsLoading,
   normalizedStatus: properties.normalizedStatus,
   onEditFormChange: properties.onEditFormChange,
   onLogoFileChange: properties.onLogoFileChange,
   onUploadLogo: properties.onUploadLogo,
-  onApplySinglePoolPreset: properties.onApplySinglePoolPreset,
-  onApplyDoublePoolPreset: properties.onApplyDoublePoolPreset,
+  onApplyStructurePreset: properties.onApplyStructurePreset,
   onLoadPoolStages: properties.onLoadPoolStages,
   onPoolStageNumberChange: properties.onPoolStageNumberChange,
   onPoolStageNameChange: properties.onPoolStageNameChange,

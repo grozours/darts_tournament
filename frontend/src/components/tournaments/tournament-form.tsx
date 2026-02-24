@@ -31,13 +31,6 @@ type ErrorState = Partial<Record<keyof FormState | 'submit' | 'logo', string | u
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-const padNumber = (value: number) => String(value).padStart(2, '0');
-
-const toLocalInput = (value: Date) =>
-  `${value.getFullYear()}-${padNumber(value.getMonth() + 1)}-${padNumber(
-    value.getDate()
-  )}T${padNumber(value.getHours())}:${padNumber(value.getMinutes())}`;
-
 export default function TournamentForm({
   onSubmit,
   onCancel,
@@ -296,12 +289,20 @@ export default function TournamentForm({
 
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const startTimeIso = localInputToIso(submissionState.startTime);
+      const endTimeIso = localInputToIso(submissionState.endTime);
+
+      if (!startTimeIso || !endTimeIso) {
+        setErrors((previous) => ({ ...previous, submit: t('tournamentForm.errors.failedCreate') }));
+        return;
+      }
+
       const result = await createTournament({
         name: submissionState.name.trim(),
         format: submissionState.format,
         durationType: submissionState.durationType,
-        startTime: localInputToIso(submissionState.startTime),
-        endTime: localInputToIso(submissionState.endTime),
+        startTime: startTimeIso,
+        endTime: endTimeIso,
         totalParticipants: Number(submissionState.totalParticipants || 0),
         targetCount: Number(submissionState.targetCount || 0),
         targetStartNumber: Number(submissionState.targetStartNumber || 1),

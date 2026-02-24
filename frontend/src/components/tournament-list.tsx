@@ -1,13 +1,16 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
-import { BracketType, TournamentFormat } from '@shared/types';
+import { TournamentFormat } from '@shared/types';
 import {
   createBracket,
   createPoolStage,
   deleteBracket,
   deletePoolStage,
+  fetchTournamentPresets,
+  type TournamentPreset,
+  updatePoolStage,
   updateTournamentStatus,
 } from '../services/tournament-service';
 import TournamentEditPanel from './tournament-list/tournament-edit-panel';
@@ -28,6 +31,10 @@ import {
   normalizeTournamentStatus,
 } from './tournament-list/tournament-status-helpers';
 import usePoolStageAssignments from './tournament-list/use-pool-stage-assignments';
+import {
+  buildPresetRoutingUpdates,
+  buildTournamentPresetTemplate,
+} from '../utils/tournament-presets';
 
 function TournamentList() { // NOSONAR
   const {
@@ -139,6 +146,8 @@ function TournamentList() { // NOSONAR
     setIsUploadingLogo,
   } = useTournamentEditState();
   const [isApplyingPreset, setIsApplyingPreset] = useState(false);
+  const [quickStructurePresets, setQuickStructurePresets] = useState<TournamentPreset[]>([]);
+  const [quickStructurePresetsLoading, setQuickStructurePresetsLoading] = useState(false);
   const refreshTournamentDetails = useCallback(async (tournamentId: string) => {
     try {
       const token = await getSafeAccessToken();
@@ -236,8 +245,19 @@ function TournamentList() { // NOSONAR
   } = useTournamentStructure({
     t,
     editingTournament,
+    authEnabled,
     getSafeAccessToken,
   });
+
+  useEffect(() => {
+    if (!editingTournament?.id) {
+      return;
+    }
+    if (authEnabled && (authLoading || !isAuthenticated)) {
+      return;
+    }
+    void loadTargets(editingTournament.id);
+  }, [authEnabled, authLoading, editingTournament?.id, isAuthenticated, loadTargets]);
   const {
     openEdit,
     closeEdit,
@@ -273,76 +293,18 @@ function TournamentList() { // NOSONAR
     setLogoFile,
     setIsUploadingLogo,
   });
-  const handleApplyStructurePreset = useCallback(async (preset: 'single' | 'double') => {
+  const handleApplyStructurePreset = useCallback(async (preset: Pick<TournamentPreset, 'name' | 'presetType' | 'templateConfig'>) => {
     if (!editingTournament) return;
     if (normalizeTournamentStatus(editingTournament.status) === 'LIVE') {
       setEditError(t('edit.quickStructureDisabledLive'));
       return;
     }
-    const confirmLabel = preset === 'single'
-      ? t('edit.quickStructureConfirmSingle')
-      : t('edit.quickStructureConfirmDouble');
-    if (!confirm(confirmLabel)) return;
-
     const totalParticipants = Number(editForm?.totalParticipants ?? editingTournament.totalParticipants ?? 0);
-    const safeParticipants = Number.isFinite(totalParticipants) && totalParticipants > 0
-      ? totalParticipants
-      : 16;
-    const poolCount = Math.max(1, Math.floor(safeParticipants / 5));
-    const stage2PoolCount = Math.max(1, Math.floor(poolCount / 2));
-    const stage3PoolCount = Math.max(1, Math.floor(poolCount / 2));
-    const template = preset === 'single'
-      ? {
-          format: TournamentFormat.SINGLE,
-          stages: [
-            {
-              stageNumber: 1,
-              name: 'Stage 1',
-              poolCount,
-              playersPerPool: 5,
-              advanceCount: 2,
-              losersAdvanceToBracket: true,
-            },
-          ],
-          brackets: [
-            { name: 'Loser Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-            { name: 'Winner Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-          ],
-        }
-      : {
-          format: TournamentFormat.DOUBLE,
-          stages: [
-            {
-              stageNumber: 1,
-              name: 'Stage 1',
-              poolCount,
-              playersPerPool: 5,
-              advanceCount: 2,
-              losersAdvanceToBracket: true,
-            },
-            {
-              stageNumber: 2,
-              name: 'Stage A',
-              poolCount: stage2PoolCount,
-              playersPerPool: 5,
-              advanceCount: 2,
-              losersAdvanceToBracket: false,
-            },
-            {
-              stageNumber: 3,
-              name: 'Stage B',
-              poolCount: stage3PoolCount,
-              playersPerPool: 5,
-              advanceCount: 2,
-              losersAdvanceToBracket: false,
-            },
-          ],
-          brackets: [
-            { name: 'A Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-            { name: 'B Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-            { name: 'C Bracket', bracketType: BracketType.SINGLE_ELIMINATION, totalRounds: 3 },
-          ],
-        };
+    const template = buildTournamentPresetTemplate(preset, totalParticipants);
+    const confirmLabel = template.format === 'DOUBLE'
+      ? t('edit.quickStructureConfirmDouble')
+      : t('edit.quickStructureConfirmSingle');
+    if (!confirm(confirmLabel)) return;
 
     setIsApplyingPreset(true);
     setEditError(undefined);
@@ -354,11 +316,26 @@ function TournamentList() { // NOSONAR
       for (const stage of poolStages) {
         await deletePoolStage(editingTournament.id, stage.id, token);
       }
+      const createdStages = [];
       for (const stage of template.stages) {
-        await createPoolStage(editingTournament.id, stage, token);
+        const createdStage = await createPoolStage(editingTournament.id, stage, token);
+        createdStages.push(createdStage);
       }
+      const createdBrackets = [];
       for (const bracket of template.brackets) {
-        await createBracket(editingTournament.id, bracket, token);
+        const createdBracket = await createBracket(editingTournament.id, bracket, token);
+        createdBrackets.push(createdBracket);
+      }
+
+      const routingUpdates = buildPresetRoutingUpdates(
+        preset.templateConfig,
+        createdStages,
+        createdBrackets
+      );
+      for (const update of routingUpdates) {
+        await updatePoolStage(editingTournament.id, update.stageId, {
+          rankingDestinations: update.rankingDestinations,
+        }, token);
       }
       if (editForm) {
         setEditForm({
@@ -375,6 +352,37 @@ function TournamentList() { // NOSONAR
       setIsApplyingPreset(false);
     }
   }, [brackets, editForm, editingTournament, getSafeAccessToken, loadBrackets, loadPoolStages, poolStages, setEditError, setEditForm, t]);
+  const loadQuickStructurePresets = useCallback(async () => {
+    if (!isAdmin) {
+      setQuickStructurePresets([]);
+      return;
+    }
+    setQuickStructurePresetsLoading(true);
+    try {
+      const token = await getSafeAccessToken();
+      const presets = await fetchTournamentPresets(token);
+
+      if (isEditPage && presets.length === 0 && globalThis.window) {
+        const redirectUrl = new URL(globalThis.window.location.href);
+        redirectUrl.searchParams.set('view', 'tournament-presets');
+        redirectUrl.searchParams.set('from', 'edit-tournament');
+        if (editTournamentId) {
+          redirectUrl.searchParams.set('tournamentId', editTournamentId);
+        }
+        globalThis.window.location.assign(`${redirectUrl.pathname}${redirectUrl.search}`);
+        return;
+      }
+
+      setQuickStructurePresets(presets);
+    } catch {
+      setQuickStructurePresets([]);
+    } finally {
+      setQuickStructurePresetsLoading(false);
+    }
+  }, [editTournamentId, getSafeAccessToken, isAdmin, isEditPage]);
+  useEffect(() => {
+    void loadQuickStructurePresets();
+  }, [loadQuickStructurePresets]);
   const handleSaveEdit = useCallback(async () => {
     if (isAddingPoolStage && newPoolStage.name.trim()) {
       const created = await addPoolStage();
@@ -568,11 +576,10 @@ function TournamentList() { // NOSONAR
           onNewPoolStageRankingDestinationChange={handleNewPoolStageRankingDestinationChange}
           onAddPoolStage={addPoolStage}
           isApplyingPreset={isApplyingPreset}
-          onApplySinglePoolPreset={() => {
-            void handleApplyStructurePreset('single');
-          }}
-          onApplyDoublePoolPreset={() => {
-            void handleApplyStructurePreset('double');
+          quickStructurePresets={quickStructurePresets}
+          quickStructurePresetsLoading={quickStructurePresetsLoading}
+          onApplyStructurePreset={(preset) => {
+            void handleApplyStructurePreset(preset);
           }}
           brackets={brackets}
           bracketsError={bracketsError}

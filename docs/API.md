@@ -488,6 +488,11 @@ Authorization: Bearer ADMIN_TOKEN
 - `IN_PROGRESS`: Matches being played
 - `COMPLETED`: All matches finished
 
+**Live behavior (admin UI):**
+- Sending `status: "EDITION"` on a stage with no assignments triggers automatic player distribution into pools (balanced by skill level) and keeps the stage editable.
+- Sending `status: "IN_PROGRESS"` creates pool matches (if needed) and starts the stage.
+- Sending `status: "NOT_STARTED"` resets pool matches for that stage.
+
 **Routing:**
 - When `rankingDestinations` is defined, stage completion routes players by rank to brackets or pool stages.
 - This overrides default `advanceCount` / `losersAdvanceToBracket` behavior for that stage.

@@ -22,6 +22,8 @@ type PoolStagesEditorProperties = {
   poolStages: PoolStageConfig[];
   brackets: BracketConfig[];
   isTournamentLive: boolean;
+  showStageStatusControl?: boolean;
+  showEditPlayersButton?: boolean;
   poolStagesError?: string | undefined;
   isAddingPoolStage: boolean;
   newPoolStage: PoolStageDraft;
@@ -64,6 +66,8 @@ const PoolStagesEditor = ({
   poolStages,
   brackets,
   isTournamentLive,
+  showStageStatusControl = true,
+  showEditPlayersButton = true,
   poolStagesError,
   isAddingPoolStage,
   newPoolStage,
@@ -111,6 +115,8 @@ const PoolStagesEditor = ({
       poolStages={poolStages}
       brackets={brackets}
       isTournamentLive={isTournamentLive}
+      showStageStatusControl={showStageStatusControl}
+      showEditPlayersButton={showEditPlayersButton}
       onPoolStageNumberChange={onPoolStageNumberChange}
       onPoolStageNameChange={onPoolStageNameChange}
       onPoolStagePoolCountChange={onPoolStagePoolCountChange}

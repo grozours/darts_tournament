@@ -9,6 +9,7 @@ import NotificationsView from "./components/notifications-view";
 import CreateTournamentPage from "./components/tournaments/create-tournament-page";
 import AccountView from "./components/account-view";
 import TournamentPlayersView from "./components/tournament-players-view";
+import TournamentPresetsView from './components/tournament-presets-view';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
 import { useI18n } from './i18n';
 import { useOptionalAuth } from './auth/optional-auth';
@@ -112,6 +113,64 @@ const resolveScreenRotationItems = async (tournamentId?: string): Promise<Screen
   return [...items, { view: 'targets' }];
 };
 
+const renderAdminOnly = (isAdmin: boolean, t: (key: string) => string, content: JSX.Element) => (
+  isAdmin
+    ? content
+    : (
+      <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-6 text-center text-slate-200">
+        {t('auth.adminOnly')}
+      </div>
+    )
+);
+
+const resolveMainContent = (
+  view: string | undefined,
+  normalizedStatus: string | undefined,
+  isAdmin: boolean,
+  t: (key: string) => string
+): JSX.Element => {
+  switch (view) {
+    case 'players': {
+      return renderAdminOnly(isAdmin, t, <PlayersView />);
+    }
+    case 'registration-players': {
+      return <RegistrationPlayers />;
+    }
+    case 'tournament-players': {
+      return <TournamentPlayersView />;
+    }
+    case 'live':
+    case 'pool-stages':
+    case 'brackets': {
+      return <LiveTournament />;
+    }
+    case 'targets': {
+      return <TargetsView />;
+    }
+    case 'notifications': {
+      return <NotificationsView />;
+    }
+    case 'create-tournament': {
+      return <CreateTournamentPage />;
+    }
+    case 'tournament-presets': {
+      return renderAdminOnly(isAdmin, t, <TournamentPresetsView mode="list" />);
+    }
+    case 'tournament-preset-editor': {
+      return renderAdminOnly(isAdmin, t, <TournamentPresetsView mode="editor" />);
+    }
+    case 'account': {
+      return <AccountView />;
+    }
+    default: {
+      if (normalizedStatus === 'live') {
+        return <LiveTournament />;
+      }
+      return <TournamentList />;
+    }
+  }
+};
+
 function App() {
   const { lang, toggleLang, t } = useI18n();
   const { isAuthenticated } = useOptionalAuth();
@@ -122,12 +181,12 @@ function App() {
   const parameters = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
     : new URLSearchParams();
-  const view = parameters.get('view');
-  const status = parameters.get('status');
-  const tournamentId = parameters.get('tournamentId');
-  const stageId = parameters.get('stageId');
-  const bracketId = parameters.get('bracketId');
-  const screenParam = parameters.get('screen');
+  const view = parameters.get('view') ?? undefined;
+  const status = parameters.get('status') ?? undefined;
+  const tournamentId = parameters.get('tournamentId') ?? undefined;
+  const stageId = parameters.get('stageId') ?? undefined;
+  const bracketId = parameters.get('bracketId') ?? undefined;
+  const screenParam = parameters.get('screen') ?? undefined;
   const screenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
   const normalizedStatus = status?.toLowerCase();
   const headerIsAdmin = screenMode ? false : isAdmin;
@@ -138,54 +197,7 @@ function App() {
     || import.meta.env.VITE_APP_VERSION
     || 'local';
 
-  let mainContent = <TournamentList />;
-  switch (view) {
-    case 'players': {
-      mainContent = isAdmin
-        ? <PlayersView />
-        : (
-          <div className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-6 text-center text-slate-200">
-            {t('auth.adminOnly')}
-          </div>
-        );
-      break;
-    }
-    case 'registration-players': {
-      mainContent = <RegistrationPlayers />;
-      break;
-    }
-    case 'tournament-players': {
-      mainContent = <TournamentPlayersView />;
-      break;
-    }
-    case 'live':
-    case 'pool-stages':
-    case 'brackets': {
-      mainContent = <LiveTournament />;
-      break;
-    }
-    case 'targets': {
-      mainContent = <TargetsView />;
-      break;
-    }
-    case 'notifications': {
-      mainContent = <NotificationsView />;
-      break;
-    }
-    case 'create-tournament': {
-      mainContent = <CreateTournamentPage />;
-      break;
-    }
-    case 'account': {
-      mainContent = <AccountView />;
-      break;
-    }
-    default: {
-      if (normalizedStatus === 'live') {
-        mainContent = <LiveTournament />;
-      }
-    }
-  }
+  const mainContent = resolveMainContent(view, normalizedStatus, isAdmin, t);
 
   const [screenRotationItems, setScreenRotationItems] = useState<ScreenRotationItem[]>([
     { view: 'pool-stages', ...(tournamentId ? { tournamentId } : {}) },

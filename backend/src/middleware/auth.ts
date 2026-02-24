@@ -12,12 +12,45 @@ const noopAuth = (_request: Request, _response: Response, next: NextFunction) =>
   next();
 };
 
+const authMiddleware = auth({
+  audience: config.auth.audience,
+  issuerBaseURL: config.auth.issuerBaseURL,
+  tokenSigningAlg: 'RS256',
+});
+
+const applyDevelopmentAdminAutologin = (request: Request): boolean => {
+  const email = config.auth.devAutoLoginAdminEmail;
+
+  if (!config.isDevelopment || !email) {
+    return false;
+  }
+
+  const authHeader = request.headers?.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    return false;
+  }
+
+  request.auth = {
+    header: { alg: 'none' },
+    token: 'dev-autologin',
+    payload: {
+      sub: `dev-admin:${email}`,
+      email,
+      name: 'Dev Admin (autologin)',
+    },
+  } as unknown as AuthResult;
+
+  return true;
+};
+
 export const requireAuth = config.auth.enabled
-  ? auth({
-      audience: config.auth.audience,
-      issuerBaseURL: config.auth.issuerBaseURL,
-      tokenSigningAlg: 'RS256',
-    })
+  ? (request: Request, response: Response, next: NextFunction) => {
+      if (applyDevelopmentAdminAutologin(request)) {
+        next();
+        return;
+      }
+      authMiddleware(request, response, next);
+    }
   : noopAuth;
 
 // Optional auth middleware: validates token if present, allows requests without token
@@ -25,18 +58,16 @@ export const optionalAuth = (request: Request, response: Response, next: NextFun
   if (!config.auth.enabled) {
     return next();
   }
+
+  if (applyDevelopmentAdminAutologin(request)) {
+    return next();
+  }
+
   // If no authorization header, skip auth validation
   const authHeader = request.headers?.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return next();
   }
-
-  // If auth header is present, validate it
-  const authMiddleware = auth({
-    audience: config.auth.audience,
-    issuerBaseURL: config.auth.issuerBaseURL,
-    tokenSigningAlg: 'RS256',
-  });
 
   return authMiddleware(request, response, next);
 };

@@ -20,6 +20,7 @@ type BracketDraft = {
 type TournamentStructureBaseProperties = {
   t: Translator;
   editingTournament: Tournament | undefined;
+  authEnabled: boolean;
   getSafeAccessToken: () => Promise<string | undefined>;
 };
 

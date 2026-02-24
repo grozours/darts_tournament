@@ -134,6 +134,7 @@ const useBracketRounds = (poolStages: PoolStageConfig[]) =>
 
 const useBracketLoaders = ({
   t,
+  authEnabled,
   getSafeAccessToken,
   setBrackets,
   setBracketsError,
@@ -141,7 +142,7 @@ const useBracketLoaders = ({
   setTargetsError,
   setIsAddingBracket,
   setIsBracketRoundsAuto,
-}: Pick<TournamentStructureBaseProperties, 't' | 'getSafeAccessToken'>
+}: Pick<TournamentStructureBaseProperties, 't' | 'authEnabled' | 'getSafeAccessToken'>
   & Pick<BracketStateSetters, 'setBrackets' | 'setBracketsError' | 'setTargets' | 'setTargetsError' | 'setIsAddingBracket' | 'setIsBracketRoundsAuto'>) => {
   const loadBrackets = useCallback(async (tournamentId: string) => {
     setBracketsError(undefined);
@@ -161,13 +162,16 @@ const useBracketLoaders = ({
     setTargetsError(undefined);
     try {
       const token = await getSafeAccessToken();
+      if (authEnabled && !token) {
+        return;
+      }
       const data = await fetchTournamentTargets(tournamentId, token);
       setTargets(data);
     } catch (error_) {
       console.error('Error fetching targets:', error_);
       setTargetsError(error_ instanceof Error ? error_.message : t('edit.error.failedLoadTargets'));
     }
-  }, [getSafeAccessToken, setTargets, setTargetsError, t]);
+  }, [authEnabled, getSafeAccessToken, setTargets, setTargetsError, t]);
 
   return { loadBrackets, loadTargets };
 };
@@ -381,6 +385,7 @@ const useBracketDraftHandlers = ({
 const useBracketStructure = ({
   t,
   editingTournament,
+  authEnabled,
   getSafeAccessToken,
   poolStages,
 }: BracketStructureProperties): BracketStructureResult => {
@@ -406,6 +411,7 @@ const useBracketStructure = ({
 
   const { loadBrackets, loadTargets } = useBracketLoaders({
     t,
+    authEnabled,
     getSafeAccessToken,
     setBrackets,
     setBracketsError,

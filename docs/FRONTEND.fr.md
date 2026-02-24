@@ -96,8 +96,10 @@ L’application utilise un **routing basé sur les paramètres de requête** plu
 | `/?view=tournament-players` | `TournamentPlayersView` | Joueurs d’un tournoi |
 | `/?view=registration-players` | `RegistrationPlayers` | Inscription joueurs |
 | `/?view=notifications` | `NotificationsView` | Notifications de match |
+| `/?view=tournament-presets` | `TournamentPresetsView` | Gestionnaire de presets (liste) |
+| `/?view=tournament-preset-editor` | `TournamentPresetsView` | Éditeur de preset |
 | `/?view=account` | `AccountView` | Compte utilisateur |
-| `/?view=create` | `CreateTournamentPage` | Création de tournoi |
+| `/?view=create-tournament` | `CreateTournamentPage` | Création de tournoi |
 
 ### Paramètres de requête
 
@@ -125,6 +127,12 @@ L’application utilise un **routing basé sur les paramètres de requête** plu
 
 # Vue cibles globale
 /?view=targets
+
+# Liste des presets
+/?view=tournament-presets
+
+# Éditeur de preset (preset spécifique)
+/?view=tournament-preset-editor&presetId=uuid
 ```
 
 ---
@@ -179,6 +187,11 @@ Dashboard temps réel pour les événements live.
 - `live` : dashboard complet
 - `pool-stages` : poules uniquement
 - `brackets` : tableaux uniquement
+
+**Comportement de l’action des phases de poules (live) :**
+- Si une phase de poules n’a encore aucune affectation de joueurs, l’action affiche **Remplir**.
+- **Remplir** déclenche l’auto-affectation backend en mode EDITION (équilibrage par niveaux) sans démarrer les matchs.
+- Une fois des affectations présentes, l’action affiche **Lancer** et passe la phase en IN_PROGRESS.
 
 **Mises à jour temps réel :**
 ```typescript

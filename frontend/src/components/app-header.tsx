@@ -133,6 +133,12 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
                   >
                     {t('tournaments.create')}
                   </a>
+                  <a
+                    className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
+                    href="/?view=tournament-presets"
+                  >
+                    {t('nav.tournamentPresets')}
+                  </a>
                   <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
                     {t('nav.drafts')}
                   </a>

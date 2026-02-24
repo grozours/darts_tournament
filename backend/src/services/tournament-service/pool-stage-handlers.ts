@@ -313,6 +313,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     completedAt?: Date | null
   ): Promise<void> => {
     switch (updatedStage.status) {
+      case StageStatus.NOT_STARTED: {
+        await handlePoolStageNotStarted(stageId);
+        break;
+      }
       case StageStatus.EDITION: {
         await handlePoolStageEdition(tournamentId, stageId, updatedStage, shouldRedistribute);
         break;
@@ -391,6 +395,13 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     await ensurePoolsForStage(stageId, updatedStage);
     await ensurePoolAssignments(tournamentId, stageId, updatedStage, false);
     await createPoolMatchesForStage(tournamentId, stageId);
+  };
+
+  const handlePoolStageNotStarted = async (stageId: string): Promise<void> => {
+    const pools = await tournamentModel.getPoolsForStage(stageId);
+    await Promise.all(pools.map(async (pool) => {
+      await tournamentModel.resetPoolMatches(pool.id);
+    }));
   };
 
   const handlePoolStageCompleted = async (
@@ -987,6 +998,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     for (const pool of pools) {
       const matchCount = await tournamentModel.getMatchCountForPool(pool.id);
       if (matchCount > 0) {
+        poolsToUpdate.push(pool.id);
         continue;
       }
 
@@ -1467,9 +1479,9 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
       }
 
-      if (stage.status !== StageStatus.EDITION) {
+      if (stage.status !== StageStatus.EDITION && stage.status !== StageStatus.NOT_STARTED) {
         throw new AppError(
-          'Pool assignments can only be edited in edition stage',
+          'Pool assignments can only be edited in edition or not started stage',
           400,
           'POOL_ASSIGNMENTS_NOT_EDITABLE'
         );

@@ -96,8 +96,10 @@ The application uses **query parameter-based routing** instead of URL paths:
 | `/?view=tournament-players` | `TournamentPlayersView` | Tournament players |
 | `/?view=registration-players` | `RegistrationPlayers` | Player registration |
 | `/?view=notifications` | `NotificationsView` | Match notifications |
+| `/?view=tournament-presets` | `TournamentPresetsView` | Preset manager (list) |
+| `/?view=tournament-preset-editor` | `TournamentPresetsView` | Preset editor |
 | `/?view=account` | `AccountView` | User account |
-| `/?view=create` | `CreateTournamentPage` | Create tournament |
+| `/?view=create-tournament` | `CreateTournamentPage` | Create tournament |
 
 ### Query Parameters
 
@@ -125,6 +127,12 @@ The application uses **query parameter-based routing** instead of URL paths:
 
 # Global targets view
 /?view=targets
+
+# Presets list
+/?view=tournament-presets
+
+# Preset editor (specific preset)
+/?view=tournament-preset-editor&presetId=uuid
 ```
 
 ---
@@ -179,6 +187,11 @@ Real-time tournament dashboard for live events.
 - `live`: Full live dashboard
 - `pool-stages`: Pool stages only
 - `brackets`: Brackets only
+
+**Pool stage action behavior (live):**
+- If a pool stage has no player assignments yet, the action shows **Fill**.
+- **Fill** triggers the backend auto-assignment in EDITION mode (balanced by skill levels) without starting matches.
+- Once assignments exist, the action shows **Launch** and moves the stage to IN_PROGRESS.
 
 **Real-time Updates:**
 ```typescript

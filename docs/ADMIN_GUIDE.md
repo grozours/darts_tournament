@@ -16,6 +16,11 @@ Run a tournament from start to finish.
 - Configure pools and targets.
 - Make sure players are registered.
 
+## Tournament presets (admin)
+- Preset list view: `/?view=tournament-presets`
+- Preset editor view: `/?view=tournament-preset-editor&presetId=<preset-id>`
+- Presets can define pool stages, brackets, and ranking destinations in one reusable template.
+
 ## Pool options
 - Stage number and name (ordering for multi-stage pools).
 - Pool count and players per pool (capacity).
@@ -24,6 +29,10 @@ Run a tournament from start to finish.
 - Ranking destinations per position: bracket, another pool stage, or elimination.
 - Stage status: NOT_STARTED, EDITION, IN_PROGRESS, COMPLETED.
 - In EDITION, use "Edit players" to adjust assignments.
+- In live pool stage view, action button behavior is contextual:
+	- **Fill** appears when no players are assigned yet.
+	- **Fill** keeps the stage in EDITION and performs backend auto-assignment (balanced by skill levels).
+	- **Launch** appears once assignments exist and moves the stage to IN_PROGRESS.
 
 ### Example (pools to brackets + elimination)
 - 4 players per pool.

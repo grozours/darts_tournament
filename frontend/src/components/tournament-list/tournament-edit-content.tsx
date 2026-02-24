@@ -1,4 +1,4 @@
-import type { BracketConfig, CreatePlayerPayload, PoolStageConfig, TournamentPlayer, TournamentTarget } from '../../services/tournament-service';
+import type { BracketConfig, CreatePlayerPayload, PoolStageConfig, TournamentPreset, TournamentPlayer, TournamentTarget } from '../../services/tournament-service';
 import type { EditFormState, Translator } from './types';
 import TournamentEditForm from './tournament-edit-form';
 import PoolStagesEditor from './pool-stages-editor';
@@ -61,12 +61,13 @@ export type TournamentEditContentProperties = {
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
   isApplyingPreset: boolean;
+  quickStructurePresets: TournamentPreset[];
+  quickStructurePresetsLoading: boolean;
   normalizedStatus: string;
   onEditFormChange: (next: EditFormState) => void;
   onLogoFileChange: (file: File | undefined) => void;
   onUploadLogo: () => void;
-  onApplySinglePoolPreset: () => void;
-  onApplyDoublePoolPreset: () => void;
+  onApplyStructurePreset: (preset: Pick<TournamentPreset, 'name' | 'presetType' | 'templateConfig'>) => void;
   onLoadPoolStages: () => void;
   onPoolStageNumberChange: (id: string, value: number) => void;
   onPoolStageNameChange: (id: string, value: string) => void;
@@ -155,12 +156,13 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
     isAutoFillingPlayers,
     isConfirmingAll,
     isApplyingPreset,
+    quickStructurePresets,
+    quickStructurePresetsLoading,
     normalizedStatus,
     onEditFormChange,
     onLogoFileChange,
     onUploadLogo,
-    onApplySinglePoolPreset,
-    onApplyDoublePoolPreset,
+    onApplyStructurePreset,
     onLoadPoolStages,
     onPoolStageNumberChange,
     onPoolStageNameChange,
@@ -236,20 +238,29 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
             <p className="mt-1 text-xs text-slate-400">{t('edit.quickStructureHint')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={onApplySinglePoolPreset}
-              disabled={isApplyingPreset || normalizedStatus === 'LIVE'}
-              className="rounded-full border border-cyan-500/70 px-3 py-1 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
-            >
-              {isApplyingPreset ? t('edit.quickStructureApplying') : t('edit.quickStructureSingle')}
-            </button>
-            <button
-              onClick={onApplyDoublePoolPreset}
-              disabled={isApplyingPreset || normalizedStatus === 'LIVE'}
-              className="rounded-full border border-sky-500/70 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:border-sky-300 disabled:opacity-60"
-            >
-              {isApplyingPreset ? t('edit.quickStructureApplying') : t('edit.quickStructureDouble')}
-            </button>
+            {quickStructurePresetsLoading && (
+              <span className="text-xs text-slate-400">{t('createTournament.presets.loading')}</span>
+            )}
+            {!quickStructurePresetsLoading && quickStructurePresets.length === 0 && (
+              <span className="text-xs text-slate-400">{t('edit.quickStructureEmpty')}</span>
+            )}
+            {!quickStructurePresetsLoading && quickStructurePresets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => {
+                  const payload = {
+                    name: preset.name,
+                    presetType: preset.presetType,
+                    ...(preset.templateConfig ? { templateConfig: preset.templateConfig } : {}),
+                  };
+                  onApplyStructurePreset(payload);
+                }}
+                disabled={isApplyingPreset || normalizedStatus === 'LIVE'}
+                className="rounded-full border border-cyan-500/70 px-3 py-1 text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 disabled:opacity-60"
+              >
+                {isApplyingPreset ? t('edit.quickStructureApplying') : preset.name}
+              </button>
+            ))}
           </div>
         </div>
         {normalizedStatus === 'LIVE' && (

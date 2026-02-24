@@ -50,6 +50,7 @@ interface Config {
     audience: string;
     enabled: boolean;
     adminEmails: string[];
+    devAutoLoginAdminEmail?: string;
   };
 }
 
@@ -104,6 +105,12 @@ const config: Config = {
     adminEmails: process.env.AUTH_ADMIN_EMAILS
       ? process.env.AUTH_ADMIN_EMAILS.split(',').map(email => email.trim().toLowerCase())
       : [],
+    ...(process.env.AUTH_DEV_AUTOLOGIN_ADMIN_EMAIL?.trim()
+      ? {
+          devAutoLoginAdminEmail:
+            process.env.AUTH_DEV_AUTOLOGIN_ADMIN_EMAIL.trim().toLowerCase(),
+        }
+      : {}),
   },
 };
 

@@ -5,6 +5,7 @@ import { registerTournamentBracketRoutes } from './tournaments/bracket-routes';
 import { registerTournamentCrudRoutes } from './tournaments/tournament-crud-routes';
 import { registerTournamentListRoutes } from './tournaments/list-routes';
 import { registerTournamentMatchRoutes } from './tournaments/match-routes';
+import { registerTournamentPresetRoutes } from './tournaments/preset-routes';
 import { registerTournamentPlayerRoutes } from './tournaments/player-routes';
 import { registerTournamentPoolStageRoutes } from './tournaments/pool-stage-routes';
 import { registerTournamentRegistrationRoutes } from './tournaments/registration-routes';
@@ -16,6 +17,7 @@ const tournamentController = new TournamentController(prisma);
 const router = Router();
 
 registerTournamentListRoutes(router, tournamentController);
+registerTournamentPresetRoutes(router, tournamentController);
 registerTournamentCrudRoutes(router, tournamentController);
 registerTournamentRegistrationRoutes(router, tournamentController);
 registerTournamentPlayerRoutes(router, tournamentController);

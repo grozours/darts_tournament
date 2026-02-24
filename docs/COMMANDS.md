@@ -350,7 +350,18 @@ docker compose up -d postgres redis
 
 # Start with build
 docker compose up -d --build
+
+# Rebuild only frontend assets/image
+docker compose up -d --build frontend
+
+# Force a fully fresh frontend image build (no cache)
+docker compose build --no-cache frontend && docker compose up -d frontend
 ```
+
+Notes:
+- The frontend image build already runs the production asset build (`npm run build:prod`) inside Docker.
+- `restart.sh` now exports a unique `BUILD_ID` on each run, so `./restart.sh both` triggers a fresh frontend build identity by default.
+- If you still see old UI, do a hard browser refresh (`Ctrl+F5`) to bypass cached `index.html`.
 
 ### Stopping Services
 

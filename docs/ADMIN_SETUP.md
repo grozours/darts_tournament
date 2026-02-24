@@ -25,6 +25,23 @@ AUTH_ADMIN_EMAILS=your-email@gmail.com,another-admin@gmail.com
 docker-compose restart backend
 ```
 
+### 3. Optional: Development Admin Autologin (without Auth0 callback)
+
+If your Auth0 free tenant cannot whitelist your local frontend URL, you can enable a development-only admin autologin in `backend/.env`:
+
+```env
+AUTH_DEV_AUTOLOGIN_ADMIN_EMAIL=your-email@gmail.com
+```
+
+How it works:
+- Only active when `NODE_ENV=development`
+- Only active when no `Authorization: Bearer ...` token is sent
+- Injects a local authenticated admin user using the configured email
+
+Important:
+- Keep this variable empty in production
+- Restart backend after changing `.env`
+
 ## Using Admin Features
 
 ### Check Admin Status

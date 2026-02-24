@@ -38,7 +38,7 @@ type PoolStageCardProperties = {
   onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
-  onEditStage: (stage: LiveViewPoolStage) => void;
+  onEditStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCancelEditStage: () => void;
   onUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
@@ -47,6 +47,9 @@ type PoolStageCardProperties = {
   onStagePoolCountChange: (stageId: string, value: string) => void;
   onStagePlayersPerPoolChange: (stageId: string, value: string) => void;
   onStageStatusChange: (stageId: string, value: string) => void;
+  onLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
+  canDeleteStage: boolean;
   preferredPlayerId?: string;
   editingStageId?: string | undefined;
   updatingStageId?: string | undefined;
@@ -92,6 +95,9 @@ const PoolStageCard = ({
   onStagePoolCountChange,
   onStagePlayersPerPoolChange,
   onStageStatusChange,
+  onLaunchStage,
+  onResetStage,
+  canDeleteStage,
   preferredPlayerId,
   editingStageId,
   updatingStageId,
@@ -145,6 +151,10 @@ const PoolStageCard = ({
     }
   }, [activePoolId, pools]);
   const activePool = pools.find((pool) => pool.id === activePoolId) ?? pools[0];
+  const hasPoolAssignments = useMemo(
+    () => pools.some((pool) => (pool.assignments?.length ?? 0) > 0),
+    [pools]
+  );
 
   const handleSelectPool = (poolId: string) => {
     manualSelectionReference.current = true;
@@ -163,6 +173,11 @@ const PoolStageCard = ({
       return;
     }
     const isEditing = editingStageId === stage.id;
+    const canResetStage = stage.status !== 'NOT_STARTED';
+    const canLaunchStage = stage.status !== 'IN_PROGRESS' && stage.status !== 'COMPLETED';
+    const shouldShowFillLabel = canLaunchStage && !hasPoolAssignments;
+    const launchStageLabel = shouldShowFillLabel ? t('live.fillStage') : t('live.launchStage');
+    const launchingStageLabel = shouldShowFillLabel ? t('live.fillingStage') : t('live.launchingStage');
     if (!isEditing) {
       return (
         <div className="flex flex-wrap items-center gap-2">
@@ -184,19 +199,39 @@ const PoolStageCard = ({
               {t('live.recomputeDoubleStage')}
             </button>
           )}
+          {canResetStage && (
+            <button
+              onClick={() => onResetStage(stageTournamentId, stage)}
+              disabled={updatingStageId === stage.id || tournamentStatus !== 'LIVE'}
+              className="rounded-full border border-sky-500/70 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:border-sky-300 disabled:opacity-60"
+            >
+              {updatingStageId === stage.id ? t('live.resettingStage') : t('live.resetStage')}
+            </button>
+          )}
+          {canLaunchStage && (
+            <button
+              onClick={() => onLaunchStage(stageTournamentId, stage)}
+              disabled={updatingStageId === stage.id || tournamentStatus !== 'LIVE'}
+              className="rounded-full border border-emerald-500/70 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+            >
+              {updatingStageId === stage.id ? launchingStageLabel : launchStageLabel}
+            </button>
+          )}
           <button
-            onClick={() => onEditStage(stage)}
+            onClick={() => onEditStage(stageTournamentId, stage)}
             className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
           >
             {t('live.editStage')}
           </button>
-          <button
-            onClick={() => onDeleteStage(stageTournamentId, stage)}
-            disabled={updatingStageId === stage.id}
-            className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
-          >
-            {t('common.delete')}
-          </button>
+          {canDeleteStage && (
+            <button
+              onClick={() => onDeleteStage(stageTournamentId, stage)}
+              disabled={updatingStageId === stage.id}
+              className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+            >
+              {t('common.delete')}
+            </button>
+          )}
         </div>
       );
     }

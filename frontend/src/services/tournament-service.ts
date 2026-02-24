@@ -1,4 +1,5 @@
 import { TournamentFormat, DurationType, SkillLevel } from '@shared/types';
+import type { TournamentPresetTemplateConfig } from '../utils/tournament-presets';
 
 export interface CreateTournamentPayload {
   name: string;
@@ -16,6 +17,20 @@ export interface CreateTournamentPayload {
 export interface CreateTournamentResponse {
   id: string;
   name?: string;
+}
+
+export type TournamentPresetType = 'single-pool-stage' | 'three-pool-stages' | 'custom';
+
+export interface TournamentPreset {
+  id: string;
+  name: string;
+  presetType: TournamentPresetType;
+  totalParticipants: number;
+  targetCount: number;
+  templateConfig?: TournamentPresetTemplateConfig;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreatePlayerPayload {
@@ -125,7 +140,7 @@ const parseJsonSafely = (value: string): unknown => {
   }
 };
 
-const readApiErrorBody = async (response: Response): Promise<{ payload?: ApiErrorPayload; textBody: string }> => {
+const readApiErrorBody = async (response: Response): Promise<{ payload: ApiErrorPayload | undefined; textBody: string }> => {
   const contentType = response.headers.get('content-type') ?? '';
   const isJson = contentType.includes('application/json');
 
@@ -796,5 +811,80 @@ export async function unregisterTournamentPlayer(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Failed to unregister player');
+  }
+}
+
+export async function fetchTournamentPresets(token?: string): Promise<TournamentPreset[]> {
+  const response = await fetch('/api/tournaments/presets', buildAuthRequestOptions(token));
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch tournament presets');
+  }
+
+  const data = await response.json();
+  return data.presets || [];
+}
+
+export async function createTournamentPreset(
+  payload: {
+    name: string;
+    presetType: TournamentPresetType;
+    totalParticipants: number;
+    targetCount: number;
+    templateConfig?: TournamentPresetTemplateConfig;
+  },
+  token?: string
+): Promise<TournamentPreset> {
+  const response = await fetch('/api/tournaments/presets', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to create tournament preset');
+  }
+
+  return response.json();
+}
+
+export async function updateTournamentPreset(
+  presetId: string,
+  payload: Partial<{
+    name: string;
+    presetType: TournamentPresetType;
+    totalParticipants: number;
+    targetCount: number;
+    templateConfig: TournamentPresetTemplateConfig;
+  }>,
+  token?: string
+): Promise<TournamentPreset> {
+  const response = await fetch(`/api/tournaments/presets/${presetId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to update tournament preset');
+  }
+
+  return response.json();
+}
+
+export async function deleteTournamentPreset(presetId: string, token?: string): Promise<void> {
+  const response = await fetch(`/api/tournaments/presets/${presetId}`, {
+    method: 'DELETE',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to delete tournament preset');
   }
 }

@@ -77,10 +77,16 @@ const useSaveEditAction = ({
       doubleStageEnabled: editForm.doubleStageEnabled,
     };
     if (editForm.startTime) {
-      payload.startTime = localInputToIso(editForm.startTime);
+      const startTimeIso = localInputToIso(editForm.startTime);
+      if (startTimeIso) {
+        payload.startTime = startTimeIso;
+      }
     }
     if (editForm.endTime) {
-      payload.endTime = localInputToIso(editForm.endTime);
+      const endTimeIso = localInputToIso(editForm.endTime);
+      if (endTimeIso) {
+        payload.endTime = endTimeIso;
+      }
     }
 
     await updateTournament(editingTournament.id, payload, token);

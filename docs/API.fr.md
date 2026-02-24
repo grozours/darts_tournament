@@ -488,6 +488,11 @@ Authorization: Bearer ADMIN_TOKEN
 - `IN_PROGRESS` : matchs en cours
 - `COMPLETED` : matchs terminés
 
+**Comportement live (UI admin) :**
+- Envoyer `status: "EDITION"` sur une phase sans affectations déclenche la répartition automatique des joueurs dans les poules (équilibrée par niveau) et conserve la phase éditable.
+- Envoyer `status: "IN_PROGRESS"` crée les matchs de poules (si nécessaire) et démarre la phase.
+- Envoyer `status: "NOT_STARTED"` réinitialise les matchs de poules de la phase.
+
 **Routing :**
 - Si `rankingDestinations` est défini, la fin de phase route les joueurs par rang vers un arbre ou une autre phase.
 - Cela remplace les règles `advanceCount` / `losersAdvanceToBracket` pour la phase.

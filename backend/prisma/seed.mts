@@ -72,12 +72,11 @@ async function main() {
 
   console.log('🎯 Database seeding completed!');
 }
-
-main()
-  .catch((e) => {
-    console.error('❌ Seeding failed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+try {
+  await main();
+} catch (error_) {
+  console.error('❌ Seeding failed:', error_);
+  process.exitCode = 1;
+} finally {
+  await prisma.$disconnect();
+}
