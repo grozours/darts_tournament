@@ -2,6 +2,15 @@
 
 Une application full-stack pour gérer des tournois de fléchettes avec prise en charge des formats simple élimination, double élimination et équipes.
 
+## 📚 Navigation documentation
+
+- Guide projet détaillé (EN) : [README.md](README.md)
+- Guide projet détaillé (FR) : [README.fr.md](README.fr.md)
+- Guide vitrine (EN) : [README.showcase.en.md](README.showcase.en.md)
+- Guide vitrine (FR) : [README.showcase.fr.md](README.showcase.fr.md)
+- Index documentation complet (EN) : [docs/README.md](docs/README.md)
+- Index documentation complet (FR) : [docs/README.fr.md](docs/README.fr.md)
+
 ## 📋 Table des matières
 
 - [Fonctionnalités](#-fonctionnalités)

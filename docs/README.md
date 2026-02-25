@@ -19,6 +19,8 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 ### Root
 - [README.md](../README.md)
 - [README.fr.md](../README.fr.md)
+- [README.showcase.en.md](../README.showcase.en.md)
+- [README.showcase.fr.md](../README.showcase.fr.md)
 - [LICENSE](../LICENSE)
 
 ### Docs

@@ -18,6 +18,7 @@
     "db:migrate": "node ./node_modules/prisma/build/index.js migrate deploy",
     "db:push": "node ./node_modules/prisma/build/index.js db push",
     "db:sync-presets-seed": "node scripts/sync-presets-seed.mjs",
+    "db:import-presets": "node scripts/import-presets.mjs",
     "db:seed": "node ./node_modules/typescript/bin/tsc prisma/seed.mts --module NodeNext --moduleResolution NodeNext --target ES2022 --outDir .tmp-seed --esModuleInterop --skipLibCheck && node .tmp-seed/seed.mjs",
     "db:reset": "node ./node_modules/prisma/build/index.js migrate reset --force",
     "db:studio": "node ./node_modules/prisma/build/index.js studio"

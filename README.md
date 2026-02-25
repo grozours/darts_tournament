@@ -2,6 +2,15 @@
 
 A full-stack application for managing darts tournaments with support for single elimination, double elimination, and team formats.
 
+## 📚 Documentation Navigation
+
+- Detailed project guide (EN): [README.md](README.md)
+- Detailed project guide (FR): [README.fr.md](README.fr.md)
+- Showcase guide (EN): [README.showcase.en.md](README.showcase.en.md)
+- Showcase guide (FR): [README.showcase.fr.md](README.showcase.fr.md)
+- Full docs index (EN): [docs/README.md](docs/README.md)
+- Full docs index (FR): [docs/README.fr.md](docs/README.fr.md)
+
 ## 📋 Table of Contents
 
 - [Features](#-features)

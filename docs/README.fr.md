@@ -19,6 +19,8 @@ Bienvenue dans la documentation du Gestionnaire de Tournois de Fléchettes. Cet 
 ### Racine
 - [README.md](../README.md)
 - [README.fr.md](../README.fr.md)
+- [README.showcase.en.md](../README.showcase.en.md)
+- [README.showcase.fr.md](../README.showcase.fr.md)
 - [LICENSE](../LICENSE)
 
 ### Docs
