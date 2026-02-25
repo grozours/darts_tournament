@@ -15,6 +15,11 @@ export const createTournamentSchema = {
       .min(3, 'Tournament name must be at least 3 characters long')
       .max(100, 'Tournament name cannot exceed 100 characters')
       .trim(),
+    location: z
+      .string()
+      .max(150, 'Tournament location cannot exceed 150 characters')
+      .trim()
+      .optional(),
     format: z.nativeEnum(TournamentFormat, {
       required_error: 'Format is required',
       invalid_type_error: 'Invalid tournament format',
@@ -97,6 +102,11 @@ export const updateTournamentSchema = {
       .max(100, 'Tournament name cannot exceed 100 characters')
       .trim()
       .optional(),
+    location: z
+      .string()
+      .max(150, 'Tournament location cannot exceed 150 characters')
+      .trim()
+      .optional(),
     format: z.nativeEnum(TournamentFormat).optional(),
     durationType: z.nativeEnum(DurationType).optional(),
     startTime: z.string().datetime({ message: 'Invalid start time format' }).optional(),
@@ -124,6 +134,25 @@ export const updateTournamentSchema = {
 };
 
 const tournamentPresetTypeSchema = z.enum(['single-pool-stage', 'three-pool-stages', 'custom']);
+const presetMatchFormatSchema = z.string().trim().min(1).max(20);
+const presetParallelReferenceSchema = z.string().trim().min(1).max(140);
+const matchFormatGameSchema = z.enum(['501_DO', 'CRICKET', '701_DO']);
+
+const matchFormatPresetSegmentSchema = z.object({
+  game: matchFormatGameSchema,
+  targetCount: z.number().int().min(1).max(10),
+});
+
+const matchFormatPresetPayloadSchema = z.object({
+  key: z
+    .string({ required_error: 'Format key is required' })
+    .min(2)
+    .max(20)
+    .trim(),
+  durationMinutes: z.number().int().min(1).max(600),
+  segments: z.array(matchFormatPresetSegmentSchema).min(1).max(12),
+  isSystem: z.boolean().optional(),
+});
 
 const presetRoutingRuleSchema = z
   .object({
@@ -158,44 +187,184 @@ const presetTemplateConfigSchema = z
         poolCount: z.number().int().min(1).max(256),
         playersPerPool: z.number().int().min(2).max(16),
         advanceCount: z.number().int().min(1).max(16),
+        matchFormatKey: presetMatchFormatSchema.optional(),
+        inParallelWith: z.array(presetParallelReferenceSchema).max(32).optional(),
       })
     ).min(1).max(16),
     brackets: z.array(
       z.object({
         name: z.string().min(1).max(100),
         totalRounds: z.number().int().min(1).max(16),
+        roundMatchFormats: z.record(z.string(), presetMatchFormatSchema).optional(),
+        inParallelWith: z.array(presetParallelReferenceSchema).max(32).optional(),
       })
     ).min(1).max(16),
     routingRules: z.array(presetRoutingRuleSchema),
   })
   .superRefine((config, context) => {
-    const stageNumbers = new Set(config.stages.map((_, index) => index + 1));
-    for (const rule of config.routingRules) {
-      if (!stageNumbers.has(rule.stageNumber)) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'routingRules contains invalid stageNumber',
-        });
-      }
-      if (rule.destinationType === 'POOL_STAGE' && rule.destinationStageNumber !== undefined) {
-        if (!stageNumbers.has(rule.destinationStageNumber)) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'routingRules contains invalid destinationStageNumber',
-          });
-        }
-      }
-      if (rule.destinationType === 'BRACKET' && rule.destinationBracketName) {
-        const bracketExists = config.brackets.some((bracket) => bracket.name === rule.destinationBracketName);
-        if (!bracketExists) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'routingRules contains unknown destinationBracketName',
-          });
-        }
+    validatePresetRoutingRules(config, context);
+    validatePresetBracketRoundMatchFormats(config, context);
+    validatePresetParallelReferences(config, context);
+  });
+
+type PresetTemplateConfigInput = z.infer<typeof presetTemplateConfigSchema>;
+
+const addCustomIssue = (context: z.RefinementCtx, message: string) => {
+  context.addIssue({
+    code: z.ZodIssueCode.custom,
+    message,
+  });
+};
+
+const validatePresetRoutingRules = (
+  config: PresetTemplateConfigInput,
+  context: z.RefinementCtx
+) => {
+  const stageNumbers = new Set(config.stages.map((_, index) => index + 1));
+  const bracketNames = new Set(config.brackets.map((bracket) => bracket.name));
+
+  for (const rule of config.routingRules) {
+    if (!stageNumbers.has(rule.stageNumber)) {
+      addCustomIssue(context, 'routingRules contains invalid stageNumber');
+    }
+
+    if (
+      rule.destinationType === 'POOL_STAGE'
+      && rule.destinationStageNumber !== undefined
+      && !stageNumbers.has(rule.destinationStageNumber)
+    ) {
+      addCustomIssue(context, 'routingRules contains invalid destinationStageNumber');
+    }
+
+    if (
+      rule.destinationType === 'BRACKET'
+      && rule.destinationBracketName
+      && !bracketNames.has(rule.destinationBracketName)
+    ) {
+      addCustomIssue(context, 'routingRules contains unknown destinationBracketName');
+    }
+  }
+};
+
+const validatePresetBracketRoundMatchFormats = (
+  config: PresetTemplateConfigInput,
+  context: z.RefinementCtx
+) => {
+  for (const bracket of config.brackets) {
+    if (!bracket.roundMatchFormats) {
+      continue;
+    }
+
+    for (const roundNumber of Object.keys(bracket.roundMatchFormats)) {
+      const parsedRound = Number(roundNumber);
+      if (!Number.isInteger(parsedRound) || parsedRound < 1 || parsedRound > bracket.totalRounds) {
+        addCustomIssue(context, 'roundMatchFormats contains invalid round number');
       }
     }
-  });
+  }
+};
+
+const parseParallelReference = (value: string):
+  | { type: 'POOL_STAGE'; stageNumber: number }
+  | { type: 'BRACKET'; bracketName: string }
+  | undefined => {
+  const stageMatch = /^stage\s*:\s*(\d+)$/i.exec(value);
+  if (stageMatch?.[1]) {
+    const stageNumber = Number(stageMatch[1]);
+    if (Number.isInteger(stageNumber) && stageNumber > 0) {
+      return { type: 'POOL_STAGE', stageNumber };
+    }
+    return undefined;
+  }
+
+  const bracketMatch = /^bracket\s*:\s*(.+)$/i.exec(value);
+  if (bracketMatch?.[1]) {
+    const bracketName = bracketMatch[1].trim();
+    if (bracketName.length > 0) {
+      return { type: 'BRACKET', bracketName };
+    }
+  }
+
+  return undefined;
+};
+
+const validatePresetParallelReferences = (
+  config: PresetTemplateConfigInput,
+  context: z.RefinementCtx
+) => {
+  const stageNumbers = new Set(config.stages.map((_, index) => index + 1));
+  const bracketNames = new Set(config.brackets.map((bracket) => bracket.name));
+
+  const validateStageReferenceForStage = (
+    parsed: { type: 'POOL_STAGE'; stageNumber: number } | { type: 'BRACKET'; bracketName: string },
+    stageNumber: number
+  ) => {
+    if (parsed.type === 'POOL_STAGE') {
+      if (!stageNumbers.has(parsed.stageNumber)) {
+        addCustomIssue(context, 'stages.inParallelWith contains unknown stage reference');
+      }
+      if (parsed.stageNumber === stageNumber) {
+        addCustomIssue(context, 'stages.inParallelWith cannot reference itself');
+      }
+      return;
+    }
+
+    if (!bracketNames.has(parsed.bracketName)) {
+      addCustomIssue(context, 'stages.inParallelWith contains unknown bracket reference');
+    }
+  };
+
+  const validateStageReferenceForBracket = (
+    parsed: { type: 'POOL_STAGE'; stageNumber: number } | { type: 'BRACKET'; bracketName: string },
+    bracketName: string
+  ) => {
+    if (parsed.type === 'POOL_STAGE') {
+      if (!stageNumbers.has(parsed.stageNumber)) {
+        addCustomIssue(context, 'brackets.inParallelWith contains unknown stage reference');
+      }
+      return;
+    }
+
+    if (!bracketNames.has(parsed.bracketName)) {
+      addCustomIssue(context, 'brackets.inParallelWith contains unknown bracket reference');
+    }
+    if (parsed.bracketName === bracketName) {
+      addCustomIssue(context, 'brackets.inParallelWith cannot reference itself');
+    }
+  };
+
+  const validateReferenceList = (
+    references: string[] | undefined,
+    invalidMessage: string,
+    validator: (parsed: { type: 'POOL_STAGE'; stageNumber: number } | { type: 'BRACKET'; bracketName: string }) => void
+  ) => {
+    for (const reference of references ?? []) {
+      const parsed = parseParallelReference(reference);
+      if (!parsed) {
+        addCustomIssue(context, invalidMessage);
+        continue;
+      }
+      validator(parsed);
+    }
+  };
+
+  for (const [stageIndex, stage] of config.stages.entries()) {
+    const stageNumber = stageIndex + 1;
+    validateReferenceList(
+      stage.inParallelWith,
+      'stages.inParallelWith contains invalid reference (use stage:<number> or bracket:<name>)',
+      (parsed) => validateStageReferenceForStage(parsed, stageNumber)
+    );
+  }
+
+  for (const bracket of config.brackets) {
+    validateReferenceList(
+      bracket.inParallelWith,
+      'brackets.inParallelWith contains invalid reference (use stage:<number> or bracket:<name>)',
+      (parsed) => validateStageReferenceForBracket(parsed, bracket.name)
+    );
+  }
+};
 
 export const createTournamentPresetSchema = {
   body: z.object({
@@ -254,6 +423,23 @@ export const updateTournamentPresetSchema = {
     ),
 };
 
+export const createMatchFormatPresetSchema = {
+  body: matchFormatPresetPayloadSchema,
+};
+
+export const updateMatchFormatPresetSchema = {
+  body: matchFormatPresetPayloadSchema
+    .partial()
+    .refine(
+      (data) =>
+        data.key !== undefined
+        || data.durationMinutes !== undefined
+        || data.segments !== undefined
+        || data.isSystem !== undefined,
+      { message: 'At least one field is required for update' }
+    ),
+};
+
 export const uuidSchema = {
   params: z.object({
     id: z.string().uuid('Invalid UUID format'),
@@ -263,6 +449,12 @@ export const uuidSchema = {
 export const presetUuidSchema = {
   params: z.object({
     presetId: z.string().uuid('Invalid preset UUID format'),
+  }),
+};
+
+export const matchFormatPresetUuidSchema = {
+  params: z.object({
+    formatId: z.string().uuid('Invalid match format preset UUID format'),
   }),
 };
 

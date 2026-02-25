@@ -139,6 +139,12 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
                   >
                     {t('nav.tournamentPresets')}
                   </a>
+                  <a
+                    className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
+                    href="/?view=match-formats"
+                  >
+                    Match formats
+                  </a>
                   <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
                     {t('nav.drafts')}
                   </a>

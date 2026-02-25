@@ -72,7 +72,10 @@ export class TournamentModel {
   public createPoolAssignments!: TournamentModelPoolStageHandlers['createPoolAssignments'];
   public deletePoolAssignmentsForStage!: TournamentModelPoolStageHandlers['deletePoolAssignmentsForStage'];
   public getMatchCountForPool!: TournamentModelPoolStageHandlers['getMatchCountForPool'];
+  public getPoolMatchesWithPlayers!: TournamentModelPoolStageHandlers['getPoolMatchesWithPlayers'];
   public createPoolMatches!: TournamentModelPoolStageHandlers['createPoolMatches'];
+  public createEmptyPoolMatches!: TournamentModelPoolStageHandlers['createEmptyPoolMatches'];
+  public setPoolMatchPlayers!: TournamentModelPoolStageHandlers['setPoolMatchPlayers'];
   public createPoolsForStage!: TournamentModelPoolStageHandlers['createPoolsForStage'];
   public deletePoolStage!: TournamentModelPoolStageHandlers['deletePoolStage'];
   public updatePoolStatuses!: TournamentModelPoolStageHandlers['updatePoolStatuses'];
@@ -88,6 +91,7 @@ export class TournamentModel {
   public resetBracketMatches!: TournamentModelBracketHandlers['resetBracketMatches'];
   public deleteMatchesForBracket!: TournamentModelBracketHandlers['deleteMatchesForBracket'];
   public createBracketMatches!: TournamentModelBracketHandlers['createBracketMatches'];
+  public createEmptyBracketMatches!: TournamentModelBracketHandlers['createEmptyBracketMatches'];
   public createBracketMatchWithSlots!: TournamentModelBracketHandlers['createBracketMatchWithSlots'];
   public getBracketById!: TournamentModelBracketHandlers['getBracketById'];
   public getBracketMatchesByRound!: TournamentModelBracketHandlers['getBracketMatchesByRound'];

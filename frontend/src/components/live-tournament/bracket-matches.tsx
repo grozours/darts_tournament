@@ -14,6 +14,7 @@ import {
 } from './bracket-utilities';
 import MatchScoreInputs from './match-score-inputs';
 import MatchTargetSelector from './match-target-selector';
+import { getMatchFormatTooltip } from '../../utils/match-format-presets';
 
 type BracketRound = {
   roundNumber: number;
@@ -117,6 +118,7 @@ type BracketMatchesProperties = {
   t: Translator;
   tournamentId: string;
   bracket: LiveViewBracket;
+  roundStartTimeByRound?: Map<number, string>;
   screenMode?: boolean;
   isBracketsReadonly: boolean;
   updatingMatchId: string | undefined;
@@ -144,6 +146,7 @@ const BracketMatches = ({
   t,
   tournamentId,
   bracket,
+  roundStartTimeByRound,
   screenMode = false,
   isBracketsReadonly,
   updatingMatchId,
@@ -308,6 +311,16 @@ const BracketMatches = ({
         className={`rounded-xl border text-xs shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${options.tone.card} ${screenMode ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}
         style={{ minHeight: screenMode ? 150 : 220, width: 200 }}
       >
+        {(() => {
+          const resolvedMatchFormat = match.matchFormatKey
+            ?? bracket.roundMatchFormats?.[String(match.roundNumber)];
+          const tooltip = getMatchFormatTooltip(resolvedMatchFormat);
+          return resolvedMatchFormat ? (
+            <div className="mb-2 text-[10px] text-cyan-200" title={tooltip}>
+              {resolvedMatchFormat}
+            </div>
+          ) : null;
+        })()}
         <div className={`flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.3em] ${options.tone.accent}`}>
           <span>{t('live.queue.matchLabel')} {match.matchNumber}</span>
           <span>{getStatusLabel('match', match.status)}</span>
@@ -380,6 +393,11 @@ const BracketMatches = ({
           <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
             {getBracketRoundLabel(round.roundNumber, totalRounds, t)}
           </p>
+          {roundStartTimeByRound?.get(round.roundNumber) && (
+            <p className="mt-1 text-[10px] text-slate-400">
+              {t('live.matchStartTime')}: {roundStartTimeByRound.get(round.roundNumber)}
+            </p>
+          )}
           <div className="relative mt-5" style={{ height: Math.max(screenMode ? 180 : 260, columnHeight) }}>
             {round.matches.map((match, matchIndex) => {
               const top = positions[matchIndex] ?? 0;
@@ -422,6 +440,11 @@ const BracketMatches = ({
                 </span>
                 <span aria-hidden="true">🏆</span>
               </div>
+              {roundStartTimeByRound?.get(totalRounds) && (
+                <p className="text-[10px] text-slate-400" style={{ marginLeft: finalLeftOffset }}>
+                  {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
+                </p>
+              )}
               {finalRound?.matches?.[0] && (
                 <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeight) }}>
                   <div

@@ -1,11 +1,13 @@
 import { BracketStatus } from '@shared/types';
 import type { BracketConfig } from '../../services/tournament-service';
 import type { Translator } from './types';
+import { getMatchFormatPresets } from '../../utils/match-format-presets';
 
 type BracketDraft = {
   name: string;
   bracketType: string;
   totalRounds: number;
+  roundMatchFormats?: Record<string, string>;
 };
 
 type BracketsEditorProperties = {
@@ -24,6 +26,7 @@ type BracketsEditorProperties = {
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
+  onBracketRoundMatchFormatChange: (id: string, roundNumber: number, value: string | undefined) => void;
   onBracketStatusChange: (id: string, value: string) => void;
   onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
@@ -34,6 +37,7 @@ type BracketsEditorProperties = {
   onNewBracketNameChange: (value: string) => void;
   onNewBracketTypeChange: (value: string) => void;
   onNewBracketRoundsChange: (value: number) => void;
+  onNewBracketRoundMatchFormatChange: (roundNumber: number, value: string | undefined) => void;
   onAddBracket: () => void;
   getStatusLabel: (kind: 'stage' | 'bracket', status: string) => string;
 };
@@ -49,6 +53,7 @@ type BracketsListProperties = {
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
+  onBracketRoundMatchFormatChange: (id: string, roundNumber: number, value: string | undefined) => void;
   onBracketStatusChange: (id: string, value: string) => void;
   onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
@@ -68,6 +73,7 @@ type BracketItemProperties = {
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
+  onBracketRoundMatchFormatChange: (id: string, roundNumber: number, value: string | undefined) => void;
   onBracketStatusChange: (id: string, value: string) => void;
   onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
@@ -86,6 +92,7 @@ type NewBracketFormProperties = {
   onNewBracketNameChange: (value: string) => void;
   onNewBracketTypeChange: (value: string) => void;
   onNewBracketRoundsChange: (value: number) => void;
+  onNewBracketRoundMatchFormatChange: (roundNumber: number, value: string | undefined) => void;
   onAddBracket: () => void;
 };
 
@@ -98,8 +105,9 @@ const BracketItem = ({
   targets,
   targetOwners,
   onBracketNameChange,
-  onBracketTypeChange: _onBracketTypeChange,
+  onBracketTypeChange,
   onBracketRoundsChange,
+  onBracketRoundMatchFormatChange,
   onBracketStatusChange,
   onBracketTargetToggle,
   onSaveBracket,
@@ -123,6 +131,18 @@ const BracketItem = ({
         />
       </label>
       <label className="text-xs text-slate-400">
+        <span>Type</span>
+        <select
+          value={bracket.bracketType}
+          onChange={(event_) => onBracketTypeChange(bracket.id, event_.target.value)}
+          disabled={isBracketLocked}
+          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
+        >
+          <option value="SINGLE_ELIMINATION">Single</option>
+          <option value="DOUBLE_ELIMINATION">Double</option>
+        </select>
+      </label>
+      <label className="text-xs text-slate-400">
         {t('edit.rounds')}
         <input
           type="number"
@@ -132,6 +152,28 @@ const BracketItem = ({
           className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
         />
       </label>
+    </div>
+    <div className="mt-3 grid gap-2 md:grid-cols-3">
+      {Array.from({ length: Math.max(1, bracket.totalRounds) }, (_, index) => {
+        const roundNumber = index + 1;
+        const value = bracket.roundMatchFormats?.[String(roundNumber)] ?? '';
+        return (
+          <label key={`${bracket.id}-round-${roundNumber}`} className="text-xs text-slate-400">
+            Round {roundNumber}
+            <select
+              value={value}
+              onChange={(event_) => onBracketRoundMatchFormatChange(bracket.id, roundNumber, event_.target.value || undefined)}
+              disabled={isBracketLocked}
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
+            >
+              <option value="">-</option>
+              {getMatchFormatPresets().map((preset) => (
+                <option key={preset.key} value={preset.key}>{preset.key}</option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
     </div>
     <div className="mt-4">
       <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
@@ -222,6 +264,7 @@ const BracketsList = ({
   onBracketNameChange,
   onBracketTypeChange,
   onBracketRoundsChange,
+  onBracketRoundMatchFormatChange,
   onBracketStatusChange,
   onBracketTargetToggle,
   onSaveBracket,
@@ -246,6 +289,7 @@ const BracketsList = ({
           onBracketNameChange={onBracketNameChange}
           onBracketTypeChange={onBracketTypeChange}
           onBracketRoundsChange={onBracketRoundsChange}
+          onBracketRoundMatchFormatChange={onBracketRoundMatchFormatChange}
           onBracketStatusChange={onBracketStatusChange}
           onBracketTargetToggle={onBracketTargetToggle}
           onSaveBracket={onSaveBracket}
@@ -266,8 +310,9 @@ const NewBracketForm = ({
   onStartAddBracket,
   onCancelAddBracket,
   onNewBracketNameChange,
-  onNewBracketTypeChange: _onNewBracketTypeChange,
+  onNewBracketTypeChange,
   onNewBracketRoundsChange,
+  onNewBracketRoundMatchFormatChange,
   onAddBracket,
 }: NewBracketFormProperties) => {
   if (!isAddingBracket) {
@@ -307,6 +352,40 @@ const NewBracketForm = ({
             className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
           />
         </label>
+        <label className="text-xs text-slate-400">
+          <span>Type</span>
+          <select
+            value={newBracket.bracketType}
+            onChange={(event_) => onNewBracketTypeChange(event_.target.value)}
+            disabled={!canEditBrackets}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
+          >
+            <option value="SINGLE_ELIMINATION">Single</option>
+            <option value="DOUBLE_ELIMINATION">Double</option>
+          </select>
+        </label>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        {Array.from({ length: Math.max(1, newBracket.totalRounds) }, (_, index) => {
+          const roundNumber = index + 1;
+          const value = newBracket.roundMatchFormats?.[String(roundNumber)] ?? '';
+          return (
+            <label key={`new-round-${roundNumber}`} className="text-xs text-slate-400">
+              Round {roundNumber}
+              <select
+                value={value}
+                onChange={(event_) => onNewBracketRoundMatchFormatChange(roundNumber, event_.target.value || undefined)}
+                disabled={!canEditBrackets}
+                className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white disabled:opacity-60"
+              >
+                <option value="">-</option>
+                {getMatchFormatPresets().map((preset) => (
+                  <option key={preset.key} value={preset.key}>{preset.key}</option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         <button
@@ -343,6 +422,7 @@ const BracketsEditor = ({
   onBracketNameChange,
   onBracketTypeChange,
   onBracketRoundsChange,
+  onBracketRoundMatchFormatChange,
   onBracketStatusChange,
   onBracketTargetToggle,
   onSaveBracket,
@@ -353,6 +433,7 @@ const BracketsEditor = ({
   onNewBracketNameChange,
   onNewBracketTypeChange,
   onNewBracketRoundsChange,
+  onNewBracketRoundMatchFormatChange,
   onAddBracket,
   getStatusLabel,
 }: BracketsEditorProperties) => {
@@ -391,6 +472,7 @@ const BracketsEditor = ({
       onBracketNameChange={onBracketNameChange}
       onBracketTypeChange={onBracketTypeChange}
       onBracketRoundsChange={onBracketRoundsChange}
+      onBracketRoundMatchFormatChange={onBracketRoundMatchFormatChange}
       onBracketStatusChange={onBracketStatusChange}
       onBracketTargetToggle={onBracketTargetToggle}
       onSaveBracket={onSaveBracket}
@@ -409,6 +491,7 @@ const BracketsEditor = ({
       onNewBracketNameChange={onNewBracketNameChange}
       onNewBracketTypeChange={onNewBracketTypeChange}
       onNewBracketRoundsChange={onNewBracketRoundsChange}
+      onNewBracketRoundMatchFormatChange={onNewBracketRoundMatchFormatChange}
       onAddBracket={onAddBracket}
     />
     </div>

@@ -156,6 +156,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
 
     create: async (tournamentData: {
       name: string;
+      location?: string;
       format: TournamentFormat;
       durationType: DurationType;
       startTime: Date;
@@ -173,6 +174,8 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         const tournament = await prisma.tournament.create({
           data: {
             name: tournamentData.name,
+            // eslint-disable-next-line unicorn/no-null
+            location: tournamentData.location ?? null,
             format: tournamentData.format,
             durationType: tournamentData.durationType,
             startTime: tournamentData.startTime,
@@ -246,6 +249,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       id: string,
       updateData: Partial<{
         name: string;
+        location: string;
         format: TournamentFormat;
         durationType: DurationType;
         startTime: Date;

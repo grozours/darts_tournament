@@ -5,6 +5,398 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding database...');
 
+  const matchFormatPresets = await prisma.matchFormatPreset.createMany({
+    data:     [
+      {
+        "key": "BO3",
+        "durationMinutes": 45,
+        "segments": [
+          {
+            "game": "501_DO",
+            "targetCount": 4
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 2
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 2
+          }
+        ],
+        "isSystem": true
+      },
+      {
+        "key": "BO3_Arbre_Niveau_C",
+        "durationMinutes": 30,
+        "segments": [
+          {
+            "game": "501_DO",
+            "targetCount": 4
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 2
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 2
+          }
+        ],
+        "isSystem": false
+      },
+      {
+        "key": "BO3_INDIV",
+        "durationMinutes": 20,
+        "segments": [
+          {
+            "game": "501_DO",
+            "targetCount": 1
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 1
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 1
+          }
+        ],
+        "isSystem": false
+      },
+      {
+        "key": "BO5_501",
+        "durationMinutes": 45,
+        "segments": [
+          {
+            "game": "501_DO",
+            "targetCount": 4
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 2
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 4
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 2
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 2
+          }
+        ],
+        "isSystem": true
+      },
+      {
+        "key": "BO5_501_701",
+        "durationMinutes": 60,
+        "segments": [
+          {
+            "game": "501_DO",
+            "targetCount": 4
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 2
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 4
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 2
+          },
+          {
+            "game": "701_DO",
+            "targetCount": 2
+          }
+        ],
+        "isSystem": true
+      },
+      {
+        "key": "BO5_501_INDIV",
+        "durationMinutes": 30,
+        "segments": [
+          {
+            "game": "501_DO",
+            "targetCount": 1
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 1
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 1
+          },
+          {
+            "game": "CRICKET",
+            "targetCount": 1
+          },
+          {
+            "game": "501_DO",
+            "targetCount": 1
+          }
+        ],
+        "isSystem": false
+      }
+    ],
+    skipDuplicates: true,
+  });
+
+  console.log(`✅ Created ${matchFormatPresets.count} match format presets`);
+
+  const tournamentPresets = await prisma.tournamentPreset.createMany({
+    data:     [
+      {
+        "name": "Doublette 40 joueurs",
+        "presetType": "three-pool-stages",
+        "totalParticipants": 40,
+        "targetCount": 9,
+        "templateConfig": {
+          "format": "DOUBLE",
+          "stages": [
+            {
+              "name": "Brassage",
+              "poolCount": 8,
+              "advanceCount": 5,
+              "matchFormatKey": "BO3",
+              "playersPerPool": 5
+            },
+            {
+              "name": "Niveau A",
+              "poolCount": 4,
+              "advanceCount": 2,
+              "inParallelWith": [
+                "stage:3",
+                "bracket:Niveau C"
+              ],
+              "matchFormatKey": "BO3",
+              "playersPerPool": 4
+            },
+            {
+              "name": "Niveau B",
+              "poolCount": 4,
+              "advanceCount": 2,
+              "inParallelWith": [
+                "stage:2",
+                "bracket:Niveau C"
+              ],
+              "matchFormatKey": "BO3",
+              "playersPerPool": 4
+            }
+          ],
+          "brackets": [
+            {
+              "name": "Niveau A",
+              "totalRounds": 3,
+              "inParallelWith": [
+                "bracket:Niveau C",
+                "bracket:Niveau B"
+              ],
+              "roundMatchFormats": {
+                "1": "BO5_501",
+                "2": "BO5_501_701",
+                "3": "BO5_501_701"
+              }
+            },
+            {
+              "name": "Niveau B",
+              "totalRounds": 3,
+              "inParallelWith": [
+                "bracket:Niveau C",
+                "bracket:Niveau A"
+              ],
+              "roundMatchFormats": {
+                "1": "BO5_501",
+                "2": "BO5_501_701",
+                "3": "BO5_501_701"
+              }
+            },
+            {
+              "name": "Niveau C",
+              "totalRounds": 3,
+              "inParallelWith": [
+                "bracket:Niveau B",
+                "bracket:Niveau A",
+                "stage:2",
+                "stage:3"
+              ],
+              "roundMatchFormats": {
+                "1": "BO3_Arbre_Niveau_C",
+                "2": "BO3_Arbre_Niveau_C",
+                "3": "BO3_Arbre_Niveau_C"
+              }
+            }
+          ],
+          "routingRules": [
+            {
+              "position": 1,
+              "stageNumber": 1,
+              "destinationType": "POOL_STAGE",
+              "destinationStageNumber": 2
+            },
+            {
+              "position": 2,
+              "stageNumber": 1,
+              "destinationType": "POOL_STAGE",
+              "destinationStageNumber": 2
+            },
+            {
+              "position": 3,
+              "stageNumber": 1,
+              "destinationType": "POOL_STAGE",
+              "destinationStageNumber": 3
+            },
+            {
+              "position": 4,
+              "stageNumber": 1,
+              "destinationType": "POOL_STAGE",
+              "destinationStageNumber": 3
+            },
+            {
+              "position": 5,
+              "stageNumber": 1,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau C"
+            },
+            {
+              "position": 1,
+              "stageNumber": 2,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau A"
+            },
+            {
+              "position": 2,
+              "stageNumber": 2,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau A"
+            },
+            {
+              "position": 3,
+              "stageNumber": 2,
+              "destinationType": "ELIMINATED"
+            },
+            {
+              "position": 4,
+              "stageNumber": 2,
+              "destinationType": "ELIMINATED"
+            },
+            {
+              "position": 1,
+              "stageNumber": 3,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau B"
+            },
+            {
+              "position": 2,
+              "stageNumber": 3,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau B"
+            },
+            {
+              "position": 3,
+              "stageNumber": 3,
+              "destinationType": "ELIMINATED"
+            },
+            {
+              "position": 4,
+              "stageNumber": 3,
+              "destinationType": "ELIMINATED"
+            }
+          ]
+        },
+        "isSystem": true
+      },
+      {
+        "name": "Individuels 40 joueurs",
+        "presetType": "single-pool-stage",
+        "totalParticipants": 40,
+        "targetCount": 9,
+        "templateConfig": {
+          "format": "SINGLE",
+          "stages": [
+            {
+              "name": "Brassage",
+              "poolCount": 8,
+              "advanceCount": 4,
+              "matchFormatKey": "BO3_INDIV",
+              "playersPerPool": 5
+            }
+          ],
+          "brackets": [
+            {
+              "name": "Niveau A",
+              "totalRounds": 4,
+              "inParallelWith": [
+                "bracket:Niveau B"
+              ],
+              "roundMatchFormats": {
+                "1": "BO3_INDIV",
+                "2": "BO5_501_INDIV",
+                "3": "BO5_501_INDIV",
+                "4": "BO5_501_INDIV"
+              }
+            },
+            {
+              "name": "Niveau B",
+              "totalRounds": 4,
+              "inParallelWith": [
+                "bracket:Niveau A"
+              ],
+              "roundMatchFormats": {
+                "1": "BO3_INDIV",
+                "2": "BO5_501_INDIV",
+                "3": "BO5_501_INDIV",
+                "4": "BO5_501_INDIV"
+              }
+            }
+          ],
+          "routingRules": [
+            {
+              "position": 1,
+              "stageNumber": 1,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau A"
+            },
+            {
+              "position": 2,
+              "stageNumber": 1,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau A"
+            },
+            {
+              "position": 3,
+              "stageNumber": 1,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau B"
+            },
+            {
+              "position": 4,
+              "stageNumber": 1,
+              "destinationType": "BRACKET",
+              "destinationBracketName": "Niveau B"
+            },
+            {
+              "position": 5,
+              "stageNumber": 1,
+              "destinationType": "ELIMINATED"
+            }
+          ]
+        },
+        "isSystem": true
+      }
+    ],
+    skipDuplicates: true,
+  });
+
+  console.log(`✅ Created ${tournamentPresets.count} tournament presets`);
+
   // Clear existing data (optional - comment out to preserve data)
   // await prisma.tournament.deleteMany();
 

@@ -13,6 +13,10 @@ import {
   TournamentStatus,
 } from '../../../../shared/src/types';
 import { isPowerOfTwo, nextPowerOfTwo } from './number-helpers';
+import {
+  getBracketRoundMatchFormatKey,
+  normalizeMatchFormatKey,
+} from './match-format-presets';
 
 type PoolStageUpdateData = Partial<{
   stageNumber: number;
@@ -21,6 +25,8 @@ type PoolStageUpdateData = Partial<{
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  matchFormatKey: string;
+  inParallelWith: string[];
   rankingDestinations: PoolStageRankingDestinationInput[];
   status: StageStatus;
   // eslint-disable-next-line unicorn/no-null
@@ -34,6 +40,8 @@ type PoolStageCreateData = {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket?: boolean;
+  matchFormatKey?: string;
+  inParallelWith?: string[];
   rankingDestinations?: PoolStageRankingDestinationInput[];
 };
 
@@ -138,6 +146,43 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     return { nextData, shouldRedistribute };
+  };
+
+  const ensureValidMatchFormatKey = (
+    value: unknown,
+    errorCode: string
+  ): string | undefined => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const normalized = normalizeMatchFormatKey(value);
+    if (!normalized) {
+      throw new AppError('Invalid match format key', 400, errorCode);
+    }
+    return normalized;
+  };
+
+  const normalizeParallelReferences = (
+    value: unknown,
+    errorCode: string
+  ): string[] | undefined => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (!Array.isArray(value)) {
+      throw new AppError('Invalid inParallelWith value', 400, errorCode);
+    }
+
+    const references = value
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => entry.length > 0);
+    for (const reference of references) {
+      if (!/^(stage:\d+|bracket:.+)$/i.test(reference)) {
+        throw new AppError('Invalid inParallelWith reference', 400, errorCode);
+      }
+    }
+
+    return [...new Set(references)];
   };
 
   const validatePoolStageRankingDestinations = async (
@@ -516,6 +561,11 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     entries: Array<{ playerId: string; seedNumber: number }>,
     options?: { forceInProgress?: boolean }
   ): Promise<void> => {
+    const bracket = await tournamentModel.getBracketById(bracketId);
+    const firstRoundMatchFormatKey = bracket
+      ? getBracketRoundMatchFormatKey(bracket.roundMatchFormats, 1)
+      : undefined;
+
     await tournamentModel.deleteMatchesForBracket(bracketId);
     await tournamentModel.deleteBracketEntriesForBracket(bracketId);
 
@@ -554,7 +604,12 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       matchNumber += 1;
     }
 
-    await tournamentModel.createBracketMatches(tournamentId, bracketId, matches);
+    await tournamentModel.createBracketMatches(
+      tournamentId,
+      bracketId,
+      matches,
+      firstRoundMatchFormatKey
+    );
     await tournamentModel.updateBracket(bracketId, { status: BracketStatus.IN_PROGRESS, totalRounds });
   };
 
@@ -991,39 +1046,111 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     return schedule;
   };
 
-  const createPoolMatchesForStage = async (tournamentId: string, stageId: string): Promise<void> => {
-    const pools = await tournamentModel.getPoolsWithAssignmentsForStage(stageId);
-    const poolsToUpdate: string[] = [];
+  const buildPoolMatchesFromSchedule = (
+    schedule: Array<{ roundNumber: number; pairs: Array<[string, string]> }>
+  ): Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> => {
+    const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+    for (const round of schedule) {
+      for (const pair of round.pairs) {
+        matches.push({
+          roundNumber: round.roundNumber,
+          matchNumber: matches.length + 1,
+          playerIds: pair,
+        });
+      }
+    }
+    return matches;
+  };
+
+  const createEmptyPoolMatchesForStage = async (tournamentId: string, stageId: string): Promise<void> => {
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    if (!stage || stage.playersPerPool < 2) {
+      return;
+    }
+
+    const stageMatchFormatKey = stage.matchFormatKey ?? undefined;
+    const pools = await tournamentModel.getPoolsForStage(stageId);
+    const placeholders = Array.from({ length: stage.playersPerPool }, (_, index) => `slot-${index + 1}`);
+    const skeletonSchedule = buildRoundRobinSchedule(placeholders);
+    let nextMatchNumber = 1;
+    const skeletonMatches = skeletonSchedule.flatMap((round) =>
+      round.pairs.map(() => ({
+        roundNumber: round.roundNumber,
+        matchNumber: nextMatchNumber++,
+      }))
+    );
 
     for (const pool of pools) {
       const matchCount = await tournamentModel.getMatchCountForPool(pool.id);
       if (matchCount > 0) {
-        poolsToUpdate.push(pool.id);
         continue;
       }
 
-      const playerIds = (pool.assignments || [])
+      await tournamentModel.createEmptyPoolMatches(
+        tournamentId,
+        pool.id,
+        skeletonMatches,
+        stageMatchFormatKey
+      );
+    }
+  };
+
+  const createPoolMatchesForStage = async (tournamentId: string, stageId: string): Promise<void> => {
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    const stageMatchFormatKey = stage?.matchFormatKey ?? undefined;
+    const pools = await tournamentModel.getPoolsWithAssignmentsForStage(stageId);
+    const poolsToUpdate: string[] = [];
+
+    const getPoolPlayerIds = (pool: (typeof pools)[number]) => (
+      (pool.assignments || [])
         .map((assignment) => assignment.player?.id)
-        .filter(Boolean);
+        .filter(Boolean)
+    );
+
+    const seedExistingOrCollectMissingMatches = async (
+      poolId: string,
+      matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>,
+      existingByMatchNumber: Map<number, Awaited<ReturnType<typeof tournamentModel.getPoolMatchesWithPlayers>>[number]>
+    ) => {
+      const missingMatches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+
+      for (const nextMatch of matches) {
+        const existing = existingByMatchNumber.get(nextMatch.matchNumber);
+        if (!existing) {
+          missingMatches.push(nextMatch);
+          continue;
+        }
+
+        if ((existing.playerMatches?.length ?? 0) < 2 && existing.status === MatchStatus.SCHEDULED) {
+          await tournamentModel.setPoolMatchPlayers(existing.id, nextMatch.playerIds);
+        }
+      }
+
+      if (missingMatches.length > 0) {
+        await tournamentModel.createPoolMatches(tournamentId, poolId, missingMatches, stageMatchFormatKey);
+      }
+    };
+
+    for (const pool of pools) {
+      const matchCount = await tournamentModel.getMatchCountForPool(pool.id);
+
+      const playerIds = getPoolPlayerIds(pool);
 
       if (playerIds.length < 2) {
         continue;
       }
 
       const schedule = buildRoundRobinSchedule(playerIds);
-      const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+      const matches = buildPoolMatchesFromSchedule(schedule);
+      const existingMatches = matchCount > 0
+        ? await tournamentModel.getPoolMatchesWithPlayers(pool.id)
+        : [];
+      const existingByMatchNumber = new Map(
+        existingMatches.map((item) => [item.matchNumber, item])
+      );
 
-      for (const round of schedule) {
-        for (const pair of round.pairs) {
-          matches.push({
-            roundNumber: round.roundNumber,
-            matchNumber: matches.length + 1,
-            playerIds: pair,
-          });
-        }
-      }
+      await seedExistingOrCollectMissingMatches(pool.id, matches, existingByMatchNumber);
 
-      await tournamentModel.createPoolMatches(tournamentId, pool.id, matches);
       if (matches.length > 0) {
         poolsToUpdate.push(pool.id);
       }
@@ -1186,6 +1313,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     },
     createPoolStage: async (tournamentId: string, data: PoolStageCreateData) => {
       validateUUID(tournamentId);
+      const matchFormatKey = ensureValidMatchFormatKey(data.matchFormatKey, 'POOL_STAGE_MATCH_FORMAT_INVALID');
+      const inParallelWith = normalizeParallelReferences(data.inParallelWith, 'POOL_STAGE_IN_PARALLEL_WITH_INVALID');
       const tournament = await tournamentModel.findById(tournamentId);
       if (!tournament) {
         throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
@@ -1205,15 +1334,24 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         data.rankingDestinations
       );
 
-      const poolStage = await tournamentModel.createPoolStage(tournamentId, data);
+      const poolStage = await tournamentModel.createPoolStage(tournamentId, {
+        ...data,
+        ...(matchFormatKey ? { matchFormatKey } : {}),
+        ...(inParallelWith === undefined ? {} : { inParallelWith }),
+      });
       if (poolStage.poolCount > 0) {
         await tournamentModel.createPoolsForStage(poolStage.id, poolStage.poolCount);
+        await createEmptyPoolMatchesForStage(tournamentId, poolStage.id);
       }
       return poolStage;
     },
     updatePoolStage: async (tournamentId: string, stageId: string, data: PoolStageUpdateData) => {
       validateUUID(tournamentId);
       validateUUID(stageId);
+      const matchFormatKey = ensureValidMatchFormatKey(data.matchFormatKey, 'POOL_STAGE_MATCH_FORMAT_INVALID');
+      const inParallelWith = data.inParallelWith === undefined
+        ? undefined
+        : normalizeParallelReferences(data.inParallelWith, 'POOL_STAGE_IN_PARALLEL_WITH_INVALID');
       const tournament = await getEditableTournamentForPoolStage(tournamentId);
 
       const currentStage = await tournamentModel.getPoolStageById(stageId);
@@ -1231,7 +1369,12 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         );
       }
 
-      const { nextData, shouldRedistribute } = buildPoolStageUpdateData(data);
+      const { matchFormatKey: _inputMatchFormatKey, ...restData } = data;
+      const { nextData, shouldRedistribute } = buildPoolStageUpdateData({
+        ...restData,
+        ...(data.matchFormatKey === undefined ? {} : { matchFormatKey: matchFormatKey! }),
+        ...(data.inParallelWith === undefined ? {} : { inParallelWith: inParallelWith ?? [] }),
+      });
       if (nextData.status === StageStatus.IN_PROGRESS && tournament.status !== TournamentStatus.LIVE) {
         throw new AppError(
           'Pool stages can only be started when the tournament is live',
@@ -1379,20 +1522,14 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       }
 
       const matches = await tournamentModel.getMatchesForPoolStage(stageId);
-      const invalidMatch = matches.find((match) => (match.playerMatches?.length ?? 0) < 2);
-      if (invalidMatch) {
-        throw new AppError(
-          'Pool stage has matches without two players',
-          400,
-          'POOL_STAGE_MATCH_INCOMPLETE'
-        );
-      }
+      const playableMatches = matches.filter((match) => (match.playerMatches?.length ?? 0) >= 2);
 
       const now = new Date();
-      for (const match of matches) {
+      for (const match of playableMatches) {
         await completeMatchWithRandomScores(match, now, { shouldAdvance: false });
       }
 
+      await tournamentModel.completeMatchesForStage(stageId, now);
       await tournamentModel.completePoolsForStage(stageId, now);
       await tournamentModel.updatePoolStage(stageId, {
         status: StageStatus.COMPLETED,

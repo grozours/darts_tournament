@@ -1,4 +1,7 @@
-import { BracketType, TournamentFormat } from '@shared/types';
+import {
+  BracketType,
+  TournamentFormat,
+} from '@shared/types';
 
 export type PresetType = 'single-pool-stage' | 'three-pool-stages' | 'custom';
 
@@ -9,10 +12,14 @@ export type TournamentPresetTemplateConfig = {
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
+    matchFormatKey?: string;
+    inParallelWith?: string[];
   }>;
   brackets: Array<{
     name: string;
     totalRounds: number;
+    roundMatchFormats?: Record<string, string>;
+    inParallelWith?: string[];
   }>;
   routingRules: Array<{
     stageNumber: number;
@@ -32,11 +39,15 @@ export type PresetTemplate = {
     playersPerPool: number;
     advanceCount: number;
     losersAdvanceToBracket: boolean;
+    matchFormatKey?: string;
+    inParallelWith?: string[];
   }>;
   brackets: Array<{
     name: string;
     bracketType: BracketType;
     totalRounds: number;
+    roundMatchFormats?: Record<string, string>;
+    inParallelWith?: string[];
   }>;
 };
 
@@ -85,11 +96,20 @@ export const getDefaultPresetTemplateConfig = (
           poolCount: stage1PoolCount,
           playersPerPool: 5,
           advanceCount: 2,
+          matchFormatKey: 'BO3',
         },
       ],
       brackets: [
-        { name: 'Loser Bracket', totalRounds: 3 },
-        { name: 'Winner Bracket', totalRounds: 3 },
+        {
+          name: 'Loser Bracket',
+          totalRounds: 3,
+          roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        },
+        {
+          name: 'Winner Bracket',
+          totalRounds: 3,
+          roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        },
       ],
       routingRules: [
         { stageNumber: 1, position: 1, destinationType: 'BRACKET', destinationBracketName: 'Winner Bracket' },
@@ -109,24 +129,43 @@ export const getDefaultPresetTemplateConfig = (
         poolCount: stage1PoolCount,
         playersPerPool: 5,
         advanceCount: 5,
+        matchFormatKey: 'BO3',
       },
       {
         name: 'Niveau A',
         poolCount: stage2PoolCount,
         playersPerPool: 4,
         advanceCount: 2,
+        matchFormatKey: 'BO5',
+        inParallelWith: ['stage:3'],
       },
       {
         name: 'Niveau B',
         poolCount: stage3PoolCount,
         playersPerPool: 4,
         advanceCount: 2,
+        matchFormatKey: 'BO5',
+        inParallelWith: ['stage:2'],
       },
     ],
     brackets: [
-      { name: 'Niveau A', totalRounds: 3 },
-      { name: 'Niveau B', totalRounds: 3 },
-      { name: 'Niveau C', totalRounds: 3 },
+      {
+        name: 'Niveau A',
+        totalRounds: 3,
+        roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        inParallelWith: ['bracket:Niveau B'],
+      },
+      {
+        name: 'Niveau B',
+        totalRounds: 3,
+        roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        inParallelWith: ['bracket:Niveau A'],
+      },
+      {
+        name: 'Niveau C',
+        totalRounds: 3,
+        roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+      },
     ],
     routingRules: [
       { stageNumber: 1, position: 1, destinationType: 'POOL_STAGE', destinationStageNumber: 2 },
@@ -162,11 +201,19 @@ export const buildTournamentPresetTemplate = (
       losersAdvanceToBracket: config.routingRules.some(
         (rule) => rule.stageNumber === index + 1 && rule.destinationType === 'BRACKET'
       ),
+      ...(stage.matchFormatKey ? { matchFormatKey: stage.matchFormatKey } : {}),
+      ...(stage.inParallelWith && stage.inParallelWith.length > 0
+        ? { inParallelWith: stage.inParallelWith }
+        : {}),
     })),
     brackets: config.brackets.map((bracket) => ({
       name: bracket.name,
       bracketType: BracketType.SINGLE_ELIMINATION,
       totalRounds: bracket.totalRounds,
+      ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
+      ...(bracket.inParallelWith && bracket.inParallelWith.length > 0
+        ? { inParallelWith: bracket.inParallelWith }
+        : {}),
     })),
   };
 };

@@ -184,6 +184,9 @@ const TournamentCard = ({
             {tournament.name}
           </h3>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{tournament.format}</p>
+          {tournament.location && (
+            <p className="mt-1 text-xs text-slate-400">{tournament.location}</p>
+          )}
           <p className="mt-1 break-all text-xs text-slate-500">ID: {tournamentId}</p>
         </div>
       </div>

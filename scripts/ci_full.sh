@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+"${ROOT_DIR}/scripts/check_shared_source_artifacts.sh"
 "${ROOT_DIR}/scripts/non_regression.sh"
 "${ROOT_DIR}/scripts/lint_all.sh"
 "${ROOT_DIR}/scripts/verify_nav_links.sh"

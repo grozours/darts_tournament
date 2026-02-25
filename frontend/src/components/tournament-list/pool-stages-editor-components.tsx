@@ -6,6 +6,7 @@ import type {
   PoolStageRankingDestination,
 } from '../../services/tournament-service';
 import type { Translator } from './types';
+import { getMatchFormatPresets } from '../../utils/match-format-presets';
 
 type PoolStageDraft = {
   stageNumber: number;
@@ -13,6 +14,7 @@ type PoolStageDraft = {
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
+  matchFormatKey?: string;
   losersAdvanceToBracket: boolean;
   rankingDestinations?: PoolStageRankingDestination[];
 };
@@ -29,6 +31,7 @@ type PoolStagesListProperties = {
   onPoolStagePoolCountChange: (id: string, value: number) => void;
   onPoolStagePlayersPerPoolChange: (id: string, value: number) => void;
   onPoolStageAdvanceCountChange: (id: string, value: number) => void;
+  onPoolStageMatchFormatChange: (id: string, value: string | undefined) => void;
   onPoolStageLosersAdvanceChange: (id: string, value: boolean) => void;
   onPoolStageRankingDestinationChange: (
     stageId: string,
@@ -56,6 +59,7 @@ type PoolStageItemProperties = {
   onPoolStagePoolCountChange: (id: string, value: number) => void;
   onPoolStagePlayersPerPoolChange: (id: string, value: number) => void;
   onPoolStageAdvanceCountChange: (id: string, value: number) => void;
+  onPoolStageMatchFormatChange: (id: string, value: string | undefined) => void;
   onPoolStageLosersAdvanceChange: (id: string, value: boolean) => void;
   onPoolStageRankingDestinationChange: (
     stageId: string,
@@ -83,6 +87,7 @@ type NewPoolStageFormProperties = {
   onNewPoolStagePoolCountChange: (value: number) => void;
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
+  onNewPoolStageMatchFormatChange: (value: string | undefined) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
   onNewPoolStageRankingDestinationChange: (
     position: number,
@@ -163,6 +168,7 @@ export const PoolStageItem = ({
   onPoolStagePoolCountChange,
   onPoolStagePlayersPerPoolChange,
   onPoolStageAdvanceCountChange,
+  onPoolStageMatchFormatChange,
   onPoolStageLosersAdvanceChange,
   onPoolStageRankingDestinationChange,
   onPoolStageStatusChange,
@@ -222,6 +228,19 @@ export const PoolStageItem = ({
             onChange={(event_) => onPoolStageAdvanceCountChange(stage.id, Number(event_.target.value))}
             className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
           />
+        </label>
+        <label className="text-xs text-slate-400">
+          <span>Format</span>
+          <select
+            value={stage.matchFormatKey ?? ''}
+            onChange={(event_) => onPoolStageMatchFormatChange(stage.id, event_.target.value || undefined)}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+          >
+            <option value="">-</option>
+            {getMatchFormatPresets().map((preset) => (
+              <option key={preset.key} value={preset.key}>{preset.key}</option>
+            ))}
+          </select>
         </label>
         <label className="text-xs text-slate-400">
           {t('edit.losers')}
@@ -354,6 +373,7 @@ export const PoolStagesList = ({
   onPoolStagePoolCountChange,
   onPoolStagePlayersPerPoolChange,
   onPoolStageAdvanceCountChange,
+  onPoolStageMatchFormatChange,
   onPoolStageLosersAdvanceChange,
   onPoolStageRankingDestinationChange,
   onPoolStageStatusChange,
@@ -382,6 +402,7 @@ export const PoolStagesList = ({
           onPoolStagePoolCountChange={onPoolStagePoolCountChange}
           onPoolStagePlayersPerPoolChange={onPoolStagePlayersPerPoolChange}
           onPoolStageAdvanceCountChange={onPoolStageAdvanceCountChange}
+          onPoolStageMatchFormatChange={onPoolStageMatchFormatChange}
           onPoolStageLosersAdvanceChange={onPoolStageLosersAdvanceChange}
           onPoolStageRankingDestinationChange={onPoolStageRankingDestinationChange}
           onPoolStageStatusChange={onPoolStageStatusChange}
@@ -409,6 +430,7 @@ export const NewPoolStageForm = ({
   onNewPoolStagePoolCountChange,
   onNewPoolStagePlayersPerPoolChange,
   onNewPoolStageAdvanceCountChange,
+  onNewPoolStageMatchFormatChange,
   onNewPoolStageLosersAdvanceChange,
   onNewPoolStageRankingDestinationChange,
   onAddPoolStage,
@@ -474,6 +496,19 @@ export const NewPoolStageForm = ({
             onChange={(event_) => onNewPoolStageAdvanceCountChange(Number(event_.target.value))}
             className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
           />
+        </label>
+        <label className="text-xs text-slate-400">
+          <span>Format</span>
+          <select
+            value={newPoolStage.matchFormatKey ?? ''}
+            onChange={(event_) => onNewPoolStageMatchFormatChange(event_.target.value || undefined)}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-white"
+          >
+            <option value="">-</option>
+            {getMatchFormatPresets().map((preset) => (
+              <option key={preset.key} value={preset.key}>{preset.key}</option>
+            ))}
+          </select>
         </label>
         <label className="text-xs text-slate-400">
           {t('edit.losers')}

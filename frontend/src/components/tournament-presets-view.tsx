@@ -42,6 +42,8 @@ type NewPoolStageDraft = {
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
+  matchFormatKey?: string;
+  inParallelWith?: string[];
   losersAdvanceToBracket: boolean;
   rankingDestinations?: PoolStageRankingDestination[];
 };
@@ -50,6 +52,17 @@ type NewBracketDraft = {
   name: string;
   bracketType: string;
   totalRounds: number;
+  roundMatchFormats?: Record<string, string>;
+  inParallelWith?: string[];
+};
+
+const toggleParallelReference = (values: string[] | undefined, reference: string): string[] | undefined => {
+  const currentValues = values ?? [];
+  if (currentValues.includes(reference)) {
+    const filtered = currentValues.filter((value) => value !== reference);
+    return filtered.length > 0 ? filtered : undefined;
+  }
+  return [...currentValues, reference];
 };
 
 const defaultPresetType: TournamentPresetType = 'single-pool-stage';
@@ -106,6 +119,8 @@ const buildEditorStateFromTemplate = (config: TournamentPresetTemplateConfig): {
     name: bracket.name,
     bracketType: BracketType.SINGLE_ELIMINATION,
     totalRounds: bracket.totalRounds,
+    ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
+    ...(bracket.inParallelWith ? { inParallelWith: bracket.inParallelWith } : {}),
     status: 'NOT_STARTED',
     targetIds: [],
   }));
@@ -120,6 +135,8 @@ const buildEditorStateFromTemplate = (config: TournamentPresetTemplateConfig): {
     poolCount: stage.poolCount,
     playersPerPool: stage.playersPerPool,
     advanceCount: stage.advanceCount,
+    ...(stage.matchFormatKey ? { matchFormatKey: stage.matchFormatKey } : {}),
+    ...(stage.inParallelWith ? { inParallelWith: stage.inParallelWith } : {}),
     losersAdvanceToBracket: false,
     status: 'EDITION',
     rankingDestinations: [],
@@ -228,10 +245,18 @@ const buildTemplateFromEditorState = (
       poolCount: stage.poolCount,
       playersPerPool: stage.playersPerPool,
       advanceCount: stage.advanceCount,
+      ...(stage.matchFormatKey ? { matchFormatKey: stage.matchFormatKey } : {}),
+      ...((stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith
+        ? { inParallelWith: (stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith }
+        : {}),
     })),
     brackets: brackets.map((bracket) => ({
       name: bracket.name,
       totalRounds: bracket.totalRounds,
+      ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
+      ...((bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith
+        ? { inParallelWith: (bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith }
+        : {}),
     })),
     routingRules,
   };
@@ -263,6 +288,7 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
     poolCount: 2,
     playersPerPool: 4,
     advanceCount: 2,
+    matchFormatKey: 'BO3',
     losersAdvanceToBracket: false,
     rankingDestinations: [],
   });
@@ -270,6 +296,7 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
     name: 'Bracket 1',
     bracketType: BracketType.SINGLE_ELIMINATION,
     totalRounds: 3,
+    roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
   });
   const modeParameters = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
@@ -299,6 +326,8 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
       poolCount: 2,
       playersPerPool: 4,
       advanceCount: 2,
+      matchFormatKey: 'BO3',
+      inParallelWith: [],
       losersAdvanceToBracket: false,
       rankingDestinations: [],
     });
@@ -306,6 +335,8 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
       name: `Bracket ${editorState.brackets.length + 1}`,
       bracketType: BracketType.SINGLE_ELIMINATION,
       totalRounds: 3,
+      roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+      inParallelWith: [],
     });
   }, []);
 
@@ -513,6 +544,44 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
     updatePoolStage(stage.id, (current) => ({ ...current, status }));
   };
 
+  const applyParallelValuesToStage = (stage: PoolStageConfig, reference: string): PoolStageConfig => {
+    const nextValues = toggleParallelReference(
+      (stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith,
+      reference
+    );
+    const nextStage = { ...stage } as PoolStageConfig & { inParallelWith?: string[] };
+    if (nextValues) {
+      nextStage.inParallelWith = nextValues;
+    } else {
+      delete nextStage.inParallelWith;
+    }
+    return nextStage;
+  };
+
+  const applyParallelValuesToBracket = (bracket: BracketConfig, reference: string): BracketConfig => {
+    const nextValues = toggleParallelReference(
+      (bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith,
+      reference
+    );
+    const nextBracket = { ...bracket } as BracketConfig & { inParallelWith?: string[] };
+    if (nextValues) {
+      nextBracket.inParallelWith = nextValues;
+    } else {
+      delete nextBracket.inParallelWith;
+    }
+    return nextBracket;
+  };
+
+  const handleToggleStageParallel = (stageId: string, reference: string) => {
+    updatePoolStage(stageId, (current) => applyParallelValuesToStage(current, reference));
+  };
+
+  const handleToggleBracketParallel = (bracketId: string, reference: string) => {
+    setBrackets((current) => current.map((item) => (
+      item.id === bracketId ? applyParallelValuesToBracket(item, reference) : item
+    )));
+  };
+
   const handleAddPoolStage = async () => {
     const stageId = makeId('stage', poolStages.length);
     setPoolStages((current) => [...current, {
@@ -523,6 +592,10 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
       poolCount: newPoolStage.poolCount,
       playersPerPool: newPoolStage.playersPerPool,
       advanceCount: newPoolStage.advanceCount,
+      ...(newPoolStage.matchFormatKey ? { matchFormatKey: newPoolStage.matchFormatKey } : {}),
+      ...(newPoolStage.inParallelWith && newPoolStage.inParallelWith.length > 0
+        ? { inParallelWith: newPoolStage.inParallelWith }
+        : {}),
       losersAdvanceToBracket: newPoolStage.losersAdvanceToBracket,
       rankingDestinations: newPoolStage.rankingDestinations ?? [],
       status: 'EDITION',
@@ -534,6 +607,8 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
       poolCount: 2,
       playersPerPool: 4,
       advanceCount: 2,
+      matchFormatKey: 'BO3',
+      inParallelWith: [],
       losersAdvanceToBracket: false,
       rankingDestinations: [],
     });
@@ -548,6 +623,10 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
       name: newBracket.name,
       bracketType: newBracket.bracketType,
       totalRounds: newBracket.totalRounds,
+      ...(newBracket.roundMatchFormats ? { roundMatchFormats: newBracket.roundMatchFormats } : {}),
+      ...(newBracket.inParallelWith && newBracket.inParallelWith.length > 0
+        ? { inParallelWith: newBracket.inParallelWith }
+        : {}),
       status: 'NOT_STARTED',
       targetIds: [],
     }]);
@@ -556,6 +635,8 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
       name: `Bracket ${brackets.length + 2}`,
       bracketType: BracketType.SINGLE_ELIMINATION,
       totalRounds: 3,
+      roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+      inParallelWith: [],
     });
   };
 
@@ -759,6 +840,14 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
           onPoolStagePoolCountChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, poolCount: value }))}
           onPoolStagePlayersPerPoolChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, playersPerPool: value }))}
           onPoolStageAdvanceCountChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, advanceCount: value }))}
+          onPoolStageMatchFormatChange={(id, value) => updatePoolStage(id, (stage) => {
+            if (value === undefined) {
+              const rest = { ...stage };
+              delete rest.matchFormatKey;
+              return rest;
+            }
+            return { ...stage, matchFormatKey: value };
+          })}
           onPoolStageLosersAdvanceChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, losersAdvanceToBracket: value }))}
           onPoolStageRankingDestinationChange={handlePoolStageDestinationChange}
           onPoolStageStatusChange={handlePoolStageStatusChange}
@@ -772,6 +861,14 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
           onNewPoolStagePoolCountChange={(value) => setNewPoolStage((current) => ({ ...current, poolCount: value }))}
           onNewPoolStagePlayersPerPoolChange={(value) => setNewPoolStage((current) => ({ ...current, playersPerPool: value }))}
           onNewPoolStageAdvanceCountChange={(value) => setNewPoolStage((current) => ({ ...current, advanceCount: value }))}
+          onNewPoolStageMatchFormatChange={(value) => setNewPoolStage((current) => {
+            if (value === undefined) {
+              const rest = { ...current };
+              delete rest.matchFormatKey;
+              return rest;
+            }
+            return { ...current, matchFormatKey: value };
+          })}
           onNewPoolStageLosersAdvanceChange={(value) => setNewPoolStage((current) => ({ ...current, losersAdvanceToBracket: value }))}
           onNewPoolStageRankingDestinationChange={(position, destination) => {
             setNewPoolStage((current) => {
@@ -807,6 +904,23 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
           onBracketRoundsChange={(id, value) => setBrackets((current) => current.map((bracket) => (
             bracket.id === id ? { ...bracket, totalRounds: value } : bracket
           )))}
+          onBracketRoundMatchFormatChange={(id, roundNumber, value) => setBrackets((current) => current.map((bracket) => {
+            if (bracket.id !== id) {
+              return bracket;
+            }
+            const nextRoundMatchFormats: Record<string, string> = {
+              ...bracket.roundMatchFormats,
+            };
+            if (value === undefined) {
+              delete nextRoundMatchFormats[String(roundNumber)];
+            } else {
+              nextRoundMatchFormats[String(roundNumber)] = value;
+            }
+            return {
+              ...bracket,
+              roundMatchFormats: nextRoundMatchFormats,
+            };
+          }))}
           onBracketStatusChange={(id, value) => setBrackets((current) => current.map((bracket) => (
             bracket.id === id ? { ...bracket, status: value } : bracket
           )))}
@@ -821,9 +935,115 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
           onNewBracketNameChange={(value) => setNewBracket((current) => ({ ...current, name: value }))}
           onNewBracketTypeChange={(value) => setNewBracket((current) => ({ ...current, bracketType: value }))}
           onNewBracketRoundsChange={(value) => setNewBracket((current) => ({ ...current, totalRounds: value }))}
+          onNewBracketRoundMatchFormatChange={(roundNumber, value) => setNewBracket((current) => {
+            const nextRoundMatchFormats: Record<string, string> = {
+              ...current.roundMatchFormats,
+            };
+            if (value === undefined) {
+              delete nextRoundMatchFormats[String(roundNumber)];
+            } else {
+              nextRoundMatchFormats[String(roundNumber)] = value;
+            }
+            return {
+              ...current,
+              roundMatchFormats: nextRoundMatchFormats,
+            };
+          })}
           onAddBracket={handleAddBracket}
           getStatusLabel={(kind, status) => getStatusLabel(t, kind, status)}
         />
+
+        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-5 space-y-4">
+          <h4 className="text-sm font-semibold text-white">in_parallel_with</h4>
+          <p className="text-xs text-slate-400">
+            Sélectionne les phases/arbres qui tournent en parallèle pour chaque élément.
+          </p>
+
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pool stages</p>
+            {poolStages
+              .toSorted((first, second) => first.stageNumber - second.stageNumber)
+              .map((stage) => {
+                const parallelValues = (stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith;
+                const stageOptions = poolStages
+                  .filter((candidate) => candidate.id !== stage.id)
+                  .toSorted((first, second) => first.stageNumber - second.stageNumber)
+                  .map((candidate) => ({
+                    value: `stage:${candidate.stageNumber}`,
+                    label: `Stage ${candidate.stageNumber} · ${candidate.name}`,
+                  }));
+                const bracketOptions = brackets.map((bracket) => ({
+                  value: `bracket:${bracket.name}`,
+                  label: `Bracket · ${bracket.name}`,
+                }));
+                const options = [...stageOptions, ...bracketOptions];
+                return (
+                  <div key={`parallel-stage-${stage.id}`} className="block text-xs text-slate-400 space-y-2">
+                    <span>Stage {stage.stageNumber} · {stage.name}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((option) => {
+                        const selected = (parallelValues ?? []).includes(option.value);
+                        return (
+                          <button
+                            key={`${stage.id}-${option.value}`}
+                            type="button"
+                            onClick={() => handleToggleStageParallel(stage.id, option.value)}
+                            className={`rounded-full border px-3 py-1 text-[11px] transition ${selected
+                              ? 'border-cyan-400/80 bg-cyan-500/20 text-cyan-100'
+                              : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Brackets</p>
+            {brackets.map((bracket) => {
+              const parallelValues = (bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith;
+              const stageOptions = poolStages
+                .toSorted((first, second) => first.stageNumber - second.stageNumber)
+                .map((stage) => ({
+                  value: `stage:${stage.stageNumber}`,
+                  label: `Stage ${stage.stageNumber} · ${stage.name}`,
+                }));
+              const bracketOptions = brackets
+                .filter((candidate) => candidate.id !== bracket.id)
+                .map((candidate) => ({
+                  value: `bracket:${candidate.name}`,
+                  label: `Bracket · ${candidate.name}`,
+                }));
+              const options = [...stageOptions, ...bracketOptions];
+              return (
+                <div key={`parallel-bracket-${bracket.id}`} className="block text-xs text-slate-400 space-y-2">
+                  <span>{bracket.name}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {options.map((option) => {
+                      const selected = (parallelValues ?? []).includes(option.value);
+                      return (
+                        <button
+                          key={`${bracket.id}-${option.value}`}
+                          type="button"
+                          onClick={() => handleToggleBracketParallel(bracket.id, option.value)}
+                          className={`rounded-full border px-3 py-1 text-[11px] transition ${selected
+                            ? 'border-amber-400/80 bg-amber-500/20 text-amber-100'
+                            : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {formError && <p className="text-sm text-rose-300">{formError}</p>}
 

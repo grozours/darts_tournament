@@ -9,13 +9,457 @@ import type {
 import { buildPoolLeaderboard } from './pool-leaderboard';
 import MatchScoreInputs from './match-score-inputs';
 import MatchTargetSelector from './match-target-selector';
+import { getMatchFormatPresets, getMatchFormatTooltip } from '../../utils/match-format-presets';
+
+const formatScheduledMatchTime = (value: string | undefined) => {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
+};
+
+const FALLBACK_MATCH_DURATION_MINUTES = 12;
+const NON_REMAINING_STAGE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+
+const getEstimatedMatchDurationMinutes = (matchFormatKey: string | undefined): number => {
+  if (!matchFormatKey) {
+    return FALLBACK_MATCH_DURATION_MINUTES;
+  }
+  const preset = getMatchFormatPresets().find((item) => item.key === matchFormatKey);
+  return preset?.durationMinutes ?? FALLBACK_MATCH_DURATION_MINUTES;
+};
+
+const isRemainingStage = (status: string | undefined) => (
+  !NON_REMAINING_STAGE_STATUSES.has((status ?? '').toUpperCase())
+);
+
+const getMatchPlayerIds = (match: Pick<LiveViewMatch, 'playerMatches'>) => (
+  (match.playerMatches ?? [])
+    .map((playerMatch) => playerMatch.player?.id)
+    .filter((playerId): playerId is string => Boolean(playerId))
+);
+
+const getPoolAssignmentPlayerIds = (pool: LiveViewPool) => (
+  (pool.assignments ?? [])
+    .map((assignment) => assignment.player?.id)
+    .filter((playerId): playerId is string => Boolean(playerId))
+);
+
+const getMatchReadyTimestampForOptimisticSchedule = (
+  match: Pick<LiveViewMatch, 'playerMatches'>,
+  playerAvailabilityById: Map<string, number>,
+  nowTimestamp: number
+) => getMatchPlayerIds(match).reduce(
+  (maxTimestamp, playerId) => Math.max(maxTimestamp, playerAvailabilityById.get(playerId) ?? nowTimestamp),
+  nowTimestamp
+);
+
+const setPlayersAvailabilityForMatch = (
+  match: Pick<LiveViewMatch, 'playerMatches'>,
+  playerAvailabilityById: Map<string, number>,
+  finishTimestamp: number
+) => {
+  for (const playerId of getMatchPlayerIds(match)) {
+    playerAvailabilityById.set(playerId, finishTimestamp);
+  }
+};
+
+const getPoolPlayerIdsForConcurrency = (pool: LiveViewPool) => {
+  const assignmentPlayerIds = new Set(getPoolAssignmentPlayerIds(pool));
+  if (assignmentPlayerIds.size > 0) {
+    return assignmentPlayerIds;
+  }
+
+  return new Set(
+    (pool.matches ?? [])
+      .flatMap((match) => getMatchPlayerIds(match))
+      .filter((playerId): playerId is string => Boolean(playerId))
+  );
+};
+
+const getPoolMaxConcurrentMatches = (pool: LiveViewPool, fallbackPlayerCount?: number) => {
+  const detectedPlayerCount = getPoolPlayerIdsForConcurrency(pool).size;
+  const playerCount = detectedPlayerCount > 0
+    ? detectedPlayerCount
+    : Math.max(0, Math.floor(fallbackPlayerCount ?? 0));
+  if (playerCount <= 1) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(playerCount / 2));
+};
+
+const findEarliestAvailabilityIndex = (availability: number[]) => {
+  let earliestIndex = 0;
+  let earliestValue = availability[0] ?? Number.POSITIVE_INFINITY;
+
+  for (let index = 1; index < availability.length; index += 1) {
+    const value = availability[index] ?? Number.POSITIVE_INFINITY;
+    if (value < earliestValue) {
+      earliestValue = value;
+      earliestIndex = index;
+    }
+  }
+
+  return earliestIndex;
+};
+
+const getBestTargetAndPoolSlot = (
+  targetAvailability: number[],
+  poolAvailability: number[],
+  matchReadyTimestamp: number
+) => {
+  let bestTargetIndex = 0;
+  let bestPoolSlotIndex = 0;
+  let bestStartTimestamp = Number.POSITIVE_INFINITY;
+
+  for (let targetIndex = 0; targetIndex < targetAvailability.length; targetIndex += 1) {
+    const targetReadyTimestamp = targetAvailability[targetIndex] ?? 0;
+    for (let poolSlotIndex = 0; poolSlotIndex < poolAvailability.length; poolSlotIndex += 1) {
+      const poolReadyTimestamp = poolAvailability[poolSlotIndex] ?? 0;
+      const startTimestamp = Math.max(targetReadyTimestamp, poolReadyTimestamp, matchReadyTimestamp);
+      if (startTimestamp < bestStartTimestamp) {
+        bestStartTimestamp = startTimestamp;
+        bestTargetIndex = targetIndex;
+        bestPoolSlotIndex = poolSlotIndex;
+      }
+    }
+  }
+
+  return {
+    bestTargetIndex,
+    bestPoolSlotIndex,
+    bestStartTimestamp,
+  };
+};
+
+type OptimisticPoolQueue = {
+  poolId: string;
+  poolNumber: number;
+  progress: number;
+  maxConcurrentMatches: number;
+  usesFallbackConcurrency: boolean;
+  queuedMatches: LiveViewMatch[];
+};
+
+type OptimisticCandidate = {
+  queue: OptimisticPoolQueue;
+  matchIndex: number;
+  match: LiveViewMatch;
+  bestTargetIndex: number;
+  bestPoolSlotIndex: number;
+  startTimestamp: number;
+  finishTimestamp: number;
+};
+
+const buildOptimisticPoolQueues = (
+  pools: LiveViewPool[],
+  stagePlayersPerPool?: number
+): OptimisticPoolQueue[] => pools.map((pool) => {
+  const matches = pool.matches ?? [];
+  const queuedMatches = matches
+    .filter((match) => match.status === 'SCHEDULED')
+    .toSorted((first, second) => {
+      if (first.roundNumber !== second.roundNumber) {
+        return first.roundNumber - second.roundNumber;
+      }
+      return first.matchNumber - second.matchNumber;
+    });
+  const progress = matches.filter(
+    (match) => match.status === 'COMPLETED' || match.status === 'IN_PROGRESS'
+  ).length;
+  const detectedPlayerCount = getPoolPlayerIdsForConcurrency(pool).size;
+  const usesFallbackConcurrency = detectedPlayerCount === 0 && stagePlayersPerPool !== undefined;
+  return {
+    poolId: pool.id,
+    poolNumber: pool.poolNumber,
+    progress,
+    maxConcurrentMatches: getPoolMaxConcurrentMatches(pool, stagePlayersPerPool),
+    usesFallbackConcurrency,
+    queuedMatches,
+  };
+});
+
+const buildPoolIdByMatchId = (pools: LiveViewPool[]) => {
+  const poolIdByMatchId = new Map<string, string>();
+  for (const pool of pools) {
+    for (const match of pool.matches ?? []) {
+      poolIdByMatchId.set(match.id, pool.id);
+    }
+  }
+  return poolIdByMatchId;
+};
+
+const buildPoolAvailabilityByPoolId = (poolQueues: OptimisticPoolQueue[], nowTimestamp: number) => {
+  const poolAvailabilityByPoolId = new Map<string, number[]>();
+  for (const queue of poolQueues) {
+    poolAvailabilityByPoolId.set(
+      queue.poolId,
+      Array.from({ length: queue.maxConcurrentMatches }, () => nowTimestamp)
+    );
+  }
+  return poolAvailabilityByPoolId;
+};
+
+const findBestOptimisticCandidate = (
+  poolQueues: OptimisticPoolQueue[],
+  targetAvailability: number[],
+  poolAvailabilityByPoolId: Map<string, number[]>,
+  playerAvailabilityById: Map<string, number>,
+  nowTimestamp: number,
+  prioritizeLeastProgressedPools: boolean,
+  resolveDurationMinutes: (match: LiveViewMatch) => number
+) => {
+  const queuesWithMatches = poolQueues.filter((queue) => queue.queuedMatches.length > 0);
+  const findBestFromQueues = (candidateQueues: OptimisticPoolQueue[]) => {
+    let bestCandidate: OptimisticCandidate | undefined;
+
+    for (const queue of candidateQueues) {
+      const poolAvailability = poolAvailabilityByPoolId.get(queue.poolId) ?? [nowTimestamp];
+      for (const [matchIndex, match] of queue.queuedMatches.entries()) {
+        const matchReadyTimestamp = getMatchReadyTimestampForOptimisticSchedule(
+          match,
+          playerAvailabilityById,
+          nowTimestamp
+        );
+        const slot = getBestTargetAndPoolSlot(targetAvailability, poolAvailability, matchReadyTimestamp);
+        const finishTimestamp = slot.bestStartTimestamp + resolveDurationMinutes(match) * 60_000;
+
+        if (!bestCandidate) {
+          bestCandidate = {
+            queue,
+            matchIndex,
+            match,
+            bestTargetIndex: slot.bestTargetIndex,
+            bestPoolSlotIndex: slot.bestPoolSlotIndex,
+            startTimestamp: slot.bestStartTimestamp,
+            finishTimestamp,
+          };
+          continue;
+        }
+
+        const hasEarlierFinish = finishTimestamp < bestCandidate.finishTimestamp;
+        const hasEarlierStartAtSameFinish = (
+          finishTimestamp === bestCandidate.finishTimestamp
+          && slot.bestStartTimestamp < bestCandidate.startTimestamp
+        );
+        const hasLowerPoolNumberAtSameStartAndFinish = (
+          finishTimestamp === bestCandidate.finishTimestamp
+          && slot.bestStartTimestamp === bestCandidate.startTimestamp
+          && queue.poolNumber < bestCandidate.queue.poolNumber
+        );
+        if (hasEarlierFinish || hasEarlierStartAtSameFinish || hasLowerPoolNumberAtSameStartAndFinish) {
+          bestCandidate = {
+            queue,
+            matchIndex,
+            match,
+            bestTargetIndex: slot.bestTargetIndex,
+            bestPoolSlotIndex: slot.bestPoolSlotIndex,
+            startTimestamp: slot.bestStartTimestamp,
+            finishTimestamp,
+          };
+        }
+      }
+    }
+
+    return bestCandidate;
+  };
+
+  const fairnessQueues = prioritizeLeastProgressedPools
+    ? (() => {
+      const minProgress = Math.min(...queuesWithMatches.map((queue) => queue.progress));
+      return queuesWithMatches.filter((queue) => queue.progress <= (minProgress + 1));
+    })()
+    : queuesWithMatches;
+
+  const bestFromFairnessQueues = findBestFromQueues(fairnessQueues);
+  if (!bestFromFairnessQueues) {
+    return undefined;
+  }
+
+  const hasIdleTargetNow = targetAvailability.some((availableAt) => availableAt <= nowTimestamp);
+  const fairnessDelaysStart = bestFromFairnessQueues.startTimestamp > nowTimestamp;
+  if (!prioritizeLeastProgressedPools || !hasIdleTargetNow || !fairnessDelaysStart) {
+    return bestFromFairnessQueues;
+  }
+
+  return findBestFromQueues(queuesWithMatches) ?? bestFromFairnessQueues;
+};
+
+export const computeOptimisticStartTimes = ({
+  pools,
+  stagePlayersPerPool,
+  schedulableTargetCount,
+  nowTimestamp,
+  prioritizeLeastProgressedPools,
+  resolveDurationMinutes,
+}: {
+  pools: LiveViewPool[];
+  stagePlayersPerPool?: number;
+  schedulableTargetCount: number;
+  nowTimestamp: number;
+  prioritizeLeastProgressedPools?: boolean;
+  resolveDurationMinutes: (match: LiveViewMatch) => number;
+}) => {
+  const poolQueues = pools.map((pool) => {
+    const baseQueue = buildOptimisticPoolQueues([pool], stagePlayersPerPool)[0];
+    if (!baseQueue) {
+      return {
+        poolId: pool.id,
+        poolNumber: pool.poolNumber,
+        progress: 0,
+        maxConcurrentMatches: 1,
+        usesFallbackConcurrency: false,
+        queuedMatches: [],
+      };
+    }
+    return baseQueue;
+  });
+  const shouldPrioritizeLeastProgressedPools = prioritizeLeastProgressedPools
+    || poolQueues.every((queue) => queue.usesFallbackConcurrency);
+  const inProgressMatches = pools
+    .flatMap((pool) => pool.matches ?? [])
+    .filter((match) => match.status === 'IN_PROGRESS');
+  const poolIdByMatchId = buildPoolIdByMatchId(pools);
+
+  const totalTargetCount = Math.max(1, schedulableTargetCount);
+  const targetAvailability: number[] = [];
+  const playerAvailabilityById = new Map<string, number>();
+  const poolAvailabilityByPoolId = buildPoolAvailabilityByPoolId(poolQueues, nowTimestamp);
+
+  const inProgressToReserve = Math.min(totalTargetCount, inProgressMatches.length);
+  for (const inProgressMatch of inProgressMatches.slice(0, inProgressToReserve)) {
+    const finishTimestamp = nowTimestamp + resolveDurationMinutes(inProgressMatch) * 60_000;
+    targetAvailability.push(finishTimestamp);
+    setPlayersAvailabilityForMatch(inProgressMatch, playerAvailabilityById, finishTimestamp);
+
+    const poolId = poolIdByMatchId.get(inProgressMatch.id);
+    if (poolId) {
+      const poolAvailability = poolAvailabilityByPoolId.get(poolId) ?? [nowTimestamp];
+      const earliestPoolSlotIndex = findEarliestAvailabilityIndex(poolAvailability);
+      poolAvailability[earliestPoolSlotIndex] = finishTimestamp;
+      poolAvailabilityByPoolId.set(poolId, poolAvailability);
+    }
+  }
+
+  const freeTargetCount = Math.max(0, totalTargetCount - inProgressToReserve);
+  for (let index = 0; index < freeTargetCount; index += 1) {
+    targetAvailability.push(nowTimestamp);
+  }
+  if (targetAvailability.length === 0) {
+    targetAvailability.push(nowTimestamp);
+  }
+
+  const optimisticById = new Map<string, string>();
+  const finishTimestampByMatchId = new Map<string, number>();
+
+  for (const inProgressMatch of inProgressMatches.slice(0, inProgressToReserve)) {
+    const finishTimestamp = nowTimestamp + resolveDurationMinutes(inProgressMatch) * 60_000;
+    finishTimestampByMatchId.set(inProgressMatch.id, finishTimestamp);
+  }
+
+  while (poolQueues.some((queue) => queue.queuedMatches.length > 0)) {
+    const bestCandidate = findBestOptimisticCandidate(
+      poolQueues,
+      targetAvailability,
+      poolAvailabilityByPoolId,
+      playerAvailabilityById,
+      nowTimestamp,
+      shouldPrioritizeLeastProgressedPools,
+      resolveDurationMinutes
+    );
+    if (!bestCandidate) {
+      break;
+    }
+
+    const [nextMatch] = bestCandidate.queue.queuedMatches.splice(bestCandidate.matchIndex, 1);
+    if (!nextMatch) {
+      continue;
+    }
+
+    optimisticById.set(nextMatch.id, formatHourMinute(new Date(bestCandidate.startTimestamp)));
+  finishTimestampByMatchId.set(nextMatch.id, bestCandidate.finishTimestamp);
+
+    targetAvailability[bestCandidate.bestTargetIndex] = bestCandidate.finishTimestamp;
+    const poolAvailability = poolAvailabilityByPoolId.get(bestCandidate.queue.poolId) ?? [nowTimestamp];
+    poolAvailability[bestCandidate.bestPoolSlotIndex] = bestCandidate.finishTimestamp;
+    poolAvailabilityByPoolId.set(bestCandidate.queue.poolId, poolAvailability);
+    setPlayersAvailabilityForMatch(nextMatch, playerAvailabilityById, bestCandidate.finishTimestamp);
+    bestCandidate.queue.progress += 1;
+  }
+
+  const latestFinishTimestamp = targetAvailability.reduce(
+    (latest, timestamp) => Math.max(latest, timestamp),
+    nowTimestamp
+  );
+
+  return {
+    optimisticById,
+    finishTimestampByMatchId,
+    estimatedDurationMinutes: Math.max(0, Math.ceil((latestFinishTimestamp - nowTimestamp) / 60_000)),
+  };
+};
+
+const formatHourMinute = (date: Date) => (
+  new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+);
+
+const formatDurationClock = (durationMinutes: number) => {
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+const toValidDate = (value: string | undefined) => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
+const isSameCalendarDate = (leftDate: Date, rightDate: Date) => (
+  leftDate.getFullYear() === rightDate.getFullYear()
+  && leftDate.getMonth() === rightDate.getMonth()
+  && leftDate.getDate() === rightDate.getDate()
+);
+
+const getOptimisticScheduleBaseDateTime = (
+  tournamentStartTime: string | undefined,
+  estimatedStartOffsetMinutes: number
+) => {
+  const currentDateTime = new Date();
+  const tournamentStartDateTime = toValidDate(tournamentStartTime);
+  const scheduleBaseDateTime = tournamentStartDateTime
+    && !isSameCalendarDate(tournamentStartDateTime, currentDateTime)
+    ? tournamentStartDateTime
+    : currentDateTime;
+
+  return new Date(scheduleBaseDateTime.getTime() + estimatedStartOffsetMinutes * 60_000);
+};
 
 type PoolStageCardProperties = {
   t: Translator;
   tournamentId: string;
+  tournamentStartTime: string | undefined;
   tournamentStatus: string;
   doubleStageEnabled: boolean;
   stage: LiveViewPoolStage;
+  estimatedStartOffsetMinutes: number;
   isAdmin: boolean;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
@@ -27,6 +471,11 @@ type PoolStageCardProperties = {
   resettingPoolId: string | undefined;
   editingMatchId?: string | undefined;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
+  schedulableTargetCount: number;
+  optimisticStartTimeByMatchIdOverride?: Map<string, string>;
+  estimatedDurationMinutesOverride?: number;
+  estimatedStartTimeOverride?: Date;
+  estimatedEndTimeOverride?: Date;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   getTargetIdForSelection: (tournamentId: string, targetNumberValue: string) => string | undefined;
   onTargetSelectionChange: (matchKey: string, targetId: string) => void;
@@ -61,9 +510,11 @@ type PoolStageCardProperties = {
 const PoolStageCard = ({
   t,
   tournamentId,
+  tournamentStartTime,
   tournamentStatus,
   doubleStageEnabled,
   stage,
+  estimatedStartOffsetMinutes,
   isAdmin,
   isPoolStagesReadonly,
   getStatusLabel,
@@ -75,6 +526,11 @@ const PoolStageCard = ({
   resettingPoolId,
   editingMatchId,
   availableTargetsByTournament,
+  schedulableTargetCount,
+  optimisticStartTimeByMatchIdOverride,
+  estimatedDurationMinutesOverride,
+  estimatedStartTimeOverride,
+  estimatedEndTimeOverride,
   getMatchKey,
   getTargetIdForSelection,
   onTargetSelectionChange,
@@ -151,10 +607,72 @@ const PoolStageCard = ({
     }
   }, [activePoolId, pools]);
   const activePool = pools.find((pool) => pool.id === activePoolId) ?? pools[0];
+  const stageMatchFormatTooltip = getMatchFormatTooltip(stage.matchFormatKey);
   const hasPoolAssignments = useMemo(
     () => pools.some((pool) => (pool.assignments?.length ?? 0) > 0),
     [pools]
   );
+
+  const optimisticSchedule = useMemo(() => {
+    const now = getOptimisticScheduleBaseDateTime(tournamentStartTime, estimatedStartOffsetMinutes);
+    return computeOptimisticStartTimes({
+      pools,
+      ...(stage.playersPerPool === undefined ? {} : { stagePlayersPerPool: stage.playersPerPool }),
+      schedulableTargetCount,
+      nowTimestamp: now.getTime(),
+      resolveDurationMinutes: (match) => getEstimatedMatchDurationMinutes(
+        match.matchFormatKey ?? stage.matchFormatKey
+      ),
+    });
+  }, [
+    estimatedStartOffsetMinutes,
+    pools,
+    schedulableTargetCount,
+    stage.matchFormatKey,
+    stage.playersPerPool,
+    tournamentStartTime,
+  ]);
+
+  const stageParallelizedEstimatedDurationMinutes = useMemo(() => {
+    if (!isRemainingStage(stage.status)) {
+      return 0;
+    }
+
+    if (estimatedDurationMinutesOverride !== undefined) {
+      return estimatedDurationMinutesOverride;
+    }
+
+    return optimisticSchedule.estimatedDurationMinutes;
+  }, [
+    estimatedDurationMinutesOverride,
+    stage.status,
+    optimisticSchedule.estimatedDurationMinutes,
+  ]);
+
+  const stageEstimatedEndTime = useMemo(() => {
+    if (estimatedEndTimeOverride) {
+      return estimatedEndTimeOverride;
+    }
+
+    const stageStartDateTime = getOptimisticScheduleBaseDateTime(
+      tournamentStartTime,
+      estimatedStartOffsetMinutes
+    );
+    return new Date(stageStartDateTime.getTime() + stageParallelizedEstimatedDurationMinutes * 60_000);
+  }, [
+    estimatedEndTimeOverride,
+    estimatedStartOffsetMinutes,
+    stageParallelizedEstimatedDurationMinutes,
+    tournamentStartTime,
+  ]);
+
+  const stageEstimatedStartTime = useMemo(() => (
+    estimatedStartTimeOverride
+      ?? getOptimisticScheduleBaseDateTime(tournamentStartTime, estimatedStartOffsetMinutes)
+  ), [estimatedStartOffsetMinutes, estimatedStartTimeOverride, tournamentStartTime]);
+
+  const optimisticStartTimeByMatchId = optimisticStartTimeByMatchIdOverride
+    ?? optimisticSchedule.optimisticById;
 
   const handleSelectPool = (poolId: string) => {
     manualSelectionReference.current = true;
@@ -504,12 +1022,21 @@ const PoolStageCard = ({
 
     return (
       <div className="mt-2 space-y-2">
-        {visibleMatches.map((match) => (
+        {visibleMatches.map((match) => {
+          const scheduledMatchTime = formatScheduledMatchTime(match.scheduledAt);
+          const optimisticMatchTime = optimisticStartTimeByMatchId.get(match.id);
+
+          return (
           <div key={match.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-slate-200">Match {match.matchNumber} · Round {match.roundNumber}</span>
               <span className="text-xs text-slate-400">{getStatusLabel('match', match.status)}</span>
             </div>
+            {match.status === 'SCHEDULED' && (
+              <p className="mt-1 text-xs text-slate-400">
+                {t('live.matchStartTime')}: {optimisticMatchTime ?? scheduledMatchTime ?? t('live.matchStartTimeUnknown')}
+              </p>
+            )}
             {match.status === 'IN_PROGRESS' && getMatchTargetLabel(match.target) && (
               <p className="mt-1 text-xs text-slate-400">
                 {t('live.queue.targetLabel')}: {getMatchTargetLabel(match.target)}
@@ -555,7 +1082,8 @@ const PoolStageCard = ({
               </p>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -569,6 +1097,20 @@ const PoolStageCard = ({
             {stage.stageNumber.toString().padStart(2, '0')} · {stage.name}
           </h4>
           <p className="text-sm text-slate-400">{t('common.status')}: {getStatusLabel('stage', stage.status)}</p>
+          <p className="mt-1 text-xs text-slate-300">
+            {t('live.estimatedDuration')}: {formatDurationClock(stageParallelizedEstimatedDurationMinutes)}
+          </p>
+          <p className="mt-1 text-xs text-slate-300">
+            {t('live.estimatedStartTime')}: {formatHourMinute(stageEstimatedStartTime)}
+          </p>
+          <p className="mt-1 text-xs text-slate-300">
+            {t('live.estimatedEndTime')}: {formatHourMinute(stageEstimatedEndTime)}
+          </p>
+          {stage.matchFormatKey && (
+            <p className="mt-1 text-xs text-cyan-200" title={stageMatchFormatTooltip}>
+              {stage.matchFormatKey}
+            </p>
+          )}
           <p className="text-xs text-slate-500 mt-1">
             {pools.length} pools · {stage.playersPerPool ?? 'n/a'} per pool
           </p>

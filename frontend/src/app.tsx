@@ -10,6 +10,9 @@ import CreateTournamentPage from "./components/tournaments/create-tournament-pag
 import AccountView from "./components/account-view";
 import TournamentPlayersView from "./components/tournament-players-view";
 import TournamentPresetsView from './components/tournament-presets-view';
+import MatchFormatsView from './components/match-formats-view';
+import { fetchMatchFormatPresets } from './services/tournament-service';
+import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
 import { useI18n } from './i18n';
 import { useOptionalAuth } from './auth/optional-auth';
@@ -159,6 +162,9 @@ const resolveMainContent = (
     case 'tournament-preset-editor': {
       return renderAdminOnly(isAdmin, t, <TournamentPresetsView mode="editor" />);
     }
+    case 'match-formats': {
+      return <MatchFormatsView />;
+    }
     case 'account': {
       return <AccountView />;
     }
@@ -177,6 +183,24 @@ function App() {
   const { isAdmin } = useAdminStatus();
 
   useMatchStartedNotifications();
+
+  useEffect(() => {
+    const loadMatchFormatPresets = async () => {
+      try {
+        const presets = await fetchMatchFormatPresets();
+        const mapped = presets.map((preset) => ({
+          key: preset.key,
+          durationMinutes: preset.durationMinutes,
+          segments: preset.segments,
+        }));
+        setMatchFormatPresets(mapped);
+      } catch {
+        setMatchFormatPresets([]);
+      }
+    };
+
+    void loadMatchFormatPresets();
+  }, []);
 
   const parameters = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)

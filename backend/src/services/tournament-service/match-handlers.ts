@@ -13,6 +13,7 @@ import {
 } from '../../../../shared/src/types';
 import type { Tournament } from '../../../../shared/src/types';
 import { nextPowerOfTwo } from './number-helpers';
+import { getBracketRoundMatchFormatKey } from './match-format-presets';
 
 type MatchForCompletion = {
   id: string;
@@ -169,13 +170,168 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     now: Date
   ): Promise<void> => {
     const targetToUse = await ensureTargetForMatchStart(match, targetId, tournamentId);
+    await ensurePlayersAvailableForMatchStart(tournamentId, matchId);
 
     if (match.poolId) {
       await ensurePoolStageInProgress(matchId);
     }
 
+    if (match.bracketId) {
+      await ensureBracketPrerequisitesCompleted(tournamentId, match.bracketId);
+    }
+
     await tournamentModel.startMatchWithTarget(matchId, targetToUse, now);
     await emitMatchStartedNotification(tournament, matchId);
+  };
+
+  const ensurePlayersAvailableForMatchStart = async (
+    tournamentId: string,
+    matchId: string
+  ): Promise<void> => {
+    const matchWithPlayers = await tournamentModel.getMatchWithPlayerMatches(matchId);
+    if (!matchWithPlayers) {
+      throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+    }
+
+    const playerIds = getMatchPlayerIds(matchWithPlayers);
+    if (playerIds.length === 0) {
+      return;
+    }
+
+    const liveView = await tournamentModel.findLiveView(tournamentId);
+    if (!liveView) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    type LiveViewPoolLike = {
+      id: string;
+      assignments?: Array<{ player?: { id?: string } }>;
+      matches?: Array<{
+        id: string;
+        status: string;
+        playerMatches?: Array<{ playerId?: string | null; player?: { id?: string } }>;
+      }>;
+    };
+
+    const collectActivePlayersFromMatches = (
+      candidateMatches: Array<{
+        id: string;
+        status: string;
+        playerMatches?: Array<{ playerId?: string | null; player?: { id?: string } }>;
+      }> | undefined,
+      activePlayerIds: Set<string>
+    ) => {
+      for (const candidateMatch of candidateMatches ?? []) {
+        if (candidateMatch.id === matchId || candidateMatch.status !== MatchStatus.IN_PROGRESS) {
+          continue;
+        }
+        for (const playerMatch of candidateMatch.playerMatches ?? []) {
+          const playerId = playerMatch.playerId ?? playerMatch.player?.id;
+          if (playerId) {
+            activePlayerIds.add(playerId);
+          }
+        }
+      }
+    };
+
+    const collectLiveViewActivePlayersAndTargetPool = () => {
+      const activePlayerIds = new Set<string>();
+      let targetPool: LiveViewPoolLike | undefined;
+
+      for (const stage of liveView.poolStages ?? []) {
+        for (const pool of stage.pools ?? []) {
+          if (!targetPool && pool.id === matchWithPlayers.poolId) {
+            targetPool = pool as LiveViewPoolLike;
+          }
+          collectActivePlayersFromMatches(pool.matches, activePlayerIds);
+        }
+      }
+
+      for (const bracket of liveView.brackets ?? []) {
+        collectActivePlayersFromMatches(bracket.matches, activePlayerIds);
+      }
+
+      return { activePlayerIds, targetPool };
+    };
+
+    const getPoolPlayerIds = (pool: LiveViewPoolLike) => {
+      const assignmentPlayerIds = new Set(
+        (pool.assignments ?? [])
+          .map((assignment) => assignment.player?.id)
+          .filter((playerId): playerId is string => Boolean(playerId))
+      );
+
+      if (assignmentPlayerIds.size > 0) {
+        return assignmentPlayerIds;
+      }
+
+      return new Set(
+        (pool.matches ?? [])
+          .flatMap((candidateMatch) => candidateMatch.playerMatches ?? [])
+          .map((playerMatch) => playerMatch.playerId ?? playerMatch.player?.id)
+          .filter((playerId): playerId is string => Boolean(playerId))
+      );
+    };
+
+    const ensurePoolConcurrentLimitNotReached = (pool: LiveViewPoolLike) => {
+      const poolPlayerIds = getPoolPlayerIds(pool);
+      const maxConcurrentMatches = Math.floor(poolPlayerIds.size / 2);
+      const inProgressMatchesInPool = (pool.matches ?? []).filter((candidateMatch) => (
+        candidateMatch.id !== matchId && candidateMatch.status === MatchStatus.IN_PROGRESS
+      )).length;
+
+      if (maxConcurrentMatches > 0 && inProgressMatchesInPool >= maxConcurrentMatches) {
+        throw new AppError(
+          `Pool concurrent match limit reached (${maxConcurrentMatches})`,
+          400,
+          'POOL_MAX_CONCURRENT_MATCHES_REACHED'
+        );
+      }
+    };
+
+    const { activePlayerIds, targetPool } = collectLiveViewActivePlayersAndTargetPool();
+
+    const conflictingPlayer = playerIds.find((playerId) => activePlayerIds.has(playerId));
+    if (conflictingPlayer) {
+      throw new AppError(
+        'A player is already in progress in another match',
+        400,
+        'PLAYER_ALREADY_IN_PROGRESS'
+      );
+    }
+
+    if (targetPool) {
+      ensurePoolConcurrentLimitNotReached(targetPool);
+    }
+  };
+
+  const ensureBracketPrerequisitesCompleted = async (
+    tournamentId: string,
+    bracketId: string
+  ): Promise<void> => {
+    const poolStages = await tournamentModel.getPoolStages(tournamentId);
+    const sourceStages = poolStages.filter((stage) => {
+      const destinations = Array.isArray(stage.rankingDestinations)
+        ? stage.rankingDestinations as Array<{ destinationType?: string; bracketId?: string }>
+        : [];
+
+      return destinations.some((destination) => (
+        destination.destinationType === 'BRACKET' && destination.bracketId === bracketId
+      ));
+    });
+
+    if (sourceStages.length === 0) {
+      return;
+    }
+
+    const allSourcesCompleted = sourceStages.every((stage) => stage.status === StageStatus.COMPLETED);
+    if (!allSourcesCompleted) {
+      throw new AppError(
+        'Bracket matches cannot start before source pool stages are completed',
+        400,
+        'BRACKET_PREREQUISITES_NOT_COMPLETED'
+      );
+    }
   };
 
   const finalizeMatchStatus = async (
@@ -807,8 +963,8 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
 
     if (sibling?.status !== MatchStatus.COMPLETED || !sibling?.winnerId) {
       await applySingleWinnerAdvance(
+        bracket,
         tournamentId,
-        bracket.id,
         existingNextMatch,
         nextRound,
         nextRoundMatchNumber,
@@ -825,8 +981,8 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
 
     await applyPairAdvance(
+      bracket,
       tournamentId,
-      bracket.id,
       existingNextMatch,
       nextRound,
       nextRoundMatchNumber,
@@ -835,56 +991,61 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
   };
 
   const applySingleWinnerAdvance = async (
+    bracket: NonNullable<Awaited<ReturnType<TournamentModel['getBracketById']>>>,
     tournamentId: string,
-    bracketId: string,
     existingNextMatch: Awaited<ReturnType<TournamentModel['getBracketMatchesByRoundWithPlayers']>>[number] | undefined,
     nextRound: number,
     nextRoundMatchNumber: number,
     winnerId: string,
     playerPosition: number
   ): Promise<void> => {
+    const matchFormatKey = getBracketRoundMatchFormatKey(bracket.roundMatchFormats, nextRound);
+
     if (existingNextMatch) {
       if (existingNextMatch.status === MatchStatus.SCHEDULED) {
         await tournamentModel.setBracketMatchPlayerPosition(existingNextMatch.id, winnerId, playerPosition);
       }
-      await setBracketInProgress(bracketId);
+      await setBracketInProgress(bracket.id);
       return;
     }
 
     await tournamentModel.createBracketMatchWithSlots(
       tournamentId,
-      bracketId,
+      bracket.id,
       nextRound,
       nextRoundMatchNumber,
-      [{ playerId: winnerId, playerPosition }]
+      [{ playerId: winnerId, playerPosition }],
+      matchFormatKey
     );
-    await setBracketInProgress(bracketId);
+    await setBracketInProgress(bracket.id);
   };
 
   const applyPairAdvance = async (
+    bracket: NonNullable<Awaited<ReturnType<TournamentModel['getBracketById']>>>,
     tournamentId: string,
-    bracketId: string,
     existingNextMatch: Awaited<ReturnType<TournamentModel['getBracketMatchesByRoundWithPlayers']>>[number] | undefined,
     nextRound: number,
     nextRoundMatchNumber: number,
     playerIds: [string, string]
   ): Promise<void> => {
+    const matchFormatKey = getBracketRoundMatchFormatKey(bracket.roundMatchFormats, nextRound);
+
     if (existingNextMatch) {
       if (existingNextMatch.status === MatchStatus.SCHEDULED && (existingNextMatch.playerMatches?.length ?? 0) < 2) {
         await tournamentModel.setBracketMatchPlayers(existingNextMatch.id, playerIds);
       }
-      await setBracketInProgress(bracketId);
+      await setBracketInProgress(bracket.id);
       return;
     }
 
-    await tournamentModel.createBracketMatches(tournamentId, bracketId, [
+    await tournamentModel.createBracketMatches(tournamentId, bracket.id, [
       {
         roundNumber: nextRound,
         matchNumber: nextRoundMatchNumber,
         playerIds,
       },
-    ]);
-    await setBracketInProgress(bracketId);
+    ], matchFormatKey);
+    await setBracketInProgress(bracket.id);
   };
 
   const setBracketInProgress = async (bracketId: string): Promise<void> => {

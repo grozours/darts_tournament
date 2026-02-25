@@ -106,6 +106,7 @@ export const commonSchemas = {
   // Tournament creation validation
   createTournament: z.object({
     name: z.string().min(3, 'Name must be at least 3 characters').max(100, 'Name must be less than 100 characters'),
+    location: z.string().max(150, 'Location must be less than 150 characters').optional(),
     format: z.enum(['SINGLE', 'DOUBLE', 'TEAM_4_PLAYER'], {
       errorMap: () => ({ message: 'Format must be SINGLE, DOUBLE, or TEAM_4_PLAYER' }),
     }),

@@ -1,8 +1,14 @@
-import { TournamentFormat, DurationType, SkillLevel } from '@shared/types';
+import {
+  TournamentFormat,
+  DurationType,
+  SkillLevel,
+  type MatchFormatPresetSegment,
+} from '@shared/types';
 import type { TournamentPresetTemplateConfig } from '../utils/tournament-presets';
 
 export interface CreateTournamentPayload {
   name: string;
+  location?: string;
   format: TournamentFormat | string;
   durationType: DurationType | string;
   startTime: string;
@@ -28,6 +34,16 @@ export interface TournamentPreset {
   totalParticipants: number;
   targetCount: number;
   templateConfig?: TournamentPresetTemplateConfig;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MatchFormatPresetEntity {
+  id: string;
+  key: string;
+  durationMinutes: number;
+  segments: MatchFormatPresetSegment[];
   isSystem: boolean;
   createdAt: string;
   updatedAt: string;
@@ -67,6 +83,8 @@ export interface PoolStageConfig {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  matchFormatKey?: string;
+  inParallelWith?: string[];
   rankingDestinations?: PoolStageRankingDestination[];
   status: string;
 }
@@ -86,6 +104,8 @@ export interface BracketConfig {
   name: string;
   bracketType: string;
   totalRounds: number;
+  roundMatchFormats?: Record<string, string>;
+  inParallelWith?: string[];
   status: string;
   targetIds?: string[];
   hasStartedMatches?: boolean;
@@ -886,5 +906,78 @@ export async function deleteTournamentPreset(presetId: string, token?: string): 
 
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to delete tournament preset');
+  }
+}
+
+export async function fetchMatchFormatPresets(token?: string): Promise<MatchFormatPresetEntity[]> {
+  const response = await fetch('/api/tournaments/match-formats', buildAuthRequestOptions(token));
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch match format presets');
+  }
+
+  const data = await response.json();
+  return data.presets || [];
+}
+
+export async function createMatchFormatPreset(
+  payload: {
+    key: string;
+    durationMinutes: number;
+    segments: MatchFormatPresetSegment[];
+    isSystem?: boolean;
+  },
+  token?: string
+): Promise<MatchFormatPresetEntity> {
+  const response = await fetch('/api/tournaments/match-formats', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to create match format preset');
+  }
+
+  return response.json();
+}
+
+export async function updateMatchFormatPreset(
+  formatId: string,
+  payload: Partial<{
+    key: string;
+    durationMinutes: number;
+    segments: MatchFormatPresetSegment[];
+    isSystem: boolean;
+  }>,
+  token?: string
+): Promise<MatchFormatPresetEntity> {
+  const response = await fetch(`/api/tournaments/match-formats/${formatId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to update match format preset');
+  }
+
+  return response.json();
+}
+
+export async function deleteMatchFormatPreset(formatId: string, token?: string): Promise<void> {
+  const response = await fetch(`/api/tournaments/match-formats/${formatId}`, {
+    method: 'DELETE',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to delete match format preset');
   }
 }

@@ -16,6 +16,7 @@ interface TournamentFormProperties {
 
 type FormState = {
   name: string;
+  location: string;
   format: string;
   durationType: string;
   startTime: string;
@@ -45,6 +46,7 @@ export default function TournamentForm({
   } = useOptionalAuth();
   const [formState, setFormState] = useState<FormState>({
     name: '',
+    location: '',
     format: '',
     durationType: '',
     startTime: '',
@@ -253,6 +255,7 @@ export default function TournamentForm({
   const resetForm = () => {
     setFormState({
       name: '',
+      location: '',
       format: '',
       durationType: '',
       startTime: '',
@@ -299,6 +302,9 @@ export default function TournamentForm({
 
       const result = await createTournament({
         name: submissionState.name.trim(),
+        ...(submissionState.location.trim()
+          ? { location: submissionState.location.trim() }
+          : {}),
         format: submissionState.format,
         durationType: submissionState.durationType,
         startTime: startTimeIso,
@@ -348,6 +354,20 @@ export default function TournamentForm({
             placeholder={t('tournamentForm.namePlaceholder')}
           />
           {errors.name && <p role="alert" className="text-xs text-rose-300">{errors.name}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <label htmlFor="tournament-location" className="text-sm text-slate-300">
+            {t('tournamentForm.locationLabel')}
+          </label>
+          <input
+            id="tournament-location"
+            type="text"
+            value={formState.location}
+            onChange={(event) => setField('location', event.target.value)}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            placeholder={t('tournamentForm.locationPlaceholder')}
+          />
         </div>
 
         <div className="space-y-3">

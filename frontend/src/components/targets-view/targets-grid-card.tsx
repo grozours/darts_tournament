@@ -1,5 +1,6 @@
 import ActiveMatchScorePanel from './active-match-score-panel';
 import { getSurnameList } from './target-labels';
+import { getMatchFormatTooltip } from '../../utils/match-format-presets';
 import type { LiveViewMatch, MatchQueueItem, SharedTarget, Translator } from './types';
 
 type TargetsGridCardProperties = {
@@ -87,6 +88,7 @@ const TargetsGridCard = ({
     return !hasDedicatedBracket;
   });
   const canStart = !isInUse && selectedMatchId.length > 0 && startingMatchId !== selectedMatchId;
+  const activeMatchTooltip = getMatchFormatTooltip(activeMatch?.matchFormatKey);
 
   return (
     <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
@@ -108,6 +110,11 @@ const TargetsGridCard = ({
           {matchInfo ? (
             <>
               <p className="mt-1">{matchInfo.label}</p>
+              {activeMatch?.matchFormatKey && (
+                <p className="mt-1 text-[11px] text-cyan-200" title={activeMatchTooltip}>
+                  {activeMatch.matchFormatKey}
+                </p>
+              )}
               {matchInfo.players.length > 0 && (
                 <div className="mt-1 text-sm font-semibold text-blue-200 space-y-1">
                   {matchInfo.players.map((player) => (

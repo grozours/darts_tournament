@@ -19,6 +19,7 @@ type PoolStageStructureResult = {
   handlePoolStagePoolCountChange: (stageId: string, value: number) => void;
   handlePoolStagePlayersPerPoolChange: (stageId: string, value: number) => void;
   handlePoolStageAdvanceCountChange: (stageId: string, value: number) => void;
+  handlePoolStageMatchFormatChange: (stageId: string, value: string | undefined) => void;
   handlePoolStageLosersAdvanceChange: (stageId: string, value: boolean) => void;
   handlePoolStageRankingDestinationChange: (
     stageId: string,
@@ -36,6 +37,7 @@ type PoolStageStructureResult = {
   handleNewPoolStagePoolCountChange: (value: number) => void;
   handleNewPoolStagePlayersPerPoolChange: (value: number) => void;
   handleNewPoolStageAdvanceCountChange: (value: number) => void;
+  handleNewPoolStageMatchFormatChange: (value: string | undefined) => void;
   handleNewPoolStageLosersAdvanceChange: (value: boolean) => void;
   handleNewPoolStageRankingDestinationChange: (
     position: number,
@@ -64,6 +66,7 @@ const initialPoolStageDraft: PoolStageDraft = {
   poolCount: 2,
   playersPerPool: 4,
   advanceCount: 2,
+  matchFormatKey: 'BO3',
   losersAdvanceToBracket: false,
   rankingDestinations: [
     { position: 1, destinationType: 'ELIMINATED' },
@@ -219,6 +222,9 @@ const usePoolStageMutations = ({
         losersAdvanceToBracket: stage.losersAdvanceToBracket,
         status: stage.status,
       };
+      if (stage.matchFormatKey) {
+        payload.matchFormatKey = stage.matchFormatKey;
+      }
       if (stage.rankingDestinations) {
         payload.rankingDestinations = stage.rankingDestinations;
       }
@@ -323,6 +329,20 @@ const usePoolStageFieldHandlers = ({
     updatePoolStageField(stageId, (item) => ({ ...item, advanceCount: value }));
   }, [updatePoolStageField]);
 
+  const handlePoolStageMatchFormatChange = useCallback((stageId: string, value: string | undefined) => {
+    updatePoolStageField(stageId, (item) => {
+      if (!value) {
+        const rest = { ...item };
+        delete rest.matchFormatKey;
+        return rest;
+      }
+      return {
+        ...item,
+        matchFormatKey: value,
+      };
+    });
+  }, [updatePoolStageField]);
+
   const handlePoolStageLosersAdvanceChange = useCallback((stageId: string, value: boolean) => {
     updatePoolStageField(stageId, (item) => ({ ...item, losersAdvanceToBracket: value }));
   }, [updatePoolStageField]);
@@ -356,6 +376,7 @@ const usePoolStageFieldHandlers = ({
     handlePoolStagePoolCountChange,
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
+    handlePoolStageMatchFormatChange,
     handlePoolStageLosersAdvanceChange,
     handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
@@ -415,6 +436,20 @@ const usePoolStageDraftHandlers = ({
     setNewPoolStage((current) => ({ ...current, advanceCount: value }));
   }, [setNewPoolStage]);
 
+  const handleNewPoolStageMatchFormatChange = useCallback((value: string | undefined) => {
+    setNewPoolStage((current) => {
+      if (!value) {
+        const rest = { ...current };
+        delete rest.matchFormatKey;
+        return rest;
+      }
+      return {
+        ...current,
+        matchFormatKey: value,
+      };
+    });
+  }, [setNewPoolStage]);
+
   const handleNewPoolStageLosersAdvanceChange = useCallback((value: boolean) => {
     setNewPoolStage((current) => ({ ...current, losersAdvanceToBracket: value }));
   }, [setNewPoolStage]);
@@ -444,6 +479,7 @@ const usePoolStageDraftHandlers = ({
     handleNewPoolStagePoolCountChange,
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
+    handleNewPoolStageMatchFormatChange,
     handleNewPoolStageLosersAdvanceChange,
     handleNewPoolStageRankingDestinationChange,
   };
@@ -491,6 +527,7 @@ const usePoolStageStructure = ({
     handlePoolStagePoolCountChange,
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
+    handlePoolStageMatchFormatChange,
     handlePoolStageLosersAdvanceChange,
     handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
@@ -504,6 +541,7 @@ const usePoolStageStructure = ({
     handleNewPoolStagePoolCountChange,
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
+    handleNewPoolStageMatchFormatChange,
     handleNewPoolStageLosersAdvanceChange,
     handleNewPoolStageRankingDestinationChange,
   } = usePoolStageDraftHandlers({ setIsAddingPoolStage, setNewPoolStage });
@@ -519,6 +557,7 @@ const usePoolStageStructure = ({
     handlePoolStagePoolCountChange,
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
+    handlePoolStageMatchFormatChange,
     handlePoolStageLosersAdvanceChange,
     handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
@@ -532,6 +571,7 @@ const usePoolStageStructure = ({
     handleNewPoolStagePoolCountChange,
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
+    handleNewPoolStageMatchFormatChange,
     handleNewPoolStageLosersAdvanceChange,
     handleNewPoolStageRankingDestinationChange,
     resetPoolStageState,

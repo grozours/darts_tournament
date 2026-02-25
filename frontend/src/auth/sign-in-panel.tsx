@@ -43,9 +43,9 @@ function SignInPanel({ title, description }: SignInPanelProperties) {
       getEnvironmentValue('VITE_AUTH0_CONNECTION_FACEBOOK'),
       'facebook'
     );
-    const instagramConnection = getConnection(
-      getEnvironmentValue('VITE_AUTH0_CONNECTION_INSTAGRAM'),
-      'instagram'
+    const discordConnection = getConnection(
+      getEnvironmentValue('VITE_AUTH0_CONNECTION_DISCORD'),
+      'discord'
     );
 
     return [
@@ -62,9 +62,9 @@ function SignInPanel({ title, description }: SignInPanelProperties) {
         className: 'border-slate-700 text-slate-100 hover:border-slate-500',
       },
       {
-        key: 'instagram',
-        label: t('auth.signInWithInstagram'),
-        connection: instagramConnection,
+        key: 'discord',
+        label: t('auth.signInWithDiscord'),
+        connection: discordConnection,
         className: 'border-slate-700 text-slate-100 hover:border-slate-500',
       },
     ];

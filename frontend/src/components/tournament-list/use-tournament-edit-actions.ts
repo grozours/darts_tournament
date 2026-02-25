@@ -68,6 +68,9 @@ const useSaveEditAction = ({
     const token = await getSafeAccessToken();
     const payload: Partial<CreateTournamentPayload> = {
       name: editForm.name.trim(),
+      ...(editForm.location.trim()
+        ? { location: editForm.location.trim() }
+        : {}),
       format: editForm.format,
       durationType: editForm.durationType,
       totalParticipants: Number(editForm.totalParticipants || 0),

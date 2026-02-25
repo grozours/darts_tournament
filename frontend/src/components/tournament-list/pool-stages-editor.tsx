@@ -8,6 +8,7 @@ type PoolStageDraft = {
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
+  matchFormatKey?: string;
   losersAdvanceToBracket: boolean;
   rankingDestinations?: Array<{
     position: number;
@@ -33,6 +34,7 @@ type PoolStagesEditorProperties = {
   onPoolStagePoolCountChange: (id: string, value: number) => void;
   onPoolStagePlayersPerPoolChange: (id: string, value: number) => void;
   onPoolStageAdvanceCountChange: (id: string, value: number) => void;
+  onPoolStageMatchFormatChange: (id: string, value: string | undefined) => void;
   onPoolStageLosersAdvanceChange: (id: string, value: boolean) => void;
   onPoolStageRankingDestinationChange: (
     id: string,
@@ -50,6 +52,7 @@ type PoolStagesEditorProperties = {
   onNewPoolStagePoolCountChange: (value: number) => void;
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
+  onNewPoolStageMatchFormatChange: (value: string | undefined) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
   onNewPoolStageRankingDestinationChange: (
     position: number,
@@ -77,6 +80,7 @@ const PoolStagesEditor = ({
   onPoolStagePoolCountChange,
   onPoolStagePlayersPerPoolChange,
   onPoolStageAdvanceCountChange,
+  onPoolStageMatchFormatChange,
   onPoolStageLosersAdvanceChange,
   onPoolStageRankingDestinationChange,
   onPoolStageStatusChange,
@@ -90,6 +94,7 @@ const PoolStagesEditor = ({
   onNewPoolStagePoolCountChange,
   onNewPoolStagePlayersPerPoolChange,
   onNewPoolStageAdvanceCountChange,
+  onNewPoolStageMatchFormatChange,
   onNewPoolStageLosersAdvanceChange,
   onNewPoolStageRankingDestinationChange,
   onAddPoolStage,
@@ -122,6 +127,7 @@ const PoolStagesEditor = ({
       onPoolStagePoolCountChange={onPoolStagePoolCountChange}
       onPoolStagePlayersPerPoolChange={onPoolStagePlayersPerPoolChange}
       onPoolStageAdvanceCountChange={onPoolStageAdvanceCountChange}
+      onPoolStageMatchFormatChange={onPoolStageMatchFormatChange}
       onPoolStageLosersAdvanceChange={onPoolStageLosersAdvanceChange}
       onPoolStageRankingDestinationChange={onPoolStageRankingDestinationChange}
       onPoolStageStatusChange={onPoolStageStatusChange}
@@ -145,6 +151,7 @@ const PoolStagesEditor = ({
       onNewPoolStagePoolCountChange={onNewPoolStagePoolCountChange}
       onNewPoolStagePlayersPerPoolChange={onNewPoolStagePlayersPerPoolChange}
       onNewPoolStageAdvanceCountChange={onNewPoolStageAdvanceCountChange}
+      onNewPoolStageMatchFormatChange={onNewPoolStageMatchFormatChange}
       onNewPoolStageLosersAdvanceChange={onNewPoolStageLosersAdvanceChange}
       onNewPoolStageRankingDestinationChange={onNewPoolStageRankingDestinationChange}
       onAddPoolStage={onAddPoolStage}

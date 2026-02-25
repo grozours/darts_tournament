@@ -1,5 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import { buildInUseTargetNumbers, getSharedAvailableTargets } from './target-utilities';
+import {
+  buildInUseTargetNumbers,
+  getSchedulableTargets,
+  getSharedAvailableTargets,
+} from './target-utilities';
 import type { LiveViewData, LiveViewTarget } from './types';
 
 type UseLiveTournamentTargetsProperties = {
@@ -8,6 +12,7 @@ type UseLiveTournamentTargetsProperties = {
 
 type LiveTournamentTargetsResult = {
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
+  schedulableTargetCountByTournament: Map<string, number>;
   matchTargetSelections: Record<string, string>;
   handleTargetSelectionChange: (matchKey: string, targetId: string) => void;
   getTargetIdForSelection: (matchTournamentId: string, targetNumberValue: string) => string | undefined;
@@ -26,6 +31,14 @@ const useLiveTournamentTargets = ({ liveViews }: UseLiveTournamentTargetsPropert
     }
     return map;
   }, [liveViews, inUseTargetNumbers]);
+
+  const schedulableTargetCountByTournament = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const view of liveViews) {
+      map.set(view.id, Math.max(getSchedulableTargets(view).length, 1));
+    }
+    return map;
+  }, [liveViews]);
 
   const targetIdByTournamentAndNumber = useMemo(() => {
     const map = new Map<string, Map<number, string>>();
@@ -70,6 +83,7 @@ const useLiveTournamentTargets = ({ liveViews }: UseLiveTournamentTargetsPropert
 
   return {
     availableTargetsByTournament,
+    schedulableTargetCountByTournament,
     matchTargetSelections,
     handleTargetSelectionChange,
     getTargetIdForSelection,

@@ -5,6 +5,7 @@ import { registerTournamentBracketRoutes } from './tournaments/bracket-routes';
 import { registerTournamentCrudRoutes } from './tournaments/tournament-crud-routes';
 import { registerTournamentListRoutes } from './tournaments/list-routes';
 import { registerTournamentMatchRoutes } from './tournaments/match-routes';
+import { registerTournamentMatchFormatRoutes } from './tournaments/match-format-routes';
 import { registerTournamentPresetRoutes } from './tournaments/preset-routes';
 import { registerTournamentPlayerRoutes } from './tournaments/player-routes';
 import { registerTournamentPoolStageRoutes } from './tournaments/pool-stage-routes';
@@ -18,6 +19,7 @@ const router = Router();
 
 registerTournamentListRoutes(router, tournamentController);
 registerTournamentPresetRoutes(router, tournamentController);
+registerTournamentMatchFormatRoutes(router, tournamentController);
 registerTournamentCrudRoutes(router, tournamentController);
 registerTournamentRegistrationRoutes(router, tournamentController);
 registerTournamentPlayerRoutes(router, tournamentController);

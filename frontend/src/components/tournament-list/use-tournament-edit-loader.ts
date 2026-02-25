@@ -47,6 +47,7 @@ const resolveValue = <T>(fallback: T, ...values: Array<T | undefined>) =>
 const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): Tournament => ({
   id: resolveValue(fallbackId, data.id as string | undefined),
   name: resolveValue('', data.name as string | undefined),
+  location: resolveValue(undefined, data.location as string | undefined),
   logoUrl: resolveValue(undefined, data.logoUrl as string | undefined, data.logo_url as string | undefined),
   format: resolveValue(TournamentFormat.SINGLE, data.format as string | undefined),
   totalParticipants: resolveValue(
@@ -93,6 +94,7 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
 
 const buildEditFormState = (tournament: Tournament, toLocalInput: (value?: string) => string): EditFormState => ({
   name: tournament.name ?? '',
+  location: tournament.location ?? '',
   format: tournament.format ?? TournamentFormat.SINGLE,
   durationType: tournament.durationType ?? DurationType.FULL_DAY,
   startTime: toLocalInput(tournament.startTime),

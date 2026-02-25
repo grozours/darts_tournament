@@ -48,6 +48,16 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"label": "post-rebuild:health-check",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"i=1; while [ $i -le 20 ]; do b=$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/health || true); f=$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001 || true); echo \"try $i backend:$b frontend:$f\"; if [ \"$b\" = \"200\" ] && [ \"$f\" = \"200\" ]; then exit 0; fi; i=$((i+1)); sleep 2; done; exit 1"
+			],
+			"isBackground": false
 		}
 	]
 }

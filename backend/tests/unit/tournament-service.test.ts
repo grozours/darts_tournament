@@ -49,6 +49,11 @@ type MockTournamentModel = {
   updatePoolStage: jest.Mock;
   getPoolStageById: jest.Mock;
   getMatchesForPoolStage: jest.Mock;
+  getPoolCountForStage: jest.Mock;
+  getPoolsForStage: jest.Mock;
+  getPoolAssignmentCountForStage: jest.Mock;
+  getPoolMatchesWithPlayers: jest.Mock;
+  setPoolMatchPlayers: jest.Mock;
   completePoolsForStage: jest.Mock;
   getBrackets: jest.Mock;
   getBracketById: jest.Mock;
@@ -117,6 +122,11 @@ describe('TournamentService core logic', () => {
       updatePoolStage: jest.fn(),
       getPoolStageById: jest.fn(),
       getMatchesForPoolStage: jest.fn(),
+      getPoolCountForStage: jest.fn(),
+      getPoolsForStage: jest.fn(),
+      getPoolAssignmentCountForStage: jest.fn(),
+      getPoolMatchesWithPlayers: jest.fn(),
+      setPoolMatchPlayers: jest.fn(),
       completePoolsForStage: jest.fn(),
       getBrackets: jest.fn(),
       getBracketById: jest.fn(),
@@ -879,6 +889,58 @@ describe('TournamentService core logic', () => {
     );
 
     expect(mockModel.updatePoolStage).toHaveBeenCalled();
+  });
+
+  it('seeds existing empty pool matches when launching stage', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000142';
+    const stageId = '00000000-0000-4000-8000-000000000143';
+    const poolId = '00000000-0000-4000-8000-000000000144';
+    const playerA = '00000000-0000-4000-8000-000000000145';
+    const playerB = '00000000-0000-4000-8000-000000000146';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, status: TournamentStatus.LIVE });
+    mockModel.getPoolStageById.mockResolvedValue({
+      id: stageId,
+      tournamentId,
+      stageNumber: 1,
+      poolCount: 1,
+      playersPerPool: 2,
+      status: StageStatus.EDITION,
+      matchFormatKey: null,
+    });
+    mockModel.updatePoolStage.mockResolvedValue({
+      id: stageId,
+      tournamentId,
+      stageNumber: 1,
+      poolCount: 1,
+      playersPerPool: 2,
+      status: StageStatus.IN_PROGRESS,
+      matchFormatKey: null,
+    });
+    mockModel.getPoolCountForStage.mockResolvedValue(1);
+    mockModel.getPoolAssignmentCountForStage.mockResolvedValue(2);
+    mockModel.getPoolsWithAssignmentsForStage.mockResolvedValue([
+      {
+        id: poolId,
+        assignments: [{ player: { id: playerA } }, { player: { id: playerB } }],
+      },
+    ]);
+    mockModel.getMatchCountForPool.mockResolvedValue(1);
+    mockModel.getPoolMatchesWithPlayers.mockResolvedValue([
+      {
+        id: 'match-1',
+        matchNumber: 1,
+        status: MatchStatus.SCHEDULED,
+        playerMatches: [],
+      },
+    ]);
+    mockModel.setPoolMatchPlayers.mockResolvedValue(undefined);
+    mockModel.updatePoolStatuses.mockResolvedValue(undefined);
+
+    await service.updatePoolStage(tournamentId, stageId, { status: StageStatus.IN_PROGRESS });
+
+    expect(mockModel.setPoolMatchPlayers).toHaveBeenCalledWith('match-1', [playerA, playerB]);
   });
 
   it('completes pool stage scores and advances bracket', async () => {

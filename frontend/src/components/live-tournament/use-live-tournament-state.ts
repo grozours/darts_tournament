@@ -59,6 +59,7 @@ type LiveTournamentState = {
   showGlobalQueue: boolean;
   globalQueue: MatchQueueItem[];
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
+  schedulableTargetCountByTournament: Map<string, number>;
   matchTargetSelections: Record<string, string>;
   handleTargetSelectionChange: (matchKey: string, targetId: string) => void;
   getTargetIdForSelection: (tournamentId: string, targetNumberValue: string) => string | undefined;
@@ -185,6 +186,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
   });
   const {
     availableTargetsByTournament,
+    schedulableTargetCountByTournament,
     matchTargetSelections,
     handleTargetSelectionChange,
     getTargetIdForSelection,
@@ -292,6 +294,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     showGlobalQueue,
     globalQueue,
     availableTargetsByTournament,
+    schedulableTargetCountByTournament,
     matchTargetSelections,
     handleTargetSelectionChange,
     getTargetIdForSelection,

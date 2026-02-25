@@ -15,6 +15,7 @@ datasource db {
 model Tournament {
   id                String        @id @default(uuid())
   name              String        @db.VarChar(100)
+  location          String?       @db.VarChar(150)
   logoUrl           String?       @map("logo_url")
   format            TournamentFormat
   durationType      DurationType  @map("duration_type")
@@ -53,6 +54,18 @@ model TournamentPreset {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("tournament_presets")
+}
+
+model MatchFormatPreset {
+  id              String   @id @default(uuid())
+  key             String   @unique @db.VarChar(20)
+  durationMinutes Int      @map("duration_minutes")
+  segments        Json
+  isSystem        Boolean  @default(false) @map("is_system")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("match_format_presets")
 }
 
 // Player Entity
@@ -106,6 +119,8 @@ model PoolStage {
   tournamentId   String    @map("tournament_id")
   stageNumber    Int       @map("stage_number")
   name           String    @db.VarChar(100)
+  matchFormatKey String?   @map("match_format_key") @db.VarChar(20)
+  inParallelWith Json?     @map("in_parallel_with")
   poolCount      Int       @map("pool_count")
   playersPerPool Int       @map("players_per_pool")
   advanceCount   Int       @map("advance_count")
@@ -166,6 +181,8 @@ model Bracket {
   tournamentId   String        @map("tournament_id")
   bracketType    BracketType   @map("bracket_type")
   name           String        @db.VarChar(100)
+  roundMatchFormats Json?      @map("round_match_formats")
+  inParallelWith Json?         @map("in_parallel_with")
   totalRounds    Int           @map("total_rounds")
   status         BracketStatus @default(NOT_STARTED)
   createdAt      DateTime      @default(now()) @map("created_at")
@@ -243,6 +260,7 @@ model Match {
   tournamentId     String         @map("tournament_id")
   poolId           String?        @map("pool_id")
   bracketId        String?        @map("bracket_id")
+  matchFormatKey   String?        @map("match_format_key") @db.VarChar(20)
   targetId         String?        @map("target_id")
   roundNumber      Int            @map("round_number")
   matchNumber      Int            @map("match_number")

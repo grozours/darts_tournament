@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { TournamentService, TournamentFilters } from '../services/tournament-service';
-import { TournamentFormat, TournamentStatus } from '../../../shared/src/types';
+import { MATCH_FORMAT_PRESETS, TournamentFormat, TournamentStatus } from '../../../shared/src/types';
 import { AppError } from '../middleware/error-handler';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { isAdmin } from '../middleware/auth';
@@ -60,6 +60,54 @@ export class TournamentController {
    */
   private getTournamentService(request: Request): TournamentService {
     return new TournamentService(this.prisma, request);
+  }
+
+  private async ensureDefaultTournamentPresets() {
+    const existingCount = await this.prisma.tournamentPreset.count();
+    if (existingCount === 0) {
+      await this.prisma.tournamentPreset.createMany({
+        data: [
+          {
+            name: 'Single pool stage',
+            presetType: 'single-pool-stage',
+            totalParticipants: 16,
+            targetCount: 4,
+            isSystem: true,
+          },
+          {
+            name: 'Three pool stages',
+            presetType: 'three-pool-stages',
+            totalParticipants: 16,
+            targetCount: 4,
+            isSystem: true,
+          },
+        ],
+        skipDuplicates: true,
+      });
+    }
+
+    return await this.prisma.tournamentPreset.findMany({
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  private async ensureDefaultMatchFormatPresets() {
+    const existingCount = await this.prisma.matchFormatPreset.count();
+    if (existingCount === 0) {
+      await this.prisma.matchFormatPreset.createMany({
+        data: MATCH_FORMAT_PRESETS.map((preset) => ({
+          key: preset.key,
+          durationMinutes: preset.durationMinutes,
+          segments: preset.segments as Prisma.InputJsonValue,
+          isSystem: true,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return await this.prisma.matchFormatPreset.findMany({
+      orderBy: { updatedAt: 'desc' },
+    });
   }
 
   private handleError(response: Response, error: unknown): void {
@@ -147,6 +195,7 @@ export class TournamentController {
       
       const {
         name,
+        location,
         format,
         durationType,
         startTime,
@@ -159,6 +208,7 @@ export class TournamentController {
 
       const tournament = await tournamentService.createTournament({
         name,
+        location,
         format,
         durationType,
         startTime,
@@ -196,9 +246,7 @@ export class TournamentController {
    */
   getTournamentPresets = async (_request: Request, response: Response): Promise<void> => {
     try {
-      const presets = await this.prisma.tournamentPreset.findMany({
-        orderBy: { updatedAt: 'desc' },
-      });
+      const presets = await this.ensureDefaultTournamentPresets();
       response.json({ presets });
     } catch (error) {
       this.handleError(response, error);
@@ -299,6 +347,101 @@ export class TournamentController {
       }
 
       await this.prisma.tournamentPreset.delete({ where: { id: presetId } });
+      response.status(204).send();
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Get all match format presets
+   * GET /api/tournaments/match-formats
+   */
+  getMatchFormatPresets = async (_request: Request, response: Response): Promise<void> => {
+    try {
+      const presets = await this.ensureDefaultMatchFormatPresets();
+      response.json({ presets });
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Create match format preset
+   * POST /api/tournaments/match-formats
+   */
+  createMatchFormatPreset = async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { key, durationMinutes, segments, isSystem } = request.body as {
+        key: string;
+        durationMinutes: number;
+        segments: unknown;
+        isSystem?: boolean;
+      };
+
+      const preset = await this.prisma.matchFormatPreset.create({
+        data: {
+          key,
+          durationMinutes,
+          segments: segments as Prisma.InputJsonValue,
+          isSystem: isSystem ?? false,
+        },
+      });
+
+      response.status(201).json(preset);
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Update match format preset
+   * PATCH /api/tournaments/match-formats/:formatId
+   */
+  updateMatchFormatPreset = async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { formatId } = request.params as { formatId: string };
+      const existing = await this.prisma.matchFormatPreset.findUnique({ where: { id: formatId } });
+      if (!existing) {
+        throw new AppError('Match format preset not found', 404, 'MATCH_FORMAT_PRESET_NOT_FOUND');
+      }
+
+      const { key, durationMinutes, segments, isSystem } = request.body as Partial<{
+        key: string;
+        durationMinutes: number;
+        segments: unknown;
+        isSystem: boolean;
+      }>;
+
+      const preset = await this.prisma.matchFormatPreset.update({
+        where: { id: formatId },
+        data: {
+          ...(key === undefined ? {} : { key }),
+          ...(durationMinutes === undefined ? {} : { durationMinutes }),
+          ...(segments === undefined ? {} : { segments: segments as Prisma.InputJsonValue }),
+          ...(isSystem === undefined ? {} : { isSystem }),
+        },
+      });
+
+      response.json(preset);
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
+
+  /**
+   * Delete match format preset
+   * DELETE /api/tournaments/match-formats/:formatId
+   */
+  deleteMatchFormatPreset = async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { formatId } = request.params as { formatId: string };
+      const existing = await this.prisma.matchFormatPreset.findUnique({ where: { id: formatId } });
+      if (!existing) {
+        throw new AppError('Match format preset not found', 404, 'MATCH_FORMAT_PRESET_NOT_FOUND');
+      }
+
+      await this.prisma.matchFormatPreset.delete({ where: { id: formatId } });
       response.status(204).send();
     } catch (error) {
       this.handleError(response, error);

@@ -23,6 +23,11 @@ type BracketStructureResult = {
   handleBracketNameChange: (bracketId: string, value: string) => void;
   handleBracketTypeChange: (bracketId: string, value: string) => void;
   handleBracketRoundsChange: (bracketId: string, value: number) => void;
+  handleBracketRoundMatchFormatChange: (
+    bracketId: string,
+    roundNumber: number,
+    value: string | undefined
+  ) => void;
   handleBracketStatusChange: (bracketId: string, value: string) => void;
   handleBracketTargetToggle: (bracketId: string, targetId: string) => void;
   addBracket: () => Promise<void>;
@@ -34,6 +39,10 @@ type BracketStructureResult = {
   handleNewBracketNameChange: (value: string) => void;
   handleNewBracketTypeChange: (value: string) => void;
   handleNewBracketRoundsChange: (value: number) => void;
+  handleNewBracketRoundMatchFormatChange: (
+    roundNumber: number,
+    value: string | undefined
+  ) => void;
   getDefaultBracketRounds: (bracketName: string, bracketType: string) => number;
   resetBracketState: () => void;
 };
@@ -64,6 +73,7 @@ const initialBracketDraft: BracketDraft = {
   name: '',
   bracketType: BracketType.SINGLE_ELIMINATION as string,
   totalRounds: 3,
+  roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
 };
 const useBracketState = (): BracketState & BracketStateSetters & {
   resetBracketState: () => void;
@@ -224,12 +234,14 @@ const useBracketMutations = ({
     setBracketsError(undefined);
     try {
       const token = await getSafeAccessToken();
-      await updateBracket(editingTournament.id, bracket.id, {
+      const payload = {
         name: bracket.name,
         bracketType: bracket.bracketType,
         totalRounds: bracket.totalRounds,
         status: bracket.status,
-      }, token);
+        ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
+      };
+      await updateBracket(editingTournament.id, bracket.id, payload, token);
       await loadBrackets(editingTournament.id);
       globalThis.window?.dispatchEvent(new CustomEvent('tournament:brackets-updated', {
         detail: { tournamentId: editingTournament.id },
@@ -290,7 +302,37 @@ const useBracketFieldHandlers = ({
   }, [updateBracketField]);
 
   const handleBracketRoundsChange = useCallback((bracketId: string, value: number) => {
-    updateBracketField(bracketId, (item) => ({ ...item, totalRounds: value }));
+    updateBracketField(bracketId, (item) => {
+      const nextRoundMatchFormats = Object.fromEntries(
+        Object.entries(item.roundMatchFormats ?? {}).filter(([round]) => Number(round) <= value)
+      );
+      return {
+        ...item,
+        totalRounds: value,
+        roundMatchFormats: nextRoundMatchFormats,
+      };
+    });
+  }, [updateBracketField]);
+
+  const handleBracketRoundMatchFormatChange = useCallback((
+    bracketId: string,
+    roundNumber: number,
+    value: string | undefined
+  ) => {
+    updateBracketField(bracketId, (item) => {
+      const nextRoundMatchFormats: Record<string, string> = {
+        ...item.roundMatchFormats,
+      };
+      if (value === undefined) {
+        delete nextRoundMatchFormats[String(roundNumber)];
+      } else {
+        nextRoundMatchFormats[String(roundNumber)] = value;
+      }
+      return {
+        ...item,
+        roundMatchFormats: nextRoundMatchFormats,
+      };
+    });
   }, [updateBracketField]);
 
   const handleBracketStatusChange = useCallback((bracketId: string, value: string) => {
@@ -313,6 +355,7 @@ const useBracketFieldHandlers = ({
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
+    handleBracketRoundMatchFormatChange,
     handleBracketStatusChange,
     handleBracketTargetToggle,
   };
@@ -370,8 +413,31 @@ const useBracketDraftHandlers = ({
     setNewBracket((current) => ({
       ...current,
       totalRounds: value,
+      roundMatchFormats: Object.fromEntries(
+        Object.entries(current.roundMatchFormats ?? {}).filter(([round]) => Number(round) <= value)
+      ),
     }));
   }, [setIsBracketRoundsAuto, setNewBracket]);
+
+  const handleNewBracketRoundMatchFormatChange = useCallback((
+    roundNumber: number,
+    value: string | undefined
+  ) => {
+    setNewBracket((current) => {
+      const nextRoundMatchFormats: Record<string, string> = {
+        ...current.roundMatchFormats,
+      };
+      if (value === undefined) {
+        delete nextRoundMatchFormats[String(roundNumber)];
+      } else {
+        nextRoundMatchFormats[String(roundNumber)] = value;
+      }
+      return {
+        ...current,
+        roundMatchFormats: nextRoundMatchFormats,
+      };
+    });
+  }, [setNewBracket]);
 
   return {
     startAddBracket,
@@ -379,6 +445,7 @@ const useBracketDraftHandlers = ({
     handleNewBracketNameChange,
     handleNewBracketTypeChange,
     handleNewBracketRoundsChange,
+    handleNewBracketRoundMatchFormatChange,
   };
 };
 
@@ -438,6 +505,7 @@ const useBracketStructure = ({
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
+    handleBracketRoundMatchFormatChange,
     handleBracketStatusChange,
     handleBracketTargetToggle,
   } = useBracketFieldHandlers({ setBrackets });
@@ -448,6 +516,7 @@ const useBracketStructure = ({
     handleNewBracketNameChange,
     handleNewBracketTypeChange,
     handleNewBracketRoundsChange,
+    handleNewBracketRoundMatchFormatChange,
   } = useBracketDraftHandlers({
     setNewBracket,
     setIsAddingBracket,
@@ -468,6 +537,7 @@ const useBracketStructure = ({
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
+    handleBracketRoundMatchFormatChange,
     handleBracketStatusChange,
     handleBracketTargetToggle,
     addBracket,
@@ -479,6 +549,7 @@ const useBracketStructure = ({
     handleNewBracketNameChange,
     handleNewBracketTypeChange,
     handleNewBracketRoundsChange,
+    handleNewBracketRoundMatchFormatChange,
     getDefaultBracketRounds,
     resetBracketState,
   };

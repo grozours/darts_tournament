@@ -9,6 +9,10 @@ export const registerTournamentBracketRoutes = (
   router: Router,
   tournamentController: TournamentController
 ) => {
+  const matchFormatSchema = z.string().trim().min(1).max(20);
+  const roundMatchFormatsSchema = z.record(z.string(), matchFormatSchema);
+  const parallelReferenceSchema = z.string().trim().regex(/^(stage:\d+|bracket:.+)$/i);
+
   router.get(
     '/:id/brackets',
     validate(uuidSchema),
@@ -25,6 +29,8 @@ export const registerTournamentBracketRoutes = (
         name: z.string().min(1).max(100),
         bracketType: z.enum(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION']),
         totalRounds: z.number().int().min(1).max(10),
+        roundMatchFormats: roundMatchFormatsSchema.optional(),
+        inParallelWith: z.array(parallelReferenceSchema).max(32).optional(),
       }),
     }),
     tournamentController.createBracket
@@ -43,6 +49,8 @@ export const registerTournamentBracketRoutes = (
         name: z.string().min(1).max(100).optional(),
         bracketType: z.enum(['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION']).optional(),
         totalRounds: z.number().int().min(1).max(10).optional(),
+        roundMatchFormats: roundMatchFormatsSchema.optional(),
+        inParallelWith: z.array(parallelReferenceSchema).max(32).optional(),
         status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED']).optional(),
       }),
     }),

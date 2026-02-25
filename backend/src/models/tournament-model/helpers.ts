@@ -77,6 +77,7 @@ export const mapToTournament = (
   return {
     id: prismaResult.id,
     name: prismaResult.name,
+    ...(prismaResult.location ? { location: prismaResult.location } : {}),
     format: prismaResult.format as TournamentFormat,
     durationType: prismaResult.durationType as DurationType,
     status: prismaResult.status as TournamentStatus,

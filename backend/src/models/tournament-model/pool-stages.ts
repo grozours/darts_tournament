@@ -50,6 +50,8 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
   createPoolStage: async (tournamentId: string, data: {
     stageNumber: number;
     name: string;
+    matchFormatKey?: string;
+    inParallelWith?: Prisma.InputJsonValue;
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
@@ -66,6 +68,12 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
         advanceCount: data.advanceCount,
         losersAdvanceToBracket: data.losersAdvanceToBracket ?? false,
       };
+      if (data.matchFormatKey !== undefined) {
+        payload.matchFormatKey = data.matchFormatKey;
+      }
+      if (data.inParallelWith !== undefined) {
+        payload.inParallelWith = data.inParallelWith;
+      }
       if (data.rankingDestinations !== undefined) {
         payload.rankingDestinations = data.rankingDestinations;
       }
@@ -89,6 +97,8 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     data: Partial<{
       stageNumber: number;
       name: string;
+      matchFormatKey: string;
+      inParallelWith: Prisma.InputJsonValue;
       poolCount: number;
       playersPerPool: number;
       advanceCount: number;
@@ -295,10 +305,24 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     }
   },
 
+  getPoolMatchesWithPlayers: async (poolId: string) => {
+    try {
+      return await prisma.match.findMany({
+        where: { poolId },
+        orderBy: [{ roundNumber: 'asc' }, { matchNumber: 'asc' }],
+        include: { playerMatches: true },
+      });
+    } catch (error) {
+      logModelError('getPoolMatchesWithPlayers', error);
+      throw new AppError('Failed to fetch pool matches', 500, 'POOL_MATCH_FETCH_FAILED');
+    }
+  },
+
   createPoolMatches: async (
     tournamentId: string,
     poolId: string,
-    matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>
+    matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>,
+    matchFormatKey?: string
   ): Promise<void> => {
     if (matches.length === 0) return;
 
@@ -308,6 +332,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
           data: {
             tournamentId,
             poolId,
+            ...(matchFormatKey ? { matchFormatKey } : {}),
             roundNumber: match.roundNumber,
             matchNumber: match.matchNumber,
             playerMatches: {
@@ -326,6 +351,56 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
         })
       )
     );
+  },
+
+  createEmptyPoolMatches: async (
+    tournamentId: string,
+    poolId: string,
+    matches: Array<{ roundNumber: number; matchNumber: number }>,
+    matchFormatKey?: string
+  ): Promise<void> => {
+    if (matches.length === 0) return;
+
+    await prisma.$transaction(
+      matches.map((match) =>
+        prisma.match.create({
+          data: {
+            tournamentId,
+            poolId,
+            ...(matchFormatKey ? { matchFormatKey } : {}),
+            roundNumber: match.roundNumber,
+            matchNumber: match.matchNumber,
+          },
+        })
+      )
+    );
+  },
+
+  setPoolMatchPlayers: async (matchId: string, playerIds: [string, string]) => {
+    try {
+      await prisma.$transaction([
+        prisma.playerMatch.deleteMany({
+          where: { matchId },
+        }),
+        prisma.playerMatch.createMany({
+          data: [
+            {
+              matchId,
+              playerId: playerIds[0],
+              playerPosition: 1,
+            },
+            {
+              matchId,
+              playerId: playerIds[1],
+              playerPosition: 2,
+            },
+          ],
+        }),
+      ]);
+    } catch (error) {
+      logModelError('setPoolMatchPlayers', error);
+      throw new AppError('Failed to seed pool match players', 500, 'POOL_MATCH_SEED_FAILED');
+    }
   },
 
   createPoolsForStage: async (stageId: string, poolCount: number, startNumber: number = 1) => {

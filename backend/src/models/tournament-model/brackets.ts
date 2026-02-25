@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { BracketStatus, BracketType, MatchStatus, TargetStatus } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError } from './helpers';
@@ -147,7 +147,8 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
   createBracketMatches: async (
     tournamentId: string,
     bracketId: string,
-    matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>
+    matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>,
+    matchFormatKey?: string
   ): Promise<void> => {
     if (matches.length === 0) return;
 
@@ -157,6 +158,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
           data: {
             tournamentId,
             bracketId,
+            ...(matchFormatKey ? { matchFormatKey } : {}),
             roundNumber: match.roundNumber,
             matchNumber: match.matchNumber,
             playerMatches: {
@@ -177,12 +179,38 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     );
   },
 
+  createEmptyBracketMatches: async (
+    tournamentId: string,
+    bracketId: string,
+    matches: Array<{ roundNumber: number; matchNumber: number }>,
+    matchFormatKeyByRound?: Record<number, string>
+  ): Promise<void> => {
+    if (matches.length === 0) return;
+
+    await prisma.$transaction(
+      matches.map((match) =>
+        prisma.match.create({
+          data: {
+            tournamentId,
+            bracketId,
+            ...(matchFormatKeyByRound?.[match.roundNumber]
+              ? { matchFormatKey: matchFormatKeyByRound[match.roundNumber] }
+              : {}),
+            roundNumber: match.roundNumber,
+            matchNumber: match.matchNumber,
+          },
+        })
+      )
+    );
+  },
+
   createBracketMatchWithSlots: async (
     tournamentId: string,
     bracketId: string,
     roundNumber: number,
     matchNumber: number,
-    players: Array<{ playerId: string; playerPosition: number }>
+    players: Array<{ playerId: string; playerPosition: number }>,
+    matchFormatKey?: string
   ): Promise<void> => {
     if (players.length === 0) return;
     try {
@@ -190,6 +218,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
         data: {
           tournamentId,
           bracketId,
+          ...(matchFormatKey ? { matchFormatKey } : {}),
           roundNumber,
           matchNumber,
           playerMatches: {
@@ -412,15 +441,25 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     name: string;
     bracketType: BracketType;
     totalRounds: number;
+    roundMatchFormats?: Prisma.InputJsonValue;
+    inParallelWith?: Prisma.InputJsonValue;
   }) => {
     try {
+      const payload: Parameters<typeof prisma.bracket.create>[0]['data'] = {
+        tournamentId,
+        name: data.name,
+        bracketType: data.bracketType,
+        totalRounds: data.totalRounds,
+      };
+      if (data.roundMatchFormats !== undefined) {
+        payload.roundMatchFormats = data.roundMatchFormats;
+      }
+      if (data.inParallelWith !== undefined) {
+        payload.inParallelWith = data.inParallelWith;
+      }
+
       return await prisma.bracket.create({
-        data: {
-          tournamentId,
-          name: data.name,
-          bracketType: data.bracketType,
-          totalRounds: data.totalRounds,
-        },
+        data: payload,
       });
     } catch (error) {
       logModelError('createBracket', error);
@@ -434,6 +473,8 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
       name: string;
       bracketType: BracketType;
       totalRounds: number;
+      roundMatchFormats: Prisma.InputJsonValue;
+      inParallelWith: Prisma.InputJsonValue;
       status: BracketStatus;
       // eslint-disable-next-line unicorn/no-null
       completedAt: Date | null;

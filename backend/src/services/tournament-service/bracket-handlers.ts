@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import type { TournamentModel } from '../../models/tournament-model';
 import { AppError } from '../../middleware/error-handler';
 import {
@@ -5,6 +6,7 @@ import {
   BracketType,
   TournamentStatus,
 } from '../../../../shared/src/types';
+import { normalizeMatchFormatKey } from './match-format-presets';
 
 type MatchForCompletion = {
   id: string;
@@ -18,6 +20,8 @@ type BracketUpdateData = Partial<{
   name: string;
   bracketType: BracketType;
   totalRounds: number;
+  roundMatchFormats: Record<string, unknown>;
+  inParallelWith: string[];
   status: BracketStatus;
 }>;
 
@@ -37,6 +41,86 @@ export type BracketHandlerContext = {
 
 export const createBracketHandlers = (context: BracketHandlerContext) => {
   const { tournamentModel, validateUUID, completeMatchWithRandomScores } = context;
+
+  const buildEmptyBracketMatches = (totalRounds: number) => {
+    const matches: Array<{ roundNumber: number; matchNumber: number }> = [];
+    for (let roundNumber = 1; roundNumber <= totalRounds; roundNumber += 1) {
+      const matchesInRound = 2 ** (totalRounds - roundNumber);
+      for (let matchNumber = 1; matchNumber <= matchesInRound; matchNumber += 1) {
+        matches.push({ roundNumber, matchNumber });
+      }
+    }
+    return matches;
+  };
+
+  const buildRoundMatchFormatMap = (
+    roundMatchFormats: unknown,
+    totalRounds: number
+  ): Record<number, string> => {
+    const formatMap: Record<number, string> = {};
+    if (!roundMatchFormats || typeof roundMatchFormats !== 'object') {
+      return formatMap;
+    }
+
+    for (let roundNumber = 1; roundNumber <= totalRounds; roundNumber += 1) {
+      const value = (roundMatchFormats as Record<string, unknown>)[String(roundNumber)];
+      if (typeof value === 'string' && value.trim()) {
+        formatMap[roundNumber] = value;
+      }
+    }
+
+    return formatMap;
+  };
+
+  const normalizeRoundMatchFormats = (
+    roundMatchFormats: unknown,
+    errorCode: string
+  ): Prisma.InputJsonValue | undefined => {
+    if (roundMatchFormats === undefined || roundMatchFormats === null) {
+      return undefined;
+    }
+    if (typeof roundMatchFormats !== 'object' || Array.isArray(roundMatchFormats)) {
+      throw new AppError('Invalid bracket round match formats', 400, errorCode);
+    }
+
+    const normalized: Record<string, string> = {};
+    for (const [roundNumber, matchFormatKey] of Object.entries(roundMatchFormats as Record<string, unknown>)) {
+      const parsedRound = Number(roundNumber);
+      if (!Number.isInteger(parsedRound) || parsedRound < 1) {
+        throw new AppError('Invalid bracket round number', 400, errorCode);
+      }
+      const normalizedKey = normalizeMatchFormatKey(matchFormatKey);
+      if (!normalizedKey) {
+        throw new AppError('Invalid match format key', 400, errorCode);
+      }
+      normalized[String(parsedRound)] = normalizedKey;
+    }
+
+    return normalized as Prisma.InputJsonValue;
+  };
+
+  const normalizeParallelReferences = (
+    value: unknown,
+    errorCode: string
+  ): Prisma.InputJsonValue | undefined => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (!Array.isArray(value)) {
+      throw new AppError('Invalid inParallelWith value', 400, errorCode);
+    }
+
+    const references = value
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => entry.length > 0);
+    for (const reference of references) {
+      if (!/^(stage:\d+|bracket:.+)$/i.test(reference)) {
+        throw new AppError('Invalid inParallelWith reference', 400, errorCode);
+      }
+    }
+
+    return [...new Set(references)] as Prisma.InputJsonValue;
+  };
 
   const ensureBracketsEditable = async (
     tournamentId: string,
@@ -113,9 +197,23 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
 
   const createBracket = async (
     tournamentId: string,
-    data: { name: string; bracketType: BracketType; totalRounds: number }
+    data: {
+      name: string;
+      bracketType: BracketType;
+      totalRounds: number;
+      roundMatchFormats?: Record<string, unknown>;
+      inParallelWith?: string[];
+    }
   ) => {
     validateUUID(tournamentId);
+    const roundMatchFormats = normalizeRoundMatchFormats(
+      data.roundMatchFormats,
+      'BRACKET_ROUND_MATCH_FORMAT_INVALID'
+    );
+    const inParallelWith = normalizeParallelReferences(
+      data.inParallelWith,
+      'BRACKET_IN_PARALLEL_WITH_INVALID'
+    );
     const tournament = await tournamentModel.findById(tournamentId);
     if (!tournament) {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
@@ -123,7 +221,28 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
 
     await ensureBracketsEditable(tournamentId, tournament.status);
 
-    return await tournamentModel.createBracket(tournamentId, data);
+    const { roundMatchFormats: _roundMatchFormats, ...rest } = data;
+    const bracket = await tournamentModel.createBracket(tournamentId, {
+      ...rest,
+      ...(roundMatchFormats === undefined ? {} : { roundMatchFormats }),
+      ...(inParallelWith === undefined ? {} : { inParallelWith }),
+    });
+
+    if (bracket.totalRounds > 0) {
+      const emptyMatches = buildEmptyBracketMatches(bracket.totalRounds);
+      const matchFormatByRound = buildRoundMatchFormatMap(
+        bracket.roundMatchFormats,
+        bracket.totalRounds
+      );
+      await tournamentModel.createEmptyBracketMatches(
+        tournamentId,
+        bracket.id,
+        emptyMatches,
+        matchFormatByRound
+      );
+    }
+
+    return bracket;
   };
 
   const updateBracket = async (
@@ -133,6 +252,13 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
   ) => {
     validateUUID(tournamentId);
     validateUUID(bracketId);
+    const roundMatchFormats = normalizeRoundMatchFormats(
+      data.roundMatchFormats,
+      'BRACKET_ROUND_MATCH_FORMAT_INVALID'
+    );
+    const inParallelWith = data.inParallelWith === undefined
+      ? undefined
+      : normalizeParallelReferences(data.inParallelWith, 'BRACKET_IN_PARALLEL_WITH_INVALID');
     const tournament = await tournamentModel.findById(tournamentId);
     if (!tournament) {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
@@ -140,7 +266,12 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
 
     await ensureBracketsEditable(tournamentId, tournament.status, bracketId);
 
-    return await tournamentModel.updateBracket(bracketId, data);
+    const { roundMatchFormats: _roundMatchFormats, ...rest } = data;
+    return await tournamentModel.updateBracket(bracketId, {
+      ...rest,
+      ...(data.roundMatchFormats === undefined ? {} : { roundMatchFormats: roundMatchFormats! }),
+      ...(data.inParallelWith === undefined ? {} : { inParallelWith: inParallelWith ?? [] }),
+    });
   };
 
   const deleteBracket = async (tournamentId: string, bracketId: string): Promise<void> => {

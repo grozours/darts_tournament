@@ -9,6 +9,9 @@ export const registerTournamentPoolStageRoutes = (
   router: Router,
   tournamentController: TournamentController
 ) => {
+  const matchFormatSchema = z.string().trim().min(1).max(20);
+  const parallelReferenceSchema = z.string().trim().regex(/^(stage:\d+|bracket:.+)$/i);
+
   const rankingDestinationsSchema = z.array(
     z.object({
       position: z.number().int().min(1),
@@ -37,6 +40,8 @@ export const registerTournamentPoolStageRoutes = (
         playersPerPool: z.number().int().min(2).max(16),
         advanceCount: z.number().int().min(1).max(16),
         losersAdvanceToBracket: z.boolean().optional(),
+        matchFormatKey: matchFormatSchema.optional(),
+        inParallelWith: z.array(parallelReferenceSchema).max(32).optional(),
         rankingDestinations: rankingDestinationsSchema.optional(),
       }),
     }),
@@ -59,6 +64,8 @@ export const registerTournamentPoolStageRoutes = (
         playersPerPool: z.number().int().min(2).max(16).optional(),
         advanceCount: z.number().int().min(1).max(16).optional(),
         losersAdvanceToBracket: z.boolean().optional(),
+        matchFormatKey: matchFormatSchema.optional(),
+        inParallelWith: z.array(parallelReferenceSchema).max(32).optional(),
         rankingDestinations: rankingDestinationsSchema.optional(),
         status: z.enum(['NOT_STARTED', 'EDITION', 'IN_PROGRESS', 'COMPLETED']).optional(),
       }),

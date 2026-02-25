@@ -8,6 +8,7 @@ type PoolStageDraft = {
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
+  matchFormatKey?: string;
   rankingDestinations?: PoolStageRankingDestination[];
 };
 
@@ -15,6 +16,7 @@ type BracketDraft = {
   name: string;
   bracketType: string;
   totalRounds: number;
+  roundMatchFormats?: Record<string, string>;
 };
 
 type TournamentStructureBaseProperties = {

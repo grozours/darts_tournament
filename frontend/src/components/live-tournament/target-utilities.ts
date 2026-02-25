@@ -99,3 +99,7 @@ export const getSharedAvailableTargets = (view: LiveViewData, inUseTargetNumbers
     }
     return true;
   });
+
+export const getSchedulableTargets = (view: LiveViewData) => (
+  (view.targets || []).filter((target) => (target.status ?? '').toUpperCase() !== 'MAINTENANCE')
+);

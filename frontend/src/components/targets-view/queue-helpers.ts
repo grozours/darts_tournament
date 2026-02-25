@@ -11,6 +11,93 @@ type BuildQueueItemsProperties = {
 
 type LiveViewBracket = NonNullable<LiveViewData['brackets']>[number];
 
+const getStageParallelReferences = (stage: LiveViewPoolStage) => (
+  new Set(
+    (stage.inParallelWith ?? [])
+      .map((reference) => reference.trim())
+      .filter((reference) => /^stage:\d+$/i.test(reference))
+      .map((reference) => Number(reference.split(':')[1]))
+      .filter((stageNumber) => Number.isInteger(stageNumber) && stageNumber > 0)
+  )
+);
+
+const areStagesParallelLinked = (firstStage: LiveViewPoolStage, secondStage: LiveViewPoolStage) => {
+  const firstReferences = getStageParallelReferences(firstStage);
+  const secondReferences = getStageParallelReferences(secondStage);
+  return firstReferences.has(secondStage.stageNumber) || secondReferences.has(firstStage.stageNumber);
+};
+
+const collectParallelStageGroup = (
+  startStage: LiveViewPoolStage,
+  orderedStages: LiveViewPoolStage[],
+  visitedStageIds: Set<string>
+) => {
+  const group: LiveViewPoolStage[] = [];
+  const stack = [startStage];
+  visitedStageIds.add(startStage.id);
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+    group.push(current);
+
+    for (const candidate of orderedStages) {
+      if (visitedStageIds.has(candidate.id)) {
+        continue;
+      }
+      if (areStagesParallelLinked(current, candidate)) {
+        visitedStageIds.add(candidate.id);
+        stack.push(candidate);
+      }
+    }
+  }
+
+  return group.toSorted((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
+};
+
+const buildPoolStageParallelGroups = (stages: LiveViewPoolStage[]) => {
+  const orderedStages = [...stages].sort((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
+  const visitedStageIds = new Set<string>();
+  const groups: LiveViewPoolStage[][] = [];
+
+  for (const stage of orderedStages) {
+    if (visitedStageIds.has(stage.id)) {
+      continue;
+    }
+
+    groups.push(collectParallelStageGroup(stage, orderedStages, visitedStageIds));
+  }
+
+  return groups;
+};
+
+const orderPoolQueuesByParallelStageGroups = (
+  view: LiveViewData,
+  poolQueues: PoolQueue[]
+) => {
+  const inProgressStages = (view.poolStages ?? []).filter((stage) => stage.status === 'IN_PROGRESS');
+  if (inProgressStages.length === 0) {
+    return interleavePools(poolQueues);
+  }
+
+  const groups = buildPoolStageParallelGroups(inProgressStages);
+  const queueByPoolId = new Map(poolQueues.map((queue) => [queue.poolId, queue]));
+  const ordered: MatchQueueItem[] = [];
+
+  for (const group of groups) {
+    const groupQueues = group.flatMap((stage) => (
+      (stage.pools ?? [])
+        .map((pool) => queueByPoolId.get(pool.id))
+        .filter((queue): queue is PoolQueue => Boolean(queue))
+    ));
+    ordered.push(...interleavePools(groupQueues));
+  }
+
+  return ordered;
+};
+
 const isFinalMatchStatus = (status: string) => (
   status === 'COMPLETED' || status === 'CANCELLED' || status === 'IN_PROGRESS'
 );
@@ -30,9 +117,10 @@ const createQueueItem = (
   stage: LiveViewPoolStage,
   pool: LiveViewPool,
   match: LiveViewMatch,
-  isMatchBlocked: (match: LiveViewMatch) => boolean
+  isMatchBlocked: (match: LiveViewMatch) => boolean,
+  poolConcurrencyLimitReached: boolean
 ): MatchQueueItem => {
-  const blocked = isMatchBlocked(match);
+  const blocked = poolConcurrencyLimitReached || isMatchBlocked(match);
   const players = getMatchPlayers(match);
   const targetCode = match.target?.targetCode;
   const targetNumber = match.target?.targetNumber;
@@ -79,12 +167,36 @@ const collectPoolItemsForPool = (
   isMatchBlocked: (match: LiveViewMatch) => boolean,
   ignoreBlocking: boolean | undefined
 ) => {
+  const assignmentPlayerIds = new Set(
+    (pool.assignments ?? [])
+      .map((assignment) => assignment.player?.id)
+      .filter((playerId): playerId is string => Boolean(playerId))
+  );
+  const poolPlayerIds = assignmentPlayerIds.size > 0
+    ? assignmentPlayerIds
+    : new Set(
+        (pool.matches ?? [])
+          .flatMap((candidateMatch) => candidateMatch.playerMatches ?? [])
+          .map((playerMatch) => playerMatch.player?.id)
+          .filter((playerId): playerId is string => Boolean(playerId))
+      );
+  const maxConcurrentMatches = Math.floor(poolPlayerIds.size / 2);
+  const inProgressMatchesInPool = (pool.matches ?? []).filter((match) => match.status === 'IN_PROGRESS').length;
+  const poolConcurrencyLimitReached = maxConcurrentMatches > 0 && inProgressMatchesInPool >= maxConcurrentMatches;
+
   const poolItems: MatchQueueItem[] = [];
   for (const match of pool.matches ?? []) {
     if (!shouldQueueMatch(match, ignoreBlocking, isMatchBlocked)) {
       continue;
     }
-    const nextItem = createQueueItem(view, stage, pool, match, isMatchBlocked);
+    const nextItem = createQueueItem(
+      view,
+      stage,
+      pool,
+      match,
+      isMatchBlocked,
+      poolConcurrencyLimitReached
+    );
     poolItems.push(nextItem);
     if (poolQueue) {
       poolQueue.matches.push(nextItem);
@@ -158,6 +270,20 @@ const isQueueableBracketMatch = (match: LiveViewMatch) => !(
   || match.status === 'IN_PROGRESS'
 );
 
+const isBracketReadyFromPools = (view: LiveViewData, bracketId: string) => {
+  const sourceStages = (view.poolStages ?? []).filter((stage) => (
+    (stage.rankingDestinations ?? []).some((destination) => (
+      destination.destinationType === 'BRACKET' && destination.bracketId === bracketId
+    ))
+  ));
+
+  if (sourceStages.length === 0) {
+    return true;
+  }
+
+  return sourceStages.every((stage) => stage.status === 'COMPLETED');
+};
+
 const buildBracketQueueItem = (
   view: LiveViewData,
   bracket: LiveViewBracket,
@@ -199,6 +325,10 @@ const buildBracketQueueItem = (
 const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
   const bracketItems: MatchQueueItem[] = [];
   for (const bracket of view.brackets ?? []) {
+    if (!isBracketReadyFromPools(view, bracket.id)) {
+      continue;
+    }
+
     const bracketTargetIds = getBracketTargetIds(bracket);
     const maxRoundNumber = getBracketMaxRound(bracket);
     const maxRoundMatchCount = maxRoundNumber > 0
@@ -218,7 +348,24 @@ const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
       ));
     }
   }
-  return bracketItems;
+  return bracketItems.toSorted((firstItem, secondItem) => {
+    if (firstItem.roundNumber !== secondItem.roundNumber) {
+      return firstItem.roundNumber - secondItem.roundNumber;
+    }
+
+    const firstBracketName = firstItem.bracketName ?? '';
+    const secondBracketName = secondItem.bracketName ?? '';
+    const bracketOrder = firstBracketName.localeCompare(secondBracketName, undefined, { sensitivity: 'base' });
+    if (bracketOrder !== 0) {
+      return bracketOrder;
+    }
+
+    if ((firstItem.bracketId ?? '') !== (secondItem.bracketId ?? '')) {
+      return (firstItem.bracketId ?? '').localeCompare(secondItem.bracketId ?? '');
+    }
+
+    return firstItem.matchNumber - secondItem.matchNumber;
+  });
 };
 
 export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
@@ -264,7 +411,7 @@ export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
     for (const queue of poolQueues) {
       sortPoolMatches(queue);
     }
-    const ordered = interleavePools(poolQueues);
+    const ordered = orderPoolQueuesByParallelStageGroups(view, poolQueues);
     const poolItems = ordered.length > 0 ? ordered : items;
     const bracketItems = buildBracketQueueItems(view);
 

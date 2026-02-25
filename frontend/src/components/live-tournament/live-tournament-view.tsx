@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { LiveViewStatus } from '../../utils/live-view-helpers';
 import { hasActiveBrackets, isBracketsView, isPoolStagesView } from '../../utils/live-view-helpers';
 import BracketsSection from './brackets-section';
+import {
+  applyPoolConcurrencySlots,
+  buildMissingRoundRobinMatches,
+  estimateConflictAwareMinutes,
+  getRoundRobinPairKey,
+} from './conflict-aware-estimator';
 import MatchQueueSection from './match-queue-section';
 import PoolStagesSection from './pool-stages-section';
 import { buildMatchQueue } from './queue-utilities';
@@ -10,6 +16,7 @@ import type {
   LiveViewData,
   LiveViewMatch,
   LiveViewMode,
+  LiveViewPool,
   LiveViewPoolStage,
   LiveViewTarget,
   Translator,
@@ -20,6 +27,7 @@ import {
   getPoolStageStats,
 } from './view-utilities';
 import { getHasLoserBracket } from './target-utilities';
+import { getMatchFormatPresets } from '../../utils/match-format-presets';
 
 type PoolStats = {
   poolStageCount: number;
@@ -41,6 +49,7 @@ type LiveTournamentViewProperties = {
   isPoolStagesReadonly: boolean;
   isBracketsReadonly: boolean;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
+  schedulableTargetCountByTournament: Map<string, number>;
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
@@ -91,6 +100,7 @@ type LiveTournamentViewProperties = {
 type LiveTournamentViewHeaderProperties = {
   t: Translator;
   view: LiveViewData;
+  schedulableTargetCount: number;
   isAdmin: boolean;
   screenMode: boolean;
   onRefresh: () => void;
@@ -109,9 +119,795 @@ type LiveTournamentPoolSummaryProperties = {
   hasLoserBracket: boolean;
 };
 
+const toValidDate = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const formatDateTime = (value: Date) => new Intl.DateTimeFormat(undefined, {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+}).format(value);
+
+const formatDurationClock = (durationMinutes: number) => {
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+const NON_REMAINING_MATCH_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+const ACTIVE_TARGET_STATUSES = new Set(['AVAILABLE', 'IN_USE']);
+const NON_REMAINING_STAGE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+
+const isRemainingMatch = (match: LiveViewMatch) =>
+  !NON_REMAINING_MATCH_STATUSES.has((match.status ?? '').toUpperCase());
+
+const isRemainingStage = (status: string | undefined) =>
+  !NON_REMAINING_STAGE_STATUSES.has((status ?? '').toUpperCase());
+
+const buildBracketSourceStagesMap = (poolStages: LiveViewPoolStage[] | undefined) => {
+  const sourceStageIdsByBracketId = new Map<string, Set<string>>();
+
+  for (const stage of poolStages ?? []) {
+    for (const destination of stage.rankingDestinations ?? []) {
+      if (destination.destinationType !== 'BRACKET' || !destination.bracketId) {
+        continue;
+      }
+
+      const current = sourceStageIdsByBracketId.get(destination.bracketId) ?? new Set<string>();
+      current.add(stage.id);
+      sourceStageIdsByBracketId.set(destination.bracketId, current);
+    }
+  }
+
+  return sourceStageIdsByBracketId;
+};
+
+const getMatchPlayerIds = (match: Pick<LiveViewMatch, 'playerMatches'>) => (
+  (match.playerMatches ?? [])
+    .map((playerMatch) => playerMatch.player?.id)
+    .filter((playerId): playerId is string => Boolean(playerId))
+);
+
+const getMissingPoolMatches = (
+  stage: LiveViewPoolStage,
+  pool: LiveViewPool,
+  durationByFormatKey: Map<string, number>
+) => {
+  const assignmentPlayerIds = (pool.assignments ?? [])
+    .map((assignment) => assignment.player?.id)
+    .filter((playerId): playerId is string => Boolean(playerId));
+
+  const existingPairKeys = new Set(
+    (pool.matches ?? [])
+      .map((match) => getRoundRobinPairKey(getMatchPlayerIds(match)))
+      .filter((pairKey): pairKey is string => Boolean(pairKey))
+  );
+
+  return buildMissingRoundRobinMatches({
+    idPrefix: `${stage.id}-${pool.id}`,
+    playerIds: assignmentPlayerIds,
+    existingPairKeys,
+    durationMinutes: resolveMatchDuration(stage.matchFormatKey, durationByFormatKey),
+  });
+};
+
+const collectRemainingPoolMatches = (
+  stage: LiveViewPoolStage,
+  pool: LiveViewPool,
+  durationByFormatKey: Map<string, number>,
+  seenMatchIds: Set<string>
+) => {
+  const matches: Array<{ id: string; durationMinutes: number; playerIds: string[] }> = [];
+
+  for (const match of pool.matches ?? []) {
+    if (!isRemainingMatch(match)) {
+      continue;
+    }
+    if (seenMatchIds.has(match.id)) {
+      continue;
+    }
+
+    seenMatchIds.add(match.id);
+    matches.push({
+      id: match.id,
+      durationMinutes: resolveMatchDuration(match.matchFormatKey ?? stage.matchFormatKey, durationByFormatKey),
+      playerIds: getMatchPlayerIds(match),
+    });
+  }
+
+  return matches;
+};
+
+const getPoolPlayerIds = (pool: LiveViewPool) => {
+  const assignmentPlayerIds = (pool.assignments ?? [])
+    .map((assignment) => assignment.player?.id)
+    .filter((playerId): playerId is string => Boolean(playerId));
+
+  if (assignmentPlayerIds.length > 0) {
+    return assignmentPlayerIds;
+  }
+
+  return (pool.matches ?? [])
+    .flatMap((match) => getMatchPlayerIds(match));
+};
+
+const getExpectedBracketMatchesByRound = (bracket: LiveViewBracket) => {
+  const totalRounds = bracket.totalRounds ?? 0;
+  if (totalRounds <= 0) {
+    return new Map<number, number>();
+  }
+
+  const expectedByRound = new Map<number, number>();
+  for (let roundNumber = 1; roundNumber <= totalRounds; roundNumber += 1) {
+    expectedByRound.set(roundNumber, Math.pow(2, totalRounds - roundNumber));
+  }
+
+  return expectedByRound;
+};
+
+type BracketRoundWorkload = {
+  totalMinutes: number;
+  maxSingleMatchMinutes: number;
+  knownMatchesCount: number;
+  schedulableMatches: Array<{ id: string; durationMinutes: number; playerIds: string[] }>;
+};
+
+const getBracketRoundWorkloads = (
+  bracket: LiveViewBracket,
+  durationByFormatKey: Map<string, number>,
+  seenMatchIds: Set<string>
+) => {
+  const expectedByRound = getExpectedBracketMatchesByRound(bracket);
+  const roundWorkloadByRound = new Map<number, BracketRoundWorkload>();
+
+  for (const match of bracket.matches ?? []) {
+    if (!isRemainingMatch(match)) {
+      continue;
+    }
+    if (seenMatchIds.has(match.id)) {
+      continue;
+    }
+    seenMatchIds.add(match.id);
+
+    const roundNumber = Number(match.roundNumber) || 1;
+    const duration = resolveMatchDuration(
+      match.matchFormatKey ?? bracket.roundMatchFormats?.[String(roundNumber)],
+      durationByFormatKey
+    );
+    const current = roundWorkloadByRound.get(roundNumber) ?? {
+      totalMinutes: 0,
+      maxSingleMatchMinutes: 0,
+      knownMatchesCount: 0,
+      schedulableMatches: [],
+    };
+
+    current.totalMinutes += duration;
+    current.maxSingleMatchMinutes = Math.max(current.maxSingleMatchMinutes, duration);
+    current.knownMatchesCount += 1;
+    current.schedulableMatches.push({
+      id: match.id,
+      durationMinutes: duration,
+      playerIds: (match.playerMatches ?? [])
+        .map((playerMatch) => playerMatch.player?.id)
+        .filter((playerId): playerId is string => Boolean(playerId)),
+    });
+    roundWorkloadByRound.set(roundNumber, current);
+  }
+
+  for (const [roundNumber, expectedCount] of expectedByRound.entries()) {
+    const current = roundWorkloadByRound.get(roundNumber) ?? {
+      totalMinutes: 0,
+      maxSingleMatchMinutes: 0,
+      knownMatchesCount: 0,
+      schedulableMatches: [],
+    };
+    const knownCount = current.knownMatchesCount;
+    const missingCount = Math.max(expectedCount - knownCount, 0);
+    if (missingCount <= 0) {
+      continue;
+    }
+
+    const roundDuration = resolveMatchDuration(
+      bracket.roundMatchFormats?.[String(roundNumber)],
+      durationByFormatKey
+    );
+    current.totalMinutes += missingCount * roundDuration;
+    current.maxSingleMatchMinutes = Math.max(current.maxSingleMatchMinutes, roundDuration);
+    for (let index = 0; index < missingCount; index += 1) {
+      current.schedulableMatches.push({
+        id: `missing-${bracket.id}-${roundNumber}-${index}`,
+        durationMinutes: roundDuration,
+        playerIds: [],
+      });
+    }
+    roundWorkloadByRound.set(roundNumber, current);
+  }
+
+  return roundWorkloadByRound;
+};
+
+const buildDurationMap = () => new Map(
+  getMatchFormatPresets().map((preset) => [preset.key, preset.durationMinutes])
+);
+
+const resolveMatchDuration = (
+  matchFormatKey: string | undefined,
+  durationByFormatKey: Map<string, number>
+) => {
+  if (!matchFormatKey) {
+    return 0;
+  }
+  const resolved = durationByFormatKey.get(matchFormatKey);
+  return resolved && resolved > 0 ? resolved : 0;
+};
+
+const getPoolStagesEstimatedMinutes = (
+  poolStages: LiveViewPoolStage[] | undefined,
+  durationByFormatKey: Map<string, number>,
+  seenMatchIds: Set<string>,
+  targetCapacity: number
+) => {
+  const schedulableMatches: Array<{ id: string; durationMinutes: number; playerIds: string[] }> = [];
+
+  for (const stage of poolStages ?? []) {
+    if (!isRemainingStage(stage.status)) {
+      continue;
+    }
+
+    for (const pool of stage.pools ?? []) {
+      const rawPoolSchedulableMatches = [
+        ...collectRemainingPoolMatches(stage, pool, durationByFormatKey, seenMatchIds),
+        ...getMissingPoolMatches(stage, pool, durationByFormatKey),
+      ];
+      const poolSchedulableMatches = applyPoolConcurrencySlots(
+        rawPoolSchedulableMatches,
+        pool.id,
+        getPoolPlayerIds(pool),
+        stage.playersPerPool
+      );
+      schedulableMatches.push(...poolSchedulableMatches);
+    }
+  }
+
+  return estimateConflictAwareMinutes(schedulableMatches, targetCapacity);
+};
+
+const getRemainingPoolStagesOrdered = (poolStages: LiveViewPoolStage[] | undefined) =>
+  (poolStages ?? [])
+    .filter((stage) => isRemainingStage(stage.status))
+    .sort((leftStage, rightStage) => {
+      const leftOrder = leftStage.stageNumber ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = rightStage.stageNumber ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder;
+    });
+
+const getStageParallelReferences = (stage: LiveViewPoolStage) => (
+  new Set(
+    (stage.inParallelWith ?? [])
+      .map((reference) => reference.trim())
+      .filter((reference) => /^stage:\d+$/i.test(reference))
+      .map((reference) => Number(reference.split(':')[1]))
+      .filter((stageNumber) => Number.isInteger(stageNumber) && stageNumber > 0)
+  )
+);
+
+const areStagesParallelLinked = (firstStage: LiveViewPoolStage, secondStage: LiveViewPoolStage) => {
+  const firstRefs = getStageParallelReferences(firstStage);
+  const secondRefs = getStageParallelReferences(secondStage);
+  return firstRefs.has(secondStage.stageNumber) || secondRefs.has(firstStage.stageNumber);
+};
+
+const hasPoolStageParallelConfiguration = (stages: LiveViewPoolStage[]) => (
+  stages.some((stage) => (stage.inParallelWith?.length ?? 0) > 0)
+);
+
+const collectParallelStageGroup = (
+  startStage: LiveViewPoolStage,
+  orderedStages: LiveViewPoolStage[],
+  visitedStageIds: Set<string>
+) => {
+  const group: LiveViewPoolStage[] = [];
+  const stack = [startStage];
+  visitedStageIds.add(startStage.id);
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+    group.push(current);
+
+    for (const candidate of orderedStages) {
+      if (visitedStageIds.has(candidate.id)) {
+        continue;
+      }
+      if (areStagesParallelLinked(current, candidate)) {
+        visitedStageIds.add(candidate.id);
+        stack.push(candidate);
+      }
+    }
+  }
+
+  return group.toSorted((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
+};
+
+const sortPoolStageGroups = (groups: LiveViewPoolStage[][]) => groups.toSorted((firstGroup, secondGroup) => {
+  const firstOrder = firstGroup[0]?.stageNumber ?? Number.MAX_SAFE_INTEGER;
+  const secondOrder = secondGroup[0]?.stageNumber ?? Number.MAX_SAFE_INTEGER;
+  return firstOrder - secondOrder;
+});
+
+const buildPoolStageParallelGroups = (stages: LiveViewPoolStage[]) => {
+  const orderedStages = [...stages]
+    .sort((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
+  const visitedStageIds = new Set<string>();
+  const groups: LiveViewPoolStage[][] = [];
+
+  for (const stage of orderedStages) {
+    if (visitedStageIds.has(stage.id)) {
+      continue;
+    }
+
+    groups.push(collectParallelStageGroup(stage, orderedStages, visitedStageIds));
+  }
+
+  return sortPoolStageGroups(groups);
+};
+
+const getBracketDedicatedTargetCount = (bracket: LiveViewBracket) => {
+  const bracketTargetsCount = bracket.bracketTargets?.length ?? 0;
+  if (bracketTargetsCount > 0) {
+    return bracketTargetsCount;
+  }
+  return bracket.targetIds?.length ?? 0;
+};
+
+const getExpectedMatchesForRound = (bracket: LiveViewBracket, roundNumber: number) => {
+  const expectedByRound = getExpectedBracketMatchesByRound(bracket);
+  return expectedByRound.get(roundNumber) ?? 0;
+};
+
+type BracketWorkloadItem = {
+  bracket: LiveViewBracket;
+  bracketCapacity: number;
+  roundWorkloadByRound: Map<number, BracketRoundWorkload>;
+};
+
+const buildBracketWorkloadItems = (
+  brackets: LiveViewBracket[],
+  durationByFormatKey: Map<string, number>,
+  seenMatchIds: Set<string>
+): BracketWorkloadItem[] => brackets
+  .map((bracket) => {
+    const dedicatedTargets = getBracketDedicatedTargetCount(bracket);
+    const bracketCapacity = dedicatedTargets > 0
+      ? dedicatedTargets
+      : Math.max(getExpectedMatchesForRound(bracket, 1), 1);
+
+    return {
+      bracket,
+      bracketCapacity,
+      roundWorkloadByRound: getBracketRoundWorkloads(bracket, durationByFormatKey, seenMatchIds),
+    };
+  })
+  .toSorted((first, second) => first.bracket.name.localeCompare(second.bracket.name, undefined, { sensitivity: 'base' }));
+
+const getRemainingRoundNumbers = (items: BracketWorkloadItem[]) => {
+  const roundNumbers = new Set<number>();
+  for (const item of items) {
+    for (const roundNumber of item.roundWorkloadByRound.keys()) {
+      if (roundNumber > 1) {
+        roundNumbers.add(roundNumber);
+      }
+    }
+  }
+  return roundNumbers;
+};
+
+const getLegacyParallelBracketsEstimatedMinutes = (
+  bracketItems: BracketWorkloadItem[],
+  activeTargetCount: number
+) => {
+  const sequentialFirstRoundMinutes = bracketItems.reduce((sum, item) => {
+    const firstRoundWorkload = item.roundWorkloadByRound.get(1) ?? {
+      totalMinutes: 0,
+      maxSingleMatchMinutes: 0,
+      knownMatchesCount: 0,
+      schedulableMatches: [],
+    };
+    return sum + getRoundEstimatedMinutes(firstRoundWorkload, item.bracketCapacity);
+  }, 0);
+
+  const remainingRoundNumbers = [...getRemainingRoundNumbers(bracketItems)]
+    .toSorted((first, second) => first - second);
+  const parallelRemainingRoundsMinutes = remainingRoundNumbers.reduce((sum, roundNumber) => {
+    let totalMinutes = 0;
+    let maxSingleMatchMinutes = 0;
+    const schedulableMatches: BracketRoundWorkload['schedulableMatches'] = [];
+
+    for (const item of bracketItems) {
+      const workload = item.roundWorkloadByRound.get(roundNumber);
+      if (!workload) {
+        continue;
+      }
+      totalMinutes += workload.totalMinutes;
+      maxSingleMatchMinutes = Math.max(maxSingleMatchMinutes, workload.maxSingleMatchMinutes);
+      schedulableMatches.push(...workload.schedulableMatches);
+    }
+
+    return sum + getRoundEstimatedMinutes(
+      {
+        totalMinutes,
+        maxSingleMatchMinutes,
+        knownMatchesCount: 0,
+        schedulableMatches,
+      },
+      activeTargetCount
+    );
+  }, 0);
+
+  return sequentialFirstRoundMinutes + parallelRemainingRoundsMinutes;
+};
+
+const getBracketParallelReferences = (bracket: LiveViewBracket) => (
+  new Set(
+    (bracket.inParallelWith ?? [])
+      .map((reference) => reference.trim())
+      .filter((reference) => /^bracket:.+$/i.test(reference))
+      .map((reference) => reference.slice(reference.indexOf(':') + 1).trim().toLocaleLowerCase())
+      .filter((name) => name.length > 0)
+  )
+);
+
+const areBracketsParallelLinked = (firstBracket: LiveViewBracket, secondBracket: LiveViewBracket) => {
+  const firstRefs = getBracketParallelReferences(firstBracket);
+  const secondRefs = getBracketParallelReferences(secondBracket);
+  return firstRefs.has(secondBracket.name.toLocaleLowerCase())
+    || secondRefs.has(firstBracket.name.toLocaleLowerCase());
+};
+
+const sortBracketWorkloadGroup = (group: BracketWorkloadItem[]) => group.toSorted((first, second) => (
+  first.bracket.name.localeCompare(second.bracket.name, undefined, { sensitivity: 'base' })
+));
+
+const sortBracketWorkloadGroups = (groups: BracketWorkloadItem[][]) => groups.toSorted((firstGroup, secondGroup) => {
+  const firstName = firstGroup[0]?.bracket.name ?? '';
+  const secondName = secondGroup[0]?.bracket.name ?? '';
+  return firstName.localeCompare(secondName, undefined, { sensitivity: 'base' });
+});
+
+const collectBracketParallelGroup = (
+  startItem: BracketWorkloadItem,
+  bracketItems: BracketWorkloadItem[],
+  visitedBracketIds: Set<string>
+) => {
+  const group: BracketWorkloadItem[] = [];
+  const stack = [startItem];
+  visitedBracketIds.add(startItem.bracket.id);
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+    group.push(current);
+
+    for (const candidate of bracketItems) {
+      if (visitedBracketIds.has(candidate.bracket.id)) {
+        continue;
+      }
+      if (areBracketsParallelLinked(current.bracket, candidate.bracket)) {
+        visitedBracketIds.add(candidate.bracket.id);
+        stack.push(candidate);
+      }
+    }
+  }
+
+  return sortBracketWorkloadGroup(group);
+};
+
+const buildBracketParallelGroups = (bracketItems: BracketWorkloadItem[]) => {
+  const visitedBracketIds = new Set<string>();
+  const groups: BracketWorkloadItem[][] = [];
+
+  for (const item of bracketItems) {
+    if (visitedBracketIds.has(item.bracket.id)) {
+      continue;
+    }
+
+    groups.push(collectBracketParallelGroup(item, bracketItems, visitedBracketIds));
+  }
+
+  return sortBracketWorkloadGroups(groups);
+};
+
+const getGroupRoundEstimatedMinutes = (
+  group: BracketWorkloadItem[],
+  roundNumber: number,
+  activeTargetCount: number
+) => {
+  let groupTotalMinutes = 0;
+  let groupMaxSingleMatchMinutes = 0;
+  let groupCapacity = 0;
+  const groupSchedulableMatches: BracketRoundWorkload['schedulableMatches'] = [];
+
+  for (const item of group) {
+    const workload = item.roundWorkloadByRound.get(roundNumber);
+    if (!workload || workload.totalMinutes <= 0) {
+      continue;
+    }
+    groupTotalMinutes += workload.totalMinutes;
+    groupMaxSingleMatchMinutes = Math.max(groupMaxSingleMatchMinutes, workload.maxSingleMatchMinutes);
+    groupCapacity += item.bracketCapacity;
+    groupSchedulableMatches.push(...workload.schedulableMatches);
+  }
+
+  if (groupTotalMinutes <= 0) {
+    return 0;
+  }
+
+  const boundedCapacity = Math.max(1, Math.min(activeTargetCount, groupCapacity));
+  return getRoundEstimatedMinutes(
+    {
+      totalMinutes: groupTotalMinutes,
+      maxSingleMatchMinutes: groupMaxSingleMatchMinutes,
+      knownMatchesCount: 0,
+      schedulableMatches: groupSchedulableMatches,
+    },
+    boundedCapacity
+  );
+};
+
+const getConfiguredParallelBracketsEstimatedMinutes = (
+  bracketItems: BracketWorkloadItem[],
+  activeTargetCount: number
+) => {
+  const orderedGroups = buildBracketParallelGroups(bracketItems);
+  const roundNumbers = new Set<number>();
+  for (const item of bracketItems) {
+    for (const roundNumber of item.roundWorkloadByRound.keys()) {
+      roundNumbers.add(roundNumber);
+    }
+  }
+
+  return [...roundNumbers]
+    .toSorted((first, second) => first - second)
+    .reduce((totalMinutes, roundNumber) => {
+      const roundMinutes = orderedGroups.reduce(
+        (sum, group) => sum + getGroupRoundEstimatedMinutes(group, roundNumber, activeTargetCount),
+        0
+      );
+      return totalMinutes + roundMinutes;
+    }, 0);
+};
+
+const getParallelBracketsEstimatedMinutes = (
+  brackets: LiveViewBracket[],
+  durationByFormatKey: Map<string, number>,
+  seenMatchIds: Set<string>,
+  activeTargetCount: number
+) => {
+  if (brackets.length === 0) {
+    return 0;
+  }
+
+  const bracketItems = buildBracketWorkloadItems(brackets, durationByFormatKey, seenMatchIds);
+  const hasParallelConfiguration = brackets.some((bracket) => (bracket.inParallelWith?.length ?? 0) > 0);
+
+  if (!hasParallelConfiguration) {
+    return getLegacyParallelBracketsEstimatedMinutes(bracketItems, activeTargetCount);
+  }
+
+  return getConfiguredParallelBracketsEstimatedMinutes(bracketItems, activeTargetCount);
+};
+
+const getRoundEstimatedMinutes = (
+  roundWorkload: BracketRoundWorkload,
+  activeTargetCount: number
+) => {
+  if (roundWorkload.schedulableMatches.length <= 0) {
+    return 0;
+  }
+
+  return estimateConflictAwareMinutes(roundWorkload.schedulableMatches, activeTargetCount);
+};
+
+type RemainingEstimateBreakdown = {
+  firstPoolStageEstimatedMinutes: number;
+  subsequentPoolStagesEstimatedMinutes: number;
+  firstStageBracketsEstimatedMinutes: number;
+  lateBracketsEstimatedMinutes: number;
+  readyNowBracketsEstimatedMinutes: number;
+  parallelBranchesEstimatedMinutes: number;
+  workflowEstimatedMinutes: number;
+  remainingPoolStagesCount: number;
+  remainingBracketsCount: number;
+  readyNowBracketsCount: number;
+  deferredBracketsCount: number;
+  hasPoolParallelConfiguration: boolean;
+};
+
+type RemainingEstimateResult = {
+  totalMinutes: number;
+  breakdown: RemainingEstimateBreakdown;
+};
+
+const getRemainingEstimatedMinutes = (
+  view: LiveViewData,
+  activeTargetCount: number
+): RemainingEstimateResult => {
+  const durationByFormatKey = buildDurationMap();
+  const seenMatchIds = new Set<string>();
+  const parallelCapacity = Math.max(activeTargetCount, 1);
+  const remainingPoolStages = getRemainingPoolStagesOrdered(view.poolStages);
+  const hasPoolParallelConfiguration = hasPoolStageParallelConfiguration(remainingPoolStages);
+  const bracketsById = new Map((view.brackets ?? []).map((bracket) => [bracket.id, bracket]));
+  const remainingBrackets = (view.brackets ?? []).filter((bracket) => isRemainingStage(bracket.status));
+  const sourceStageIdsByBracketId = buildBracketSourceStagesMap(view.poolStages);
+  const stageStatusById = new Map((view.poolStages ?? []).map((stage) => [stage.id, stage.status]));
+
+  const isBracketReadyNow = (bracketId: string) => {
+    const sourceStageIds = sourceStageIdsByBracketId.get(bracketId);
+    if (!sourceStageIds || sourceStageIds.size === 0) {
+      return true;
+    }
+
+    return [...sourceStageIds].every((stageId) => {
+      const status = stageStatusById.get(stageId);
+      return !isRemainingStage(status);
+    });
+  };
+
+  const readyNowBrackets = remainingBrackets.filter((bracket) => isBracketReadyNow(bracket.id));
+  const deferredBrackets = remainingBrackets.filter((bracket) => !isBracketReadyNow(bracket.id));
+  const poolStageGroups = hasPoolParallelConfiguration
+    ? buildPoolStageParallelGroups(remainingPoolStages)
+    : remainingPoolStages.map((stage) => [stage]);
+
+  const firstPoolGroup = poolStageGroups[0] ?? [];
+  const subsequentPoolGroups = poolStageGroups.slice(1);
+
+  const firstPoolStageEstimatedMinutes = getPoolStagesEstimatedMinutes(
+    firstPoolGroup,
+    durationByFormatKey,
+    seenMatchIds,
+    parallelCapacity
+  );
+
+  const firstStageBracketIds = new Set(
+    firstPoolGroup
+      .flatMap((stage) => stage.rankingDestinations ?? [])
+      .filter((destination) => destination.destinationType === 'BRACKET' && destination.bracketId)
+      .map((destination) => destination.bracketId as string)
+  );
+  const firstStageBrackets = [...firstStageBracketIds]
+    .map((bracketId) => bracketsById.get(bracketId))
+    .filter((bracket): bracket is LiveViewBracket => (
+      !!bracket
+      && deferredBrackets.some((deferredBracket) => deferredBracket.id === bracket.id)
+    ));
+  const firstStageDedicatedTargets = firstStageBrackets.reduce(
+    (sum, bracket) => sum + getBracketDedicatedTargetCount(bracket),
+    0
+  );
+  const poolTargetsAfterFirst = Math.max(activeTargetCount - firstStageDedicatedTargets, 1);
+
+  const subsequentPoolStagesEstimatedMinutes = subsequentPoolGroups.reduce((sum, stageGroup) => {
+    const groupEstimatedMinutes = getPoolStagesEstimatedMinutes(
+      stageGroup,
+      durationByFormatKey,
+      seenMatchIds,
+      poolTargetsAfterFirst
+    );
+    return sum + groupEstimatedMinutes;
+  }, 0);
+
+  const firstStageBracketsEstimatedMinutes = getParallelBracketsEstimatedMinutes(
+    firstStageBrackets,
+    durationByFormatKey,
+    seenMatchIds,
+    activeTargetCount
+  );
+
+  const lateBrackets = deferredBrackets.filter((bracket) => !firstStageBracketIds.has(bracket.id));
+  const lateBracketsEstimatedMinutes = getParallelBracketsEstimatedMinutes(
+    lateBrackets,
+    durationByFormatKey,
+    seenMatchIds,
+    activeTargetCount
+  );
+
+  const readyNowBracketsEstimatedMinutes = getParallelBracketsEstimatedMinutes(
+    readyNowBrackets,
+    durationByFormatKey,
+    seenMatchIds,
+    activeTargetCount
+  );
+
+  const poolBranchEstimatedMinutes = subsequentPoolStagesEstimatedMinutes + lateBracketsEstimatedMinutes;
+  const parallelBranchesEstimatedMinutes = Math.max(
+    firstStageBracketsEstimatedMinutes,
+    poolBranchEstimatedMinutes
+  );
+
+  const workflowEstimatedMinutes = firstPoolStageEstimatedMinutes + parallelBranchesEstimatedMinutes;
+  return {
+    totalMinutes: Math.max(workflowEstimatedMinutes, readyNowBracketsEstimatedMinutes),
+    breakdown: {
+      firstPoolStageEstimatedMinutes,
+      subsequentPoolStagesEstimatedMinutes,
+      firstStageBracketsEstimatedMinutes,
+      lateBracketsEstimatedMinutes,
+      readyNowBracketsEstimatedMinutes,
+      parallelBranchesEstimatedMinutes,
+      workflowEstimatedMinutes,
+      remainingPoolStagesCount: remainingPoolStages.length,
+      remainingBracketsCount: remainingBrackets.length,
+      readyNowBracketsCount: readyNowBrackets.length,
+      deferredBracketsCount: deferredBrackets.length,
+      hasPoolParallelConfiguration,
+    },
+  };
+};
+
+const getActiveTargetCount = (view: LiveViewData, schedulableTargetCount: number) => {
+  const activeTargetsFromView = (view.targets ?? []).filter((target) =>
+    ACTIVE_TARGET_STATUSES.has((target.status ?? '').toUpperCase())
+  ).length;
+
+  return Math.max(activeTargetsFromView, schedulableTargetCount, 1);
+};
+
+const getEstimatedEndAt = (
+  startAt: Date | undefined,
+  nowTimestamp: number,
+  remainingEstimatedMinutes: number,
+  activeTargetCount: number
+) => {
+  if (remainingEstimatedMinutes <= 0) {
+    return new Date(nowTimestamp);
+  }
+  if (activeTargetCount <= 0) {
+    return undefined;
+  }
+
+  const baseTimestamp = startAt
+    ? Math.max(startAt.getTime(), nowTimestamp)
+    : nowTimestamp;
+
+  return new Date(baseTimestamp + (remainingEstimatedMinutes * 60_000));
+};
+
+const getRemainingDurationMinutes = (
+  estimatedEndAt: Date | undefined,
+  startAt: Date | undefined,
+  nowTimestamp: number
+) => {
+  if (!estimatedEndAt) {
+    return undefined;
+  }
+
+  const baseTimestamp = startAt
+    ? Math.max(startAt.getTime(), nowTimestamp)
+    : nowTimestamp;
+  const millisecondsLeft = estimatedEndAt.getTime() - baseTimestamp;
+  if (millisecondsLeft <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(millisecondsLeft / 60_000);
+};
+
 const LiveTournamentViewHeader = ({
   t,
   view,
+  schedulableTargetCount,
   isAdmin,
   screenMode,
   onRefresh,
@@ -142,6 +938,97 @@ const LiveTournamentViewHeader = ({
   const refreshButtonClass = screenMode
     ? 'inline-flex items-center gap-2 rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-200 hover:border-slate-500'
     : 'inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500';
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
+  const startAt = toValidDate(view.startTime);
+  const activeTargetCount = getActiveTargetCount(view, schedulableTargetCount);
+  const remainingEstimate = getRemainingEstimatedMinutes(view, activeTargetCount);
+  const remainingEstimatedMinutes = remainingEstimate.totalMinutes;
+  const etaDebugEnabled = (() => {
+    if (globalThis.window === undefined) {
+      return false;
+    }
+    const searchParams = new URLSearchParams(globalThis.window.location.search);
+    return searchParams.get('etaDebug') === '1' || globalThis.window.localStorage.getItem('liveEtaDebug') === '1';
+  })();
+  const estimatedEndAt = getEstimatedEndAt(
+    startAt,
+    nowTimestamp,
+    remainingEstimatedMinutes,
+    activeTargetCount
+  );
+
+  useEffect(() => {
+    if (!etaDebugEnabled) {
+      return;
+    }
+
+    console.groupCollapsed(`ETA debug ${view.id}`);
+    console.log({
+      now: new Date(nowTimestamp).toISOString(),
+      activeTargetCount,
+      remainingEstimatedMinutes,
+      estimatedEndAt: estimatedEndAt?.toISOString(),
+    });
+    console.table(remainingEstimate.breakdown);
+    console.groupEnd();
+  }, [
+    activeTargetCount,
+    etaDebugEnabled,
+    estimatedEndAt,
+    nowTimestamp,
+    remainingEstimate.breakdown,
+    remainingEstimatedMinutes,
+    view.id,
+  ]);
+
+  useEffect(() => {
+    if (!estimatedEndAt || remainingEstimatedMinutes <= 0) {
+      return undefined;
+    }
+
+    const updateNowTimestamp = () => {
+      setNowTimestamp(Date.now());
+    };
+
+    updateNowTimestamp();
+
+    let intervalId: number | undefined;
+    let lastMinuteIntervalId: number | undefined;
+    let lastMinuteTimeoutId: number | undefined;
+    const millisecondsUntilNextMinute = 60_000 - (Date.now() % 60_000);
+    const timeoutId = globalThis.setTimeout(() => {
+      updateNowTimestamp();
+      intervalId = globalThis.setInterval(updateNowTimestamp, 60_000);
+    }, millisecondsUntilNextMinute);
+
+    const millisecondsUntilLastMinute = estimatedEndAt.getTime() - Date.now() - 60_000;
+    const startLastMinuteTick = () => {
+      updateNowTimestamp();
+      lastMinuteIntervalId = globalThis.setInterval(updateNowTimestamp, 1_000);
+    };
+
+    if (millisecondsUntilLastMinute <= 0) {
+      startLastMinuteTick();
+    } else {
+      lastMinuteTimeoutId = globalThis.setTimeout(startLastMinuteTick, millisecondsUntilLastMinute);
+    }
+
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+      if (lastMinuteTimeoutId !== undefined) {
+        globalThis.clearTimeout(lastMinuteTimeoutId);
+      }
+      if (intervalId !== undefined) {
+        globalThis.clearInterval(intervalId);
+      }
+      if (lastMinuteIntervalId !== undefined) {
+        globalThis.clearInterval(lastMinuteIntervalId);
+      }
+    };
+  }, [estimatedEndAt?.getTime(), remainingEstimatedMinutes]);
+
+  const estimatedDurationMinutes = Math.max(remainingEstimatedMinutes, 0);
+  const remainingDurationMinutes = getRemainingDurationMinutes(estimatedEndAt, startAt, nowTimestamp);
 
   return (
   <div className={`flex flex-wrap items-center justify-between ${headerGap}`}>
@@ -152,6 +1039,16 @@ const LiveTournamentViewHeader = ({
         <p className={idClass}>ID: {view.id}</p>
       )}
       <p className={statusClass}>{t('common.status')}: {view.status}</p>
+      {startAt && (
+        <p className={statusClass}>{t('live.startTime')}: {formatDateTime(startAt)}</p>
+      )}
+      {estimatedEndAt && (
+        <p className={statusClass}>{t('live.estimatedEndTime')}: {formatDateTime(estimatedEndAt)}</p>
+      )}
+      <p className={statusClass}>{t('live.estimatedDuration')}: {formatDurationClock(estimatedDurationMinutes)}</p>
+      {remainingDurationMinutes !== undefined && (
+        <p className={statusClass}>{t('live.remainingDuration')}: {formatDurationClock(remainingDurationMinutes)}</p>
+      )}
     </div>
     <div className={`flex flex-col items-end ${actionsGap}`}>
       <div className={`flex flex-wrap items-center justify-end ${actionsGap}`}>
@@ -267,6 +1164,7 @@ const LiveTournamentView = ({
   isPoolStagesReadonly,
   isBracketsReadonly,
   availableTargetsByTournament,
+  schedulableTargetCountByTournament,
   matchTargetSelections,
   updatingMatchId,
   resettingPoolId,
@@ -357,6 +1255,7 @@ const LiveTournamentView = ({
   const showBrackets = !isPoolStagesView(viewMode)
     && (isAdmin || viewMode === 'brackets' || !hasRunningPoolStages);
   const showViewHeader = !(screenMode && isBracketsView(viewMode));
+  const schedulableTargetCount = schedulableTargetCountByTournament.get(view.id) ?? 1;
 
   const queueProperties = {
     t,
@@ -378,6 +1277,7 @@ const LiveTournamentView = ({
   const poolStagesProperties = {
     t,
     tournamentId: view.id,
+    tournamentStartTime: view.startTime,
     tournamentStatus: view.status,
     doubleStageEnabled: Boolean(view.doubleStageEnabled),
     stages: displayedPoolStages,
@@ -391,6 +1291,7 @@ const LiveTournamentView = ({
     resettingPoolId,
     editingMatchId,
     availableTargetsByTournament,
+    schedulableTargetCount,
     getMatchKey,
     getTargetIdForSelection,
     onTargetSelectionChange,
@@ -426,6 +1327,8 @@ const LiveTournamentView = ({
   const bracketsProperties = {
     t,
     tournamentId: view.id,
+    tournamentStartTime: view.startTime,
+    poolStages: view.poolStages ?? [],
     brackets: filteredBrackets,
     screenMode,
     isAdmin,
@@ -437,6 +1340,7 @@ const LiveTournamentView = ({
     matchScores,
     matchTargetSelections,
     availableTargetsByTournament,
+    schedulableTargetCount,
     getStatusLabel,
     getMatchKey,
     getTargetIdForSelection,
@@ -461,6 +1365,7 @@ const LiveTournamentView = ({
         <LiveTournamentViewHeader
           t={t}
           view={view}
+          schedulableTargetCount={schedulableTargetCount}
           isAdmin={isAdmin}
           screenMode={screenMode}
           onRefresh={onRefresh}

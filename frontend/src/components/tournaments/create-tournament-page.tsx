@@ -84,7 +84,8 @@ export default function CreateTournamentPage() {
         const presets = await fetchTournamentPresets(token);
         setLoadedPresets(presets);
         setPresetErrors((current) => {
-          const { presets: _presets, ...next } = current;
+          const next = { ...current };
+          delete next.presets;
           return next;
         });
       } catch {

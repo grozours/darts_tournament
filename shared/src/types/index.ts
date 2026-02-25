@@ -24,9 +24,55 @@ export enum TournamentStatus {
   FINISHED = 'FINISHED',
 }
 
+export type MatchFormatPresetSegment = {
+  game: '501_DO' | 'CRICKET' | '701_DO';
+  targetCount: number;
+};
+
+export type MatchFormatPreset = {
+  key: string;
+  durationMinutes: number;
+  segments: MatchFormatPresetSegment[];
+};
+
+export const MATCH_FORMAT_PRESETS: MatchFormatPreset[] = [
+  {
+    key: 'BO3',
+    durationMinutes: 30,
+    segments: [
+      { game: '501_DO', targetCount: 4 },
+      { game: 'CRICKET', targetCount: 2 },
+      { game: '501_DO', targetCount: 2 },
+    ],
+  },
+  {
+    key: 'BO5',
+    durationMinutes: 60,
+    segments: [
+      { game: '501_DO', targetCount: 4 },
+      { game: 'CRICKET', targetCount: 2 },
+      { game: '501_DO', targetCount: 4 },
+      { game: 'CRICKET', targetCount: 2 },
+      { game: '501_DO', targetCount: 2 },
+    ],
+  },
+  {
+    key: 'BO5_F',
+    durationMinutes: 60,
+    segments: [
+      { game: '501_DO', targetCount: 4 },
+      { game: 'CRICKET', targetCount: 2 },
+      { game: '501_DO', targetCount: 4 },
+      { game: 'CRICKET', targetCount: 2 },
+      { game: '701_DO', targetCount: 2 },
+    ],
+  },
+];
+
 export interface Tournament {
   id: string;
   name: string;
+  location?: string;
   logoUrl?: string;
   format: TournamentFormat;
   durationType: DurationType;
@@ -104,6 +150,7 @@ export interface PoolStage {
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
+  matchFormatKey?: string;
   rankingDestinations?: PoolStageRankingDestination[];
   status: StageStatus;
   createdAt: Date;
@@ -147,6 +194,7 @@ export interface Bracket {
   bracketType: BracketType;
   name: string;
   totalRounds: number;
+  roundMatchFormats?: Record<string, string>;
   status: BracketStatus;
   createdAt: Date;
   completedAt?: Date;
@@ -195,6 +243,7 @@ export interface Match {
   poolId?: string;
   bracketId?: string;
   targetId?: string;
+  matchFormatKey?: string;
   roundNumber: number;
   matchNumber: number;
   legs: number;
@@ -252,6 +301,7 @@ export interface ScheduledMatch {
 // API Request/Response Types
 export interface CreateTournamentRequest {
   name: string;
+  location?: string;
   format: TournamentFormat;
   durationType: DurationType;
   startTime: string;

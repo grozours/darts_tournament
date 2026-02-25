@@ -20,7 +20,9 @@ export interface LiveViewMatch {
   id: string;
   matchNumber: number;
   roundNumber: number;
+  matchFormatKey?: string;
   status: string;
+  scheduledAt?: string;
   playerMatches?: LiveViewMatchPlayer[];
   winner?: {
     id: string;
@@ -74,10 +76,18 @@ export interface LiveViewPoolStage {
   id: string;
   stageNumber: number;
   name: string;
+  matchFormatKey?: string;
+  inParallelWith?: string[];
   status: string;
   poolCount?: number;
   playersPerPool?: number;
   advanceCount?: number;
+  rankingDestinations?: Array<{
+    position: number;
+    destinationType: 'POOL_STAGE' | 'BRACKET' | 'ELIMINATED';
+    poolStageId?: string;
+    bracketId?: string;
+  }>;
   pools?: LiveViewPool[];
 }
 
@@ -87,6 +97,8 @@ export interface LiveViewBracket {
   bracketType: string;
   status: string;
   totalRounds?: number;
+  roundMatchFormats?: Record<string, string>;
+  inParallelWith?: string[];
   targetIds?: string[];
   bracketTargets?: Array<{ targetId: string }>;
   entries?: Array<{
@@ -105,6 +117,8 @@ export interface LiveViewData {
   id: string;
   name: string;
   status: string;
+  startTime?: string;
+  endTime?: string;
   doubleStageEnabled?: boolean;
   poolStages?: LiveViewPoolStage[];
   brackets?: LiveViewBracket[];

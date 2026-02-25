@@ -13,6 +13,7 @@ import { AppError } from '../../middleware/error-handler';
 
 export interface CreateTournamentData {
   name: string;
+  location?: string;
   format: TournamentFormat;
   durationType: DurationType;
   startTime: string;
@@ -79,6 +80,12 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
     if (trimmedName.length > 100) {
       throw new AppError('Tournament name cannot exceed 100 characters', 400, 'TOURNAMENT_NAME_TOO_LONG');
+    }
+  };
+
+  const validateLocation = (location: string): void => {
+    if (location.length > 150) {
+      throw new AppError('Tournament location cannot exceed 150 characters', 400, 'TOURNAMENT_LOCATION_TOO_LONG');
     }
   };
 
@@ -162,6 +169,9 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
   const validateTournamentData = (data: CreateTournamentData): void => {
     validateName(data.name);
+    if (data.location !== undefined) {
+      validateLocation(data.location);
+    }
     validateFormat(data.format);
     validateDurationType(data.durationType);
     validateParticipantCount(data.totalParticipants);
@@ -194,6 +204,11 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       validateParticipantCount(sanitized.totalParticipants);
     }
 
+    if (sanitized.location !== undefined) {
+      validateLocation(sanitized.location);
+      sanitized.location = sanitized.location.trim();
+    }
+
     if (sanitized.targetCount !== undefined) {
       validateTargetCount(sanitized.targetCount);
     }
@@ -218,6 +233,9 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
     if (updateData.name !== undefined) {
       processedData.name = updateData.name;
+    }
+    if (updateData.location !== undefined) {
+      processedData.location = updateData.location;
     }
     if (updateData.format !== undefined) {
       processedData.format = updateData.format;
@@ -457,6 +475,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
         const tournament = await tournamentModel.create({
           name: sanitizedName,
+          ...(data.location?.trim() ? { location: data.location.trim() } : {}),
           format: data.format,
           durationType: data.durationType,
           startTime,
@@ -471,6 +490,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         logger.tournamentCreated(tournament.id, tournament.name, {
           format: tournament.format,
           durationType: tournament.durationType,
+          ...(tournament.location ? { location: tournament.location } : {}),
           totalParticipants: tournament.totalParticipants,
           targetCount: tournament.targetCount,
           targetStartNumber: tournament.targetStartNumber,

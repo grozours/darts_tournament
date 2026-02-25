@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_AUTH0_AUDIENCE?: string;
   readonly VITE_AUTH0_CONNECTION_GOOGLE?: string;
   readonly VITE_AUTH0_CONNECTION_FACEBOOK?: string;
+  readonly VITE_AUTH0_CONNECTION_DISCORD?: string;
   readonly VITE_AUTH0_CONNECTION_INSTAGRAM?: string;
 }
 

@@ -12,6 +12,7 @@ export type Translator = ReturnType<typeof useI18n>['t'];
 export type Tournament = {
   id: string;
   name: string;
+  location?: string | undefined;
   logoUrl?: string | undefined;
   format: string;
   totalParticipants: number;
@@ -31,6 +32,7 @@ export type Tournament = {
 
 export type EditFormState = {
   name: string;
+  location: string;
   format: string;
   durationType: string;
   startTime: string;
@@ -73,6 +75,7 @@ export type TournamentEditState = {
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
+    matchFormatKey?: string;
     losersAdvanceToBracket: boolean;
   };
   isAddingPoolStage: boolean;
@@ -82,6 +85,7 @@ export type TournamentEditState = {
     name: string;
     bracketType: string;
     totalRounds: number;
+    roundMatchFormats?: Record<string, string>;
   };
   isAddingBracket: boolean;
   isBracketRoundsAuto: boolean;

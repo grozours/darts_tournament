@@ -47,6 +47,7 @@ export type TournamentEditPanelProperties = {
   onPoolStagePoolCountChange: (id: string, value: number) => void;
   onPoolStagePlayersPerPoolChange: (id: string, value: number) => void;
   onPoolStageAdvanceCountChange: (id: string, value: number) => void;
+  onPoolStageMatchFormatChange: (id: string, value: string | undefined) => void;
   onPoolStageLosersAdvanceChange: (id: string, value: boolean) => void;
   onPoolStageRankingDestinationChange: (
     id: string,
@@ -64,6 +65,7 @@ export type TournamentEditPanelProperties = {
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
+    matchFormatKey?: string;
     losersAdvanceToBracket: boolean;
     rankingDestinations?: Array<{
       position: number;
@@ -79,6 +81,7 @@ export type TournamentEditPanelProperties = {
   onNewPoolStagePoolCountChange: (value: number) => void;
   onNewPoolStagePlayersPerPoolChange: (value: number) => void;
   onNewPoolStageAdvanceCountChange: (value: number) => void;
+  onNewPoolStageMatchFormatChange: (value: string | undefined) => void;
   onNewPoolStageLosersAdvanceChange: (value: boolean) => void;
   onNewPoolStageRankingDestinationChange: (
     position: number,
@@ -93,6 +96,7 @@ export type TournamentEditPanelProperties = {
   onBracketNameChange: (id: string, value: string) => void;
   onBracketTypeChange: (id: string, value: string) => void;
   onBracketRoundsChange: (id: string, value: number) => void;
+  onBracketRoundMatchFormatChange: (id: string, roundNumber: number, value: string | undefined) => void;
   onBracketStatusChange: (id: string, value: string) => void;
   onBracketTargetToggle: (bracketId: string, targetId: string) => void;
   onSaveBracket: (bracket: BracketConfig) => void;
@@ -103,12 +107,14 @@ export type TournamentEditPanelProperties = {
     name: string;
     bracketType: string;
     totalRounds: number;
+    roundMatchFormats?: Record<string, string>;
   };
   onStartAddBracket: () => void;
   onCancelAddBracket: () => void;
   onNewBracketNameChange: (value: string) => void;
   onNewBracketTypeChange: (value: string) => void;
   onNewBracketRoundsChange: (value: number) => void;
+  onNewBracketRoundMatchFormatChange: (roundNumber: number, value: string | undefined) => void;
   onAddBracket: () => void;
   getStatusLabel: (kind: 'stage' | 'bracket', status: string) => string;
   normalizeStageStatus: (status?: string) => string;
@@ -194,6 +200,7 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onPoolStagePoolCountChange: properties.onPoolStagePoolCountChange,
   onPoolStagePlayersPerPoolChange: properties.onPoolStagePlayersPerPoolChange,
   onPoolStageAdvanceCountChange: properties.onPoolStageAdvanceCountChange,
+  onPoolStageMatchFormatChange: properties.onPoolStageMatchFormatChange,
   onPoolStageLosersAdvanceChange: properties.onPoolStageLosersAdvanceChange,
   onPoolStageRankingDestinationChange: properties.onPoolStageRankingDestinationChange,
   onPoolStageStatusChange: properties.onPoolStageStatusChange,
@@ -207,6 +214,7 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onNewPoolStagePoolCountChange: properties.onNewPoolStagePoolCountChange,
   onNewPoolStagePlayersPerPoolChange: properties.onNewPoolStagePlayersPerPoolChange,
   onNewPoolStageAdvanceCountChange: properties.onNewPoolStageAdvanceCountChange,
+  onNewPoolStageMatchFormatChange: properties.onNewPoolStageMatchFormatChange,
   onNewPoolStageLosersAdvanceChange: properties.onNewPoolStageLosersAdvanceChange,
   onNewPoolStageRankingDestinationChange: properties.onNewPoolStageRankingDestinationChange,
   onAddPoolStage: properties.onAddPoolStage,
@@ -214,6 +222,7 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onBracketNameChange: properties.onBracketNameChange,
   onBracketTypeChange: properties.onBracketTypeChange,
   onBracketRoundsChange: properties.onBracketRoundsChange,
+  onBracketRoundMatchFormatChange: properties.onBracketRoundMatchFormatChange,
   onBracketStatusChange: properties.onBracketStatusChange,
   onBracketTargetToggle: properties.onBracketTargetToggle,
   onSaveBracket: properties.onSaveBracket,
@@ -224,6 +233,7 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onNewBracketNameChange: properties.onNewBracketNameChange,
   onNewBracketTypeChange: properties.onNewBracketTypeChange,
   onNewBracketRoundsChange: properties.onNewBracketRoundsChange,
+  onNewBracketRoundMatchFormatChange: properties.onNewBracketRoundMatchFormatChange,
   onAddBracket: properties.onAddBracket,
   getStatusLabel: properties.getStatusLabel,
   normalizeStageStatus: properties.normalizeStageStatus,

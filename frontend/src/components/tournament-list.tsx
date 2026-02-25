@@ -212,6 +212,7 @@ function TournamentList() { // NOSONAR
     handlePoolStagePoolCountChange,
     handlePoolStagePlayersPerPoolChange,
     handlePoolStageAdvanceCountChange,
+    handlePoolStageMatchFormatChange,
     handlePoolStageLosersAdvanceChange,
     handlePoolStageRankingDestinationChange,
     handlePoolStageStatusChange,
@@ -225,11 +226,13 @@ function TournamentList() { // NOSONAR
     handleNewPoolStagePoolCountChange,
     handleNewPoolStagePlayersPerPoolChange,
     handleNewPoolStageAdvanceCountChange,
+    handleNewPoolStageMatchFormatChange,
     handleNewPoolStageLosersAdvanceChange,
     handleNewPoolStageRankingDestinationChange,
     handleBracketNameChange,
     handleBracketTypeChange,
     handleBracketRoundsChange,
+    handleBracketRoundMatchFormatChange,
     handleBracketStatusChange,
     handleBracketTargetToggle,
     addBracket,
@@ -241,6 +244,7 @@ function TournamentList() { // NOSONAR
     handleNewBracketNameChange,
     handleNewBracketTypeChange,
     handleNewBracketRoundsChange,
+    handleNewBracketRoundMatchFormatChange,
     resetStructureState,
   } = useTournamentStructure({
     t,
@@ -551,6 +555,7 @@ function TournamentList() { // NOSONAR
           onPoolStagePoolCountChange={handlePoolStagePoolCountChange}
           onPoolStagePlayersPerPoolChange={handlePoolStagePlayersPerPoolChange}
           onPoolStageAdvanceCountChange={handlePoolStageAdvanceCountChange}
+          onPoolStageMatchFormatChange={handlePoolStageMatchFormatChange}
           onPoolStageLosersAdvanceChange={handlePoolStageLosersAdvanceChange}
           onPoolStageRankingDestinationChange={handlePoolStageRankingDestinationChange}
           onPoolStageStatusChange={handlePoolStageStatusChange}
@@ -572,6 +577,7 @@ function TournamentList() { // NOSONAR
           onNewPoolStagePoolCountChange={handleNewPoolStagePoolCountChange}
           onNewPoolStagePlayersPerPoolChange={handleNewPoolStagePlayersPerPoolChange}
           onNewPoolStageAdvanceCountChange={handleNewPoolStageAdvanceCountChange}
+          onNewPoolStageMatchFormatChange={handleNewPoolStageMatchFormatChange}
           onNewPoolStageLosersAdvanceChange={handleNewPoolStageLosersAdvanceChange}
           onNewPoolStageRankingDestinationChange={handleNewPoolStageRankingDestinationChange}
           onAddPoolStage={addPoolStage}
@@ -594,6 +600,7 @@ function TournamentList() { // NOSONAR
           onBracketNameChange={handleBracketNameChange}
           onBracketTypeChange={handleBracketTypeChange}
           onBracketRoundsChange={handleBracketRoundsChange}
+          onBracketRoundMatchFormatChange={handleBracketRoundMatchFormatChange}
           onBracketStatusChange={handleBracketStatusChange}
           onBracketTargetToggle={handleBracketTargetToggle}
           onSaveBracket={(bracket) => {
@@ -612,6 +619,7 @@ function TournamentList() { // NOSONAR
           onNewBracketNameChange={handleNewBracketNameChange}
           onNewBracketTypeChange={handleNewBracketTypeChange}
           onNewBracketRoundsChange={handleNewBracketRoundsChange}
+          onNewBracketRoundMatchFormatChange={handleNewBracketRoundMatchFormatChange}
           onAddBracket={addBracket}
           getStatusLabel={getStatusLabel}
           normalizeStageStatus={normalizeStageStatus}

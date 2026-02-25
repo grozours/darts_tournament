@@ -15,6 +15,7 @@ export type LiveViewMatch = {
   id: string;
   matchNumber: number;
   roundNumber: number;
+  matchFormatKey?: string;
   status: string;
   playerMatches?: Array<{
     player?: {
@@ -41,6 +42,11 @@ export type LiveViewPool = {
   id: string;
   poolNumber: number;
   name: string;
+  assignments?: Array<{
+    player?: {
+      id?: string;
+    };
+  }>;
   matches?: LiveViewMatch[];
 };
 
@@ -48,12 +54,20 @@ export type LiveViewPoolStage = {
   id: string;
   stageNumber: number;
   name: string;
+  inParallelWith?: string[];
+  matchFormatKey?: string;
+  status?: string;
+  rankingDestinations?: Array<{
+    destinationType?: string;
+    bracketId?: string;
+  }>;
   pools?: LiveViewPool[];
 };
 
 export type LiveViewBracket = {
   id: string;
   name: string;
+  roundMatchFormats?: Record<string, string>;
   matches?: LiveViewMatch[];
   targetIds?: string[];
   bracketTargets?: Array<{ targetId: string }>;
