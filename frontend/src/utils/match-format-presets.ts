@@ -72,8 +72,12 @@ export const getMatchFormatTooltip = (matchFormatKey?: string) => {
   if (!preset) {
     return matchFormatKey;
   }
-  const segments = preset.segments
-    .map((segment, index) => formatPresetSegmentDescription(preset.key, index, segment))
-    .join(' · ');
-  return `${preset.key} (${preset.durationMinutes} min) — ${segments}`;
+  const segmentLines = preset.segments
+    .map((segment, index) => `- ${formatPresetSegmentDescription(preset.key, index, segment)}`)
+    .join('\n');
+
+  return [
+    `key: ${preset.key}`,
+    segmentLines,
+  ].join('\n');
 };

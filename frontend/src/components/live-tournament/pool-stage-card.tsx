@@ -1025,6 +1025,8 @@ const PoolStageCard = ({
         {visibleMatches.map((match) => {
           const scheduledMatchTime = formatScheduledMatchTime(match.scheduledAt);
           const optimisticMatchTime = optimisticStartTimeByMatchId.get(match.id);
+          const resolvedMatchFormat = match.matchFormatKey ?? stage.matchFormatKey;
+          const matchFormatTooltip = getMatchFormatTooltip(resolvedMatchFormat);
 
           return (
           <div key={match.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-3 text-sm">
@@ -1032,6 +1034,11 @@ const PoolStageCard = ({
               <span className="text-slate-200">Match {match.matchNumber} · Round {match.roundNumber}</span>
               <span className="text-xs text-slate-400">{getStatusLabel('match', match.status)}</span>
             </div>
+            {resolvedMatchFormat && (
+              <p className="mt-1 text-[11px] text-cyan-200" title={matchFormatTooltip}>
+                {resolvedMatchFormat}
+              </p>
+            )}
             {match.status === 'SCHEDULED' && (
               <p className="mt-1 text-xs text-slate-400">
                 {t('live.matchStartTime')}: {optimisticMatchTime ?? scheduledMatchTime ?? t('live.matchStartTimeUnknown')}
