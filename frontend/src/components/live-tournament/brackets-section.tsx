@@ -282,11 +282,7 @@ const getBracketStartDateTime = (
   activeTargetCount: number
 ) => {
   const fallbackBaseDateTime = getBracketScheduleBaseDateTime(tournamentStartTime);
-  const sourceStages = poolStages.filter((stage) => (
-    (stage.rankingDestinations ?? []).some((destination) => (
-      destination.destinationType === 'BRACKET' && destination.bracketId === bracket.id
-    ))
-  ));
+  const sourceStages = getSourceStagesForBracket(poolStages, bracket.id);
 
   if (sourceStages.length === 0) {
     return fallbackBaseDateTime;
@@ -299,6 +295,28 @@ const getBracketStartDateTime = (
   );
 
   return new Date(fallbackBaseDateTime.getTime() + sourceEndOffsetMinutes * 60_000);
+};
+
+const getSourceStagesForBracket = (
+  poolStages: import('./types').LiveViewPoolStage[],
+  bracketId: string
+) => poolStages.filter((stage) => (
+  (stage.rankingDestinations ?? []).some((destination) => (
+    destination.destinationType === 'BRACKET' && destination.bracketId === bracketId
+  ))
+));
+
+const isStageCompleted = (status: string | undefined) => (status ?? '').trim().toUpperCase() === 'COMPLETED';
+
+const canManageBracketActions = (
+  poolStages: import('./types').LiveViewPoolStage[],
+  bracketId: string
+) => {
+  const sourceStages = getSourceStagesForBracket(poolStages, bracketId);
+  if (sourceStages.length === 0) {
+    return true;
+  }
+  return sourceStages.every((stage) => isStageCompleted(stage.status));
 };
 
 const getBracketTargetCapacity = (bracket: LiveViewBracket, roundOneMatchesCount: number) => {
@@ -538,6 +556,7 @@ const BracketsSection = ({
   const isUpdatingRound = updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false;
   const isResettingBracket = resettingBracketId === activeBracket.id;
   const canManageBrackets = isAdmin;
+  const canManageActiveBracketActions = canManageBracketActions(poolStages, activeBracket.id);
   const activeBracketTargetIds = activeBracket.targetIds
     ?? activeBracket.bracketTargets?.map((target) => target.targetId)
     ?? [];
@@ -615,7 +634,7 @@ const BracketsSection = ({
           estimatedDurationMinutes={bracketForecast.estimatedDurationMinutes}
           estimatedEndTimeLabel={bracketForecast.estimatedEndTimeLabel}
           isBracketsReadonly={isBracketsReadonly}
-          canManageBrackets={canManageBrackets}
+          canManageBrackets={canManageBrackets && canManageActiveBracketActions}
           isUpdatingRound={isUpdatingRound}
           isResettingBracket={isResettingBracket}
           getStatusLabel={getStatusLabel}

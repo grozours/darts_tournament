@@ -21,6 +21,60 @@ import type { Tournament } from './types';
 import type { PlayersStateSetters } from './tournament-players-state';
 import { emptyPlayerForm } from './tournament-players-state';
 
+const autoFillTournamentPlayers = async ({
+  tournament,
+  players,
+  token,
+}: {
+  tournament: Tournament;
+  players: TournamentPlayer[];
+  token: string | undefined;
+}): Promise<void> => {
+  const totalSlots = tournament.totalParticipants || 0;
+  const remainingSlots = Math.max(totalSlots - players.length, 0);
+  if (remainingSlots === 0) {
+    throw new Error('All spots are already filled.');
+  }
+
+  const isTeamFormat = tournament.format === TournamentFormat.DOUBLE
+    || tournament.format === TournamentFormat.TEAM_4_PLAYER;
+  const { registrations: uniqueRegistrations, error } = buildAutoFillRegistrations({
+    remainingSlots,
+    players,
+    isTeamFormat,
+    sampleFirstNames,
+    sampleLastNames,
+    lastNameModifiers,
+    sampleSurnames,
+    sampleTeams,
+    teamModifiers,
+  });
+
+  if (error) {
+    throw new Error(error);
+  }
+
+  for (const registration of uniqueRegistrations) {
+    await registerTournamentPlayer(tournament.id, registration, token);
+  }
+};
+
+const confirmAllTournamentPlayers = async ({
+  tournament,
+  players,
+  token,
+}: {
+  tournament: Tournament;
+  players: TournamentPlayer[];
+  token: string | undefined;
+}): Promise<void> => {
+  const pendingPlayers = players.filter((player) => !player.checkedIn);
+
+  for (const player of pendingPlayers) {
+    await updateTournamentPlayerCheckIn(tournament.id, player.playerId, true, token);
+  }
+};
+
 const buildPlayerPayload = (playerForm: CreatePlayerPayload): CreatePlayerPayload => {
   const payload: CreatePlayerPayload = {
     firstName: playerForm.firstName.trim(),
@@ -177,12 +231,11 @@ const usePlayerCheckInMutations = ({
     setPlayersError(undefined);
     try {
       const token = await getSafeAccessToken();
-      const pendingPlayers = players.filter((player) => !player.checkedIn);
-
-      for (const player of pendingPlayers) {
-        await updateTournamentPlayerCheckIn(editingTournament.id, player.playerId, true, token);
-      }
-
+      await confirmAllTournamentPlayers({
+        tournament: editingTournament,
+        players,
+        token,
+      });
       await fetchPlayers(editingTournament.id);
       await refreshTournamentDetails?.(editingTournament.id);
     } catch (error_) {
@@ -215,42 +268,16 @@ const usePlayerAutoFillMutation = ({
 }) => {
   const autoFillPlayers = useCallback(async () => {
     if (!editingTournament) return;
-    const totalSlots = editingTournament.totalParticipants || 0;
-    const remainingSlots = Math.max(totalSlots - players.length, 0);
-    if (remainingSlots === 0) {
-      setPlayersError('All spots are already filled.');
-      return;
-    }
-
     setIsAutoFillingPlayers(true);
     setPlayersError(undefined);
 
-    const isTeamFormat = editingTournament.format === TournamentFormat.DOUBLE
-      || editingTournament.format === TournamentFormat.TEAM_4_PLAYER;
-    const { registrations: uniqueRegistrations, error } = buildAutoFillRegistrations({
-      remainingSlots,
-      players,
-      isTeamFormat,
-      sampleFirstNames,
-      sampleLastNames,
-      lastNameModifiers,
-      sampleSurnames,
-      sampleTeams,
-      teamModifiers,
-    });
-
-    if (error) {
-      setPlayersError(error);
-      setIsAutoFillingPlayers(false);
-      return;
-    }
-
     try {
       const token = await getSafeAccessToken();
-      for (const registration of uniqueRegistrations) {
-        await registerTournamentPlayer(editingTournament.id, registration, token);
-      }
-
+      await autoFillTournamentPlayers({
+        tournament: editingTournament,
+        players,
+        token,
+      });
       await fetchPlayers(editingTournament.id);
     } catch (error_) {
       console.error('Error auto-filling players:', error_);
@@ -264,6 +291,8 @@ const usePlayerAutoFillMutation = ({
 };
 
 export {
+  autoFillTournamentPlayers,
+  confirmAllTournamentPlayers,
   usePlayerRegistrationMutations,
   usePlayerCheckInMutations,
   usePlayerAutoFillMutation,

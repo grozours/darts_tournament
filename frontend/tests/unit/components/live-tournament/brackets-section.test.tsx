@@ -180,4 +180,50 @@ describe('BracketsSection', () => {
     render(<BracketsSection {...baseProperties} brackets={brackets} activeBracketId="active" />);
     expect(bracketMatchesCalls[0]?.reservedTargetIds).toEqual(['target-2']);
   });
+
+  it('hides bracket management actions when dependent pool stages are not completed', () => {
+    bracketMatchesCalls.length = 0;
+    const brackets = [
+      { id: 'b1', name: 'Winners', bracketType: 'SINGLE', status: 'IN_PROGRESS', entries: [] },
+    ];
+    const poolStages = [
+      {
+        id: 's1',
+        stageNumber: 1,
+        name: 'Stage 1',
+        status: 'IN_PROGRESS',
+        rankingDestinations: [
+          { position: 1, destinationType: 'BRACKET', bracketId: 'b1' },
+        ],
+      },
+    ];
+
+    render(<BracketsSection {...baseProperties} brackets={brackets} poolStages={poolStages as never} />);
+
+    expect(screen.queryByText('live.completeRound')).not.toBeInTheDocument();
+    expect(screen.queryByText('live.resetBracket')).not.toBeInTheDocument();
+  });
+
+  it('shows bracket management actions when dependent pool stages are completed', () => {
+    bracketMatchesCalls.length = 0;
+    const brackets = [
+      { id: 'b1', name: 'Winners', bracketType: 'SINGLE', status: 'IN_PROGRESS', entries: [] },
+    ];
+    const poolStages = [
+      {
+        id: 's1',
+        stageNumber: 1,
+        name: 'Stage 1',
+        status: 'COMPLETED',
+        rankingDestinations: [
+          { position: 1, destinationType: 'BRACKET', bracketId: 'b1' },
+        ],
+      },
+    ];
+
+    render(<BracketsSection {...baseProperties} brackets={brackets} poolStages={poolStages as never} />);
+
+    expect(screen.getByText('live.completeRound')).toBeInTheDocument();
+    expect(screen.getByText('live.resetBracket')).toBeInTheDocument();
+  });
 });

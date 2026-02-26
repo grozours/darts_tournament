@@ -223,4 +223,44 @@ describe('TournamentList - player registration', () => {
     expect(screen.queryByText('Hidden Draft')).not.toBeInTheDocument();
     expect(mockFetchTournamentPresets).not.toHaveBeenCalled();
   });
+
+  it('shows auto action buttons on root cards for admin open and signature tournaments', async () => {
+    adminState.isAdmin = true;
+
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tournaments: [
+          {
+            id: 'open-1',
+            name: 'Open Cup',
+            format: 'SINGLE',
+            totalParticipants: 8,
+            status: 'OPEN',
+            durationType: 'FULL_DAY',
+            targetCount: 2,
+          },
+          {
+            id: 'sig-1',
+            name: 'Signature Cup',
+            format: 'SINGLE',
+            totalParticipants: 8,
+            status: 'SIGNATURE',
+            durationType: 'FULL_DAY',
+            targetCount: 2,
+          },
+        ],
+      }),
+    });
+
+    render(<TournamentList />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Open Cup')).toBeInTheDocument();
+      expect(screen.getByText('Signature Cup')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /auto-fill players|remplir automatiquement/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /auto signature|signature auto/i })).toBeInTheDocument();
+  });
 });

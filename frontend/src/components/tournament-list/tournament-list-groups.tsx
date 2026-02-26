@@ -9,11 +9,17 @@ type TournamentListGroupsProperties = {
   t: Translator;
   userRegistrations: Set<string>;
   hideOpenSignatureAction?: boolean;
+  showOpenAutoFillAction?: boolean;
+  showSignatureAutoConfirmAction?: boolean;
   registeringTournamentId?: string | undefined;
   openingRegistrationId?: string | undefined;
   openingSignatureId?: string | undefined;
+  autoFillingTournamentId?: string | undefined;
+  confirmingTournamentId?: string | undefined;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
+  onAutoFillPlayers: (tournamentId: string) => void;
+  onConfirmAllPlayers: (tournamentId: string) => void;
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
   onRegister: (tournamentId: string) => void;
@@ -28,15 +34,21 @@ const TournamentListGroups = ({
   t,
   userRegistrations,
   hideOpenSignatureAction = false,
+  showOpenAutoFillAction = false,
+  showSignatureAutoConfirmAction = false,
   registeringTournamentId,
   openingRegistrationId,
   openingSignatureId,
+  autoFillingTournamentId,
+  confirmingTournamentId,
   onEdit,
   onDelete,
   onRegister,
   onUnregister,
   onOpenRegistration,
   onOpenSignature,
+  onAutoFillPlayers,
+  onConfirmAllPlayers,
 }: TournamentListGroupsProperties) => (
   <div className="space-y-8">
     {groupedTournaments
@@ -77,10 +89,16 @@ const TournamentListGroups = ({
                   onUnregister={onUnregister}
                   onOpenRegistration={onOpenRegistration}
                   onOpenSignature={onOpenSignature}
+                  onAutoFillPlayers={onAutoFillPlayers}
+                  onConfirmAllPlayers={onConfirmAllPlayers}
                   hideOpenSignatureAction={hideOpenSignatureAction}
+                  showOpenAutoFillAction={showOpenAutoFillAction}
+                  showSignatureAutoConfirmAction={showSignatureAutoConfirmAction}
                   registeringTournamentId={registeringTournamentId}
                   openingRegistrationId={openingRegistrationId}
                   openingSignatureId={openingSignatureId}
+                  autoFillingTournamentId={autoFillingTournamentId}
+                  confirmingTournamentId={confirmingTournamentId}
                   userRegistrations={userRegistrations}
                 />
               );

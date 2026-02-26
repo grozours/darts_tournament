@@ -8,6 +8,7 @@ import {
   createPoolStage,
   deleteBracket,
   deletePoolStage,
+  fetchTournamentPlayers,
   fetchTournamentPresets,
   type TournamentPreset,
   updatePoolStage,
@@ -32,6 +33,10 @@ import {
 } from './tournament-list/tournament-status-helpers';
 import usePoolStageAssignments from './tournament-list/use-pool-stage-assignments';
 import {
+  autoFillTournamentPlayers,
+  confirmAllTournamentPlayers,
+} from './tournament-list/tournament-players-actions';
+import {
   buildPresetRoutingUpdates,
   buildTournamentPresetTemplate,
 } from '../utils/tournament-presets';
@@ -53,7 +58,11 @@ function TournamentList() { // NOSONAR
   const status = parameters.get('status');
   const editTournamentId = parameters.get('tournamentId');
   const isEditPage = view === 'edit-tournament';
-  const hideOpenSignatureAction = normalizeTournamentStatus(status ?? undefined) === 'DRAFT';
+  const normalizedRequestedStatus = normalizeTournamentStatus(status ?? undefined);
+  const hideOpenSignatureAction = normalizedRequestedStatus === 'DRAFT';
+  const isRootStatusView = normalizedRequestedStatus.length === 0;
+  const showOpenAutoFillAction = isRootStatusView || normalizedRequestedStatus === 'OPEN';
+  const showSignatureAutoConfirmAction = isRootStatusView || normalizedRequestedStatus === 'SIGNATURE';
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled || !isAuthenticated) {
@@ -88,6 +97,8 @@ function TournamentList() { // NOSONAR
   });
   const [openingRegistrationId, setOpeningRegistrationId] = useState<string | undefined>();
   const [openingSignatureId, setOpeningSignatureId] = useState<string | undefined>();
+  const [autoFillingTournamentId, setAutoFillingTournamentId] = useState<string | undefined>();
+  const [confirmingTournamentId, setConfirmingTournamentId] = useState<string | undefined>();
   const visibleTournaments = useMemo(
     () => (isAdmin
       ? tournaments
@@ -124,6 +135,52 @@ function TournamentList() { // NOSONAR
       setOpeningSignatureId(undefined);
     }
   }, [fetchTournaments, getSafeAccessToken, t]);
+  const autoFillTournamentFromCard = useCallback(async (tournamentId: string) => {
+    const tournament = visibleTournaments.find((item) => item.id === tournamentId);
+    if (!tournament) {
+      return;
+    }
+
+    setAutoFillingTournamentId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      const tournamentPlayers = await fetchTournamentPlayers(tournamentId, token);
+      await autoFillTournamentPlayers({
+        tournament,
+        players: tournamentPlayers,
+        token,
+      });
+      await fetchTournaments();
+    } catch (error_) {
+      console.error('[TournamentList] Failed to auto-fill players:', error_);
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedAutoFillPlayers'));
+    } finally {
+      setAutoFillingTournamentId(undefined);
+    }
+  }, [fetchTournaments, getSafeAccessToken, t, visibleTournaments]);
+  const confirmAllFromCard = useCallback(async (tournamentId: string) => {
+    const tournament = visibleTournaments.find((item) => item.id === tournamentId);
+    if (!tournament) {
+      return;
+    }
+
+    setConfirmingTournamentId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      const tournamentPlayers = await fetchTournamentPlayers(tournamentId, token);
+      await confirmAllTournamentPlayers({
+        tournament,
+        players: tournamentPlayers,
+        token,
+      });
+      await fetchTournaments();
+    } catch (error_) {
+      console.error('[TournamentList] Failed to confirm all players:', error_);
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
+    } finally {
+      setConfirmingTournamentId(undefined);
+    }
+  }, [fetchTournaments, getSafeAccessToken, t, visibleTournaments]);
   const refreshTournaments = useCallback(() => {
     void fetchTournaments();
   }, [fetchTournaments]);
@@ -516,9 +573,15 @@ function TournamentList() { // NOSONAR
           onUnregister={handleUnregisterSelf}
           onOpenRegistration={openRegistrationFromCard}
           onOpenSignature={openSignatureFromCard}
+          onAutoFillPlayers={autoFillTournamentFromCard}
+          onConfirmAllPlayers={confirmAllFromCard}
           hideOpenSignatureAction={hideOpenSignatureAction}
+          showOpenAutoFillAction={showOpenAutoFillAction}
+          showSignatureAutoConfirmAction={showSignatureAutoConfirmAction}
           openingRegistrationId={openingRegistrationId ?? undefined}
           openingSignatureId={openingSignatureId ?? undefined}
+          autoFillingTournamentId={autoFillingTournamentId ?? undefined}
+          confirmingTournamentId={confirmingTournamentId ?? undefined}
         />
       ))}
 

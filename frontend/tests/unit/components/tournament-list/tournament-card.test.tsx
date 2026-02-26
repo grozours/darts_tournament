@@ -26,6 +26,8 @@ describe('TournamentCard', () => {
     onUnregister: vi.fn(),
     onOpenRegistration: vi.fn(),
     onOpenSignature: vi.fn(),
+    onAutoFillPlayers: vi.fn(),
+    onConfirmAllPlayers: vi.fn(),
     userRegistrations: new Set<string>(),
   };
 
@@ -88,5 +90,39 @@ describe('TournamentCard', () => {
     );
 
     expect(screen.queryByText('tournaments.registered')).not.toBeInTheDocument();
+  });
+
+  it('renders auto-fill action for OPEN admin tournaments', () => {
+    const onAutoFillPlayers = vi.fn();
+
+    render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="OPEN"
+        showOpenAutoFillAction
+        onAutoFillPlayers={onAutoFillPlayers}
+      />
+    );
+
+    fireEvent.click(screen.getByText('edit.autoFillPlayers'));
+    expect(onAutoFillPlayers).toHaveBeenCalledWith('t1');
+  });
+
+  it('renders signature auto action for SIGNATURE admin tournaments', () => {
+    const onConfirmAllPlayers = vi.fn();
+
+    render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="SIGNATURE"
+        showSignatureAutoConfirmAction
+        onConfirmAllPlayers={onConfirmAllPlayers}
+      />
+    );
+
+    fireEvent.click(screen.getByText('tournaments.autoSignature'));
+    expect(onConfirmAllPlayers).toHaveBeenCalledWith('t1');
   });
 });

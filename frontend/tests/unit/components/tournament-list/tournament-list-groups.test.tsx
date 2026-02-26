@@ -27,6 +27,8 @@ describe('TournamentListGroups', () => {
     userRegistrations: new Set<string>(),
     onOpenRegistration: vi.fn(),
     onOpenSignature: vi.fn(),
+    onAutoFillPlayers: vi.fn(),
+    onConfirmAllPlayers: vi.fn(),
     onEdit: vi.fn(),
     onDelete: vi.fn(),
     onRegister: vi.fn(),

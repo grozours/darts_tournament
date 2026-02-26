@@ -14,10 +14,16 @@ export type TournamentCardProperties = {
   onUnregister: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
+  onAutoFillPlayers: (tournamentId: string) => void;
+  onConfirmAllPlayers: (tournamentId: string) => void;
   hideOpenSignatureAction?: boolean;
+  showOpenAutoFillAction?: boolean;
+  showSignatureAutoConfirmAction?: boolean;
   registeringTournamentId?: string | undefined;
   openingRegistrationId?: string | undefined;
   openingSignatureId?: string | undefined;
+  autoFillingTournamentId?: string | undefined;
+  confirmingTournamentId?: string | undefined;
   userRegistrations: Set<string>;
 };
 
@@ -26,9 +32,15 @@ type TournamentAdminActionProperties = {
   normalizedStatus: string;
   openingRegistrationId?: string | undefined;
   openingSignatureId?: string | undefined;
+  autoFillingTournamentId?: string | undefined;
+  confirmingTournamentId?: string | undefined;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
+  onAutoFillPlayers: (tournamentId: string) => void;
+  onConfirmAllPlayers: (tournamentId: string) => void;
   hideOpenSignatureAction?: boolean;
+  showOpenAutoFillAction?: boolean;
+  showSignatureAutoConfirmAction?: boolean;
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
   t: Translator;
@@ -49,9 +61,15 @@ const TournamentAdminActions = ({
   normalizedStatus,
   openingRegistrationId,
   openingSignatureId,
+  autoFillingTournamentId,
+  confirmingTournamentId,
   onOpenRegistration,
   onOpenSignature,
+  onAutoFillPlayers,
+  onConfirmAllPlayers,
   hideOpenSignatureAction = false,
+  showOpenAutoFillAction = false,
+  showSignatureAutoConfirmAction = false,
   onEdit,
   onDelete,
   t,
@@ -68,6 +86,17 @@ const TournamentAdminActions = ({
           : t('tournaments.openRegistration')}
       </button>
     )}
+    {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && showOpenAutoFillAction && (
+      <button
+        onClick={() => onAutoFillPlayers(tournament.id)}
+        disabled={autoFillingTournamentId === tournament.id}
+        className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        {autoFillingTournamentId === tournament.id
+          ? t('edit.filling')
+          : t('edit.autoFillPlayers')}
+      </button>
+    )}
     {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && (
       <button
         onClick={() => onOpenSignature(tournament.id)}
@@ -77,6 +106,17 @@ const TournamentAdminActions = ({
         {openingSignatureId === tournament.id
           ? t('common.loading')
           : t('tournaments.openSignature')}
+      </button>
+    )}
+    {normalizedStatus === 'SIGNATURE' && showSignatureAutoConfirmAction && (
+      <button
+        onClick={() => onConfirmAllPlayers(tournament.id)}
+        disabled={confirmingTournamentId === tournament.id}
+        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        {confirmingTournamentId === tournament.id
+          ? t('edit.confirming')
+          : t('tournaments.autoSignature')}
       </button>
     )}
     <button
@@ -148,10 +188,16 @@ const TournamentCard = ({
   onUnregister,
   onOpenRegistration,
   onOpenSignature,
+  onAutoFillPlayers,
+  onConfirmAllPlayers,
   hideOpenSignatureAction = false,
+  showOpenAutoFillAction = false,
+  showSignatureAutoConfirmAction = false,
   registeringTournamentId,
   openingRegistrationId,
   openingSignatureId,
+  autoFillingTournamentId,
+  confirmingTournamentId,
   userRegistrations,
 }: TournamentCardProperties) => {
   const isLive = normalizedStatus === 'LIVE';
@@ -243,12 +289,18 @@ const TournamentCard = ({
             normalizedStatus={normalizedStatus}
             openingRegistrationId={openingRegistrationId}
             openingSignatureId={openingSignatureId}
+            autoFillingTournamentId={autoFillingTournamentId}
             onOpenRegistration={onOpenRegistration}
             onOpenSignature={onOpenSignature}
+            onAutoFillPlayers={onAutoFillPlayers}
+            onConfirmAllPlayers={onConfirmAllPlayers}
             hideOpenSignatureAction={hideOpenSignatureAction}
+            showOpenAutoFillAction={showOpenAutoFillAction}
+            showSignatureAutoConfirmAction={showSignatureAutoConfirmAction}
             onEdit={onEdit}
             onDelete={onDelete}
             t={t}
+            confirmingTournamentId={confirmingTournamentId}
           />
         ) : (
           <TournamentRegistrationActions
