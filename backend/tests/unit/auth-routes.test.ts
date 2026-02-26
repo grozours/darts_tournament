@@ -6,6 +6,14 @@ const isAdminMock = jest.fn();
 jest.mock('../../src/middleware/auth', () => ({
   requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
   isAdmin: (...args: unknown[]) => isAdminMock(...args),
+  resolveUserEmailFromPayload: (payload: Record<string, unknown>) => {
+    const email = payload.email;
+    if (typeof email === 'string' && email.length > 0) {
+      return email;
+    }
+
+    return null;
+  },
 }));
 
 describe('auth routes', () => {

@@ -3,13 +3,23 @@ import { defineConfig } from '@playwright/test';
 const PLAYWRIGHT_BACKEND_PORT = 3310;
 const PLAYWRIGHT_FRONTEND_PORT = 3311;
 
+const databaseUser = process.env.DATABASE_USER ?? 'darts_user';
+const databasePassword = process.env.DATABASE_PASSWORD;
+const databaseHost = process.env.DATABASE_HOST ?? 'localhost';
+const databasePort = process.env.DATABASE_PORT ?? '5432';
+const databaseName = process.env.DATABASE_NAME ?? 'darts_tournament';
+
+const databaseCredentials = databasePassword
+	? `${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@`
+	: `${encodeURIComponent(databaseUser)}@`;
+
+const defaultDatabaseUrl = `postgresql://${databaseCredentials}${databaseHost}:${databasePort}/${databaseName}`;
+
 const backendWebServerEnv = {
 	...process.env,
 	NODE_ENV: process.env.NODE_ENV ?? 'test',
 	PORT: process.env.PORT ?? String(PLAYWRIGHT_BACKEND_PORT),
-	DATABASE_URL:
-		process.env.DATABASE_URL
-		?? 'postgresql://darts_user:darts_password@localhost:5432/darts_tournament',
+	DATABASE_URL: process.env.DATABASE_URL ?? defaultDatabaseUrl,
 	REDIS_HOST: process.env.REDIS_HOST ?? 'localhost',
 	REDIS_PORT: process.env.REDIS_PORT ?? '6379',
 	CORS_ORIGINS: process.env.CORS_ORIGINS ?? `http://localhost:${PLAYWRIGHT_FRONTEND_PORT}`,
