@@ -9,15 +9,31 @@ import {
   deletePoolStage,
   deleteBracket,
   fetchBrackets,
+  fetchTournamentTargets,
   fetchOrphanPlayers,
   fetchPoolStagePools,
   fetchTournamentLiveView,
+  fetchTournamentPresets,
+  fetchMatchFormatPresets,
   fetchPoolStages,
   fetchTournamentPlayers,
+  createTournamentPreset,
+  updateTournamentPreset,
+  deleteTournamentPreset,
+  createMatchFormatPreset,
+  updateMatchFormatPreset,
+  deleteMatchFormatPreset,
   registerTournamentPlayer,
   removeTournamentPlayer,
   updateBracket,
   saveMatchScores,
+  resetPoolMatches,
+  updatePoolAssignments,
+  updatePoolStage,
+  recomputeDoubleStageProgression,
+  populateBracketFromPools,
+  resetBracketMatches,
+  updateBracketTargets,
   updateTournament,
   unregisterTournamentPlayer,
   updateTournamentPlayer,
@@ -246,5 +262,205 @@ describe('tournament-service live view', () => {
       text: async () => 'Live view failed',
     });
     await expect(fetchTournamentLiveView('t-1')).rejects.toThrow('Live view failed');
+  });
+});
+
+describe('tournament-service presets and match formats', () => {
+  it('handles tournament presets fetch and CRUD operations', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ presets: [{ id: 'preset-1', name: 'Preset' }] }),
+    });
+    await expect(fetchTournamentPresets('token-1')).resolves.toEqual([{ id: 'preset-1', name: 'Preset' }]);
+
+    const fetchPresetsRequest = mockFetch.mock.calls[0]?.[1] as RequestInit;
+    expect(fetchPresetsRequest.headers).toEqual({ Authorization: 'Bearer token-1' });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'preset-2', name: 'Preset 2' }),
+    });
+    await expect(createTournamentPreset({
+      name: 'Preset 2',
+      presetType: 'custom',
+      totalParticipants: 16,
+      targetCount: 4,
+    }, 'token-2')).resolves.toEqual({ id: 'preset-2', name: 'Preset 2' });
+
+    const createPresetRequest = mockFetch.mock.calls[1]?.[1] as RequestInit;
+    expect(createPresetRequest.method).toBe('POST');
+    expect(createPresetRequest.headers).toEqual({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer token-2',
+    });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'preset-2', name: 'Preset 2 Updated' }),
+    });
+    await expect(updateTournamentPreset('preset-2', { name: 'Preset 2 Updated' }))
+      .resolves.toEqual({ id: 'preset-2', name: 'Preset 2 Updated' });
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await expect(deleteTournamentPreset('preset-2')).resolves.toBeUndefined();
+  });
+
+  it('parses API errors for presets and match formats', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ error: { message: 'Preset already exists', code: 'PRESET_EXISTS' } }),
+    });
+
+    await expect(createTournamentPreset({
+      name: 'Duplicate',
+      presetType: 'custom',
+      totalParticipants: 16,
+      targetCount: 4,
+    })).rejects.toMatchObject({
+      message: 'Preset already exists',
+      code: 'PRESET_EXISTS',
+      status: 409,
+    });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'text/plain' },
+      text: async () => '{"message":"Delete match format blocked","code":"FORMAT_BLOCKED"}',
+    });
+
+    await expect(deleteMatchFormatPreset('format-1')).rejects.toMatchObject({
+      message: 'Delete match format blocked',
+      code: 'FORMAT_BLOCKED',
+      status: 400,
+    });
+  });
+
+  it('handles match formats fetch and update paths', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ presets: [{ id: 'fmt-1', key: 'BO3' }] }),
+    });
+    await expect(fetchMatchFormatPresets()).resolves.toEqual([{ id: 'fmt-1', key: 'BO3' }]);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'fmt-2', key: 'BO5' }),
+    });
+    await expect(createMatchFormatPreset({
+      key: 'BO5',
+      durationMinutes: 20,
+      segments: [{ game: '501_DO', targetCount: 2 }],
+    })).resolves.toEqual({ id: 'fmt-2', key: 'BO5' });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'fmt-2', key: 'BO5_F' }),
+    });
+    await expect(updateMatchFormatPreset('fmt-2', { key: 'BO5_F' }, 'token-x'))
+      .resolves.toEqual({ id: 'fmt-2', key: 'BO5_F' });
+
+    const updateRequest = mockFetch.mock.calls[2]?.[1] as RequestInit;
+    expect(updateRequest.headers).toEqual({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer token-x',
+    });
+  });
+});
+
+describe('tournament-service additional operations', () => {
+  it('handles target and assignment operations', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ targets: [{ id: 'tg-1', targetNumber: 1 }] }) });
+    await expect(fetchTournamentTargets('t-1')).resolves.toEqual([{ id: 'tg-1', targetNumber: 1 }]);
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await expect(resetPoolMatches('t-1', 's-1', 'p-1', 'token-z')).resolves.toBeUndefined();
+
+    const resetRequest = mockFetch.mock.calls[1]?.[1] as RequestInit;
+    expect(resetRequest.headers).toEqual({ Authorization: 'Bearer token-z' });
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await expect(updatePoolAssignments('t-1', 's-1', [{ poolId: 'p-1', playerId: 'pl-1', assignmentType: 'AUTO' }]))
+      .resolves.toBeUndefined();
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Assignments failed' });
+    await expect(updatePoolAssignments('t-1', 's-1', [])).rejects.toThrow('Assignments failed');
+  });
+
+  it('handles stage and bracket helper operations', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 's-1', name: 'Updated stage' }) });
+    await expect(updatePoolStage('t-1', 's-1', { name: 'Updated stage' })).resolves.toEqual({
+      id: 's-1',
+      name: 'Updated stage',
+    });
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await expect(recomputeDoubleStageProgression('t-1', 's-1')).resolves.toBeUndefined();
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await expect(populateBracketFromPools('t-1', 'b-1', 's-1', undefined)).resolves.toBeUndefined();
+
+    const populateRequest = mockFetch.mock.calls[2]?.[1] as RequestInit;
+    expect(populateRequest.body).toBe(JSON.stringify({ stageId: 's-1' }));
+
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    await expect(resetBracketMatches('t-1', 'b-1')).resolves.toBeUndefined();
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'b-1', targetIds: ['t1'] }) });
+    await expect(updateBracketTargets('t-1', 'b-1', ['t1'])).resolves.toEqual({ id: 'b-1', targetIds: ['t1'] });
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Populate failed' });
+    await expect(populateBracketFromPools('t-1', 'b-1', 's-1', 'WINNER')).rejects.toThrow('Populate failed');
+  });
+
+  it('covers remaining service failure branches', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(fetchTournamentTargets('t-1')).rejects.toThrow('Failed to fetch tournament targets');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(fetchPoolStagePools('t-1', 's-1')).rejects.toThrow('Failed to fetch pool stage pools');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(registerTournamentPlayer('t-1', { firstName: 'A', lastName: 'B' }))
+      .rejects.toThrow('Failed to register player');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(updateTournamentPlayer('t-1', 'p-1', { firstName: 'A', lastName: 'B' }))
+      .rejects.toThrow('Failed to update player');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(createPoolStage('t-1', {
+      stageNumber: 1,
+      name: 'S1',
+      poolCount: 2,
+      playersPerPool: 4,
+      advanceCount: 2,
+      losersAdvanceToBracket: false,
+    })).rejects.toThrow('Failed to create pool stage');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(updatePoolStage('t-1', 's-1', { name: 'x' }))
+      .rejects.toThrow('Failed to update pool stage');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(completePoolStageWithScores('t-1', 's-1')).rejects.toThrow('Failed to complete pool stage');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(recomputeDoubleStageProgression('t-1', 's-1'))
+      .rejects.toThrow('Failed to recompute double-stage progression');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(resetPoolMatches('t-1', 's-1', 'p-1')).rejects.toThrow('Failed to reset pool matches');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(resetBracketMatches('t-1', 'b-1')).rejects.toThrow('Failed to reset bracket matches');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(updateBracketTargets('t-1', 'b-1', ['x'])).rejects.toThrow('Failed to update bracket targets');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(fetchBrackets('t-1')).rejects.toThrow('Failed to fetch brackets');
   });
 });

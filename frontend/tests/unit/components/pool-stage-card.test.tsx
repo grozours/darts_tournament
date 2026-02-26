@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import PoolStageCard from '../../../src/components/live-tournament/pool-stage-card';
+import PoolStageCard, { computeOptimisticStartTimes } from '../../../src/components/live-tournament/pool-stage-card';
 
 vi.mock('../../../src/components/live-tournament/match-score-inputs', () => ({
   default: () => <div>match-score-inputs</div>,
@@ -126,5 +126,118 @@ describe('PoolStageCard', () => {
     );
 
     expect(screen.getAllByText('Ava Archer').length).toBeGreaterThan(0);
+  });
+});
+
+describe('computeOptimisticStartTimes', () => {
+  type OptimisticPools = Parameters<typeof computeOptimisticStartTimes>[0]['pools'];
+
+  it('returns zero estimated duration when there are no matches', () => {
+    const result = computeOptimisticStartTimes({
+      pools: [],
+      schedulableTargetCount: 0,
+      nowTimestamp: 0,
+      resolveDurationMinutes: () => 10,
+    });
+
+    expect(result.optimisticById.size).toBe(0);
+    expect(result.finishTimestampByMatchId.size).toBe(0);
+    expect(result.estimatedDurationMinutes).toBe(0);
+  });
+
+  it('reserves in-progress matches and computes optimistic slots for scheduled matches', () => {
+    const pools = [
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        assignments: [{ player: { id: 'p1' } }, { player: { id: 'p2' } }],
+        matches: [
+          {
+            id: 'm-in-progress',
+            status: 'IN_PROGRESS',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [{ player: { id: 'p1' } }, { player: { id: 'p2' } }],
+          },
+          {
+            id: 'm-next-1',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 2,
+            playerMatches: [{ player: { id: 'p3' } }, { player: { id: 'p4' } }],
+          },
+        ],
+      },
+      {
+        id: 'pool-2',
+        poolNumber: 2,
+        assignments: [{ player: { id: 'p5' } }, { player: { id: 'p6' } }],
+        matches: [
+          {
+            id: 'm-next-2',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [{ player: { id: 'p5' } }, { player: { id: 'p6' } }],
+          },
+        ],
+      },
+    ] as unknown as OptimisticPools;
+
+    const durationById: Record<string, number> = {
+      'm-in-progress': 12,
+      'm-next-1': 8,
+      'm-next-2': 6,
+    };
+
+    const result = computeOptimisticStartTimes({
+      pools,
+      stagePlayersPerPool: 4,
+      schedulableTargetCount: 1,
+      nowTimestamp: 0,
+      resolveDurationMinutes: (match) => durationById[match.id] ?? 10,
+    });
+
+    expect(result.finishTimestampByMatchId.get('m-in-progress')).toBe(12 * 60_000);
+    expect(result.optimisticById.has('m-next-1')).toBe(true);
+    expect(result.optimisticById.has('m-next-2')).toBe(true);
+    expect(result.estimatedDurationMinutes).toBeGreaterThan(12);
+  });
+
+  it('uses fallback concurrency with stagePlayersPerPool when player assignments are missing', () => {
+    const pools = [
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        assignments: [],
+        matches: [
+          {
+            id: 'm1',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [],
+          },
+          {
+            id: 'm2',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 2,
+            playerMatches: [],
+          },
+        ],
+      },
+    ] as unknown as OptimisticPools;
+
+    const result = computeOptimisticStartTimes({
+      pools,
+      stagePlayersPerPool: 4,
+      schedulableTargetCount: 2,
+      nowTimestamp: 0,
+      resolveDurationMinutes: () => 5,
+    });
+
+    expect(result.optimisticById.size).toBe(2);
+    expect(result.estimatedDurationMinutes).toBeGreaterThanOrEqual(5);
   });
 });

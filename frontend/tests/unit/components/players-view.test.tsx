@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import PlayersView from '../../../src/components/players-view';
 import { TournamentFormat } from '@shared/types';
-import { fetchTournamentPlayers } from '../../../src/services/tournament-service';
+import { fetchOrphanPlayers, fetchTournamentPlayers, removeTournamentPlayer } from '../../../src/services/tournament-service';
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
@@ -13,7 +13,9 @@ vi.mock('../../../src/services/tournament-service', async () => {
   return {
     ...actual,
     fetchTournamentPlayers: vi.fn(),
+    fetchOrphanPlayers: vi.fn(),
     updateTournamentPlayer: vi.fn(),
+    removeTournamentPlayer: vi.fn(),
   };
 });
 
@@ -22,6 +24,7 @@ describe('PlayersView', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);
+    vi.mocked(fetchOrphanPlayers).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -116,5 +119,67 @@ describe('PlayersView', () => {
 
     expect(screen.getByText(/Alice Smith \(Falcon\)/i)).toBeInTheDocument();
     expect(screen.queryByText(/Bob Lee/i)).not.toBeInTheDocument();
+  });
+
+  it('filters orphan players when orphan option is selected', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tournaments: [{ id: 't1', name: 'Spring Open', format: TournamentFormat.SINGLE }],
+      }),
+    });
+
+    vi.mocked(fetchTournamentPlayers).mockResolvedValue([
+      { playerId: 'p1', firstName: 'Alice', lastName: 'Smith', name: 'Alice Smith' },
+    ]);
+    vi.mocked(fetchOrphanPlayers).mockResolvedValue([
+      { playerId: 'p-orphan', firstName: 'Orphan', lastName: 'Player', name: 'Orphan Player' },
+    ]);
+
+    render(<PlayersView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Alice Smith/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ORPHAN' } });
+
+    expect(screen.getByText(/Orphan Player/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Alice Smith/i)).not.toBeInTheDocument();
+  });
+
+  it('does not delete players when delete-all confirmation is cancelled', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tournaments: [{ id: 't1', name: 'Spring Open', format: TournamentFormat.SINGLE }],
+      }),
+    });
+    vi.mocked(fetchTournamentPlayers).mockResolvedValue([
+      { playerId: 'p1', firstName: 'Alice', lastName: 'Smith', name: 'Alice Smith' },
+    ]);
+    vi.spyOn(globalThis, 'confirm').mockReturnValueOnce(false);
+
+    render(<PlayersView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Alice Smith/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /delete all|supprimer tous/i }));
+
+    expect(removeTournamentPlayer).not.toHaveBeenCalled();
+  });
+
+  it('shows error state when tournaments cannot be loaded', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    });
+
+    render(<PlayersView />);
+
+    expect(await screen.findByText(/failed to fetch tournaments/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refresh|actualiser/i })).toBeInTheDocument();
   });
 });

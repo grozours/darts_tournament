@@ -1,0 +1,75 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import AppHeader from '../../../src/components/app-header';
+
+describe('AppHeader', () => {
+  const t = (key: string) => key;
+
+  beforeEach(() => {
+    globalThis.localStorage.clear();
+    globalThis.history.pushState({}, '', '/');
+  });
+
+  it('shows admin manage links and notification badge', () => {
+    globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([
+      { id: '1' },
+      { id: '2', acknowledgedAt: '2026-01-01' },
+    ]));
+
+    render(
+      <AppHeader
+        t={t}
+        isAdmin
+        isAuthenticated
+        lang="fr"
+        setLanguage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('nav.manage')).toBeInTheDocument();
+    expect(screen.getByLabelText('1 unread notifications')).toBeInTheDocument();
+  });
+
+  it('shows inscription link for non-admin and updates unread on custom event', () => {
+    render(
+      <AppHeader
+        t={t}
+        isAdmin={false}
+        isAuthenticated
+        lang="fr"
+        setLanguage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('nav.inscription')).toBeInTheDocument();
+
+    globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
+    globalThis.dispatchEvent(new Event('notifications:updated'));
+
+    return waitFor(() => {
+      expect(screen.getByLabelText('2 unread notifications')).toBeInTheDocument();
+    });
+  });
+
+  it('switches language from selector and handles screen mode link', () => {
+    globalThis.history.pushState({}, '', '/?screen=1');
+    const setLanguage = vi.fn();
+
+    render(
+      <AppHeader
+        t={t}
+        isAdmin
+        isAuthenticated={false}
+        lang="en"
+        setLanguage={setLanguage}
+      />
+    );
+
+    const details = document.querySelector('details');
+    details?.setAttribute('open', 'open');
+    fireEvent.click(screen.getByText('Français'));
+
+    expect(setLanguage).toHaveBeenCalledWith('fr');
+    expect(screen.getByLabelText('live.exitScreenMode')).toBeInTheDocument();
+  });
+});

@@ -7,12 +7,16 @@ const mockRegisterPlayer = vi.fn();
 const mockFetchPoolStages = vi.fn();
 const mockFetchBrackets = vi.fn();
 const mockFetchTournamentTargets = vi.fn();
+const mockUpdateTournamentStatus = vi.fn();
+const mockFetchTournamentPresets = vi.fn();
 const mockLoginWithRedirect = vi.fn();
 const mockGetAccessTokenSilently = vi.fn();
+const adminState = { isAdmin: true };
 
 vi.mock('../../../src/services/tournament-service', () => ({
   updateTournament: vi.fn(),
-  updateTournamentStatus: vi.fn(),
+  updateTournamentStatus: (...arguments_: unknown[]) => mockUpdateTournamentStatus(...arguments_),
+  fetchTournamentPresets: (...arguments_: unknown[]) => mockFetchTournamentPresets(...arguments_),
   fetchTournamentPlayers: (...arguments_: unknown[]) => mockFetchPlayers(...arguments_),
   registerTournamentPlayer: (...arguments_: unknown[]) => mockRegisterPlayer(...arguments_),
   updateTournamentPlayer: vi.fn(),
@@ -32,6 +36,10 @@ vi.mock('../../../src/auth/optional-auth', () => ({
     loginWithRedirect: mockLoginWithRedirect,
     getAccessTokenSilently: mockGetAccessTokenSilently,
   }),
+}));
+
+vi.mock('../../../src/auth/use-admin-status', () => ({
+  useAdminStatus: () => adminState,
 }));
 
 const buildTournamentsPayload = () => ({
@@ -75,6 +83,8 @@ describe('TournamentList - player registration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    adminState.isAdmin = true;
+    globalThis.window?.history.pushState({}, '', '/');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -86,6 +96,7 @@ describe('TournamentList - player registration', () => {
     mockFetchPoolStages.mockResolvedValue([]);
     mockFetchBrackets.mockResolvedValue([]);
     mockFetchTournamentTargets.mockResolvedValue([]);
+    mockFetchTournamentPresets.mockResolvedValue([]);
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...arguments_: unknown[]) => {
       const message = arguments_[0];
       if (typeof message === 'string' && message.includes('not wrapped in act')) {
@@ -172,5 +183,44 @@ describe('TournamentList - player registration', () => {
       expect(mockFetchPlayers.mock.calls.length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByText(/loading players|chargement des joueurs/i)).not.toBeInTheDocument();
     });
+  });
+
+  it('hides draft tournaments for non-admin users and skips loading presets', async () => {
+    adminState.isAdmin = false;
+
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tournaments: [
+          {
+            id: 'draft-1',
+            name: 'Hidden Draft',
+            format: 'SINGLE',
+            totalParticipants: 8,
+            status: 'DRAFT',
+            durationType: 'FULL_DAY',
+            targetCount: 2,
+          },
+          {
+            id: 'open-1',
+            name: 'Visible Open',
+            format: 'SINGLE',
+            totalParticipants: 8,
+            status: 'OPEN',
+            durationType: 'FULL_DAY',
+            targetCount: 2,
+          },
+        ],
+      }),
+    });
+
+    render(<TournamentList />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Visible Open')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Hidden Draft')).not.toBeInTheDocument();
+    expect(mockFetchTournamentPresets).not.toHaveBeenCalled();
   });
 });
