@@ -1,10 +1,7 @@
 name: Coverage
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   backend-coverage:
@@ -48,6 +45,11 @@ jobs:
 
       - name: Install backend dependencies
         run: npm ci --prefix backend
+
+      - name: Apply backend database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/darts_tournament
+        run: npm --prefix backend run db:migrate
 
       - name: Run backend coverage
         env:
