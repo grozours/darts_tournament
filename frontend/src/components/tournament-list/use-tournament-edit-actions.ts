@@ -39,6 +39,7 @@ type TournamentEditActionShared = {
 type TransitionConfig = {
   targetStatus: 'OPEN' | 'SIGNATURE' | 'LIVE';
   redirectStatus: string;
+  keepEditPageOnSuccess?: boolean;
   validate?: () => string | undefined;
   fallbackError: string;
 };
@@ -124,6 +125,10 @@ const useStatusTransitionAction = (
     const token = await getSafeAccessToken();
     await updateTournamentStatus(editingTournament.id, config.targetStatus, token);
     if (isEditPage) {
+      if (config.keepEditPageOnSuccess) {
+        globalThis.window?.location.assign(`/?view=edit-tournament&tournamentId=${editingTournament.id}`);
+        return;
+      }
       globalThis.window?.location.assign(`/?status=${config.redirectStatus}`);
       return;
     }
@@ -174,6 +179,7 @@ const useTournamentEditActions = ({
   const openRegistration = useStatusTransitionAction(shared, {
     targetStatus: 'OPEN',
     redirectStatus: 'OPEN',
+    keepEditPageOnSuccess: true,
     validate: () => (
       editingTournament && normalizeTournamentStatus(editingTournament.status) === 'OPEN'
         ? t('edit.error.registrationAlreadyOpen')
@@ -185,6 +191,7 @@ const useTournamentEditActions = ({
   const moveToSignature = useStatusTransitionAction(shared, {
     targetStatus: 'SIGNATURE',
     redirectStatus: 'SIGNATURE',
+    keepEditPageOnSuccess: true,
     validate: () => (
       editingTournament && normalizeTournamentStatus(editingTournament.status) !== 'OPEN'
         ? t('edit.error.mustBeOpenToSignature')

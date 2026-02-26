@@ -6,7 +6,7 @@ type AppHeaderProperties = {
   isAdmin: boolean;
   isAuthenticated: boolean;
   lang: string;
-  toggleLang: () => void;
+  setLanguage: (lang: 'fr' | 'en' | 'es' | 'de' | 'it' | 'pt' | 'nl') => void;
 };
 
 const NOTIFICATIONS_STORAGE_KEY = 'notifications:match-started';
@@ -27,7 +27,7 @@ const readUnreadCount = () => {
   }
 };
 
-const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderProperties) => {
+const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeaderProperties) => {
   const languageOrder = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'] as const;
   const languageLabels: Record<(typeof languageOrder)[number], string> = {
     fr: 'Français',
@@ -38,9 +38,19 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
     pt: 'Português',
     nl: 'Nederlands',
   };
+  const languageFlags: Record<(typeof languageOrder)[number], string> = {
+    fr: '🇫🇷',
+    en: '🇬🇧',
+    es: '🇪🇸',
+    de: '🇩🇪',
+    it: '🇮🇹',
+    pt: '🇵🇹',
+    nl: '🇳🇱',
+  };
   const [unreadCount, setUnreadCount] = useState(0);
-    const currentLanguageIndex = languageOrder.indexOf(lang as (typeof languageOrder)[number]);
-    const nextLanguage = languageOrder[(currentLanguageIndex + 1) % languageOrder.length] ?? 'fr';
+  const currentLanguage = languageOrder.includes(lang as (typeof languageOrder)[number])
+    ? (lang as (typeof languageOrder)[number])
+    : 'fr';
 
   const buildId = import.meta.env.VITE_BUILD_ID
     || import.meta.env.VITE_COMMIT_SHA
@@ -277,14 +287,35 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
             </button>
           </div>
         )}
-        <button
-          onClick={toggleLang}
-          className="rounded-md px-2 py-1 hover:bg-slate-800"
-          aria-label="Toggle language"
-          title={languageLabels[nextLanguage]}
-        >
-          {lang.toUpperCase()}
-        </button>
+        <details className="relative">
+          <summary
+            className="list-none cursor-pointer rounded-md px-2 py-1 hover:bg-slate-800"
+            aria-label="Choose language"
+            title={languageLabels[currentLanguage]}
+          >
+            <span aria-hidden="true">{languageFlags[currentLanguage]}</span>
+            <span className="sr-only">{languageLabels[currentLanguage]}</span>
+          </summary>
+          <div className="absolute right-0 z-20 mt-2 min-w-[11rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
+            {languageOrder.map((languageCode) => (
+              <button
+                key={languageCode}
+                type="button"
+                onClick={(event) => {
+                  setLanguage(languageCode);
+                  const detailsElement = event.currentTarget.closest('details');
+                  detailsElement?.removeAttribute('open');
+                }}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-slate-800 ${
+                  languageCode === currentLanguage ? 'text-emerald-300' : 'text-slate-200'
+                }`}
+              >
+                <span aria-hidden="true">{languageFlags[languageCode]}</span>
+                <span>{languageLabels[languageCode]}</span>
+              </button>
+            ))}
+          </div>
+        </details>
           {isAuthenticated && (
             <a className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center" href="/?view=notifications">
               <span>{t('nav.notifications')}</span>

@@ -178,7 +178,7 @@ const resolveMainContent = (
 };
 
 function App() {
-  const { lang, toggleLang, t } = useI18n();
+  const { lang, setLanguage, t } = useI18n();
   const { isAuthenticated } = useOptionalAuth();
   const { isAdmin } = useAdminStatus();
 
@@ -371,7 +371,7 @@ function App() {
           isAdmin={headerIsAdmin}
           isAuthenticated={headerIsAuthenticated}
           lang={lang}
-          toggleLang={toggleLang}
+          setLanguage={setLanguage}
         />
       )}
 

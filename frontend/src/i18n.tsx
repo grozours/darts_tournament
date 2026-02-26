@@ -1077,12 +1077,14 @@ const languageOrder: Language[] = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'];
 
 type I18nContextValue = {
   lang: Language;
+  setLanguage: (lang: Language) => void;
   toggleLang: () => void;
   t: (key: string) => string;
 };
 
 const I18nContext = createContext<I18nContextValue>({
   lang: getStoredLang(),
+  setLanguage: () => {},
   toggleLang: () => {},
   t: (key) => messages[getStoredLang()]?.[key] || messages.en[key] || key,
 });
@@ -1092,20 +1094,23 @@ type I18nProviderProperties = Readonly<{ children: ReactNode }>;
 export function I18nProvider({ children }: I18nProviderProperties) {
   const [lang, setLang] = useState<Language>(() => getStoredLang());
 
+  const setLanguage = (nextLanguage: Language) => {
+    setLang(nextLanguage);
+    if (globalThis.window) {
+      globalThis.window.localStorage.setItem('lang', nextLanguage);
+    }
+  };
+
   const toggleLang = () => {
-    setLang((current) => {
-      const currentIndex = languageOrder.indexOf(current);
-      const next = languageOrder[(currentIndex + 1) % languageOrder.length] ?? 'fr';
-      if (globalThis.window) {
-        globalThis.window.localStorage.setItem('lang', next);
-      }
-      return next;
-    });
+    const currentIndex = languageOrder.indexOf(lang);
+    const next = languageOrder[(currentIndex + 1) % languageOrder.length] ?? 'fr';
+    setLanguage(next);
   };
 
   const value = useMemo<I18nContextValue>(
     () => ({
       lang,
+      setLanguage,
       toggleLang,
       t: (key: string) => messages[lang]?.[key] || messages.en[key] || key,
     }),

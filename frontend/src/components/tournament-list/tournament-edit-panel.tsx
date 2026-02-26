@@ -267,7 +267,11 @@ const TournamentEditPanel = (properties: TournamentEditPanelProperties) => {
   return (
     <div className={containerClassName}>
       <div className={panelClassName}>
-        <TournamentEditHeader t={properties.t} onClose={properties.onClose} />
+        <TournamentEditHeader
+          t={properties.t}
+          tournamentId={properties.editingTournament.id}
+          onClose={properties.onClose}
+        />
 
         <TournamentEditContent {...getContentProperties(properties)} />
 
