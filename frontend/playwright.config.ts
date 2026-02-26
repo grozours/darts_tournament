@@ -1,5 +1,17 @@
 import { defineConfig } from '@playwright/test';
 
+const backendWebServerEnv = {
+	...process.env,
+	NODE_ENV: process.env.NODE_ENV ?? 'test',
+	DATABASE_URL:
+		process.env.DATABASE_URL
+		?? 'postgresql://darts_user:darts_password@localhost:5432/darts_tournament',
+	REDIS_HOST: process.env.REDIS_HOST ?? 'localhost',
+	REDIS_PORT: process.env.REDIS_PORT ?? '6379',
+	CORS_ORIGINS: process.env.CORS_ORIGINS ?? 'http://localhost:3001',
+	AUTH_ENABLED: process.env.AUTH_ENABLED ?? 'false',
+};
+
 export default defineConfig({
 	testDir: '../tests/e2e',
 	fullyParallel: true,
@@ -31,6 +43,7 @@ export default defineConfig({
 			command: 'npm run dev',
 			cwd: '../backend',
 			port: 3000,
+			env: backendWebServerEnv,
 			reuseExistingServer: !process.env.CI,
 		},
 		{
