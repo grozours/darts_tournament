@@ -29,20 +29,20 @@ test('language toggle cycles and persists selection', async ({ page }) => {
   await page.goto('/?status=DRAFT');
   await page.waitForLoadState('networkidle');
 
-  const languageToggle = page.getByRole('button', { name: 'Toggle language' });
+  const languageMenuTrigger = page.locator('summary[aria-label="Choose language"]');
 
-  await expect(languageToggle).toHaveText('FR');
+  await expect(languageMenuTrigger).toBeVisible();
   await expect(page.getByRole('link', { name: 'Terminés' })).toBeVisible();
 
-  await languageToggle.click();
-  await expect(languageToggle).toHaveText('EN');
+  await languageMenuTrigger.click();
+  await page.getByRole('button', { name: 'English' }).click();
   await expect(page.getByRole('link', { name: 'Finished' })).toBeVisible();
 
-  await languageToggle.click();
-  await expect(languageToggle).toHaveText('ES');
+  await languageMenuTrigger.click();
+  await page.getByRole('button', { name: 'Español' }).click();
   await expect(page.getByRole('link', { name: 'Finalizados' })).toBeVisible();
 
   await page.reload();
   await page.waitForLoadState('networkidle');
-  await expect(languageToggle).toHaveText('ES');
+  await expect(page.getByRole('link', { name: 'Finalizados' })).toBeVisible();
 });
