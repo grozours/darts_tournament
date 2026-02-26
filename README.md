@@ -1,6 +1,8 @@
 # 🎯 Darts Tournament Manager
 
 [![Playwright E2E](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml)
+[![Coverage](https://github.com/grozours/darts_tournament/actions/workflows/coverage.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/coverage.yml)
+[![Codecov](https://codecov.io/gh/grozours/darts_tournament/branch/main/graph/badge.svg)](https://codecov.io/gh/grozours/darts_tournament)
 
 A full-stack application for managing darts tournaments with support for single elimination, double elimination, and team formats.
 

@@ -1,5 +1,9 @@
 # 📚 Documentation Index
 
+[![Playwright E2E](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml)
+[![Coverage](https://github.com/grozours/darts_tournament/actions/workflows/coverage.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/coverage.yml)
+[![Codecov](https://codecov.io/gh/grozours/darts_tournament/branch/main/graph/badge.svg)](https://codecov.io/gh/grozours/darts_tournament)
+
 Welcome to the Darts Tournament Manager documentation! This index will help you find the information you need.
 
 ---

@@ -1,5 +1,9 @@
 # 📚 Index de la documentation
 
+[![Playwright E2E](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml)
+[![Coverage](https://github.com/grozours/darts_tournament/actions/workflows/coverage.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/coverage.yml)
+[![Codecov](https://codecov.io/gh/grozours/darts_tournament/branch/main/graph/badge.svg)](https://codecov.io/gh/grozours/darts_tournament)
+
 Bienvenue dans la documentation du Gestionnaire de Tournois de Fléchettes. Cet index vous aide à trouver rapidement l’information utile.
 
 ---
