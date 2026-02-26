@@ -8,6 +8,7 @@ const mockGetAccessTokenSilently = vi.fn();
 let authEnabled = false;
 let isAuthenticated = true;
 let authLoading = false;
+const mockTranslate = (key: string) => key;
 
 vi.mock('../../../src/auth/optional-auth', () => ({
   useOptionalAuth: () => ({
@@ -20,7 +21,7 @@ vi.mock('../../../src/auth/optional-auth', () => ({
 
 vi.mock('../../../src/i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => key,
+    t: mockTranslate,
   }),
 }));
 
