@@ -1,15 +1,25 @@
 import { defineConfig } from '@playwright/test';
 
+const PLAYWRIGHT_BACKEND_PORT = 3310;
+const PLAYWRIGHT_FRONTEND_PORT = 3311;
+
 const backendWebServerEnv = {
 	...process.env,
 	NODE_ENV: process.env.NODE_ENV ?? 'test',
+	PORT: process.env.PORT ?? String(PLAYWRIGHT_BACKEND_PORT),
 	DATABASE_URL:
 		process.env.DATABASE_URL
 		?? 'postgresql://darts_user:darts_password@localhost:5432/darts_tournament',
 	REDIS_HOST: process.env.REDIS_HOST ?? 'localhost',
 	REDIS_PORT: process.env.REDIS_PORT ?? '6379',
-	CORS_ORIGINS: process.env.CORS_ORIGINS ?? 'http://localhost:3001',
+	CORS_ORIGINS: process.env.CORS_ORIGINS ?? `http://localhost:${PLAYWRIGHT_FRONTEND_PORT}`,
 	AUTH_ENABLED: process.env.AUTH_ENABLED ?? 'false',
+};
+
+const frontendWebServerEnv = {
+	...process.env,
+	VITE_API_PROXY_TARGET:
+		process.env.VITE_API_PROXY_TARGET ?? `http://localhost:${PLAYWRIGHT_BACKEND_PORT}`,
 };
 
 export default defineConfig({
@@ -20,7 +30,7 @@ export default defineConfig({
 	workers: process.env.CI ? 1 : undefined,
 	reporter: 'html',
 	use: {
-		baseURL: 'http://localhost:3001',
+		baseURL: `http://localhost:${PLAYWRIGHT_FRONTEND_PORT}`,
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 	},
@@ -42,14 +52,15 @@ export default defineConfig({
 		{
 			command: 'npm run dev',
 			cwd: '../backend',
-			port: 3000,
+			port: PLAYWRIGHT_BACKEND_PORT,
 			env: backendWebServerEnv,
 			reuseExistingServer: !process.env.CI,
 		},
 		{
-			command: 'npm run dev',
+			command: `npm run dev -- --host 127.0.0.1 --port ${PLAYWRIGHT_FRONTEND_PORT}`,
 			cwd: '.',
-			port: 3001,
+			port: PLAYWRIGHT_FRONTEND_PORT,
+			env: frontendWebServerEnv,
 			reuseExistingServer: !process.env.CI,
 		},
 	],
