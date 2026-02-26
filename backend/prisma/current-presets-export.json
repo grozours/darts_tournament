@@ -1,33 +1,277 @@
 {
-  "exportedAt": "2026-02-26T09:22:48.697Z",
+  "exportedAt": "2026-02-26T10:18:00.447Z",
   "tournamentPresets": [
     {
-      "id": "d9f4fbfd-1298-4111-b08c-05afcd6e40da",
-      "name": "Single pool stage",
-      "presetType": "single-pool-stage",
-      "totalParticipants": 16,
-      "targetCount": 4,
-      "templateConfig": null,
+      "id": "60676568-0072-4a16-93f2-03ba0f49025f",
+      "name": "Doublette 40 joueurs",
+      "presetType": "three-pool-stages",
+      "totalParticipants": 40,
+      "targetCount": 9,
+      "templateConfig": {
+        "format": "DOUBLE",
+        "stages": [
+          {
+            "name": "Brassage",
+            "poolCount": 8,
+            "advanceCount": 5,
+            "matchFormatKey": "BO3",
+            "playersPerPool": 5
+          },
+          {
+            "name": "Niveau A",
+            "poolCount": 4,
+            "advanceCount": 2,
+            "inParallelWith": [
+              "stage:3",
+              "bracket:Niveau C"
+            ],
+            "matchFormatKey": "BO3",
+            "playersPerPool": 4
+          },
+          {
+            "name": "Niveau B",
+            "poolCount": 4,
+            "advanceCount": 2,
+            "inParallelWith": [
+              "stage:2",
+              "bracket:Niveau C"
+            ],
+            "matchFormatKey": "BO3",
+            "playersPerPool": 4
+          }
+        ],
+        "brackets": [
+          {
+            "name": "Niveau A",
+            "totalRounds": 3,
+            "inParallelWith": [
+              "bracket:Niveau C",
+              "bracket:Niveau B"
+            ],
+            "roundMatchFormats": {
+              "1": "BO5_501",
+              "2": "BO5_501_701",
+              "3": "BO5_501_701"
+            }
+          },
+          {
+            "name": "Niveau B",
+            "totalRounds": 3,
+            "inParallelWith": [
+              "bracket:Niveau C",
+              "bracket:Niveau A"
+            ],
+            "roundMatchFormats": {
+              "1": "BO5_501",
+              "2": "BO5_501_701",
+              "3": "BO5_501_701"
+            }
+          },
+          {
+            "name": "Niveau C",
+            "totalRounds": 3,
+            "inParallelWith": [
+              "bracket:Niveau B",
+              "bracket:Niveau A",
+              "stage:2",
+              "stage:3"
+            ],
+            "roundMatchFormats": {
+              "1": "BO3_Arbre_Niveau_C",
+              "2": "BO3_Arbre_Niveau_C",
+              "3": "BO3_Arbre_Niveau_C"
+            }
+          }
+        ],
+        "routingRules": [
+          {
+            "position": 1,
+            "stageNumber": 1,
+            "destinationType": "POOL_STAGE",
+            "destinationStageNumber": 2
+          },
+          {
+            "position": 2,
+            "stageNumber": 1,
+            "destinationType": "POOL_STAGE",
+            "destinationStageNumber": 2
+          },
+          {
+            "position": 3,
+            "stageNumber": 1,
+            "destinationType": "POOL_STAGE",
+            "destinationStageNumber": 3
+          },
+          {
+            "position": 4,
+            "stageNumber": 1,
+            "destinationType": "POOL_STAGE",
+            "destinationStageNumber": 3
+          },
+          {
+            "position": 5,
+            "stageNumber": 1,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau C"
+          },
+          {
+            "position": 1,
+            "stageNumber": 2,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau A"
+          },
+          {
+            "position": 2,
+            "stageNumber": 2,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau A"
+          },
+          {
+            "position": 3,
+            "stageNumber": 2,
+            "destinationType": "ELIMINATED"
+          },
+          {
+            "position": 4,
+            "stageNumber": 2,
+            "destinationType": "ELIMINATED"
+          },
+          {
+            "position": 1,
+            "stageNumber": 3,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau B"
+          },
+          {
+            "position": 2,
+            "stageNumber": 3,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau B"
+          },
+          {
+            "position": 3,
+            "stageNumber": 3,
+            "destinationType": "ELIMINATED"
+          },
+          {
+            "position": 4,
+            "stageNumber": 3,
+            "destinationType": "ELIMINATED"
+          }
+        ]
+      },
       "isSystem": true,
-      "createdAt": "2026-02-26T09:18:56.275Z",
-      "updatedAt": "2026-02-26T09:20:57.793Z"
+      "createdAt": "2026-02-25T18:39:02.859Z",
+      "updatedAt": "2026-02-25T18:39:02.859Z"
     },
     {
-      "id": "7751508c-b21c-4065-9e6a-352dce503db3",
-      "name": "Three pool stages",
-      "presetType": "three-pool-stages",
-      "totalParticipants": 16,
-      "targetCount": 4,
-      "templateConfig": null,
+      "id": "d98bfd23-1e8f-4ee4-82f6-8c81956f79d8",
+      "name": "Individuels 40 joueurs",
+      "presetType": "single-pool-stage",
+      "totalParticipants": 40,
+      "targetCount": 9,
+      "templateConfig": {
+        "format": "SINGLE",
+        "stages": [
+          {
+            "name": "Brassage",
+            "poolCount": 8,
+            "advanceCount": 4,
+            "matchFormatKey": "BO3_INDIV",
+            "playersPerPool": 5
+          }
+        ],
+        "brackets": [
+          {
+            "name": "Niveau A",
+            "totalRounds": 4,
+            "inParallelWith": [
+              "bracket:Niveau B"
+            ],
+            "roundMatchFormats": {
+              "1": "BO3_INDIV",
+              "2": "BO5_501_INDIV",
+              "3": "BO5_501_INDIV",
+              "4": "BO5_501_INDIV"
+            }
+          },
+          {
+            "name": "Niveau B",
+            "totalRounds": 4,
+            "inParallelWith": [
+              "bracket:Niveau A"
+            ],
+            "roundMatchFormats": {
+              "1": "BO3_INDIV",
+              "2": "BO5_501_INDIV",
+              "3": "BO5_501_INDIV",
+              "4": "BO5_501_INDIV"
+            }
+          }
+        ],
+        "routingRules": [
+          {
+            "position": 1,
+            "stageNumber": 1,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau A"
+          },
+          {
+            "position": 2,
+            "stageNumber": 1,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau A"
+          },
+          {
+            "position": 3,
+            "stageNumber": 1,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau B"
+          },
+          {
+            "position": 4,
+            "stageNumber": 1,
+            "destinationType": "BRACKET",
+            "destinationBracketName": "Niveau B"
+          },
+          {
+            "position": 5,
+            "stageNumber": 1,
+            "destinationType": "ELIMINATED"
+          }
+        ]
+      },
       "isSystem": true,
-      "createdAt": "2026-02-26T09:18:56.275Z",
-      "updatedAt": "2026-02-26T09:20:57.794Z"
+      "createdAt": "2026-02-25T18:39:02.863Z",
+      "updatedAt": "2026-02-25T18:39:02.863Z"
     }
   ],
   "matchFormatPresets": [
     {
-      "id": "cb11cce1-3b4b-461c-b798-23a88746f805",
+      "id": "7baf62fd-3c33-49f5-bc10-05ef84959904",
       "key": "BO3",
+      "durationMinutes": 45,
+      "segments": [
+        {
+          "game": "501_DO",
+          "targetCount": 4
+        },
+        {
+          "game": "CRICKET",
+          "targetCount": 2
+        },
+        {
+          "game": "501_DO",
+          "targetCount": 2
+        }
+      ],
+      "isSystem": true,
+      "createdAt": "2026-02-25T18:39:02.849Z",
+      "updatedAt": "2026-02-25T18:39:02.849Z"
+    },
+    {
+      "id": "eaebc92a-47a6-4333-b9de-bc81983b1246",
+      "key": "BO3_Arbre_Niveau_C",
       "durationMinutes": 30,
       "segments": [
         {
@@ -43,14 +287,36 @@
           "targetCount": 2
         }
       ],
-      "isSystem": true,
-      "createdAt": "2026-02-26T09:18:56.133Z",
-      "updatedAt": "2026-02-26T09:20:57.787Z"
+      "isSystem": false,
+      "createdAt": "2026-02-25T18:39:02.854Z",
+      "updatedAt": "2026-02-25T18:39:02.854Z"
     },
     {
-      "id": "3f0997fc-3a0d-4607-b78d-1ce5b1789f02",
-      "key": "BO5",
-      "durationMinutes": 60,
+      "id": "bc3368ef-1b2b-4830-acf8-0d240ce5f70a",
+      "key": "BO3_INDIV",
+      "durationMinutes": 20,
+      "segments": [
+        {
+          "game": "501_DO",
+          "targetCount": 1
+        },
+        {
+          "game": "CRICKET",
+          "targetCount": 1
+        },
+        {
+          "game": "501_DO",
+          "targetCount": 1
+        }
+      ],
+      "isSystem": false,
+      "createdAt": "2026-02-25T18:39:02.855Z",
+      "updatedAt": "2026-02-25T18:39:02.855Z"
+    },
+    {
+      "id": "a1ecad82-929c-42b7-b9a8-e53211ddfb2c",
+      "key": "BO5_501",
+      "durationMinutes": 45,
       "segments": [
         {
           "game": "501_DO",
@@ -74,12 +340,12 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-02-26T09:18:56.133Z",
-      "updatedAt": "2026-02-26T09:20:57.791Z"
+      "createdAt": "2026-02-25T18:39:02.856Z",
+      "updatedAt": "2026-02-25T18:39:02.856Z"
     },
     {
-      "id": "a5d12471-6591-448f-af83-7e03834473a3",
-      "key": "BO5_F",
+      "id": "7eeac739-914e-4df0-9929-375466e68654",
+      "key": "BO5_501_701",
       "durationMinutes": 60,
       "segments": [
         {
@@ -104,8 +370,38 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-02-26T09:18:56.133Z",
-      "updatedAt": "2026-02-26T09:20:57.792Z"
+      "createdAt": "2026-02-25T18:39:02.857Z",
+      "updatedAt": "2026-02-25T18:39:02.857Z"
+    },
+    {
+      "id": "aa058c20-fe16-4679-bd37-7676e5a06fb5",
+      "key": "BO5_501_INDIV",
+      "durationMinutes": 30,
+      "segments": [
+        {
+          "game": "501_DO",
+          "targetCount": 1
+        },
+        {
+          "game": "CRICKET",
+          "targetCount": 1
+        },
+        {
+          "game": "501_DO",
+          "targetCount": 1
+        },
+        {
+          "game": "CRICKET",
+          "targetCount": 1
+        },
+        {
+          "game": "501_DO",
+          "targetCount": 1
+        }
+      ],
+      "isSystem": false,
+      "createdAt": "2026-02-25T18:39:02.858Z",
+      "updatedAt": "2026-02-25T18:39:02.858Z"
     }
   ]
 }
