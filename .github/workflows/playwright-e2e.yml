@@ -37,6 +37,11 @@ jobs:
 
       - name: Run Playwright tests
         run: npm --prefix frontend exec -- playwright test -c ./playwright.config.ts
+        env:
+          DATABASE_URL: ${{ secrets.PLAYWRIGHT_DATABASE_URL }}
+          REDIS_HOST: localhost
+          REDIS_PORT: '6379'
+          AUTH_ENABLED: 'false'
 
       - name: Upload Playwright report
         if: always()
