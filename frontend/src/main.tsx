@@ -5,6 +5,17 @@ import { OptionalAuthProvider } from './auth/optional-auth';
 import { I18nProvider } from './i18n';
 import './index.css';
 
+const getEnvironmentValue = (key: string): string | undefined => {
+  const globalEnvironment = (globalThis as typeof globalThis & {
+    __APP_ENV__?: Record<string, string>;
+  }).__APP_ENV__;
+  if (globalEnvironment && key in globalEnvironment) {
+    return globalEnvironment[key];
+  }
+  const environment = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
+  return environment ? environment[key] : undefined;
+};
+
 // Get the root element
 const rootElement = document.querySelector('#root');
 if (!rootElement) {
@@ -13,9 +24,9 @@ if (!rootElement) {
 
 // Create root and render the app
 const root = createRoot(rootElement);
-const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN;
-const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
-const auth0Audience = import.meta.env.VITE_AUTH0_AUDIENCE;
+const auth0Domain = getEnvironmentValue('VITE_AUTH0_DOMAIN');
+const auth0ClientId = getEnvironmentValue('VITE_AUTH0_CLIENT_ID');
+const auth0Audience = getEnvironmentValue('VITE_AUTH0_AUDIENCE');
 const isDebugAuth0 = import.meta.env.VITE_DEBUG_AUTH0 === 'true';
 
 if (isDebugAuth0) {

@@ -3,22 +3,25 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 WORKDIR /app/backend
 
 FROM base AS deps
-COPY package*.json ./
-COPY prisma ./prisma
+COPY backend/package*.json ./
+COPY backend/prisma ./prisma
 RUN npm ci --omit=dev
 
 FROM base AS build
-COPY package*.json ./
-COPY prisma ./prisma
+COPY backend/package*.json ./
+COPY backend/prisma ./prisma
 RUN npm ci
-COPY . .
+COPY backend/ ./
+COPY shared/ /app/shared/
 RUN npm run build
 
 FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=deps /app/backend/node_modules ./node_modules
 COPY --from=build /app/backend/dist ./dist
+COPY --from=build /app/backend/dist/shared /app/shared
+COPY --from=build /app/backend/dist/shared /app/backend/shared
 COPY --from=build /app/backend/prisma ./prisma
-COPY package*.json ./
+COPY --from=build /app/backend/package*.json ./
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["sh", "-lc", "if [ -d /app/shared/src ] && [ ! -e /app/backend/shared/src ]; then mkdir -p /app/backend/shared && ln -s /app/shared/src /app/backend/shared/src; fi; if [ -d /app/backend/shared/src ] && [ ! -e /app/shared/src ]; then mkdir -p /app/shared && ln -s /app/backend/shared/src /app/shared/src; fi; npm start"]

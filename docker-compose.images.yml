@@ -1,0 +1,18 @@
+services:
+  backend:
+    image: darts-tournament/backend:${IMAGE_TAG:-latest}
+    command: npm start
+    environment:
+      NODE_ENV: production
+    volumes:
+      - backend_logs:/app/backend/logs
+      - backend_uploads:/app/backend/uploads
+
+  frontend:
+    image: darts-tournament/frontend:${IMAGE_TAG:-latest}
+    env_file:
+      - ./frontend/.env
+
+volumes:
+  backend_logs:
+  backend_uploads:

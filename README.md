@@ -228,6 +228,39 @@ AUTH_ISSUER_BASE_URL="https://your-tenant.eu.auth0.com"
 AUTH_AUDIENCE="https://api.yourdomain.com"
 ```
 
+## 🚚 Transfer Docker Images to Production (preserve prod .env)
+
+Use this workflow when you want to move Docker images from your machine to production without overwriting production environment files.
+
+### 1) Build and export images on your machine
+
+```bash
+./scripts/export_docker_bundle.sh --tag 20260226
+```
+
+This creates a bundle like:
+
+`dist/docker-bundles/darts-images-20260226.tar.gz`
+
+### 2) Copy the bundle to production
+
+```bash
+scp dist/docker-bundles/darts-images-20260226.tar.gz user@prod:/tmp/
+```
+
+### 3) Import and deploy on production
+
+```bash
+cd /path/to/darts_tournament
+./scripts/import_docker_bundle.sh --bundle /tmp/darts-images-20260226.tar.gz --tag 20260226
+```
+
+The import/deploy script:
+- loads images locally on the server,
+- starts services with `docker-compose.yml` + `docker-compose.images.yml`,
+- verifies `backend/.env` and `frontend/.env` exist,
+- never overwrites those env files.
+
 ### 4. Setup Database
 
 ```bash

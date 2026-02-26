@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+**/node_modules
+
+# Build outputs
+**/dist
+**/build
+**/.next
+
+# Coverage and reports
+**/coverage
+playwright-report
+test-results
+
+# Logs and runtime files
+**/logs
+**/*.log
+
+# Python caches / misc
+**/__pycache__
+**/*.pyc
+
+# Editor / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Env files (do not bake secrets into images)
+.env
+**/.env
+
+# Keep these paths included for builds
+!backend/**
+!frontend/**
+!shared/**
+!docker-compose.yml
+!docker-compose.images.yml
