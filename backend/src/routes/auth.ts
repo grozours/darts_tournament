@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, isAdmin } from '../middleware/auth';
+import { requireAuth, isAdmin, resolveUserEmailFromPayload } from '../middleware/auth';
 
 const router = Router();
 
@@ -12,15 +12,12 @@ router.get('/me', requireAuth, (request: Request, response: Response): void => {
     return;
   }
 
-  const email = userPayload.email
-    ?? userPayload['https://darts-tournament.app/email']
-    ?? userPayload['https://your-domain.com/email']
-    ?? userPayload.name;
+  const email = resolveUserEmailFromPayload(userPayload);
 
   response.json({
     user: {
       id: userPayload.sub,
-      email: typeof email === 'string' ? email : undefined,
+      email,
       name: userPayload.name,
       picture: userPayload.picture,
     },

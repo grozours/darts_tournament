@@ -20,12 +20,12 @@ const router = Router();
 registerTournamentListRoutes(router, tournamentController);
 registerTournamentPresetRoutes(router, tournamentController);
 registerTournamentMatchFormatRoutes(router, tournamentController);
-registerTournamentCrudRoutes(router, tournamentController);
 registerTournamentRegistrationRoutes(router, tournamentController);
 registerTournamentPlayerRoutes(router, tournamentController);
 registerTournamentPoolStageRoutes(router, tournamentController);
 registerTournamentBracketRoutes(router, tournamentController);
 registerTournamentMatchRoutes(router, tournamentController);
 registerTournamentStatusRoutes(router, tournamentController);
+registerTournamentCrudRoutes(router, tournamentController);
 
 export default router;

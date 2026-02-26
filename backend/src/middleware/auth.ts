@@ -85,27 +85,65 @@ export const optionalAuth = (request: Request, response: Response, next: NextFun
   return runConfiguredAuth(request, response, next);
 };
 
+const normalizePossibleEmail = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized.includes('@')) {
+    return undefined;
+  }
+
+  return normalized;
+};
+
+export const resolveUserEmailFromPayload = (payload: Record<string, unknown>): string | undefined => {
+  const directCandidates = [
+    payload.email,
+    payload['https://darts-tournament.app/email'],
+    payload['https://your-domain.com/email'],
+    payload.preferred_username,
+    payload.upn,
+    payload.name,
+  ];
+
+  for (const candidate of directCandidates) {
+    const email = normalizePossibleEmail(candidate);
+    if (email) {
+      return email;
+    }
+  }
+
+  for (const [key, value] of Object.entries(payload)) {
+    if (!key.endsWith('/email')) {
+      continue;
+    }
+    const email = normalizePossibleEmail(value);
+    if (email) {
+      return email;
+    }
+  }
+
+  return undefined;
+};
+
 // Check if user is admin based on email
 export const isAdmin = (request: Request): boolean => {
   const payload = request.auth?.payload;
   if (!payload) {
     return false;
   }
-  
-  // Try to get email from various possible claims
-  const userEmail = 
-    payload.email || 
-    payload['https://darts-tournament.app/email'] ||
-    payload['https://your-domain.com/email'] ||
-    payload.name; // Sometimes Auth0 puts email in name for Google login
-  
-  if (!userEmail || typeof userEmail !== 'string') {
+
+  const userEmail = resolveUserEmailFromPayload(payload);
+
+  if (!userEmail) {
     console.log('[Admin Check] No email found in token. Available claims:', Object.keys(payload));
     console.log('[Admin Check] Full payload:', JSON.stringify(payload, undefined, 2));
     return false;
   }
-  
-  const isUserAdmin = config.auth.adminEmails.includes(userEmail.toLowerCase());
+
+  const isUserAdmin = config.auth.adminEmails.includes(userEmail);
   console.log('[Admin Check]', { 
     userEmail, 
     isAdmin: isUserAdmin, 

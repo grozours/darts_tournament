@@ -13,7 +13,7 @@ COPY backend/prisma ./prisma
 RUN npm ci
 COPY backend/ ./
 COPY shared/ /app/shared/
-RUN npm run build
+RUN rm -rf dist && npm run build
 
 FROM base AS runtime
 ENV NODE_ENV=production
@@ -22,6 +22,7 @@ COPY --from=build /app/backend/dist ./dist
 COPY --from=build /app/backend/dist/shared /app/shared
 COPY --from=build /app/backend/dist/shared /app/backend/shared
 COPY --from=build /app/backend/prisma ./prisma
+COPY --from=build /app/backend/scripts ./scripts
 COPY --from=build /app/backend/package*.json ./
 EXPOSE 3000
 CMD ["sh", "-lc", "if [ -d /app/shared/src ] && [ ! -e /app/backend/shared/src ]; then mkdir -p /app/backend/shared && ln -s /app/shared/src /app/backend/shared/src; fi; if [ -d /app/backend/shared/src ] && [ ! -e /app/shared/src ]; then mkdir -p /app/shared && ln -s /app/backend/shared/src /app/shared/src; fi; npm start"]

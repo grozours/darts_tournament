@@ -2,11 +2,11 @@
   "name": "darts-tournament-backend",
   "version": "1.0.0",
   "description": "Darts Tournament Manager - Backend API",
-  "main": "dist/app.js",
+  "main": "dist/backend/src/app.js",
   "scripts": {
     "dev": "node ./node_modules/ts-node-dev/lib/bin.js --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/backend/src/server.js",
     "test": "node ./node_modules/prisma/build/index.js generate && jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -18,7 +18,7 @@
     "db:migrate": "node ./node_modules/prisma/build/index.js migrate deploy",
     "db:push": "node ./node_modules/prisma/build/index.js db push",
     "db:sync-presets-seed": "node scripts/sync-presets-seed.mjs",
-    "db:import-presets": "node scripts/import-presets.mjs",
+    "db:import-presets": "sh -lc 'if [ -f dist/scripts/import-presets.js ]; then node dist/scripts/import-presets.js; elif [ -f dist/backend/src/scripts/import-presets.js ]; then node dist/backend/src/scripts/import-presets.js; else node scripts/import-presets.mjs; fi'",
     "db:seed": "node ./node_modules/typescript/bin/tsc prisma/seed.mts --module NodeNext --moduleResolution NodeNext --target ES2022 --outDir .tmp-seed --esModuleInterop --skipLibCheck && node .tmp-seed/seed.mjs",
     "db:reset": "node ./node_modules/prisma/build/index.js migrate reset --force",
     "db:studio": "node ./node_modules/prisma/build/index.js studio"

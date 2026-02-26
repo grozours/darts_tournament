@@ -68,7 +68,8 @@ class App {
     this.app.use(express.urlencoded({ extended: true }));
 
     // Serve static files (uploads)
-    this.app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+    const uploadsDirectory = path.resolve(process.cwd(), config.upload.directory);
+    this.app.use('/uploads', express.static(uploadsDirectory));
 
     // Request validation middleware
     this.app.use(validationMiddleware);

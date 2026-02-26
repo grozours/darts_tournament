@@ -2,6 +2,17 @@ import { useState, useEffect } from 'react';
 import { useOptionalAuth } from './optional-auth';
 
 const isDebugAuth0 = import.meta.env.VITE_DEBUG_AUTH0 === 'true';
+const getEnvironmentValue = (key: string): string | undefined => {
+  const globalEnvironment = (globalThis as typeof globalThis & {
+    __APP_ENV__?: Record<string, string>;
+  }).__APP_ENV__;
+  if (globalEnvironment && key in globalEnvironment) {
+    return globalEnvironment[key];
+  }
+  const environment = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
+  return environment ? environment[key] : undefined;
+};
+
 const debugLog = (...arguments_: unknown[]) => {
   if (isDebugAuth0) {
     console.log(...arguments_);
@@ -54,7 +65,13 @@ export function useAdminStatus() {
 
         const headers: HeadersInit = {};
         if (enabled && isAuthenticated) {
-          const token = await getAccessTokenSilently();
+          const audience = getEnvironmentValue('VITE_AUTH0_AUDIENCE');
+          const token = await getAccessTokenSilently({
+            authorizationParams: {
+              ...(audience ? { audience } : {}),
+              scope: 'openid profile email offline_access',
+            },
+          });
           headers.Authorization = `Bearer ${token}`;
         }
 

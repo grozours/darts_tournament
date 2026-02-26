@@ -1,18 +1,28 @@
 services:
   backend:
+    build: null
     image: darts-tournament/backend:${IMAGE_TAG:-latest}
     command: npm start
+    env_file:
+      - ./backend/.env
     environment:
       NODE_ENV: production
     volumes:
+      - backend_src_data:/app/backend/src
+      - backend_prisma_data:/app/backend/prisma
+      - backend_shared_data:/app/shared
       - backend_logs:/app/backend/logs
       - backend_uploads:/app/backend/uploads
 
   frontend:
+    build: null
     image: darts-tournament/frontend:${IMAGE_TAG:-latest}
     env_file:
       - ./frontend/.env
 
 volumes:
+  backend_src_data:
+  backend_prisma_data:
+  backend_shared_data:
   backend_logs:
   backend_uploads:

@@ -9,6 +9,7 @@ IMAGE_TAG=""
 START_STACK=true
 PRUNE_OLD_IMAGES=true
 KEEP_IMAGE_COUNT=5
+USE_EXISTING_IMAGES=false
 
 print_info() {
   echo "[INFO] $1"
@@ -24,7 +25,7 @@ print_error() {
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/import_docker_bundle.sh --bundle <bundle.tar.gz> --tag <image-tag> [--no-up]
+Usage: scripts/import_docker_bundle.sh [--bundle <bundle.tar.gz>] --tag <image-tag> [--use-existing-images] [--no-up]
 
 Loads Docker images from bundle and optionally starts backend/frontend using compose override.
 This script NEVER rewrites .env files and requires existing production env files.
@@ -32,6 +33,7 @@ This script NEVER rewrites .env files and requires existing production env files
 Examples:
   scripts/import_docker_bundle.sh --bundle /tmp/darts-images-20260226.tar.gz --tag 20260226
   scripts/import_docker_bundle.sh --bundle ./dist/docker-bundles/darts-images-v1.2.3.tar.gz --tag v1.2.3 --no-up
+  scripts/import_docker_bundle.sh --tag v1.2.3 --use-existing-images
   scripts/import_docker_bundle.sh --bundle /tmp/darts-images-20260226.tar.gz --tag 20260226 --no-prune-old-images
   scripts/import_docker_bundle.sh --bundle /tmp/darts-images-20260226.tar.gz --tag 20260226 --prune-old-images --keep-images 4
 USAGE
@@ -114,6 +116,10 @@ while [[ $# -gt 0 ]]; do
       START_STACK=false
       shift
       ;;
+    --use-existing-images)
+      USE_EXISTING_IMAGES=true
+      shift
+      ;;
     --prune-old-images)
       PRUNE_OLD_IMAGES=true
       shift
@@ -138,15 +144,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$BUNDLE_PATH" || -z "$IMAGE_TAG" ]]; then
-  print_error "--bundle and --tag are required"
+if [[ -z "$IMAGE_TAG" ]]; then
+  print_error "--tag is required"
   usage
   exit 1
 fi
 
-if [[ ! -f "$BUNDLE_PATH" ]]; then
-  print_error "Bundle not found: $BUNDLE_PATH"
-  exit 1
+if [[ "$USE_EXISTING_IMAGES" == "false" ]]; then
+  if [[ -z "$BUNDLE_PATH" ]]; then
+    print_error "--bundle is required unless --use-existing-images is set"
+    usage
+    exit 1
+  fi
+
+  if [[ ! -f "$BUNDLE_PATH" ]]; then
+    print_error "Bundle not found: $BUNDLE_PATH"
+    exit 1
+  fi
 fi
 
 BACKEND_ENV="$PROJECT_ROOT/backend/.env"
@@ -159,11 +173,15 @@ require_file "$FRONTEND_ENV"
 require_file "$PROJECT_ROOT/docker-compose.yml"
 require_file "$PROJECT_ROOT/docker-compose.images.yml"
 
-print_info "Loading Docker bundle: $BUNDLE_PATH"
-if [[ "$BUNDLE_PATH" == *.gz ]]; then
-  gzip -dc "$BUNDLE_PATH" | docker load
+if [[ "$USE_EXISTING_IMAGES" == "false" ]]; then
+  print_info "Loading Docker bundle: $BUNDLE_PATH"
+  if [[ "$BUNDLE_PATH" == *.gz ]]; then
+    gzip -dc "$BUNDLE_PATH" | docker load
+  else
+    docker load -i "$BUNDLE_PATH"
+  fi
 else
-  docker load -i "$BUNDLE_PATH"
+  print_info "Using existing local images for tag: $IMAGE_TAG"
 fi
 
 BACKEND_IMAGE="darts-tournament/backend:${IMAGE_TAG}"
@@ -283,8 +301,58 @@ if [[ "$SHARED_PATHS_OK" != "yes" ]]; then
   exit 1
 fi
 
-if ! docker exec "$BACKEND_CONTAINER_ID" node -e "require('/app/backend/dist/models/TournamentModel.js')" >/dev/null 2>&1; then
-  print_error "Backend runtime require check failed for /app/backend/dist/models/TournamentModel.js"
+if ! docker exec "$BACKEND_CONTAINER_ID" node -e "require('/app/backend/dist/backend/src/routes/auth.js'); require('/app/backend/dist/backend/src/routes/tournaments.js')" >/dev/null 2>&1; then
+  print_error "Backend runtime require check failed for compiled route modules"
+  print_info "Backend logs (last 120 lines):"
+  (
+    cd "$PROJECT_ROOT"
+    IMAGE_TAG="$IMAGE_TAG" docker compose \
+      --env-file "$ROOT_ENV" \
+      -f docker-compose.yml \
+      -f docker-compose.images.yml \
+      logs --tail=120 backend || true
+  )
+  exit 1
+fi
+
+for required_file in \
+  /app/backend/dist/backend/src/server.js \
+  /app/backend/scripts/import-presets.mjs \
+  /app/backend/scripts/sync-presets-seed.mjs \
+  /app/backend/prisma/current-presets-export.json; do
+  if ! docker exec "$BACKEND_CONTAINER_ID" test -f "$required_file"; then
+    print_error "Backend runtime file missing in container: $required_file"
+    print_info "Backend logs (last 120 lines):"
+    (
+      cd "$PROJECT_ROOT"
+      IMAGE_TAG="$IMAGE_TAG" docker compose \
+        --env-file "$ROOT_ENV" \
+        -f docker-compose.yml \
+        -f docker-compose.images.yml \
+        logs --tail=120 backend || true
+    )
+    exit 1
+  fi
+done
+
+AUTH_ME_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/auth/me || true)"
+if [[ "$AUTH_ME_STATUS" == "404" ]]; then
+  print_error "Backend auth route missing: GET /api/auth/me returned 404 (expected 401 or 200)."
+  print_info "Backend logs (last 120 lines):"
+  (
+    cd "$PROJECT_ROOT"
+    IMAGE_TAG="$IMAGE_TAG" docker compose \
+      --env-file "$ROOT_ENV" \
+      -f docker-compose.yml \
+      -f docker-compose.images.yml \
+      logs --tail=120 backend || true
+  )
+  exit 1
+fi
+
+MATCH_FORMATS_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/tournaments/match-formats || true)"
+if [[ "$MATCH_FORMATS_STATUS" != "200" ]]; then
+  print_error "Backend route check failed: GET /api/tournaments/match-formats returned $MATCH_FORMATS_STATUS (expected 200)."
   print_info "Backend logs (last 120 lines):"
   (
     cd "$PROJECT_ROOT"

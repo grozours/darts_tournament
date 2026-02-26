@@ -22,7 +22,11 @@ export const registerTournamentCrudRoutes = (
     tournamentController.createTournament
   );
 
-  router.get('/:id', validate(uuidSchema), tournamentController.getTournament);
+  router.get(
+    '/:id([0-9a-fA-F-]{36})',
+    validate(uuidSchema),
+    tournamentController.getTournament
+  );
 
   router.get(
     '/:id/live',

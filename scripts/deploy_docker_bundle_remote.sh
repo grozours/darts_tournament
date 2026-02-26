@@ -18,6 +18,8 @@ NO_UP=false
 CLEAN_REMOTE_TMP=true
 PRUNE_OLD_IMAGES=true
 KEEP_IMAGE_COUNT=5
+PUSH_MODE=false
+REGISTRY_PREFIX=""
 
 print_info() {
   echo "[INFO] $1"
@@ -43,6 +45,8 @@ Usage:
     [--key </path/to/key>] \
     [--bundle </path/to/local-bundle.tar.gz>] \
     [--remote-bundle </tmp/file.tar.gz>] \
+    [--push] \
+    [--registry <registry/namespace>] \
     [--skip-export] \
     [--no-up] \
     [--prune-old-images] \
@@ -51,9 +55,15 @@ Usage:
     [--keep-remote-bundle]
 
 Flow:
-  1) export local docker bundle (unless --skip-export)
-  2) scp bundle + compose files + import script to remote
-  3) ssh remote to run scripts/import_docker_bundle.sh
+  Bundle mode (default):
+    1) export local docker bundle (unless --skip-export)
+    2) scp bundle + compose files + import script to remote
+    3) ssh remote to run scripts/import_docker_bundle.sh
+
+  Push mode (--push):
+    1) tag+push EXISTING local images to registry (no rebuild)
+    2) ssh remote: pull images, retag as darts-tournament/*:$TAG
+    3) run scripts/import_docker_bundle.sh --use-existing-images
 
 Examples:
   scripts/deploy_docker_bundle_remote.sh \
@@ -81,6 +91,14 @@ Examples:
     --user ubuntu \
     --remote-path /opt/darts_tournament \
     --no-prune-old-images
+
+  scripts/deploy_docker_bundle_remote.sh \
+    --host prod.example.com \
+    --user deploy \
+    --remote-path /srv/darts_tournament \
+    --tag v1.9.0 \
+    --push \
+    --registry ghcr.io/my-org
 USAGE
 }
 
@@ -116,6 +134,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --remote-bundle)
       REMOTE_BUNDLE_PATH="$2"
+      shift 2
+      ;;
+    --push)
+      PUSH_MODE=true
+      shift
+      ;;
+    --registry)
+      REGISTRY_PREFIX="$2"
       shift 2
       ;;
     --skip-export)
@@ -160,6 +186,12 @@ if [[ -z "$SSH_HOST" || -z "$SSH_USER" || -z "$REMOTE_PROJECT_PATH" ]]; then
   exit 1
 fi
 
+if [[ "$PUSH_MODE" == "true" && -z "$REGISTRY_PREFIX" ]]; then
+  print_error "--registry is required when --push is used"
+  usage
+  exit 1
+fi
+
 if [[ -z "$LOCAL_BUNDLE_PATH" ]]; then
   LOCAL_BUNDLE_PATH="$PROJECT_ROOT/dist/docker-bundles/darts-images-${IMAGE_TAG}.tar.gz"
 fi
@@ -168,16 +200,38 @@ if [[ -z "$REMOTE_BUNDLE_PATH" ]]; then
   REMOTE_BUNDLE_PATH="/tmp/darts-images-${IMAGE_TAG}.tar.gz"
 fi
 
-if [[ "$SKIP_EXPORT" == "false" ]]; then
-  print_info "Exporting local bundle with tag $IMAGE_TAG"
-  "$PROJECT_ROOT/scripts/export_docker_bundle.sh" --tag "$IMAGE_TAG" --output "$LOCAL_BUNDLE_PATH"
-else
-  print_info "Skipping export (--skip-export)"
-fi
+LOCAL_BACKEND_IMAGE="darts-tournament/backend:${IMAGE_TAG}"
+LOCAL_FRONTEND_IMAGE="darts-tournament/frontend:${IMAGE_TAG}"
+REMOTE_BACKEND_IMAGE=""
+REMOTE_FRONTEND_IMAGE=""
 
-if [[ ! -f "$LOCAL_BUNDLE_PATH" ]]; then
-  print_error "Bundle not found: $LOCAL_BUNDLE_PATH"
-  exit 1
+if [[ "$PUSH_MODE" == "false" ]]; then
+  if [[ "$SKIP_EXPORT" == "false" ]]; then
+    print_info "Exporting local bundle with tag $IMAGE_TAG"
+    "$PROJECT_ROOT/scripts/export_docker_bundle.sh" --tag "$IMAGE_TAG" --output "$LOCAL_BUNDLE_PATH"
+  else
+    print_info "Skipping export (--skip-export)"
+  fi
+
+  if [[ ! -f "$LOCAL_BUNDLE_PATH" ]]; then
+    print_error "Bundle not found: $LOCAL_BUNDLE_PATH"
+    exit 1
+  fi
+else
+  REMOTE_BACKEND_IMAGE="${REGISTRY_PREFIX%/}/darts-tournament/backend:${IMAGE_TAG}"
+  REMOTE_FRONTEND_IMAGE="${REGISTRY_PREFIX%/}/darts-tournament/frontend:${IMAGE_TAG}"
+
+  print_info "Using push mode (no build, no bundle export)"
+  docker image inspect "$LOCAL_BACKEND_IMAGE" >/dev/null
+  docker image inspect "$LOCAL_FRONTEND_IMAGE" >/dev/null
+
+  print_info "Tagging local images for registry"
+  docker tag "$LOCAL_BACKEND_IMAGE" "$REMOTE_BACKEND_IMAGE"
+  docker tag "$LOCAL_FRONTEND_IMAGE" "$REMOTE_FRONTEND_IMAGE"
+
+  print_info "Pushing images to registry"
+  docker push "$REMOTE_BACKEND_IMAGE"
+  docker push "$REMOTE_FRONTEND_IMAGE"
 fi
 
 SSH_OPTIONS=(-p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
@@ -193,8 +247,10 @@ REMOTE_PROJECT_PATH_RESOLVED="$REMOTE_PROJECT_PATH"
 print_info "Checking remote project directory"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" "mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED' '$REMOTE_PROJECT_PATH_RESOLVED/scripts'"
 
-print_info "Uploading bundle to $REMOTE:$REMOTE_BUNDLE_PATH"
-scp "${SCP_OPTIONS[@]}" "$LOCAL_BUNDLE_PATH" "$REMOTE:$REMOTE_BUNDLE_PATH"
+if [[ "$PUSH_MODE" == "false" ]]; then
+  print_info "Uploading bundle to $REMOTE:$REMOTE_BUNDLE_PATH"
+  scp "${SCP_OPTIONS[@]}" "$LOCAL_BUNDLE_PATH" "$REMOTE:$REMOTE_BUNDLE_PATH"
+fi
 
 print_info "Uploading compose files and import script"
 scp "${SCP_OPTIONS[@]}" \
@@ -217,14 +273,27 @@ if [[ "$PRUNE_OLD_IMAGES" == "true" ]]; then
 fi
 
 print_info "Running remote import + docker relaunch"
-ssh "${SSH_OPTIONS[@]}" "$REMOTE" "\
-  set -euo pipefail; \
-  cd '$REMOTE_PROJECT_PATH_RESOLVED'; \
-  chmod +x ./scripts/import_docker_bundle.sh; \
-  ./scripts/import_docker_bundle.sh --bundle '$REMOTE_BUNDLE_PATH' --tag '$IMAGE_TAG' $REMOTE_NO_UP_FLAG $REMOTE_PRUNE_FLAG \
-"
+if [[ "$PUSH_MODE" == "false" ]]; then
+  ssh "${SSH_OPTIONS[@]}" "$REMOTE" "\
+    set -euo pipefail; \
+    cd '$REMOTE_PROJECT_PATH_RESOLVED'; \
+    chmod +x ./scripts/import_docker_bundle.sh; \
+    ./scripts/import_docker_bundle.sh --bundle '$REMOTE_BUNDLE_PATH' --tag '$IMAGE_TAG' $REMOTE_NO_UP_FLAG $REMOTE_PRUNE_FLAG \
+  "
+else
+  ssh "${SSH_OPTIONS[@]}" "$REMOTE" "\
+    set -euo pipefail; \
+    cd '$REMOTE_PROJECT_PATH_RESOLVED'; \
+    docker pull '$REMOTE_BACKEND_IMAGE'; \
+    docker pull '$REMOTE_FRONTEND_IMAGE'; \
+    docker tag '$REMOTE_BACKEND_IMAGE' 'darts-tournament/backend:$IMAGE_TAG'; \
+    docker tag '$REMOTE_FRONTEND_IMAGE' 'darts-tournament/frontend:$IMAGE_TAG'; \
+    chmod +x ./scripts/import_docker_bundle.sh; \
+    ./scripts/import_docker_bundle.sh --use-existing-images --tag '$IMAGE_TAG' $REMOTE_NO_UP_FLAG $REMOTE_PRUNE_FLAG \
+  "
+fi
 
-if [[ "$CLEAN_REMOTE_TMP" == "true" ]]; then
+if [[ "$PUSH_MODE" == "false" && "$CLEAN_REMOTE_TMP" == "true" ]]; then
   print_info "Cleaning remote temporary bundle: $REMOTE_BUNDLE_PATH"
   ssh "${SSH_OPTIONS[@]}" "$REMOTE" "rm -f '$REMOTE_BUNDLE_PATH'"
   print_success "Remote /tmp bundle cleaned"
@@ -233,7 +302,11 @@ fi
 print_success "Deployment completed"
 print_info "Remote host: $SSH_HOST"
 print_info "Image tag: $IMAGE_TAG"
-if [[ "$CLEAN_REMOTE_TMP" == "true" ]]; then
+if [[ "$PUSH_MODE" == "true" ]]; then
+  print_info "Mode: push (registry)"
+  print_info "Registry backend image: $REMOTE_BACKEND_IMAGE"
+  print_info "Registry frontend image: $REMOTE_FRONTEND_IMAGE"
+elif [[ "$CLEAN_REMOTE_TMP" == "true" ]]; then
   print_info "Remote bundle removed from /tmp"
 else
   print_info "Bundle left on remote at: $REMOTE_BUNDLE_PATH"
