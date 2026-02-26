@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Darts Tournament Manager - Service Restart Script (Docker Compose)
-# Usage: ./restart.sh [-d] [-dev] [backend|backend+deps|frontend|both|stop|status|logs]
+# Usage: ./restart.sh [-d] [-dev] [--prune] [--prune-volumes] [backend|backend+deps|frontend|both|stop|status|logs]
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
@@ -10,6 +10,8 @@ BACKEND_PORT=3000
 FRONTEND_PORT=3001
 DEBUG_UI=${DEBUG_UI:-false}
 DEV_PROFILE=${DEV_PROFILE:-false}
+AUTO_DOCKER_PRUNE=${AUTO_DOCKER_PRUNE:-false}
+PRUNE_VOLUMES=${PRUNE_VOLUMES:-false}
 BUILD_ID=${BUILD_ID:-$(date +%s)}
 DEV_SERVICES=(postgres_test redis_test sonarqube)
 STATUS_RETRY_COUNT=${STATUS_RETRY_COUNT:-20}
@@ -55,10 +57,33 @@ init_compose_cmd() {
     exit 1
 }
 
+run_docker_prune() {
+    if ! command -v docker >/dev/null 2>&1; then
+        print_warning "Docker CLI not found, skipping cleanup"
+        return 0
+    fi
+
+    print_status "Running Docker cleanup (this reclaims containerd overlayfs snapshots)..."
+    if [[ "$PRUNE_VOLUMES" == "true" ]]; then
+        docker system prune -f --volumes >/dev/null
+    else
+        docker system prune -f >/dev/null
+    fi
+    docker builder prune -f >/dev/null
+    print_success "Docker cleanup completed"
+}
+
+maybe_prune_docker_storage() {
+    if [[ "$AUTO_DOCKER_PRUNE" == "true" ]]; then
+        run_docker_prune
+    fi
+}
+
 # Function to start backend
 start_backend() {
     print_status "Starting backend container..."
     cd "$PROJECT_ROOT" || return 1
+    maybe_prune_docker_storage
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
@@ -74,6 +99,7 @@ start_backend() {
 start_backend_with_deps() {
     print_status "Starting backend with dependencies..."
     cd "$PROJECT_ROOT" || return 1
+    maybe_prune_docker_storage
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
@@ -89,6 +115,7 @@ start_backend_with_deps() {
 start_frontend() {
     print_status "Starting frontend container..."
     cd "$PROJECT_ROOT" || return 1
+    maybe_prune_docker_storage
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
@@ -207,6 +234,15 @@ while [[ $# -gt 0 ]]; do
             DEV_PROFILE=true
             shift
             ;;
+        --prune)
+            AUTO_DOCKER_PRUNE=true
+            shift
+            ;;
+        --prune-volumes)
+            AUTO_DOCKER_PRUNE=true
+            PRUNE_VOLUMES=true
+            shift
+            ;;
         *)
             POSITIONAL_ARGS+=("$1")
             shift
@@ -242,6 +278,7 @@ case "$COMMAND" in
     "both")
         print_status "🔄 Restarting both backend and frontend..."
         cd "$PROJECT_ROOT" || exit 1
+        maybe_prune_docker_storage
         if [[ "$DEV_PROFILE" != "true" ]]; then
             stop_dev_services
         fi
@@ -285,9 +322,12 @@ case "$COMMAND" in
         echo "Options:"
         echo "  -d, --debug Enable debug UI in frontend build"
         echo "  -dev, --dev Enable dev profile services"
+        echo "  --prune     Run Docker prune before restart (safe: keeps named volumes)"
+        echo "  --prune-volumes Run Docker prune including unused volumes"
         echo ""
         echo "Examples:"
         echo "  $0                # Restart both services"
+        echo "  $0 --prune both   # Restart and reclaim Docker disk space"
         echo "  $0 backend        # Restart backend only"
         echo "  $0 frontend       # Restart frontend only"
         echo "  $0 -d             # Restart with debug UI enabled"
