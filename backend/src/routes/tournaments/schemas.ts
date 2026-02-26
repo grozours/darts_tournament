@@ -446,6 +446,13 @@ export const uuidSchema = {
   }),
 };
 
+export const snapshotHistoryUuidSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid UUID format'),
+    snapshotId: z.string().min(1, 'Snapshot ID is required'),
+  }),
+};
+
 export const presetUuidSchema = {
   params: z.object({
     presetId: z.string().uuid('Invalid preset UUID format'),

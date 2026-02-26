@@ -21,6 +21,9 @@ export const logModelError = (context: string, error: unknown) => {
 
 export const liveViewArguments = {
   include: {
+    players: {
+      orderBy: { registeredAt: 'asc' },
+    },
     targets: {
       orderBy: { targetNumber: 'asc' },
     },

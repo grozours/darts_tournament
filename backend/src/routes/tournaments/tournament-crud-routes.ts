@@ -5,6 +5,7 @@ import { uploadTournamentLogo } from '../../middleware/upload';
 import { validate } from '../../middleware/validation';
 import {
   createTournamentSchema,
+  snapshotHistoryUuidSchema,
   updateTournamentSchema,
   uuidSchema,
 } from './schemas';
@@ -67,5 +68,37 @@ export const registerTournamentCrudRoutes = (
     requireAdmin,
     validate(uuidSchema),
     tournamentController.getTournamentTargets
+  );
+
+  router.get(
+    '/:id/snapshot',
+    requireAuth,
+    requireAdmin,
+    validate(uuidSchema),
+    tournamentController.exportTournamentSnapshot
+  );
+
+  router.get(
+    '/:id/snapshots',
+    requireAuth,
+    requireAdmin,
+    validate(uuidSchema),
+    tournamentController.listTournamentSnapshots
+  );
+
+  router.post(
+    '/:id/snapshots/:snapshotId/restore',
+    requireAuth,
+    requireAdmin,
+    validate(snapshotHistoryUuidSchema),
+    tournamentController.restoreTournamentSnapshotById
+  );
+
+  router.post(
+    '/:id/snapshot/restore',
+    requireAuth,
+    requireAdmin,
+    validate(uuidSchema),
+    tournamentController.restoreTournamentSnapshot
   );
 };

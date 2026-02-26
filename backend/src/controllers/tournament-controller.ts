@@ -64,6 +64,10 @@ export class TournamentController {
   public getTournamentsByDateRange!: (request: Request, response: Response) => Promise<void>;
   public getTournamentStats!: (request: Request, response: Response) => Promise<void>;
   public checkTournamentNameAvailability!: (request: Request, response: Response) => Promise<void>;
+  public exportTournamentSnapshot!: (request: Request, response: Response) => Promise<void>;
+  public listTournamentSnapshots!: (request: Request, response: Response) => Promise<void>;
+  public restoreTournamentSnapshot!: (request: Request, response: Response) => Promise<void>;
+  public restoreTournamentSnapshotById!: (request: Request, response: Response) => Promise<void>;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;

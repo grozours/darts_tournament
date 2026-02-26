@@ -10,6 +10,10 @@ import { createPoolStageHandlers } from './tournament-service/pool-stage-handler
 import { createMatchHandlers } from './tournament-service/match-handlers';
 import { createStatusHandlers } from './tournament-service/status-handlers';
 import {
+  deleteTournamentSnapshot,
+  saveTournamentSnapshot,
+} from './tournament-service/autosave';
+import {
   createTournamentCoreHandlers,
   type TournamentCoreHandlers,
 } from './tournament-service/core-handlers';
@@ -25,6 +29,9 @@ type StatusHandlers = ReturnType<typeof createStatusHandlers>;
 export class TournamentService {
   private readonly tournamentModel: TournamentModel;
   private readonly logger: TournamentLogger;
+  private readonly actorId?: string;
+  private readonly actorEmail?: string;
+  private readonly isAdminActionContext: boolean;
 
   public createTournament!: TournamentCoreHandlers['createTournament'];
   public getTournamentById!: TournamentCoreHandlers['getTournamentById'];
@@ -81,7 +88,14 @@ export class TournamentService {
   constructor(prisma: PrismaClient, request?: Request) {
     this.tournamentModel = new TournamentModel(prisma);
     this.logger = new TournamentLogger(request);
-    const isAdminRequest = request ? isAdmin(request) : false;
+    const actorContext = this.resolveActorContext(request);
+    this.isAdminActionContext = actorContext.isAdminRequest;
+    if (actorContext.actorId) {
+      this.actorId = actorContext.actorId;
+    }
+    if (actorContext.actorEmail) {
+      this.actorEmail = actorContext.actorEmail;
+    }
     const loggerProxy = {
       accessError: (...arguments_: Parameters<TournamentLogger['accessError']>) =>
         this.logger.accessError(...arguments_),
@@ -148,7 +162,7 @@ export class TournamentService {
       logger: loggerProxy,
       validateUUID: this.validateUUID.bind(this),
       registerPlayer: (tournamentId, playerId) => this.registerPlayer(tournamentId, playerId),
-      canViewDraftLive: () => isAdminRequest,
+      canViewDraftLive: () => actorContext.isAdminRequest,
     });
 
     Object.assign(
@@ -160,6 +174,136 @@ export class TournamentService {
       poolStageHandlers,
       coreHandlers
     );
+
+    this.initializeAutosaveHooks();
+  }
+
+  private initializeAutosaveHooks(): void {
+    this.createTournament = this.wrapCreateWithAutosave(this.createTournament, 'CREATE_TOURNAMENT');
+    this.updateTournament = this.wrapMutationWithAutosave(this.updateTournament, (tournamentId) => tournamentId, 'UPDATE_TOURNAMENT');
+    this.uploadTournamentLogo = this.wrapMutationWithAutosave(this.uploadTournamentLogo, (tournamentId) => tournamentId, 'UPLOAD_TOURNAMENT_LOGO');
+    this.transitionTournamentStatus = this.wrapMutationWithAutosave(this.transitionTournamentStatus, (tournamentId) => tournamentId, 'TRANSITION_TOURNAMENT_STATUS');
+    this.openTournamentRegistration = this.wrapMutationWithAutosave(this.openTournamentRegistration, (tournamentId) => tournamentId, 'OPEN_TOURNAMENT_REGISTRATION');
+    this.startTournament = this.wrapMutationWithAutosave(this.startTournament, (tournamentId) => tournamentId, 'START_TOURNAMENT');
+    this.completeTournament = this.wrapMutationWithAutosave(this.completeTournament, (tournamentId) => tournamentId, 'COMPLETE_TOURNAMENT');
+
+    this.updateMatchStatus = this.wrapMutationWithAutosave(this.updateMatchStatus, (tournamentId) => tournamentId, 'UPDATE_MATCH_STATUS');
+    this.completeMatch = this.wrapMutationWithAutosave(this.completeMatch, (tournamentId) => tournamentId, 'COMPLETE_MATCH');
+    this.saveMatchScores = this.wrapMutationWithAutosave(this.saveMatchScores, (tournamentId) => tournamentId, 'SAVE_MATCH_SCORES');
+
+    this.createBracket = this.wrapMutationWithAutosave(this.createBracket, (tournamentId) => tournamentId, 'CREATE_BRACKET');
+    this.updateBracket = this.wrapMutationWithAutosave(this.updateBracket, (tournamentId) => tournamentId, 'UPDATE_BRACKET');
+    this.deleteBracket = this.wrapMutationWithAutosave(this.deleteBracket, (tournamentId) => tournamentId, 'DELETE_BRACKET');
+    this.updateBracketTargets = this.wrapMutationWithAutosave(this.updateBracketTargets, (tournamentId) => tournamentId, 'UPDATE_BRACKET_TARGETS');
+    this.completeBracketRoundWithRandomScores = this.wrapMutationWithAutosave(this.completeBracketRoundWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_BRACKET_ROUND');
+    this.resetBracketMatches = this.wrapMutationWithAutosave(this.resetBracketMatches, (tournamentId) => tournamentId, 'RESET_BRACKET_MATCHES');
+
+    this.registerPlayer = this.wrapMutationWithAutosave(this.registerPlayer, (tournamentId) => tournamentId, 'REGISTER_PLAYER');
+    this.registerPlayerDetails = this.wrapMutationWithAutosave(this.registerPlayerDetails, (tournamentId) => tournamentId, 'REGISTER_PLAYER_DETAILS');
+    this.unregisterPlayer = this.wrapMutationWithAutosave(this.unregisterPlayer, (tournamentId) => tournamentId, 'UNREGISTER_PLAYER');
+    this.updateTournamentPlayer = this.wrapMutationWithAutosave(this.updateTournamentPlayer, (tournamentId) => tournamentId, 'UPDATE_TOURNAMENT_PLAYER');
+    this.updateTournamentPlayerCheckIn = this.wrapMutationWithAutosave(this.updateTournamentPlayerCheckIn, (tournamentId) => tournamentId, 'UPDATE_PLAYER_CHECKIN');
+
+    this.createPoolStage = this.wrapMutationWithAutosave(this.createPoolStage, (tournamentId) => tournamentId, 'CREATE_POOL_STAGE');
+    this.updatePoolStage = this.wrapMutationWithAutosave(this.updatePoolStage, (tournamentId) => tournamentId, 'UPDATE_POOL_STAGE');
+    this.recomputeDoubleStageProgression = this.wrapMutationWithAutosave(this.recomputeDoubleStageProgression, (tournamentId) => tournamentId, 'RECOMPUTE_DOUBLE_STAGE');
+    this.completePoolStageWithRandomScores = this.wrapMutationWithAutosave(this.completePoolStageWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_POOL_STAGE');
+    this.populateBracketFromPools = this.wrapMutationWithAutosave(this.populateBracketFromPools, (tournamentId) => tournamentId, 'POPULATE_BRACKET_FROM_POOLS');
+    this.deletePoolStage = this.wrapMutationWithAutosave(this.deletePoolStage, (tournamentId) => tournamentId, 'DELETE_POOL_STAGE');
+    this.resetPoolMatches = this.wrapMutationWithAutosave(this.resetPoolMatches, (tournamentId) => tournamentId, 'RESET_POOL_MATCHES');
+    this.updatePoolAssignments = this.wrapMutationWithAutosave(this.updatePoolAssignments, (tournamentId) => tournamentId, 'UPDATE_POOL_ASSIGNMENTS');
+
+    this.deleteTournament = this.wrapDeleteWithAutosaveCleanup(this.deleteTournament);
+  }
+
+  private resolveActorContext(request?: Request): {
+    isAdminRequest: boolean;
+    actorId?: string;
+    actorEmail?: string;
+  } {
+    const isAdminRequest = request ? isAdmin(request) : false;
+    const actorId = this.extractActorId(request);
+    const actorEmail = this.extractActorEmail(request);
+
+    return {
+      isAdminRequest,
+      ...(actorId ? { actorId } : {}),
+      ...(actorEmail ? { actorEmail } : {}),
+    };
+  }
+
+  private extractActorId(request?: Request): string | undefined {
+    const requestWithUser = request as (Request & { user?: { id?: string } }) | undefined;
+    return requestWithUser?.user?.id;
+  }
+
+  private extractActorEmail(request?: Request): string | undefined {
+    const rawPayload = request?.auth?.payload;
+    if (!rawPayload || typeof rawPayload !== 'object') {
+      return undefined;
+    }
+
+    const authPayload = rawPayload as Record<string, unknown>;
+    const emailValue =
+      authPayload.email
+      ?? authPayload['https://darts-tournament.app/email']
+      ?? authPayload['https://your-domain.com/email'];
+    return typeof emailValue === 'string' && emailValue ? emailValue : undefined;
+  }
+
+  private wrapMutationWithAutosave<TArguments extends unknown[], TResult>(
+    method: (...arguments_: TArguments) => Promise<TResult>,
+    getTournamentId: (...arguments_: TArguments) => string,
+    action: string
+  ): (...arguments_: TArguments) => Promise<TResult> {
+    return async (...arguments_: TArguments): Promise<TResult> => {
+      const result = await method(...arguments_);
+      const tournamentId = getTournamentId(...arguments_);
+      await this.persistTournamentSnapshotSafe(tournamentId, action);
+      return result;
+    };
+  }
+
+  private wrapCreateWithAutosave<TArguments extends unknown[], TResult extends { id: string }>(
+    method: (...arguments_: TArguments) => Promise<TResult>,
+    action: string
+  ): (...arguments_: TArguments) => Promise<TResult> {
+    return async (...arguments_: TArguments): Promise<TResult> => {
+      const result = await method(...arguments_);
+      await this.persistTournamentSnapshotSafe(result.id, action);
+      return result;
+    };
+  }
+
+  private wrapDeleteWithAutosaveCleanup<TArguments extends [string, ...unknown[]], TResult>(
+    method: (...arguments_: TArguments) => Promise<TResult>
+  ): (...arguments_: TArguments) => Promise<TResult> {
+    return async (...arguments_: TArguments): Promise<TResult> => {
+      const result = await method(...arguments_);
+      await this.deleteTournamentSnapshotSafe(arguments_[0]);
+      return result;
+    };
+  }
+
+  private async persistTournamentSnapshotSafe(tournamentId: string, action: string): Promise<void> {
+    try {
+      await saveTournamentSnapshot(this.tournamentModel, tournamentId, {
+        action,
+        ...(this.actorId ? { actorId: this.actorId } : {}),
+        ...(this.actorEmail ? { actorEmail: this.actorEmail } : {}),
+        trigger: this.isAdminActionContext ? 'admin' : 'system',
+      });
+    } catch (error) {
+      this.logger.error('Failed to persist tournament autosave snapshot', tournamentId, error);
+    }
+  }
+
+  private async deleteTournamentSnapshotSafe(tournamentId: string): Promise<void> {
+    try {
+      await deleteTournamentSnapshot(tournamentId);
+    } catch (error) {
+      this.logger.error('Failed to delete tournament autosave snapshot', tournamentId, error);
+    }
   }
 
   private validateUUID(id: string): void {

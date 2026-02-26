@@ -2,6 +2,14 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
 import { AppError } from '../../middleware/error-handler';
 import { TournamentService, TournamentFilters } from '../../services/tournament-service';
+import {
+  listTournamentSnapshots,
+  readTournamentSnapshot,
+  restoreTournamentSnapshotById,
+  restoreTournamentSnapshot,
+  type TournamentSnapshot,
+} from '../../services/tournament-service/autosave';
+import { restoreTournamentStateFromSnapshot } from '../../services/tournament-service/snapshot-restore';
 
 type CoreHandlerContext = {
   prisma: PrismaClient;
@@ -378,6 +386,86 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
       response.json({
         name,
         available: isAvailable,
+      });
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  exportTournamentSnapshot: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      await context.getTournamentService(request).getTournamentById(id);
+
+      const snapshot = await readTournamentSnapshot(id);
+
+      if (!snapshot) {
+        throw new AppError('Tournament snapshot not found', 404, 'TOURNAMENT_SNAPSHOT_NOT_FOUND');
+      }
+
+      response
+        .status(200)
+        .type('application/json')
+        .setHeader('Content-Disposition', `attachment; filename="tournament-${id}-snapshot.json"`)
+        .send(snapshot);
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  listTournamentSnapshots: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      await context.getTournamentService(request).getTournamentById(id);
+
+      const snapshots = await listTournamentSnapshots(id);
+      response.json({
+        tournamentId: id,
+        total: snapshots.length,
+        snapshots,
+      });
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  restoreTournamentSnapshot: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const payload = request.body as TournamentSnapshot;
+
+      if (!payload || typeof payload !== 'object' || payload.schemaVersion !== 1 || payload.data === undefined) {
+        throw new AppError('Invalid snapshot payload', 400, 'INVALID_SNAPSHOT_PAYLOAD');
+      }
+
+      await context.getTournamentService(request).getTournamentById(id);
+      await restoreTournamentSnapshot(id, payload);
+      await restoreTournamentStateFromSnapshot(context.prisma, id, payload);
+
+      response.status(200).json({
+        message: 'Tournament snapshot restored successfully',
+        tournamentId: id,
+      });
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  restoreTournamentSnapshotById: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, snapshotId } = request.params as { id: string; snapshotId: string };
+      await context.getTournamentService(request).getTournamentById(id);
+
+      const restored = await restoreTournamentSnapshotById(id, snapshotId);
+      if (!restored) {
+        throw new AppError('Tournament snapshot not found', 404, 'TOURNAMENT_SNAPSHOT_NOT_FOUND');
+      }
+      await restoreTournamentStateFromSnapshot(context.prisma, id, restored);
+
+      response.status(200).json({
+        message: 'Tournament snapshot restored successfully',
+        tournamentId: id,
+        snapshotId,
       });
     } catch (error) {
       handleAppError(response, error);

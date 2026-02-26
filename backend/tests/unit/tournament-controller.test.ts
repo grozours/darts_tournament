@@ -2,6 +2,25 @@ import TournamentController from '../../src/controllers/tournament-controller';
 import { AppError } from '../../src/middleware/error-handler';
 import { TournamentStatus } from '../../../shared/src/types';
 
+const readTournamentSnapshotMock = jest.fn();
+const restoreTournamentSnapshotMock = jest.fn();
+const listTournamentSnapshotsMock = jest.fn();
+const restoreTournamentSnapshotByIdMock = jest.fn();
+const restoreTournamentStateFromSnapshotMock = jest.fn();
+
+jest.mock('../../src/services/tournament-service/autosave', () => ({
+  readTournamentSnapshot: (...arguments_: unknown[]) => readTournamentSnapshotMock(...arguments_),
+  restoreTournamentSnapshot: (...arguments_: unknown[]) => restoreTournamentSnapshotMock(...arguments_),
+  listTournamentSnapshots: (...arguments_: unknown[]) => listTournamentSnapshotsMock(...arguments_),
+  restoreTournamentSnapshotById: (...arguments_: unknown[]) =>
+    restoreTournamentSnapshotByIdMock(...arguments_),
+}));
+
+jest.mock('../../src/services/tournament-service/snapshot-restore', () => ({
+  restoreTournamentStateFromSnapshot: (...arguments_: unknown[]) =>
+    restoreTournamentStateFromSnapshotMock(...arguments_),
+}));
+
 let mockService: {
   createTournament: jest.Mock;
   getTournamentById: jest.Mock;
@@ -41,6 +60,8 @@ jest.mock('../../src/utils/logger', () => ({
 const buildResponse = () => {
   const response = {
     status: jest.fn().mockReturnThis(),
+    type: jest.fn().mockReturnThis(),
+    setHeader: jest.fn().mockReturnThis(),
     json: jest.fn(),
     send: jest.fn(),
   };
@@ -78,6 +99,11 @@ describe('tournament-controller', () => {
       transitionTournamentStatus: jest.fn(),
     };
     isAdminMock.mockReset();
+    readTournamentSnapshotMock.mockReset();
+    restoreTournamentSnapshotMock.mockReset();
+    listTournamentSnapshotsMock.mockReset();
+    restoreTournamentSnapshotByIdMock.mockReset();
+    restoreTournamentStateFromSnapshotMock.mockReset();
   });
 
   it('creates tournaments successfully', async () => {
@@ -414,6 +440,132 @@ describe('tournament-controller', () => {
       expect.objectContaining({
         message: expect.stringContaining('OPEN'),
       })
+    );
+  });
+
+  it('exports tournament snapshot json for admins', async () => {
+    const request = buildRequest({ params: { id: 't-snapshot' } });
+    const response = buildResponse();
+
+    const snapshot = {
+      schemaVersion: 1,
+      tournamentId: 't-snapshot',
+      savedAt: '2026-02-26T12:00:00.000Z',
+      data: { id: 't-snapshot' },
+    };
+
+    mockService.getTournamentById.mockResolvedValue({ id: 't-snapshot' });
+    readTournamentSnapshotMock.mockResolvedValue(snapshot);
+
+    await controller.exportTournamentSnapshot(request as never, response as never);
+
+    expect(mockService.getTournamentById).toHaveBeenCalledWith('t-snapshot');
+    expect(readTournamentSnapshotMock).toHaveBeenCalledWith('t-snapshot');
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.type).toHaveBeenCalledWith('application/json');
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      'attachment; filename="tournament-t-snapshot-snapshot.json"'
+    );
+    expect(response.send).toHaveBeenCalledWith(snapshot);
+  });
+
+  it('returns 404 when snapshot file is missing', async () => {
+    const request = buildRequest({ params: { id: 't-missing' } });
+    const response = buildResponse();
+
+    mockService.getTournamentById.mockResolvedValue({ id: 't-missing' });
+    readTournamentSnapshotMock.mockResolvedValue(undefined);
+
+    await controller.exportTournamentSnapshot(request as never, response as never);
+
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'TOURNAMENT_SNAPSHOT_NOT_FOUND' }),
+      })
+    );
+  });
+
+  it('restores snapshot json payload', async () => {
+    const request = buildRequest({
+      params: { id: 't-restore' },
+      body: {
+        schemaVersion: 1,
+        tournamentId: 'old-id',
+        savedAt: '2026-02-20T10:00:00.000Z',
+        data: { id: 't-restore' },
+      },
+    });
+    const response = buildResponse();
+
+    mockService.getTournamentById.mockResolvedValue({ id: 't-restore' });
+
+    await controller.restoreTournamentSnapshot(request as never, response as never);
+
+    expect(mockService.getTournamentById).toHaveBeenCalledWith('t-restore');
+    expect(restoreTournamentSnapshotMock).toHaveBeenCalledWith('t-restore', request.body);
+    expect(restoreTournamentStateFromSnapshotMock).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Tournament snapshot restored successfully',
+        tournamentId: 't-restore',
+      })
+    );
+  });
+
+  it('rejects invalid snapshot restore payloads', async () => {
+    const request = buildRequest({ params: { id: 't-restore' }, body: { schemaVersion: 2 } });
+    const response = buildResponse();
+
+    await controller.restoreTournamentSnapshot(request as never, response as never);
+
+    expect(restoreTournamentSnapshotMock).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'INVALID_SNAPSHOT_PAYLOAD' }),
+      })
+    );
+  });
+
+  it('lists snapshot history for a tournament', async () => {
+    const request = buildRequest({ params: { id: 't-history' } });
+    const response = buildResponse();
+
+    mockService.getTournamentById.mockResolvedValue({ id: 't-history' });
+    listTournamentSnapshotsMock.mockResolvedValue([
+      { snapshotId: 'snap-1', action: 'UPDATE_TOURNAMENT' },
+    ]);
+
+    await controller.listTournamentSnapshots(request as never, response as never);
+
+    expect(listTournamentSnapshotsMock).toHaveBeenCalledWith('t-history');
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tournamentId: 't-history',
+        total: 1,
+      })
+    );
+  });
+
+  it('restores snapshot by snapshot id', async () => {
+    const request = buildRequest({
+      params: { id: 't-history', snapshotId: 'snap-restore' },
+    });
+    const response = buildResponse();
+
+    mockService.getTournamentById.mockResolvedValue({ id: 't-history' });
+    restoreTournamentSnapshotByIdMock.mockResolvedValue({ snapshotId: 'snap-restore' });
+
+    await controller.restoreTournamentSnapshotById(request as never, response as never);
+
+    expect(restoreTournamentSnapshotByIdMock).toHaveBeenCalledWith('t-history', 'snap-restore');
+    expect(restoreTournamentStateFromSnapshotMock).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ snapshotId: 'snap-restore' })
     );
   });
 });
