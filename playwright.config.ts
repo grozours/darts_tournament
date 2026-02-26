@@ -1,6 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
-
-export default defineConfig({
+export default {
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -15,15 +13,15 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { browserName: 'chromium' },
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { browserName: 'firefox' },
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: { browserName: 'webkit' },
     },
   ],
   webServer: [
@@ -40,4 +38,4 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
   ],
-});
+};

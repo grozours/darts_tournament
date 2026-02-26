@@ -522,11 +522,11 @@ npm test -- --watch
 ### Configuration Playwright
 
 ```typescript
-// playwright.config.ts
-import { defineConfig, devices } from '@playwright/test';
+// frontend/playwright.config.ts
+import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: '../tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -534,7 +534,7 @@ export default defineConfig({
   reporter: 'html',
   
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -542,23 +542,32 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { browserName: 'chromium' },
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { browserName: 'firefox' },
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: { browserName: 'webkit' },
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: 'npm run dev',
+      cwd: '../backend',
+      port: 3000,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'npm run dev',
+      cwd: '.',
+      port: 3001,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });
 ```
 
@@ -642,22 +651,22 @@ test.describe('Pool Stages View', () => {
 
 ```bash
 # Installer les navigateurs Playwright
-npx playwright install
+npm --prefix frontend exec -- playwright install
 
 # Lancer tous les tests E2E
-npm run test:e2e
+npm --prefix frontend run test:e2e
 
 # Navigateur spécifique
-npx playwright test --project=chromium
+npm --prefix frontend exec -- playwright test -c ./frontend/playwright.config.ts --project=chromium
 
 # Mode headed
-npx playwright test --headed
+npm --prefix frontend exec -- playwright test -c ./frontend/playwright.config.ts --headed
 
 # Mode debug
-npx playwright test --debug
+npm --prefix frontend exec -- playwright test -c ./frontend/playwright.config.ts --debug
 
 # Générer le rapport
-npx playwright show-report
+npm --prefix frontend exec -- playwright show-report
 ```
 
 ---
@@ -818,13 +827,13 @@ jobs:
           node-version: '20'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm --prefix frontend ci
       
       - name: Install Playwright
-        run: npx playwright install --with-deps
+        run: npm --prefix frontend exec -- playwright install --with-deps
       
       - name: Run E2E tests
-        run: npm run test:e2e
+        run: npm --prefix frontend run test:e2e
       
       - name: Upload test results
         if: always()
