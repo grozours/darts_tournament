@@ -127,6 +127,39 @@ describe('PoolStageCard', () => {
 
     expect(screen.getAllByText('Ava Archer').length).toBeGreaterThan(0);
   });
+
+  it('hides fill and edit stage actions when dependent stages are not completed', () => {
+    render(
+      <PoolStageCard
+        {...baseProperties}
+        stage={{
+          ...baseProperties.stage,
+          status: 'EDITION',
+        }}
+        canManageStageActions={false}
+      />
+    );
+
+    expect(screen.queryByText('live.fillStage')).not.toBeInTheDocument();
+    expect(screen.queryByText('live.editStage')).not.toBeInTheDocument();
+    expect(screen.getByText('live.resetStage')).toBeInTheDocument();
+  });
+
+  it('shows fill and edit stage actions when dependent stages are completed', () => {
+    render(
+      <PoolStageCard
+        {...baseProperties}
+        stage={{
+          ...baseProperties.stage,
+          status: 'EDITION',
+        }}
+        canManageStageActions={true}
+      />
+    );
+
+    expect(screen.getByText('live.fillStage')).toBeInTheDocument();
+    expect(screen.getByText('live.editStage')).toBeInTheDocument();
+  });
 });
 
 describe('computeOptimisticStartTimes', () => {

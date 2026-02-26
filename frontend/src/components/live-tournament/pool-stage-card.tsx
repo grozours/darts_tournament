@@ -505,6 +505,7 @@ type PoolStageCardProperties = {
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
+  canManageStageActions?: boolean;
 };
 
 const PoolStageCard = ({
@@ -560,6 +561,7 @@ const PoolStageCard = ({
   stageStatusDrafts,
   stagePoolCountDrafts,
   stagePlayersPerPoolDrafts,
+  canManageStageActions = true,
 }: PoolStageCardProperties) => {
   const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
   const [showCompletedMatchesByPool, setShowCompletedMatchesByPool] = useState<Record<string, boolean>>({});
@@ -726,7 +728,7 @@ const PoolStageCard = ({
               {updatingStageId === stage.id ? t('live.resettingStage') : t('live.resetStage')}
             </button>
           )}
-          {canLaunchStage && (
+          {canManageStageActions && canLaunchStage && (
             <button
               onClick={() => onLaunchStage(stageTournamentId, stage)}
               disabled={updatingStageId === stage.id || tournamentStatus !== 'LIVE'}
@@ -735,12 +737,14 @@ const PoolStageCard = ({
               {updatingStageId === stage.id ? launchingStageLabel : launchStageLabel}
             </button>
           )}
-          <button
-            onClick={() => onEditStage(stageTournamentId, stage)}
-            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-          >
-            {t('live.editStage')}
-          </button>
+          {canManageStageActions && (
+            <button
+              onClick={() => onEditStage(stageTournamentId, stage)}
+              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+            >
+              {t('live.editStage')}
+            </button>
+          )}
           {canDeleteStage && (
             <button
               onClick={() => onDeleteStage(stageTournamentId, stage)}

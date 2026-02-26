@@ -1,0 +1,32 @@
+# Dependencies and caches
+node_modules
+npm-debug.log*
+.yarn
+.pnpm-store
+
+# Build outputs and reports
+dist
+coverage
+.tmp-seed
+
+# Runtime mutable data
+logs
+uploads
+
+# VCS and editor artifacts
+.git
+.gitignore
+.vscode
+.idea
+
+# Local env files
+.env
+.env.*
+
+# Unused directories in backend image context
+frontend
+backend
+
+# Misc
+Dockerfile
+Dockerfile.dev

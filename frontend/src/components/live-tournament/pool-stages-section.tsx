@@ -18,6 +18,28 @@ const getStageParallelReferences = (stage: LiveViewPoolStage) => (
   )
 );
 
+const isStageCompleted = (status: string | undefined) => (status ?? '').trim().toUpperCase() === 'COMPLETED';
+
+const getSourceStagesForPoolStage = (
+  poolStages: LiveViewPoolStage[],
+  poolStageId: string
+) => poolStages.filter((stage) => (
+  (stage.rankingDestinations ?? []).some((destination) => (
+    destination.destinationType === 'POOL_STAGE' && destination.poolStageId === poolStageId
+  ))
+));
+
+const canManagePoolStageActions = (
+  poolStages: LiveViewPoolStage[],
+  poolStageId: string
+) => {
+  const sourceStages = getSourceStagesForPoolStage(poolStages, poolStageId);
+  if (sourceStages.length === 0) {
+    return true;
+  }
+  return sourceStages.every((stage) => isStageCompleted(stage.status));
+};
+
 const areStagesParallelLinked = (firstStage: LiveViewPoolStage, secondStage: LiveViewPoolStage) => {
   const firstRefs = getStageParallelReferences(firstStage);
   const secondRefs = getStageParallelReferences(secondStage);
@@ -355,6 +377,7 @@ const PoolStagesSection = ({
                   ? { preferredPlayerId: playerIdByTournament[tournamentId] }
                   : {})}
                 {...stageProperties}
+                canManageStageActions={canManagePoolStageActions(stages, stage.id)}
               />
             </div>
           );

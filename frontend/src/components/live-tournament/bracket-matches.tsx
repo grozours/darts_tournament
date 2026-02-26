@@ -21,6 +21,35 @@ type BracketRound = {
   matches: BracketMatchSlot[];
 };
 
+const getInitialActionLabel = (label: string) => {
+  const trimmedLabel = label.trim();
+  return trimmedLabel.charAt(0).toUpperCase();
+};
+
+type CompactActionButtonProperties = {
+  label: string;
+  disabled?: boolean;
+  className: string;
+  onClick: () => void;
+};
+
+const CompactActionButton = ({
+  label,
+  disabled,
+  className,
+  onClick,
+}: CompactActionButtonProperties) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={label}
+    aria-label={label}
+    className={className}
+  >
+    {getInitialActionLabel(label)}
+  </button>
+);
+
 const getRoundLeftOffset = (roundNumber: number) => {
   if (roundNumber > 2) return -40;
   if (roundNumber > 1) return -22;
@@ -209,32 +238,31 @@ const BracketMatches = ({
         getMatchKey={getMatchKey}
         onScoreChange={onScoreChange}
       />
-      <button
-        onClick={() => onSaveMatchScores(matchTournamentId, match)}
-        disabled={updatingMatchId === matchKey}
-        className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
-      >
-        {updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
-      </button>
-      <button
-        onClick={() => onCompleteMatch(matchTournamentId, match)}
-        disabled={updatingMatchId === matchKey}
-        className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
-      >
-        {updatingMatchId === matchKey ? t('live.savingMatch') : t('live.completeMatch')}
-      </button>
-      <button
-        onClick={() => {
-          if (!globalThis.window?.confirm(t('targets.cancelMatchConfirm'))) {
-            return;
-          }
-          onCancelMatch(matchTournamentId, match);
-        }}
-        disabled={updatingMatchId === matchKey}
-        className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
-      >
-        {updatingMatchId === matchKey ? t('common.loading') : t('targets.cancelMatch')}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <CompactActionButton
+          onClick={() => onSaveMatchScores(matchTournamentId, match)}
+          disabled={updatingMatchId === matchKey}
+          className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+          label={updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
+        />
+        <CompactActionButton
+          onClick={() => onCompleteMatch(matchTournamentId, match)}
+          disabled={updatingMatchId === matchKey}
+          className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
+          label={updatingMatchId === matchKey ? t('live.savingMatch') : t('live.completeMatch')}
+        />
+        <CompactActionButton
+          onClick={() => {
+            if (!globalThis.window?.confirm(t('targets.cancelMatchConfirm'))) {
+              return;
+            }
+            onCancelMatch(matchTournamentId, match);
+          }}
+          disabled={updatingMatchId === matchKey}
+          className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+          label={updatingMatchId === matchKey ? t('common.loading') : t('targets.cancelMatch')}
+        />
+      </div>
     </div>
   );
 
@@ -249,13 +277,12 @@ const BracketMatches = ({
     if (!isEditing) {
       return (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
+          <CompactActionButton
             onClick={() => onEditMatch(matchTournamentId, match)}
             className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-          >
-            {t('live.editScore')}
-          </button>
-          <button
+            label={t('live.editScore')}
+          />
+          <CompactActionButton
             onClick={() => {
               if (!reopenTargetId) {
                 return;
@@ -267,9 +294,8 @@ const BracketMatches = ({
             }}
             disabled={!reopenTargetId || updatingMatchId === matchKey}
             className="rounded-full border border-amber-500/70 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300 disabled:opacity-60"
-          >
-            {updatingMatchId === matchKey ? t('common.loading') : t('live.reopenMatch')}
-          </button>
+            label={updatingMatchId === matchKey ? t('common.loading') : t('live.reopenMatch')}
+          />
         </div>
       );
     }
@@ -284,19 +310,17 @@ const BracketMatches = ({
           onScoreChange={onScoreChange}
         />
         <div className="flex flex-wrap gap-2">
-          <button
+          <CompactActionButton
             onClick={() => onSaveMatchScores(matchTournamentId, match)}
             disabled={updatingMatchId === matchKey}
             className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
-          >
-            {updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
-          </button>
-          <button
+            label={updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
+          />
+          <CompactActionButton
             onClick={onCancelMatchEdit}
             className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-          >
-            {t('common.cancel')}
-          </button>
+            label={t('common.cancel')}
+          />
         </div>
       </div>
     );

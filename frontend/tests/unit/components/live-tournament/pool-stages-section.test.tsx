@@ -136,4 +136,40 @@ describe('PoolStagesSection', () => {
     expect(capturedCards[0]?.estimatedDurationMinutesOverride).toBe(10);
     expect(capturedCards[1]?.estimatedDurationMinutesOverride).toBe(20);
    });
+
+  it('disables stage actions when source stages are not completed', () => {
+    computeOptimisticStartTimesMock.mockReturnValue({
+      optimisticById: new Map(),
+      finishTimestampByMatchId: new Map(),
+      estimatedDurationMinutes: 0,
+    });
+
+    const stages = [
+      {
+        id: 's1',
+        stageNumber: 1,
+        name: 'Stage 1',
+        status: 'IN_PROGRESS',
+        pools: [],
+        rankingDestinations: [
+          { destinationType: 'POOL_STAGE', poolStageId: 's2', position: 1 },
+        ],
+      },
+      {
+        id: 's2',
+        stageNumber: 2,
+        name: 'Stage 2',
+        status: 'NOT_STARTED',
+        pools: [],
+      },
+    ];
+
+    render(<PoolStagesSection {...baseProperties} stages={stages as never} />);
+
+    const stageOneCard = capturedCards.find((card) => (card.stage as { id?: string })?.id === 's1');
+    const stageTwoCard = capturedCards.find((card) => (card.stage as { id?: string })?.id === 's2');
+
+    expect(stageOneCard?.canManageStageActions).toBe(true);
+    expect(stageTwoCard?.canManageStageActions).toBe(false);
+  });
  });

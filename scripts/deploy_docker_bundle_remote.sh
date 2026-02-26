@@ -17,6 +17,7 @@ SKIP_EXPORT=false
 NO_UP=false
 CLEAN_REMOTE_TMP=true
 PRUNE_OLD_IMAGES=true
+PRUNE_LOCAL_IMAGES=true
 KEEP_IMAGE_COUNT=5
 PUSH_MODE=false
 REGISTRY_PREFIX=""
@@ -51,6 +52,8 @@ Usage:
     [--no-up] \
     [--prune-old-images] \
     [--no-prune-old-images] \
+    [--prune-local-images] \
+    [--no-prune-local-images] \
     [--keep-images <count>] \
     [--keep-remote-bundle]
 
@@ -93,6 +96,12 @@ Examples:
     --no-prune-old-images
 
   scripts/deploy_docker_bundle_remote.sh \
+    --host 10.0.0.20 \
+    --user ubuntu \
+    --remote-path /opt/darts_tournament \
+    --no-prune-local-images
+
+  scripts/deploy_docker_bundle_remote.sh \
     --host prod.example.com \
     --user deploy \
     --remote-path /srv/darts_tournament \
@@ -100,6 +109,66 @@ Examples:
     --push \
     --registry ghcr.io/my-org
 USAGE
+}
+
+prune_local_images() {
+  local repository="$1"
+  local current_image="$2"
+  local keep_count="$3"
+
+  if ! [[ "$keep_count" =~ ^[0-9]+$ ]] || [[ "$keep_count" -lt 1 ]]; then
+    print_error "Invalid --keep-images value: $keep_count (expected integer >= 1)"
+    exit 1
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    print_info "Docker CLI not found locally, skipping source image pruning"
+    return 0
+  fi
+
+  local used_images
+  used_images="$(docker ps -a --format '{{.Image}}' | sort -u || true)"
+
+  mapfile -t all_images < <(docker image ls "$repository" --format '{{.Repository}}:{{.Tag}}' | grep -v ':<none>$' | sort -r)
+
+  if [[ "${#all_images[@]}" -le "$keep_count" ]]; then
+    print_info "No local pruning needed for $repository (count=${#all_images[@]}, keep=$keep_count)."
+    return 0
+  fi
+
+  local keep_set=""
+  local index=0
+  for image in "${all_images[@]}"; do
+    if [[ "$index" -lt "$keep_count" ]]; then
+      keep_set+="$image\n"
+    fi
+    index=$((index + 1))
+  done
+
+  local removed=0
+  for image in "${all_images[@]}"; do
+    if [[ "$image" == "$current_image" ]]; then
+      continue
+    fi
+
+    if printf '%b' "$keep_set" | grep -Fxq "$image"; then
+      continue
+    fi
+
+    if printf '%s\n' "$used_images" | grep -Fxq "$image"; then
+      print_info "Keeping local image in use by a container: $image"
+      continue
+    fi
+
+    if docker image rm "$image" >/dev/null 2>&1; then
+      print_info "Removed old local image: $image"
+      removed=$((removed + 1))
+    else
+      print_info "Skipped local image (cannot remove safely): $image"
+    fi
+  done
+
+  print_success "Local prune finished for $repository (removed=$removed, kept_recent=$keep_count)"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -158,6 +227,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-prune-old-images)
       PRUNE_OLD_IMAGES=false
+      shift
+      ;;
+    --prune-local-images)
+      PRUNE_LOCAL_IMAGES=true
+      shift
+      ;;
+    --no-prune-local-images)
+      PRUNE_LOCAL_IMAGES=false
       shift
       ;;
     --keep-images)
@@ -297,6 +374,14 @@ if [[ "$PUSH_MODE" == "false" && "$CLEAN_REMOTE_TMP" == "true" ]]; then
   print_info "Cleaning remote temporary bundle: $REMOTE_BUNDLE_PATH"
   ssh "${SSH_OPTIONS[@]}" "$REMOTE" "rm -f '$REMOTE_BUNDLE_PATH'"
   print_success "Remote /tmp bundle cleaned"
+fi
+
+if [[ "$PRUNE_LOCAL_IMAGES" == "true" ]]; then
+  print_info "Pruning local source images while keeping current tag and last $KEEP_IMAGE_COUNT tags"
+  prune_local_images "darts-tournament/backend" "$LOCAL_BACKEND_IMAGE" "$KEEP_IMAGE_COUNT"
+  prune_local_images "darts-tournament/frontend" "$LOCAL_FRONTEND_IMAGE" "$KEEP_IMAGE_COUNT"
+else
+  print_info "Skipping local source image pruning (--no-prune-local-images)"
 fi
 
 print_success "Deployment completed"

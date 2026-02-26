@@ -115,8 +115,8 @@ describe('BracketMatches', () => {
       />
     );
 
-    expect(screen.getAllByText('live.saveScores').length).toBeGreaterThan(0);
-    expect(screen.getByText('common.cancel')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'live.saveScores' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument();
   });
 
   it('hides actions when in readonly mode', () => {
@@ -129,7 +129,7 @@ describe('BracketMatches', () => {
     );
 
     expect(screen.queryByTestId('target-selector')).not.toBeInTheDocument();
-    expect(screen.queryByText('live.completeMatch')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'live.completeMatch' })).not.toBeInTheDocument();
   });
 
   it('shows winner indicator for completed matches', () => {
