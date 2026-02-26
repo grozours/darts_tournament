@@ -627,7 +627,7 @@ export async function completeMatch(
   }
 }
 
-export async function updateCompletedMatchScores(
+export async function saveMatchScores(
   tournamentId: string,
   matchId: string,
   scores: Array<{ playerId: string; scoreTotal: number }>,

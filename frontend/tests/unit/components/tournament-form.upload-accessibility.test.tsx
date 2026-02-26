@@ -89,6 +89,9 @@ describe('TournamentForm accessibility', () => {
     nameInput.focus();
 
     await user.tab();
+    expect(screen.getByLabelText(/location/i)).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByLabelText(/format/i)).toHaveFocus();
 
     await user.tab();

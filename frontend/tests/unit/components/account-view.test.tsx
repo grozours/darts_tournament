@@ -14,6 +14,16 @@ vi.mock('../../../src/auth/optional-auth', () => ({
   useOptionalAuth: () => authState,
 }));
 
+const adminState = {
+  isAdmin: true,
+  adminUser: undefined as unknown,
+  checkingAdmin: false,
+};
+
+vi.mock('../../../src/auth/use-admin-status', () => ({
+  useAdminStatus: () => adminState,
+}));
+
 vi.mock('../../../src/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
@@ -25,6 +35,9 @@ describe('AccountView', () => {
     authState.isLoading = false;
     authState.user = undefined;
     authState.logout = vi.fn();
+    adminState.isAdmin = true;
+    adminState.adminUser = undefined;
+    adminState.checkingAdmin = false;
   });
 
   it('shows a not-configured message when auth is disabled', () => {

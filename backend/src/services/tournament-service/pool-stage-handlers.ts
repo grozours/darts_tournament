@@ -17,6 +17,7 @@ import {
   getBracketRoundMatchFormatKey,
   normalizeMatchFormatKey,
 } from './match-format-presets';
+import { emitMatchFormatChangedNotifications } from './match-format-change-notifications';
 
 type PoolStageUpdateData = Partial<{
   stageNumber: number;
@@ -1358,6 +1359,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       if (currentStage?.tournamentId !== tournamentId) {
         throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
       }
+      const previousStageMatchFormatKey = currentStage.matchFormatKey ?? undefined;
 
       if (data.rankingDestinations) {
         const playersPerPool = data.playersPerPool ?? currentStage.playersPerPool;
@@ -1391,6 +1393,31 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         shouldRedistribute,
         nextData.completedAt
       );
+
+      const updatedStageMatchFormatKey = updatedStage.matchFormatKey ?? undefined;
+      if (previousStageMatchFormatKey !== updatedStageMatchFormatKey) {
+        const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
+        const affectedMatches = pools
+          .flatMap((pool) => (pool.matches ?? []).map((match) => ({ pool, match })))
+          .filter(({ match }) => (
+            (match.status === MatchStatus.SCHEDULED || match.status === MatchStatus.IN_PROGRESS)
+            && (match.matchFormatKey ?? previousStageMatchFormatKey) !== (match.matchFormatKey ?? updatedStageMatchFormatKey)
+          ))
+          .map(({ match }) => ({
+            matchId: match.id,
+            matchFormatKey: match.matchFormatKey ?? updatedStageMatchFormatKey,
+          }))
+          .filter((item): item is { matchId: string; matchFormatKey: string } => Boolean(item.matchFormatKey));
+
+        await emitMatchFormatChangedNotifications(
+          {
+            findById: (id) => tournamentModel.findById(id),
+            getMatchDetailsForNotification: (matchId) => tournamentModel.getMatchDetailsForNotification(matchId),
+          },
+          tournamentId,
+          affectedMatches
+        );
+      }
 
       return updatedStage;
     },

@@ -164,7 +164,7 @@ describe('TournamentForm submission states', () => {
     render(<TournamentForm {...defaultProps} />);
 
     const nameInput = screen.getByLabelText(/tournament name/i);
-    await user.type(nameInput, 'Test Tournament');
+    await fillForm(user);
 
     await user.click(screen.getByRole('button', { name: /create tournament/i }));
 

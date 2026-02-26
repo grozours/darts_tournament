@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { useOptionalAuth } from '../../auth/optional-auth';
 import { useI18n } from '../../i18n';
 import {
+  type MatchFormatChangedPayload,
   type MatchFinishedPayload,
   type MatchNotificationPayload,
   type MatchStartedPayload,
@@ -224,9 +225,14 @@ const useMatchStartedNotifications = () => {
       title = `${t('notifications.calledToTarget')} ${targetLabel}`.trim();
     } else if (payload.event === 'completed') {
       title = t('notifications.matchCompleted');
+    } else if (payload.event === 'format_changed') {
+      title = t('notifications.matchFormatChanged');
     }
+    const formatSuffix = payload.event === 'format_changed'
+      ? ` · ${t('notifications.matchFormat')}: ${payload.matchFormatKey}`
+      : '';
     const scoreSuffix = scoreSummary ? ` · ${t('live.finalScore')}: ${scoreSummary}` : '';
-    const body = `${payload.tournamentName} · ${matchLabel}${scoreSuffix}`.trim();
+    const body = `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}`.trim();
     try {
       new Notification(title, { body });
     } catch (error) {
@@ -344,6 +350,14 @@ const useMatchStartedNotifications = () => {
     });
 
     socket.on('match:finished', (payload: MatchFinishedPayload) => {
+      if (!shouldNotifyPlayer(payload)) {
+        return;
+      }
+      appendNotification(payload);
+      maybeShowBrowserNotification(payload);
+    });
+
+    socket.on('match:format-changed', (payload: MatchFormatChangedPayload) => {
       if (!shouldNotifyPlayer(payload)) {
         return;
       }

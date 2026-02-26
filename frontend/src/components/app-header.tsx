@@ -28,7 +28,20 @@ const readUnreadCount = () => {
 };
 
 const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderProperties) => {
+  const languageOrder = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'] as const;
+  const languageLabels: Record<(typeof languageOrder)[number], string> = {
+    fr: 'Français',
+    en: 'English',
+    es: 'Español',
+    de: 'Deutsch',
+    it: 'Italiano',
+    pt: 'Português',
+    nl: 'Nederlands',
+  };
   const [unreadCount, setUnreadCount] = useState(0);
+    const currentLanguageIndex = languageOrder.indexOf(lang as (typeof languageOrder)[number]);
+    const nextLanguage = languageOrder[(currentLanguageIndex + 1) % languageOrder.length] ?? 'fr';
+
   const buildId = import.meta.env.VITE_BUILD_ID
     || import.meta.env.VITE_COMMIT_SHA
     || import.meta.env.VITE_APP_VERSION
@@ -268,9 +281,9 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, toggleLang }: AppHeaderP
           onClick={toggleLang}
           className="rounded-md px-2 py-1 hover:bg-slate-800"
           aria-label="Toggle language"
-          title={lang === 'en' ? 'Français' : 'English'}
+          title={languageLabels[nextLanguage]}
         >
-          {lang === 'en' ? '🇬🇧' : '🇫🇷'}
+          {lang.toUpperCase()}
         </button>
           {isAuthenticated && (
             <a className="rounded-md px-2 py-1 hover:bg-slate-800 inline-flex items-center" href="/?view=notifications">

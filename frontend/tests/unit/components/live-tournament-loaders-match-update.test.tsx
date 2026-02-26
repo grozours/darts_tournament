@@ -14,7 +14,7 @@ beforeEach(() => {
   serviceMocks.fetchTournamentLiveView.mockReset();
   serviceMocks.updateMatchStatus.mockReset();
   serviceMocks.completeMatch.mockReset();
-  serviceMocks.updateCompletedMatchScores.mockReset();
+  serviceMocks.saveMatchScores.mockReset();
   serviceMocks.updatePoolStage.mockReset();
   serviceMocks.deletePoolStage.mockReset();
   serviceMocks.completePoolStageWithScores.mockReset();
@@ -100,7 +100,7 @@ describe('live tournament match updates', () => {
     const reloadLiveViews = vi.fn().mockImplementation(async () => {});
     const setError = vi.fn();
     const clearMatchTargetSelection = vi.fn();
-    const onUpdatedCompletedMatch = vi.fn();
+    const onSavedMatchScores = vi.fn();
 
     const matchScores = {
       't1:m1': {
@@ -118,7 +118,7 @@ describe('live tournament match updates', () => {
           getMatchKey: (tournamentId, matchId) => `${tournamentId}:${matchId}`,
           matchScores,
           clearMatchTargetSelection,
-          onUpdatedCompletedMatch,
+          onSavedMatchScores,
         })}
         onUpdate={(value) => {
           latest = value;
@@ -154,14 +154,14 @@ describe('live tournament match updates', () => {
     ], 'token');
 
     await act(async () => {
-      await latest?.handleUpdateCompletedMatch('t1', match);
+      await latest?.handleSaveMatchScores('t1', match);
     });
 
-    expect(serviceMocks.updateCompletedMatchScores).toHaveBeenCalledWith('t1', 'm1', [
+    expect(serviceMocks.saveMatchScores).toHaveBeenCalledWith('t1', 'm1', [
       { playerId: 'p1', scoreTotal: 10 },
       { playerId: 'p2', scoreTotal: 15 },
     ], 'token');
-    expect(onUpdatedCompletedMatch).toHaveBeenCalled();
+    expect(onSavedMatchScores).toHaveBeenCalled();
     expect(reloadLiveViews).toHaveBeenCalledWith({ showLoader: false });
     expect(setError.mock.calls[0]?.[0]).toBeUndefined();
     expect(setError.mock.calls.some(([value]) => typeof value === 'string' && value.length > 0)).toBe(false);
@@ -180,7 +180,7 @@ describe('live tournament match updates', () => {
           getMatchKey: (tournamentId, matchId) => `${tournamentId}:${matchId}`,
           matchScores: {},
           clearMatchTargetSelection: vi.fn(),
-          onUpdatedCompletedMatch: vi.fn(),
+          onSavedMatchScores: vi.fn(),
         })}
         onUpdate={(value) => {
           latest = value;

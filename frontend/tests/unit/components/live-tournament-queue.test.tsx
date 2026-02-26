@@ -9,7 +9,7 @@ beforeEach(() => {
   serviceMocks.fetchTournamentLiveView.mockReset();
   serviceMocks.updateMatchStatus.mockReset();
   serviceMocks.completeMatch.mockReset();
-  serviceMocks.updateCompletedMatchScores.mockReset();
+  serviceMocks.saveMatchScores.mockReset();
   serviceMocks.updatePoolStage.mockReset();
   serviceMocks.deletePoolStage.mockReset();
   serviceMocks.completePoolStageWithScores.mockReset();

@@ -14,6 +14,8 @@ import {
 import type { Tournament } from '../../../../shared/src/types';
 import { nextPowerOfTwo } from './number-helpers';
 import { getBracketRoundMatchFormatKey } from './match-format-presets';
+import { normalizeMatchScores, resolveWinnerAndResultScores } from './match-score-policy';
+import { assertValidMatchTransition, ensureTargetForMatchStart } from './target-lifecycle';
 
 type MatchForCompletion = {
   id: string;
@@ -133,7 +135,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
     }
 
-    ensureValidMatchTransition(match.status as MatchStatus, status);
+    assertValidMatchTransition(match.status as MatchStatus, status);
 
     const now = new Date();
     if (status === MatchStatus.IN_PROGRESS) {
@@ -169,7 +171,14 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     tournamentId: string,
     now: Date
   ): Promise<void> => {
-    const targetToUse = await ensureTargetForMatchStart(match, targetId, tournamentId);
+    const targetToUse = await ensureTargetForMatchStart(match, targetId, tournamentId, {
+      getTargetById: (candidateTargetId) => tournamentModel.getTargetById(candidateTargetId),
+      getBracketTargetIds: (bracketId) => tournamentModel.getBracketTargetIds(bracketId),
+      getMatchById: (candidateMatchId) => tournamentModel.getMatchById(candidateMatchId),
+      setTargetAvailable: (candidateTargetId) => tournamentModel.setTargetAvailable(candidateTargetId),
+      finishMatchAndReleaseTarget: (candidateMatchId, candidateTargetId, status_, timestamps) =>
+        tournamentModel.finishMatchAndReleaseTarget(candidateMatchId, candidateTargetId, status_, timestamps),
+    });
     await ensurePlayersAvailableForMatchStart(tournamentId, matchId);
 
     if (match.poolId) {
@@ -366,117 +375,6 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       timestamps.startedAt = now;
     }
     return timestamps;
-  };
-
-  const ensureValidMatchTransition = (currentStatus: MatchStatus, nextStatus: MatchStatus) => {
-    const validTransitions: Record<MatchStatus, MatchStatus[]> = {
-      [MatchStatus.SCHEDULED]: [MatchStatus.IN_PROGRESS, MatchStatus.CANCELLED],
-      [MatchStatus.IN_PROGRESS]: [MatchStatus.COMPLETED, MatchStatus.CANCELLED, MatchStatus.SCHEDULED],
-      [MatchStatus.COMPLETED]: [],
-      [MatchStatus.CANCELLED]: [],
-    };
-
-    if (!validTransitions[currentStatus].includes(nextStatus)) {
-      throw new AppError(
-        `Invalid match status transition from ${currentStatus} to ${nextStatus}`,
-        400,
-        'INVALID_MATCH_STATUS_TRANSITION'
-      );
-    }
-  };
-
-  const ensureTargetForMatchStart = async (
-    match: Awaited<ReturnType<TournamentModel['getMatchById']>>,
-    targetId: string | undefined,
-    tournamentId: string
-  ): Promise<string> => {
-    const targetToUse = resolveTargetSelection(match, targetId);
-    const target = await tournamentModel.getTargetById(targetToUse);
-    ensureTargetExistsForTournament(target, tournamentId);
-    await ensureTargetAssignedToBracket(match?.bracketId, targetToUse);
-    await ensureTargetAvailability(target);
-    return targetToUse;
-  };
-
-  const resolveTargetSelection = (
-    match: Awaited<ReturnType<TournamentModel['getMatchById']>>,
-    targetId: string | undefined
-  ): string => {
-    const targetToUse = match?.targetId ?? targetId;
-    if (!targetToUse) {
-      throw new AppError('Target must be selected before starting a match', 400, 'TARGET_REQUIRED');
-    }
-    return targetToUse;
-  };
-
-
-  const ensureTargetExistsForTournament = (
-    target: Awaited<ReturnType<TournamentModel['getTargetById']>>,
-    tournamentId: string
-  ): void => {
-    if (target?.tournamentId !== tournamentId) {
-      throw new AppError('Target not found', 404, 'TARGET_NOT_FOUND');
-    }
-  };
-
-  const ensureTargetAvailability = async (
-    target: Awaited<ReturnType<TournamentModel['getTargetById']>>
-  ): Promise<void> => {
-    if (!target) {
-      throw new AppError('Target not found', 404, 'TARGET_NOT_FOUND');
-    }
-    if (target.status === TargetStatus.IN_USE) {
-      await releaseStaleTargetUsage(target);
-      return;
-    }
-    if (target.status !== TargetStatus.AVAILABLE) {
-      throw new AppError('Target is not available', 400, 'TARGET_NOT_AVAILABLE');
-    }
-  };
-
-  const ensureTargetAssignedToBracket = async (
-    bracketId: string | null | undefined,
-    targetId: string
-  ): Promise<void> => {
-    if (!bracketId) return;
-    const targetIds = await tournamentModel.getBracketTargetIds(bracketId);
-    if (targetIds.length === 0) {
-      return;
-    }
-    if (!targetIds.includes(targetId)) {
-      throw new AppError(
-        'Target is not assigned to this bracket',
-        400,
-        'TARGET_NOT_ASSIGNED_TO_BRACKET'
-      );
-    }
-  };
-
-  const releaseStaleTargetUsage = async (
-    // eslint-disable-next-line unicorn/no-null
-    target: { id: string; currentMatchId?: string | null }
-  ): Promise<void> => {
-    if (!target.currentMatchId) {
-      await tournamentModel.setTargetAvailable(target.id);
-      return;
-    }
-
-    const currentMatch = await tournamentModel.getMatchById(target.currentMatchId);
-    if (currentMatch?.status === MatchStatus.IN_PROGRESS) {
-      throw new AppError('Target is not available', 400, 'TARGET_NOT_AVAILABLE');
-    }
-
-    if (currentMatch && (currentMatch.status === MatchStatus.COMPLETED || currentMatch.status === MatchStatus.CANCELLED)) {
-      await tournamentModel.finishMatchAndReleaseTarget(
-        target.currentMatchId,
-        target.id,
-        currentMatch.status as MatchStatus,
-        { completedAt: currentMatch.completedAt ?? new Date() }
-      );
-      return;
-    }
-
-    await tournamentModel.setTargetAvailable(target.id);
   };
 
   const emitMatchStartedNotification = async (tournament: Tournament, matchId: string): Promise<void> => {
@@ -745,40 +643,8 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       throw new AppError('Match must be in progress to complete', 400, 'MATCH_NOT_IN_PROGRESS');
     }
 
-    const participantIds = new Set(match.playerMatches.map((pm) => pm.playerId));
-    if (scores.length < 2) {
-      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
-    }
-
-    const invalidScore = scores.find((score) => !participantIds.has(score.playerId));
-    if (invalidScore) {
-      throw new AppError('Invalid player score entry', 400, 'MATCH_SCORE_INVALID_PLAYER');
-    }
-
-    const normalizedScores = scores
-      .filter((score) => participantIds.has(score.playerId))
-      .map((score) => ({
-        playerId: score.playerId,
-        scoreTotal: score.scoreTotal,
-      }));
-
-    const sorted = [...normalizedScores].sort((a, b) => b.scoreTotal - a.scoreTotal);
-    if (sorted.length < 2) {
-      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
-    }
-    const [first, second] = sorted;
-    if (!first || !second) {
-      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
-    }
-    if (first.scoreTotal === second.scoreTotal) {
-      throw new AppError('Match cannot end in a tie', 400, 'MATCH_SCORE_TIED');
-    }
-
-    const winnerId = first.playerId;
-    const resultScores = normalizedScores.map((score) => ({
-      ...score,
-      isWinner: score.playerId === winnerId,
-    }));
+    const normalizedScores = normalizeMatchScores(match, scores);
+    const { winnerId, resultScores } = resolveWinnerAndResultScores(normalizedScores);
 
     const now = new Date();
     const timestamps: { startedAt?: Date; completedAt?: Date } = {
@@ -803,7 +669,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     await recomputeDoubleStageIfNeeded(tournament, matchId);
   };
 
-  const updateCompletedMatchScores = async (
+  const saveMatchScores = async (
     tournamentId: string,
     matchId: string,
     scores: Array<{ playerId: string; scoreTotal: number }>
@@ -821,44 +687,19 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
     }
 
-    if (match.status !== MatchStatus.COMPLETED) {
-      throw new AppError('Match must be completed to edit scores', 400, 'MATCH_NOT_COMPLETED');
+    const canUpdateScores = match.status === MatchStatus.COMPLETED || match.status === MatchStatus.IN_PROGRESS;
+    if (!canUpdateScores) {
+      throw new AppError('Match must be in progress or completed to edit scores', 400, 'MATCH_STATUS_NOT_EDITABLE');
     }
 
-    const participantIds = new Set(match.playerMatches.map((pm) => pm.playerId));
-    if (scores.length < 2) {
-      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
+    const normalizedScores = normalizeMatchScores(match, scores);
+
+    if (match.status === MatchStatus.IN_PROGRESS) {
+      await tournamentModel.updateInProgressMatchScores(matchId, normalizedScores);
+      return;
     }
 
-    const invalidScore = scores.find((score) => !participantIds.has(score.playerId));
-    if (invalidScore) {
-      throw new AppError('Invalid player score entry', 400, 'MATCH_SCORE_INVALID_PLAYER');
-    }
-
-    const normalizedScores = scores
-      .filter((score) => participantIds.has(score.playerId))
-      .map((score) => ({
-        playerId: score.playerId,
-        scoreTotal: score.scoreTotal,
-      }));
-
-    const sorted = [...normalizedScores].sort((a, b) => b.scoreTotal - a.scoreTotal);
-    if (sorted.length < 2) {
-      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
-    }
-    const [first, second] = sorted;
-    if (!first || !second) {
-      throw new AppError('Match requires two scores', 400, 'MATCH_SCORE_INCOMPLETE');
-    }
-    if (first.scoreTotal === second.scoreTotal) {
-      throw new AppError('Match cannot end in a tie', 400, 'MATCH_SCORE_TIED');
-    }
-
-    const winnerId = first.playerId;
-    const resultScores = normalizedScores.map((score) => ({
-      ...score,
-      isWinner: score.playerId === winnerId,
-    }));
+    const { winnerId, resultScores } = resolveWinnerAndResultScores(normalizedScores);
 
     await tournamentModel.updateMatchScores(matchId, resultScores, winnerId);
 
@@ -1073,6 +914,6 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     completeMatchWithRandomScores,
     updateMatchStatus,
     completeMatch,
-    updateCompletedMatchScores,
+    saveMatchScores,
   };
 };

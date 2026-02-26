@@ -47,7 +47,7 @@ export class TournamentService {
 
   public updateMatchStatus!: MatchHandlers['updateMatchStatus'];
   public completeMatch!: MatchHandlers['completeMatch'];
-  public updateCompletedMatchScores!: MatchHandlers['updateCompletedMatchScores'];
+  public saveMatchScores!: MatchHandlers['saveMatchScores'];
   public completeMatchWithRandomScores!: MatchHandlers['completeMatchWithRandomScores'];
 
   public getBrackets!: BracketHandlers['getBrackets'];

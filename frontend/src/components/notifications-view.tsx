@@ -421,6 +421,8 @@ function NotificationsView() {
               title = `${t('notifications.calledToTarget')} ${targetLabel}`.trim();
             } else if (item.payload.event === 'completed') {
               title = t('notifications.matchCompleted');
+            } else if (item.payload.event === 'format_changed') {
+              title = t('notifications.matchFormatChanged');
             }
             const scoreSummary = buildScoreSummary(item.payload);
             return (
@@ -448,6 +450,12 @@ function NotificationsView() {
                   {title}
                 </div>
                 <div className="mt-2 text-sm text-slate-300">{label}</div>
+                {item.payload.event === 'format_changed' && (
+                  <div className="mt-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">
+                    <div className="text-xs uppercase tracking-widest text-cyan-200">{t('notifications.matchFormat')}</div>
+                    <pre className="mt-1 whitespace-pre-line text-xs text-cyan-100">{item.payload.matchFormatTooltip}</pre>
+                  </div>
+                )}
                 {scoreSummary && (
                   <div className="mt-2 text-sm text-slate-300">
                     {t('live.finalScore')}: {scoreSummary}

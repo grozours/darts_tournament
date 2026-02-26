@@ -71,6 +71,10 @@ export const createTournamentModelMatches = (prisma: PrismaClient) => ({
             status: MatchStatus.IN_PROGRESS,
             startedAt,
             targetId,
+            // eslint-disable-next-line unicorn/no-null
+            completedAt: null,
+            // eslint-disable-next-line unicorn/no-null
+            winnerId: null,
           },
         }),
         prisma.target.update({
@@ -277,6 +281,41 @@ export const createTournamentModelMatches = (prisma: PrismaClient) => ({
         throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
       }
       throw new AppError('Failed to update match scores', 500, 'MATCH_SCORE_UPDATE_FAILED');
+    }
+  },
+
+  updateInProgressMatchScores: async (
+    matchId: string,
+    scores: Array<{ playerId: string; scoreTotal: number }>
+  ) => {
+    try {
+      await prisma.$transaction([
+        ...scores.map((score) =>
+          prisma.playerMatch.update({
+            where: { matchId_playerId: { matchId, playerId: score.playerId } },
+            data: {
+              scoreTotal: score.scoreTotal,
+              legsWon: score.scoreTotal,
+              isWinner: false,
+            },
+          })
+        ),
+        prisma.match.update({
+          where: { id: matchId },
+          data: {
+            // eslint-disable-next-line unicorn/no-null
+            winnerId: null,
+            // eslint-disable-next-line unicorn/no-null
+            completedAt: null,
+          },
+        }),
+      ]);
+    } catch (error) {
+      logModelError('updateInProgressMatchScores', error);
+      if (getPrismaErrorCode(error) === 'P2025') {
+        throw new AppError('Match not found', 404, 'MATCH_NOT_FOUND');
+      }
+      throw new AppError('Failed to update in-progress match scores', 500, 'MATCH_SCORE_UPDATE_FAILED');
     }
   },
 });

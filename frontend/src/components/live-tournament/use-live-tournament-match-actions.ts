@@ -29,7 +29,7 @@ type LiveTournamentMatchActionsResult = {
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
   handleEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   cancelMatchEdit: () => void;
-  handleUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
+  handleSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
 };
 
 const useLiveTournamentMatchActions = ({
@@ -45,7 +45,7 @@ const useLiveTournamentMatchActions = ({
     getMatchKey,
     setMatchScoresForMatch,
   });
-  const { updatingMatchId, handleMatchStatusUpdate, handleCompleteMatch, handleUpdateCompletedMatch } =
+  const { updatingMatchId, handleMatchStatusUpdate, handleCompleteMatch, handleSaveMatchScores } =
     useLiveTournamentMatchUpdate({
       getSafeAccessToken,
       reloadLiveViews,
@@ -53,7 +53,7 @@ const useLiveTournamentMatchActions = ({
       getMatchKey,
       matchScores,
       clearMatchTargetSelection,
-      onUpdatedCompletedMatch: cancelMatchEdit,
+      onSavedMatchScores: cancelMatchEdit,
     });
 
   const handleResetPoolMatches = useCallback(async (
@@ -86,7 +86,7 @@ const useLiveTournamentMatchActions = ({
     handleCompleteMatch,
     handleEditMatch,
     cancelMatchEdit,
-    handleUpdateCompletedMatch,
+    handleSaveMatchScores,
   };
 };
 

@@ -19,7 +19,7 @@ const indentBlock = (value, spaces) => {
 const replaceDataBlock = (seedContent, blockName, dataArray) => {
   const escapedBlockName = blockName.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
   const pattern = new RegExp(
-    String.raw`(${escapedBlockName}\s*=\s*await\s*prisma\.[\w.]+\.createMany\(\{\n\s*data:\s*)\[[\s\S]*?\](,\n\s*skipDuplicates:\s*true,\n\s*\}\);`
+    String.raw`(${escapedBlockName}\s*=\s*await\s*prisma\.[\w.]+\.createMany\(\{\n\s*data:\s*)\[[\s\S]*?\](,\n\s*skipDuplicates:\s*true,\n\s*\}\);)`
   );
   const nextDataLiteral = indentBlock(JSON.stringify(dataArray, null, 2), 4);
   if (!pattern.test(seedContent)) {

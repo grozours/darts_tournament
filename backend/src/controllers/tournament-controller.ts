@@ -5,6 +5,7 @@ import { AppError } from '../middleware/error-handler';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { isAdmin } from '../middleware/auth';
 import { createExtendedHandlers } from './tournament-controller/extended-handlers';
+import { createCoreHandlers } from './tournament-controller/core-handlers';
 
 export class TournamentController {
   private readonly prisma: PrismaClient;
@@ -28,7 +29,7 @@ export class TournamentController {
   public updatePoolStageAssignments!: (request: Request, response: Response) => Promise<void>;
   public updateMatchStatus!: (request: Request, response: Response) => Promise<void>;
   public completeMatch!: (request: Request, response: Response) => Promise<void>;
-  public updateMatchScores!: (request: Request, response: Response) => Promise<void>;
+  public saveMatchScores!: (request: Request, response: Response) => Promise<void>;
   public completeBracketRoundWithScores!: (request: Request, response: Response) => Promise<void>;
   public resetBracketMatches!: (request: Request, response: Response) => Promise<void>;
   public getBrackets!: (request: Request, response: Response) => Promise<void>;
@@ -45,6 +46,24 @@ export class TournamentController {
   public startTournament!: (request: Request, response: Response) => Promise<void>;
   public completeTournament!: (request: Request, response: Response) => Promise<void>;
   public getOverallTournamentStats!: (request: Request, response: Response) => Promise<void>;
+  public createTournament!: (request: Request, response: Response) => Promise<void>;
+  public getTournamentPresets!: (request: Request, response: Response) => Promise<void>;
+  public createTournamentPreset!: (request: Request, response: Response) => Promise<void>;
+  public updateTournamentPreset!: (request: Request, response: Response) => Promise<void>;
+  public deleteTournamentPreset!: (request: Request, response: Response) => Promise<void>;
+  public getMatchFormatPresets!: (request: Request, response: Response) => Promise<void>;
+  public createMatchFormatPreset!: (request: Request, response: Response) => Promise<void>;
+  public updateMatchFormatPreset!: (request: Request, response: Response) => Promise<void>;
+  public deleteMatchFormatPreset!: (request: Request, response: Response) => Promise<void>;
+  public getTournament!: (request: Request, response: Response) => Promise<void>;
+  public getTournamentLiveView!: (request: Request, response: Response) => Promise<void>;
+  public getTournaments!: (request: Request, response: Response) => Promise<void>;
+  public updateTournament!: (request: Request, response: Response) => Promise<void>;
+  public deleteTournament!: (request: Request, response: Response) => Promise<void>;
+  public uploadTournamentLogo!: (request: Request, response: Response) => Promise<void>;
+  public getTournamentsByDateRange!: (request: Request, response: Response) => Promise<void>;
+  public getTournamentStats!: (request: Request, response: Response) => Promise<void>;
+  public checkTournamentNameAvailability!: (request: Request, response: Response) => Promise<void>;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -52,7 +71,16 @@ export class TournamentController {
       getTournamentService: (request: Request) => this.getTournamentService(request),
       handleError: (response: Response, error: unknown) => this.handleError(response, error),
     };
-    Object.assign(this, createExtendedHandlers(context));
+    Object.assign(this, createCoreHandlers({
+      prisma: this.prisma,
+      getTournamentService: context.getTournamentService,
+      ensureDefaultTournamentPresets: () => this.ensureDefaultTournamentPresets(),
+      ensureDefaultMatchFormatPresets: () => this.ensureDefaultMatchFormatPresets(),
+      handleError: context.handleError,
+      buildTournamentFilters: (query) => this.buildTournamentFilters(query),
+      applyTournamentAccessFilters: (request, response, filters) =>
+        this.applyTournamentAccessFilters(request, response, filters),
+    }), createExtendedHandlers(context));
   }
 
   /**
@@ -185,571 +213,6 @@ export class TournamentController {
     return true;
   }
 
-  /**
-   * Create a new tournament
-   * POST /api/tournaments
-   */
-  createTournament = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const tournamentService = this.getTournamentService(request);
-      
-      const {
-        name,
-        location,
-        format,
-        durationType,
-        startTime,
-        endTime,
-        totalParticipants,
-        targetCount,
-        targetStartNumber,
-        shareTargets,
-      } = request.body;
-
-      const tournament = await tournamentService.createTournament({
-        name,
-        location,
-        format,
-        durationType,
-        startTime,
-        endTime,
-        totalParticipants,
-        targetCount,
-        targetStartNumber,
-        shareTargets,
-      });
-
-      response.status(201).json(tournament);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-            details: (error as AppError & { details?: unknown }).details,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Get all tournament presets
-   * GET /api/tournaments/presets
-   */
-  getTournamentPresets = async (_request: Request, response: Response): Promise<void> => {
-    try {
-      const presets = await this.ensureDefaultTournamentPresets();
-      response.json({ presets });
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Create tournament preset
-   * POST /api/tournaments/presets
-   */
-  createTournamentPreset = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { name, presetType, totalParticipants, targetCount, templateConfig } = request.body as {
-        name: string;
-        presetType: 'single-pool-stage' | 'three-pool-stages' | 'custom';
-        totalParticipants: number;
-        targetCount: number;
-        templateConfig?: unknown;
-      };
-
-      const preset = await this.prisma.tournamentPreset.create({
-        data: {
-          name,
-          presetType,
-          totalParticipants,
-          targetCount,
-          ...(templateConfig === undefined
-            ? {}
-            : {
-              templateConfig: templateConfig === null
-                ? Prisma.JsonNull
-                : templateConfig as Prisma.InputJsonValue,
-            }),
-        },
-      });
-
-      response.status(201).json(preset);
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Update tournament preset
-   * PATCH /api/tournaments/presets/:presetId
-   */
-  updateTournamentPreset = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { presetId } = request.params as { presetId: string };
-      const existing = await this.prisma.tournamentPreset.findUnique({ where: { id: presetId } });
-      if (!existing) {
-        throw new AppError('Preset not found', 404, 'PRESET_NOT_FOUND');
-      }
-
-      const { name, presetType, totalParticipants, targetCount, templateConfig } = request.body as Partial<{
-        name: string;
-        presetType: 'single-pool-stage' | 'three-pool-stages' | 'custom';
-        totalParticipants: number;
-        targetCount: number;
-        templateConfig: unknown;
-      }>;
-
-      const templateConfigValue = templateConfig === undefined
-        ? existing.templateConfig
-        : templateConfig;
-
-      const updateData = {
-        name: name ?? existing.name,
-        presetType: presetType ?? existing.presetType,
-        totalParticipants: totalParticipants ?? existing.totalParticipants,
-        targetCount: targetCount ?? existing.targetCount,
-        templateConfig: templateConfigValue === null
-          ? Prisma.JsonNull
-          : templateConfigValue as Prisma.InputJsonValue,
-      };
-
-      const preset = await this.prisma.tournamentPreset.update({
-        where: { id: presetId },
-        data: updateData,
-      });
-
-      response.json(preset);
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Delete tournament preset
-   * DELETE /api/tournaments/presets/:presetId
-   */
-  deleteTournamentPreset = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { presetId } = request.params as { presetId: string };
-      const existing = await this.prisma.tournamentPreset.findUnique({ where: { id: presetId } });
-      if (!existing) {
-        throw new AppError('Preset not found', 404, 'PRESET_NOT_FOUND');
-      }
-
-      await this.prisma.tournamentPreset.delete({ where: { id: presetId } });
-      response.status(204).send();
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Get all match format presets
-   * GET /api/tournaments/match-formats
-   */
-  getMatchFormatPresets = async (_request: Request, response: Response): Promise<void> => {
-    try {
-      const presets = await this.ensureDefaultMatchFormatPresets();
-      response.json({ presets });
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Create match format preset
-   * POST /api/tournaments/match-formats
-   */
-  createMatchFormatPreset = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { key, durationMinutes, segments, isSystem } = request.body as {
-        key: string;
-        durationMinutes: number;
-        segments: unknown;
-        isSystem?: boolean;
-      };
-
-      const preset = await this.prisma.matchFormatPreset.create({
-        data: {
-          key,
-          durationMinutes,
-          segments: segments as Prisma.InputJsonValue,
-          isSystem: isSystem ?? false,
-        },
-      });
-
-      response.status(201).json(preset);
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Update match format preset
-   * PATCH /api/tournaments/match-formats/:formatId
-   */
-  updateMatchFormatPreset = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { formatId } = request.params as { formatId: string };
-      const existing = await this.prisma.matchFormatPreset.findUnique({ where: { id: formatId } });
-      if (!existing) {
-        throw new AppError('Match format preset not found', 404, 'MATCH_FORMAT_PRESET_NOT_FOUND');
-      }
-
-      const { key, durationMinutes, segments, isSystem } = request.body as Partial<{
-        key: string;
-        durationMinutes: number;
-        segments: unknown;
-        isSystem: boolean;
-      }>;
-
-      const preset = await this.prisma.matchFormatPreset.update({
-        where: { id: formatId },
-        data: {
-          ...(key === undefined ? {} : { key }),
-          ...(durationMinutes === undefined ? {} : { durationMinutes }),
-          ...(segments === undefined ? {} : { segments: segments as Prisma.InputJsonValue }),
-          ...(isSystem === undefined ? {} : { isSystem }),
-        },
-      });
-
-      response.json(preset);
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Delete match format preset
-   * DELETE /api/tournaments/match-formats/:formatId
-   */
-  deleteMatchFormatPreset = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { formatId } = request.params as { formatId: string };
-      const existing = await this.prisma.matchFormatPreset.findUnique({ where: { id: formatId } });
-      if (!existing) {
-        throw new AppError('Match format preset not found', 404, 'MATCH_FORMAT_PRESET_NOT_FOUND');
-      }
-
-      await this.prisma.matchFormatPreset.delete({ where: { id: formatId } });
-      response.status(204).send();
-    } catch (error) {
-      this.handleError(response, error);
-    }
-  };
-
-  /**
-   * Get tournament by ID
-   * GET /api/tournaments/:id
-   */
-  getTournament = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { id } = request.params as { id: string };
-      const tournament = await this.getTournamentService(request).getTournamentById(id);
-
-      response.json(tournament);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Get live view for tournament
-   * GET /api/tournaments/:id/live
-   */
-  getTournamentLiveView = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { id } = request.params as { id: string };
-      const liveView = await this.getTournamentService(request).getTournamentLiveView(id);
-
-      response.json(liveView);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Get all tournaments with filtering and pagination
-   * GET /api/tournaments
-   */
-  getTournaments = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const filters = this.buildTournamentFilters(request.query);
-      if (!this.applyTournamentAccessFilters(request, response, filters)) {
-        return;
-      }
-
-      const result = await this.getTournamentService(request).getTournaments(filters);
-
-      response.json(result);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Update tournament
-   * PUT /api/tournaments/:id
-   */
-  updateTournament = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { id } = request.params as { id: string };
-      const updateData = request.body;
-
-      const tournament = await this.getTournamentService(request).updateTournament(id, updateData);
-
-      response.json(tournament);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Delete tournament
-   * DELETE /api/tournaments/:id
-   */
-  deleteTournament = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { id } = request.params as { id: string };
-      await this.getTournamentService(request).deleteTournament(id);
-
-      response.status(204).send();
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Upload tournament logo
-   * POST /api/tournaments/:id/logo
-   */
-  uploadTournamentLogo = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { id } = request.params as { id: string };
-
-      if (!request.file) {
-        throw new AppError(
-          'No file uploaded',
-          400,
-          'NO_FILE_UPLOADED'
-        );
-      }
-
-      // Generate logo URL path
-      const logoUrl = `/uploads/${request.file.filename}`;
-
-      const tournament = await this.getTournamentService(request).uploadTournamentLogo(id, logoUrl);
-
-      response.json({
-        logo_url: logoUrl,
-        logoUrl: logoUrl,
-        tournament: tournament,
-      });
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Get tournaments by date range
-   * GET /api/tournaments/date-range
-   */
-  getTournamentsByDateRange = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { startDate, endDate } = request.query;
-
-      if (!startDate || !endDate) {
-        throw new AppError(
-          'Start date and end date are required',
-          400,
-          'MISSING_DATE_PARAMS'
-        );
-      }
-
-      const tournaments = await this.getTournamentService(request).getTournamentsByDateRange(
-        startDate as string,
-        endDate as string
-      );
-
-      response.json(tournaments);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Get tournament statistics
-   * GET /api/tournaments/:id/stats
-   */
-  getTournamentStats = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { id } = request.params as { id: string };
-      const stats = await this.getTournamentService(request).getTournamentStats(id);
-
-      response.json(stats);
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
-
-  /**
-   * Check tournament name availability
-   * GET /api/tournaments/check-name/:name
-   */
-  checkTournamentNameAvailability = async (request: Request, response: Response): Promise<void> => {
-    try {
-      const { name } = request.params as { name: string };
-      const { excludeId } = request.query;
-
-      const isAvailable = await this.getTournamentService(request).isTournamentNameAvailable(
-        name,
-        excludeId as string
-      );
-
-      response.json({
-        name,
-        available: isAvailable,
-      });
-    } catch (error) {
-      if (error instanceof AppError) {
-        response.status(error.statusCode).json({
-          error: {
-            message: error.message,
-            code: error.code,
-          },
-        });
-      } else {
-        response.status(500).json({
-          error: {
-            message: 'Internal server error',
-            code: 'INTERNAL_SERVER_ERROR',
-          },
-        });
-      }
-    }
-  };
 }
 
 export type TournamentServiceLike = TournamentService;

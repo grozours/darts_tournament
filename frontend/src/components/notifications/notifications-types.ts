@@ -47,7 +47,13 @@ export type MatchFinishedPayload = MatchBasePayload & {
   };
 };
 
-export type MatchNotificationPayload = MatchStartedPayload | MatchFinishedPayload;
+export type MatchFormatChangedPayload = MatchBasePayload & {
+  event: 'format_changed';
+  matchFormatKey: string;
+  matchFormatTooltip: string;
+};
+
+export type MatchNotificationPayload = MatchStartedPayload | MatchFinishedPayload | MatchFormatChangedPayload;
 
 export type NotificationItem = {
   id: string;

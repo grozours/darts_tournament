@@ -47,7 +47,8 @@ describe('BracketMatches', () => {
     onStartMatch: vi.fn(),
     onCompleteMatch: vi.fn(),
     onEditMatch: vi.fn(),
-    onUpdateCompletedMatch: vi.fn(),
+    onSaveMatchScores: vi.fn(),
+    onCancelMatch: vi.fn(),
     onCancelMatchEdit: vi.fn(),
     onScoreChange: vi.fn(),
   };
@@ -114,7 +115,7 @@ describe('BracketMatches', () => {
       />
     );
 
-    expect(screen.getByText('live.saveScores')).toBeInTheDocument();
+    expect(screen.getAllByText('live.saveScores').length).toBeGreaterThan(0);
     expect(screen.getByText('common.cancel')).toBeInTheDocument();
   });
 

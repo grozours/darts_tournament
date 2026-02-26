@@ -4,9 +4,11 @@ import { AppError } from '../../middleware/error-handler';
 import {
   BracketStatus,
   BracketType,
+  MatchStatus,
   TournamentStatus,
 } from '../../../../shared/src/types';
 import { normalizeMatchFormatKey } from './match-format-presets';
+import { emitMatchFormatChangedNotifications } from './match-format-change-notifications';
 
 type MatchForCompletion = {
   id: string;
@@ -70,6 +72,67 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
     }
 
     return formatMap;
+  };
+
+  const collectChangedRounds = (
+    previousByRound: Record<number, string>,
+    nextByRound: Record<number, string>
+  ): number[] => {
+    const allRounds = new Set<number>([
+      ...Object.keys(previousByRound).map(Number),
+      ...Object.keys(nextByRound).map(Number),
+    ]);
+    return [...allRounds].filter((roundNumber) => previousByRound[roundNumber] !== nextByRound[roundNumber]);
+  };
+
+  const buildAffectedMatchesForRoundFormatChange = async (
+    bracketId: string,
+    changedRounds: number[],
+    previousRoundFormatByRound: Record<number, string>,
+    nextRoundFormatByRound: Record<number, string>
+  ): Promise<Array<{ matchId: string; matchFormatKey: string }>> => {
+    const affectedMatches: Array<{ matchId: string; matchFormatKey: string }> = [];
+
+    for (const roundNumber of changedRounds) {
+      const roundMatches = await tournamentModel.getBracketMatchesByRound(bracketId, roundNumber);
+      for (const match of roundMatches) {
+        if (match.status !== MatchStatus.SCHEDULED && match.status !== MatchStatus.IN_PROGRESS) {
+          continue;
+        }
+        const oldEffectiveKey = match.matchFormatKey ?? previousRoundFormatByRound[roundNumber];
+        const newEffectiveKey = match.matchFormatKey ?? nextRoundFormatByRound[roundNumber];
+        if (oldEffectiveKey === newEffectiveKey || !newEffectiveKey) {
+          continue;
+        }
+        affectedMatches.push({ matchId: match.id, matchFormatKey: newEffectiveKey });
+      }
+    }
+
+    return affectedMatches;
+  };
+
+  const notifyBracketRoundFormatChanges = async (
+    tournamentId: string,
+    bracketId: string,
+    previousRoundFormatByRound: Record<number, string>,
+    nextRoundFormatByRound: Record<number, string>
+  ): Promise<void> => {
+    const changedRounds = collectChangedRounds(previousRoundFormatByRound, nextRoundFormatByRound);
+    const affectedMatches = await buildAffectedMatchesForRoundFormatChange(
+      bracketId,
+      changedRounds,
+      previousRoundFormatByRound,
+      nextRoundFormatByRound
+    );
+
+    await emitMatchFormatChangedNotifications(
+      {
+        findById: (id) => tournamentModel.findById(id),
+        getMatchDetailsForNotification: (matchId) => tournamentModel.getMatchDetailsForNotification(matchId),
+      },
+      tournamentId,
+      affectedMatches
+    );
   };
 
   const normalizeRoundMatchFormats = (
@@ -263,15 +326,38 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
     if (!tournament) {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
     }
+    const currentBracket = await tournamentModel.getBracketById(bracketId);
+    if (currentBracket?.tournamentId !== tournamentId) {
+      throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
+    }
+    const previousRoundFormatByRound = buildRoundMatchFormatMap(
+      currentBracket.roundMatchFormats,
+      currentBracket.totalRounds
+    );
 
     await ensureBracketsEditable(tournamentId, tournament.status, bracketId);
 
     const { roundMatchFormats: _roundMatchFormats, ...rest } = data;
-    return await tournamentModel.updateBracket(bracketId, {
+    const updatedBracket = await tournamentModel.updateBracket(bracketId, {
       ...rest,
       ...(data.roundMatchFormats === undefined ? {} : { roundMatchFormats: roundMatchFormats! }),
       ...(data.inParallelWith === undefined ? {} : { inParallelWith: inParallelWith ?? [] }),
     });
+
+    if (data.roundMatchFormats !== undefined) {
+      const nextRoundFormatByRound = buildRoundMatchFormatMap(
+        updatedBracket.roundMatchFormats,
+        updatedBracket.totalRounds
+      );
+      await notifyBracketRoundFormatChanges(
+        tournamentId,
+        bracketId,
+        previousRoundFormatByRound,
+        nextRoundFormatByRound
+      );
+    }
+
+    return updatedBracket;
   };
 
   const deleteBracket = async (tournamentId: string, bracketId: string): Promise<void> => {

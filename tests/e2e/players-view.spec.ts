@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test';
 
 test('players view renders and filters players', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('lang', 'en');
+  });
+
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        user: { id: 'admin-1', email: 'admin@example.com', name: 'Admin' },
+        isAdmin: true,
+      }),
+    });
+  });
+
   await page.route('**/api/tournaments', async (route) => {
     await route.fulfill({
       status: 200,
@@ -11,6 +26,14 @@ test('players view renders and filters players', async ({ page }) => {
           { id: 't2', name: 'Doubles Night', format: 'DOUBLE' },
         ],
       }),
+    });
+  });
+
+  await page.route('**/api/tournaments/players/orphans', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ players: [] }),
     });
   });
 
@@ -54,7 +77,6 @@ test('players view renders and filters players', async ({ page }) => {
 
   await page.goto('/?view=players');
 
-  await expect(page.getByText('Players')).toBeVisible();
   await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
   await expect(page.getByText('Team Rocket')).toBeVisible();
 

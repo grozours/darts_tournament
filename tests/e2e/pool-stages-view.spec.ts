@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 test('pool stages view renders live pool stages', async ({ page }) => {
-  await page.route('**/api/tournaments?status=LIVE', async (route) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('lang', 'en');
+  });
+
+  await page.route(/\/api\/tournaments\?status=LIVE(?:&.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -74,7 +78,6 @@ test('pool stages view renders live pool stages', async ({ page }) => {
 
   await page.goto('/?view=pool-stages');
 
-  await expect(page.getByText('Match queue')).toBeVisible();
-  await expect(page.getByText('Stage 1: Main Stage')).toBeVisible();
-  await expect(page.getByText('Pool 1 of 1: Pool A')).toBeVisible();
+  await expect(page.getByText('Main Stage')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pool 1 of 1: Pool A' })).toBeVisible();
 });

@@ -68,7 +68,7 @@ type LiveTournamentViewProperties = {
   onCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
-  onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
+  onSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
   onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
@@ -1183,7 +1183,7 @@ const LiveTournamentView = ({
   onCompleteMatch,
   onCancelMatch,
   onEditMatch,
-  onUpdateCompletedMatch,
+  onSaveMatchScores,
   onCancelMatchEdit,
   onScoreChange,
   onResetPoolMatches,
@@ -1300,7 +1300,7 @@ const LiveTournamentView = ({
     onCompleteMatch,
     onCancelMatch,
     onEditMatch,
-    onUpdateCompletedMatch,
+    onSaveMatchScores,
     onCancelMatchEdit,
     onResetPoolMatches,
     onEditStage,
@@ -1350,7 +1350,7 @@ const LiveTournamentView = ({
     onCompleteMatch,
     onCancelMatch,
     onEditMatch,
-    onUpdateCompletedMatch,
+    onSaveMatchScores,
     onCancelMatchEdit,
     onScoreChange,
     onCompleteBracketRound,

@@ -78,7 +78,7 @@ type LiveTournamentState = {
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
   handleEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   cancelMatchEdit: () => void;
-  handleUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
+  handleSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
   editingStageId?: string | undefined;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
@@ -205,7 +205,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     handleCompleteMatch,
     handleEditMatch,
     cancelMatchEdit,
-    handleUpdateCompletedMatch,
+    handleSaveMatchScores,
   } = useLiveTournamentMatchActions({
     getSafeAccessToken,
     reloadLiveViews,
@@ -313,7 +313,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
     handleCompleteMatch,
     handleEditMatch,
     cancelMatchEdit,
-    handleUpdateCompletedMatch,
+    handleSaveMatchScores,
     editingStageId,
     stageStatusDrafts,
     stagePoolCountDrafts,

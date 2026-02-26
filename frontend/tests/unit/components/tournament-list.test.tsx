@@ -6,6 +6,7 @@ const mockFetchPlayers = vi.fn();
 const mockRegisterPlayer = vi.fn();
 const mockFetchPoolStages = vi.fn();
 const mockFetchBrackets = vi.fn();
+const mockFetchTournamentTargets = vi.fn();
 const mockLoginWithRedirect = vi.fn();
 const mockGetAccessTokenSilently = vi.fn();
 
@@ -18,11 +19,12 @@ vi.mock('../../../src/services/tournament-service', () => ({
   removeTournamentPlayer: vi.fn(),
   fetchPoolStages: (...arguments_: unknown[]) => mockFetchPoolStages(...arguments_),
   fetchBrackets: (...arguments_: unknown[]) => mockFetchBrackets(...arguments_),
+  fetchTournamentTargets: (...arguments_: unknown[]) => mockFetchTournamentTargets(...arguments_),
   fetchPoolStagePools: vi.fn(),
   updatePoolAssignments: vi.fn(),
 }));
 
-vi.mock('../../../src/auth/optionalAuth', () => ({
+vi.mock('../../../src/auth/optional-auth', () => ({
   useOptionalAuth: () => ({
     enabled: false,
     isAuthenticated: false,
@@ -50,17 +52,17 @@ const buildTournamentsPayload = () => ({
 
 const buildTournamentFetchResponses = () => {
   const tournamentsPayload = buildTournamentsPayload();
-  const tournamentDetailsPromise = Promise.resolve({
+  const tournamentDetails = {
     ...tournamentsPayload.tournaments[0],
     createdAt: new Date('2026-04-01T10:00:00.000Z').toISOString(),
-  });
+  };
   const fetchResponse = {
     ok: true,
     json: vi.fn(async () => tournamentsPayload),
   };
   const fetchDetailsResponse = {
     ok: true,
-    json: vi.fn(async () => tournamentDetailsPromise),
+    json: vi.fn(async () => tournamentDetails),
   };
   return {
     fetchResponse,
@@ -83,6 +85,7 @@ describe('TournamentList - player registration', () => {
     mockFetchPlayers.mockResolvedValue([]);
     mockFetchPoolStages.mockResolvedValue([]);
     mockFetchBrackets.mockResolvedValue([]);
+    mockFetchTournamentTargets.mockResolvedValue([]);
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...arguments_: unknown[]) => {
       const message = arguments_[0];
       if (typeof message === 'string' && message.includes('not wrapped in act')) {
@@ -99,11 +102,19 @@ describe('TournamentList - player registration', () => {
   it('renders player registration form and submits new player', async () => {
     globalThis.window?.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
     const { fetchResponse, fetchDetailsResponse } = buildTournamentFetchResponses();
-    const fetchResponsePromise = Promise.resolve(fetchResponse);
-    const fetchDetailsPromise = Promise.resolve(fetchDetailsResponse);
-    (globalThis.fetch as ReturnType<typeof vi.fn>)
-      .mockReturnValueOnce(fetchResponsePromise)
-      .mockReturnValueOnce(fetchDetailsPromise);
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/tournaments') {
+        return fetchResponse as unknown as Response;
+      }
+      if (url === '/api/tournaments/tournament-1') {
+        return fetchDetailsResponse as unknown as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({}),
+      } as unknown as Response;
+    });
 
     render(<TournamentList />);
 

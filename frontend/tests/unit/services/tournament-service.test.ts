@@ -17,7 +17,7 @@ import {
   registerTournamentPlayer,
   removeTournamentPlayer,
   updateBracket,
-  updateCompletedMatchScores,
+  saveMatchScores,
   updateTournament,
   unregisterTournamentPlayer,
   updateTournamentPlayer,
@@ -30,6 +30,7 @@ import {
 type MockFetch = ReturnType<typeof vi.fn>;
 
 const mockFetch = vi.fn() as MockFetch;
+const jsonHeaders = { get: () => 'application/json' };
 
 beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch);
@@ -222,7 +223,7 @@ describe('tournament-service bracket operations', () => {
     await expect(updateBracket('t-1', 'b-2', { name: 'Updated' })).resolves.toEqual({ id: 'b-2' });
 
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Score update failed' });
-    await expect(updateCompletedMatchScores('t-1', 'm-1', [{ playerId: 'p-1', scoreTotal: 2 }]))
+    await expect(saveMatchScores('t-1', 'm-1', [{ playerId: 'p-1', scoreTotal: 2 }]))
       .rejects.toThrow('Score update failed');
 
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Round failed' });
@@ -232,13 +233,18 @@ describe('tournament-service bracket operations', () => {
 
 describe('tournament-service live view', () => {
   it('fetches live view and orphan players', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 't-1' }) });
+    mockFetch.mockResolvedValueOnce({ ok: true, headers: jsonHeaders, json: async () => ({ id: 't-1' }) });
     await expect(fetchTournamentLiveView('t-1')).resolves.toEqual({ id: 't-1' });
 
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ players: [{ playerId: 'p-1' }] }) });
     await expect(fetchOrphanPlayers()).resolves.toEqual([{ playerId: 'p-1' }]);
 
-    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Live view failed' });
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      headers: jsonHeaders,
+      json: async () => ({ message: 'Live view failed' }),
+      text: async () => 'Live view failed',
+    });
     await expect(fetchTournamentLiveView('t-1')).rejects.toThrow('Live view failed');
   });
 });

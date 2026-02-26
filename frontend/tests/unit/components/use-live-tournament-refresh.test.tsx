@@ -4,13 +4,12 @@ import { useEffect } from 'react';
 import useLiveTournamentRefresh from '../../../src/components/live-tournament/use-live-tournament-refresh';
 
 type HookHarnessProperties = {
-  authEnabled: boolean;
-  isAuthenticated: boolean;
+  canRefresh: boolean;
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
 };
 
-const HookHarness = ({ authEnabled, isAuthenticated, reloadLiveViews }: HookHarnessProperties) => {
-  useLiveTournamentRefresh({ authEnabled, isAuthenticated, reloadLiveViews });
+const HookHarness = ({ canRefresh, reloadLiveViews }: HookHarnessProperties) => {
+  useLiveTournamentRefresh({ canRefresh, reloadLiveViews });
   useEffect(() => {}, []);
   return <></>;
 };
@@ -30,8 +29,7 @@ describe('useLiveTournamentRefresh', () => {
 
     render(
       <HookHarness
-        authEnabled={false}
-        isAuthenticated={false}
+        canRefresh
         reloadLiveViews={reloadLiveViews}
       />
     );
@@ -48,8 +46,7 @@ describe('useLiveTournamentRefresh', () => {
 
     render(
       <HookHarness
-        authEnabled={true}
-        isAuthenticated={false}
+        canRefresh
         reloadLiveViews={reloadLiveViews}
       />
     );
@@ -65,8 +62,7 @@ describe('useLiveTournamentRefresh', () => {
 
     render(
       <HookHarness
-        authEnabled={true}
-        isAuthenticated={true}
+        canRefresh
         reloadLiveViews={reloadLiveViews}
       />
     );
@@ -83,8 +79,7 @@ describe('useLiveTournamentRefresh', () => {
 
     render(
       <HookHarness
-        authEnabled={false}
-        isAuthenticated={false}
+        canRefresh
         reloadLiveViews={reloadLiveViews}
       />
     );

@@ -12,6 +12,8 @@ DEBUG_UI=${DEBUG_UI:-false}
 DEV_PROFILE=${DEV_PROFILE:-false}
 BUILD_ID=${BUILD_ID:-$(date +%s)}
 DEV_SERVICES=(postgres_test redis_test sonarqube)
+STATUS_RETRY_COUNT=${STATUS_RETRY_COUNT:-20}
+STATUS_RETRY_DELAY=${STATUS_RETRY_DELAY:-2}
 
 # Colors for output
 RED='\033[0;31m'
@@ -101,20 +103,56 @@ start_frontend() {
 # Function to check service status
 check_status() {
     print_status "Checking service status..."
-    
-    # Check backend
-    if curl -s http://localhost:$BACKEND_PORT/health > /dev/null 2>&1; then
+
+    local backend_ok=false
+    local frontend_ok=false
+    local backend_url="http://localhost:$BACKEND_PORT/health"
+    local frontend_url="http://localhost:$FRONTEND_PORT"
+
+    for ((attempt=1; attempt<=STATUS_RETRY_COUNT; attempt++)); do
+        if curl -sSf "$backend_url" > /dev/null 2>&1; then
+            backend_ok=true
+        fi
+
+        if curl -sSf "$frontend_url" > /dev/null 2>&1; then
+            frontend_ok=true
+        fi
+
+        if [[ "$backend_ok" == "true" && "$frontend_ok" == "true" ]]; then
+            break
+        fi
+
+        if (( attempt < STATUS_RETRY_COUNT )); then
+            local backend_state="waiting"
+            local frontend_state="waiting"
+            if [[ "$backend_ok" == "true" ]]; then
+                backend_state="ready"
+            fi
+            if [[ "$frontend_ok" == "true" ]]; then
+                frontend_state="ready"
+            fi
+            print_status "Waiting for services... (attempt $attempt/$STATUS_RETRY_COUNT, backend: $backend_state, frontend: $frontend_state)"
+            sleep "$STATUS_RETRY_DELAY"
+        fi
+    done
+
+    if [[ "$backend_ok" == "true" ]]; then
         print_success "Backend is responding on port $BACKEND_PORT"
     else
         print_error "Backend is not responding on port $BACKEND_PORT"
     fi
-    
-    # Check frontend
-    if curl -s http://localhost:$FRONTEND_PORT > /dev/null 2>&1; then
+
+    if [[ "$frontend_ok" == "true" ]]; then
         print_success "Frontend is responding on port $FRONTEND_PORT"
     else
         print_error "Frontend is not responding on port $FRONTEND_PORT"
     fi
+
+    if [[ "$backend_ok" == "true" && "$frontend_ok" == "true" ]]; then
+        return 0
+    fi
+
+    return 1
 }
 
 # Function to stop services
@@ -212,13 +250,12 @@ case "$COMMAND" in
             exit 1
         fi
         print_success "Services started"
-        check_status
         ;;
     "stop")
         stop_services
         ;;
     "status")
-        check_status
+        :
         ;;
     "logs")
         if [ -n "$2" ]; then
@@ -270,6 +307,7 @@ esac
 if [[ "$COMMAND" != "logs" && "$COMMAND" != "help" && "$COMMAND" != "-h" && "$COMMAND" != "--help" && "$COMMAND" != "stop" ]]; then
     echo ""
     check_status
+    status_rc=$?
     echo ""
     print_status "🎯 Darts Tournament Manager is ready!"
     print_status "Backend:  http://localhost:$BACKEND_PORT"
@@ -277,4 +315,8 @@ if [[ "$COMMAND" != "logs" && "$COMMAND" != "help" && "$COMMAND" != "-h" && "$CO
     echo ""
     print_status "Use '$0 logs backend' or '$0 logs frontend' to view logs"
     print_status "Use '$0 stop' to stop all services"
+
+    if [[ $status_rc -ne 0 ]]; then
+        exit $status_rc
+    fi
 fi

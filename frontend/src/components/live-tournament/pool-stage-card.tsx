@@ -484,7 +484,7 @@ type PoolStageCardProperties = {
   onCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
-  onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
+  onSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => void;
   onEditStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
@@ -539,7 +539,7 @@ const PoolStageCard = ({
   onCompleteMatch,
   onCancelMatch,
   onEditMatch,
-  onUpdateCompletedMatch,
+  onSaveMatchScores,
   onCancelMatchEdit,
   onResetPoolMatches,
   onEditStage,
@@ -884,115 +884,157 @@ const PoolStageCard = ({
     );
   };
 
+  const renderScheduledMatchStatus = (matchTournamentId: string, match: LiveViewMatch) => {
+    const matchKey = getMatchKey(matchTournamentId, match.id);
+    const availableTargets = availableTargetsByTournament.get(matchTournamentId) || [];
+    const selectedTargetNumber = matchTargetSelections[matchKey] || '';
+    const selectedTargetId = getTargetIdForSelection(matchTournamentId, selectedTargetNumber);
+    return (
+      <MatchTargetSelector
+        t={t}
+        matchTournamentId={matchTournamentId}
+        matchId={match.id}
+        matchKey={matchKey}
+        availableTargets={availableTargets}
+        selectedTargetNumber={selectedTargetNumber}
+        selectedTargetId={selectedTargetId}
+        updatingMatchId={updatingMatchId}
+        getTargetLabel={getTargetLabel}
+        onTargetSelectionChange={onTargetSelectionChange}
+        onStartMatch={onStartMatch}
+        containerClassName="mt-2 flex flex-wrap items-center gap-2"
+      />
+    );
+  };
 
-  const renderMatchStatusSection = (matchTournamentId: string, match: LiveViewMatch) => {
+  const renderInProgressMatchStatus = (matchTournamentId: string, match: LiveViewMatch) => {
+    const matchKey = getMatchKey(matchTournamentId, match.id);
+    const isUpdating = updatingMatchId === matchKey;
+    return (
+      <div className="mt-3 space-y-2">
+        <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.finalScore')}</p>
+        <MatchScoreInputs
+          matchTournamentId={matchTournamentId}
+          match={match}
+          matchScores={matchScores}
+          getMatchKey={getMatchKey}
+          onScoreChange={onScoreChange}
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onSaveMatchScores(matchTournamentId, match)}
+            disabled={isUpdating}
+            className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+          >
+            {isUpdating ? t('live.savingMatch') : t('live.saveScores')}
+          </button>
+          <button
+            onClick={() => onCompleteMatch(matchTournamentId, match)}
+            disabled={isUpdating}
+            className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
+          >
+            {isUpdating ? t('live.savingMatch') : t('live.completeMatch')}
+          </button>
+          <button
+            onClick={() => {
+              if (!globalThis.window?.confirm(t('targets.cancelMatchConfirm'))) {
+                return;
+              }
+              onCancelMatch(matchTournamentId, match);
+            }}
+            disabled={isUpdating}
+            className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+          >
+            {isUpdating ? t('common.loading') : t('targets.cancelMatch')}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCompletedMatchStatus = (matchTournamentId: string, match: LiveViewMatch) => {
+    const matchKey = getMatchKey(matchTournamentId, match.id);
+    const targetNumberValue = match.target?.targetNumber === undefined
+      ? undefined
+      : String(match.target.targetNumber);
+    const reopenTargetId = targetNumberValue
+      ? getTargetIdForSelection(matchTournamentId, targetNumberValue)
+      : undefined;
+    const isEditing = editingMatchId === matchKey;
+    if (!isEditing) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onEditMatch(matchTournamentId, match)}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+          >
+            {t('live.editScore')}
+          </button>
+          <button
+            onClick={() => {
+              if (!reopenTargetId) {
+                return;
+              }
+              if (!globalThis.window?.confirm(t('live.reopenMatchConfirm'))) {
+                return;
+              }
+              onStartMatch(matchTournamentId, match.id, reopenTargetId);
+            }}
+            disabled={!reopenTargetId || updatingMatchId === matchKey}
+            className="rounded-full border border-amber-500/70 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300 disabled:opacity-60"
+          >
+            {updatingMatchId === matchKey ? t('common.loading') : t('live.reopenMatch')}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-3 space-y-2">
+        <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.editScore')}</p>
+        <MatchScoreInputs
+          matchTournamentId={matchTournamentId}
+          match={match}
+          matchScores={matchScores}
+          getMatchKey={getMatchKey}
+          onScoreChange={onScoreChange}
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onSaveMatchScores(matchTournamentId, match)}
+            disabled={updatingMatchId === matchKey}
+            className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+          >
+            {updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
+          </button>
+          <button
+            onClick={onCancelMatchEdit}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+          >
+            {t('common.cancel')}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMatchStatusSection = (
+    matchTournamentId: string,
+    match: LiveViewMatch
+  ): JSX.Element | undefined => {
     if (isPoolStagesReadonly) {
-      return;
+      return undefined;
     }
-    switch (match.status) {
-      case 'SCHEDULED': {
-        const matchKey = getMatchKey(matchTournamentId, match.id);
-        const availableTargets = availableTargetsByTournament.get(matchTournamentId) || [];
-        const selectedTargetNumber = matchTargetSelections[matchKey] || '';
-        const selectedTargetId = getTargetIdForSelection(matchTournamentId, selectedTargetNumber);
-        return (
-          <MatchTargetSelector
-            t={t}
-            matchTournamentId={matchTournamentId}
-            matchId={match.id}
-            matchKey={matchKey}
-            availableTargets={availableTargets}
-            selectedTargetNumber={selectedTargetNumber}
-            selectedTargetId={selectedTargetId}
-            updatingMatchId={updatingMatchId}
-            getTargetLabel={getTargetLabel}
-            onTargetSelectionChange={onTargetSelectionChange}
-            onStartMatch={onStartMatch}
-            containerClassName="mt-2 flex flex-wrap items-center gap-2"
-          />
-        );
-      }
-      case 'IN_PROGRESS': {
-        return (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.finalScore')}</p>
-            <MatchScoreInputs
-              matchTournamentId={matchTournamentId}
-              match={match}
-              matchScores={matchScores}
-              getMatchKey={getMatchKey}
-              onScoreChange={onScoreChange}
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => onCompleteMatch(matchTournamentId, match)}
-                disabled={updatingMatchId === getMatchKey(matchTournamentId, match.id)}
-                className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
-              >
-                {updatingMatchId === getMatchKey(matchTournamentId, match.id) ? t('live.savingMatch') : t('live.completeMatch')}
-              </button>
-              <button
-                onClick={() => {
-                  if (!globalThis.window?.confirm(t('targets.cancelMatchConfirm'))) {
-                    return;
-                  }
-                  onCancelMatch(matchTournamentId, match);
-                }}
-                disabled={updatingMatchId === getMatchKey(matchTournamentId, match.id)}
-                className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
-              >
-                {updatingMatchId === getMatchKey(matchTournamentId, match.id) ? t('common.loading') : t('targets.cancelMatch')}
-              </button>
-            </div>
-          </div>
-        );
-      }
-      case 'COMPLETED': {
-        const matchKey = getMatchKey(matchTournamentId, match.id);
-        const isEditing = editingMatchId === matchKey;
-        if (!isEditing) {
-          return (
-            <button
-              onClick={() => onEditMatch(matchTournamentId, match)}
-              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-            >
-              {t('live.editScore')}
-            </button>
-          );
-        }
-
-        return (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs uppercase tracking-widest text-slate-500">{t('live.editScore')}</p>
-            <MatchScoreInputs
-              matchTournamentId={matchTournamentId}
-              match={match}
-              matchScores={matchScores}
-              getMatchKey={getMatchKey}
-              onScoreChange={onScoreChange}
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => onUpdateCompletedMatch(matchTournamentId, match)}
-                disabled={updatingMatchId === matchKey}
-                className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
-              >
-                {updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
-              </button>
-              <button
-                onClick={onCancelMatchEdit}
-                className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          </div>
-        );
-      }
-      default: {
-        return;
-      }
+    if (match.status === 'SCHEDULED') {
+      return renderScheduledMatchStatus(matchTournamentId, match);
     }
+    if (match.status === 'IN_PROGRESS') {
+      return renderInProgressMatchStatus(matchTournamentId, match);
+    }
+    if (match.status === 'COMPLETED') {
+      return renderCompletedMatchStatus(matchTournamentId, match);
+    }
+    return undefined;
   };
 
   const renderMatchPlayers = (match: LiveViewMatch) => {

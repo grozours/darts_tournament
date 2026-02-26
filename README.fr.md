@@ -1,5 +1,7 @@
 # 🎯 Gestionnaire de Tournois de Fléchettes
 
+[![Playwright E2E](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml/badge.svg)](https://github.com/grozours/darts_tournament/actions/workflows/playwright-e2e.yml)
+
 Une application full-stack pour gérer des tournois de fléchettes avec prise en charge des formats simple élimination, double élimination et équipes.
 
 ## 📚 Navigation documentation

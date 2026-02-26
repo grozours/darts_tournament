@@ -77,7 +77,7 @@ type TournamentServiceLike = {
     matchId: string,
     scores: Array<{ playerId: string; scoreTotal: number }>
   ) => Promise<void>;
-  updateCompletedMatchScores: (
+  saveMatchScores: (
     tournamentId: string,
     matchId: string,
     scores: Array<{ playerId: string; scoreTotal: number }>
@@ -449,7 +449,7 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     }
   },
 
-  updateMatchScores: async (request: Request, response: Response): Promise<void> => {
+  saveMatchScores: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id, matchId } = request.params as { id: string; matchId: string };
       const { scores } = request.body as {
@@ -457,7 +457,7 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
       };
       await context
         .getTournamentService(request)
-        .updateCompletedMatchScores(id, matchId, scores || []);
+        .saveMatchScores(id, matchId, scores || []);
       response.status(204).send();
     } catch (error) {
       context.handleError(response, error);

@@ -59,7 +59,10 @@ describe('useAdminStatus prerequisites', () => {
     await waitFor(() => {
       expect(latest?.isAdmin).toBe(false);
     });
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/auth/me'), {
+      headers: {},
+    });
   });
 
   it('skips fetch while auth is loading', async () => {

@@ -120,6 +120,7 @@ export class TournamentModel {
   public getMatchDetailsForNotification!: TournamentModelMatchHandlers['getMatchDetailsForNotification'];
   public completeMatch!: TournamentModelMatchHandlers['completeMatch'];
   public updateMatchScores!: TournamentModelMatchHandlers['updateMatchScores'];
+  public updateInProgressMatchScores!: TournamentModelMatchHandlers['updateInProgressMatchScores'];
 
   public getOverallStats!: TournamentModelStatsHandlers['getOverallStats'];
 

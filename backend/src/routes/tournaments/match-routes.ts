@@ -71,6 +71,6 @@ export const registerTournamentMatchRoutes = (
           .min(2, 'At least two scores are required'),
       }),
     }),
-    tournamentController.updateMatchScores
+    tournamentController.saveMatchScores
   );
 };

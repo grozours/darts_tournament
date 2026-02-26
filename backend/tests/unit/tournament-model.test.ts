@@ -4,6 +4,7 @@ import { BracketType, TournamentFormat, DurationType, TournamentStatus } from '.
 
 type PrismaMock = {
   $executeRaw: jest.Mock;
+  $transaction: jest.Mock;
   tournament: {
     create: jest.Mock;
     update: jest.Mock;
@@ -17,6 +18,9 @@ type PrismaMock = {
   target: {
     createMany: jest.Mock;
     findFirst: jest.Mock;
+    findMany: jest.Mock;
+    update: jest.Mock;
+    deleteMany: jest.Mock;
   };
   bracket: {
     create: jest.Mock;
@@ -33,9 +37,13 @@ type PrismaMock = {
     deleteMany: jest.Mock;
     findUnique: jest.Mock;
     findMany: jest.Mock;
+    groupBy: jest.Mock;
     count: jest.Mock;
     update: jest.Mock;
     findFirst: jest.Mock;
+  };
+  match: {
+    count: jest.Mock;
   };
 };
 
@@ -60,6 +68,7 @@ describe('tournament model', () => {
   beforeEach(() => {
     prisma = {
       $executeRaw: jest.fn(),
+      $transaction: jest.fn(async (steps) => steps),
       tournament: {
         create: jest.fn(),
         update: jest.fn(),
@@ -73,6 +82,9 @@ describe('tournament model', () => {
       target: {
         createMany: jest.fn(),
         findFirst: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
       },
       bracket: {
         create: jest.fn(),
@@ -89,9 +101,13 @@ describe('tournament model', () => {
         deleteMany: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        groupBy: jest.fn(),
         count: jest.fn(),
         update: jest.fn(),
         findFirst: jest.fn(),
+      },
+      match: {
+        count: jest.fn(),
       },
     };
 
@@ -444,5 +460,135 @@ describe('tournament model', () => {
     prisma.bracket.delete.mockResolvedValue({ id: 'b-1' });
 
     await expect(model.deleteBracket('b-1')).resolves.toBeUndefined();
+  });
+
+  it('finds tournament by id and maps findById errors', async () => {
+    prisma.tournament.findUnique.mockResolvedValueOnce(baseTournament);
+    await expect(model.findById('t-1')).resolves.toEqual(expect.objectContaining({ id: 't-1' }));
+
+    prisma.tournament.findUnique.mockRejectedValueOnce(new Error('db'));
+    await expect(model.findById('t-1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('returns live view and maps live view errors', async () => {
+    prisma.tournament.findUnique.mockResolvedValueOnce({ id: 't-1', poolStages: [], brackets: [] });
+    await expect(model.findLiveView('t-1')).resolves.toEqual(expect.objectContaining({ id: 't-1' }));
+
+    prisma.tournament.findUnique.mockRejectedValueOnce(new Error('db'));
+    await expect(model.findLiveView('t-1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('findAll applies filters, pagination and participant counts', async () => {
+    prisma.tournament.findMany.mockResolvedValueOnce([baseTournament]);
+    prisma.tournament.count.mockResolvedValueOnce(1);
+    prisma.player.groupBy = jest.fn().mockResolvedValueOnce([
+      { tournamentId: 't-1', _count: { _all: 3 } },
+    ]);
+
+    const result = await model.findAll({
+      status: TournamentStatus.DRAFT,
+      format: TournamentFormat.SINGLE,
+      name: 'Test',
+      page: 2,
+      limit: 5,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    });
+
+    expect(prisma.tournament.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      skip: 5,
+      take: 5,
+      orderBy: { name: 'asc' },
+    }));
+    expect(result.tournaments[0]?.currentParticipants).toBe(3);
+    expect(result.page).toBe(2);
+    expect(result.limit).toBe(5);
+  });
+
+  it('findAll supports excludeDraft and maps errors', async () => {
+    prisma.tournament.findMany.mockResolvedValueOnce([]);
+    prisma.tournament.count.mockResolvedValueOnce(0);
+
+    await expect(model.findAll({ excludeDraft: true })).resolves.toEqual({
+      tournaments: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    prisma.tournament.findMany.mockRejectedValueOnce(new Error('db'));
+    await expect(model.findAll()).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('maps target range and target list queries with error branches', async () => {
+    prisma.tournament.findMany.mockResolvedValueOnce([
+      { id: 't-1', name: 'One', targetStartNumber: null, targetCount: 2, shareTargets: null },
+    ]);
+    prisma.target.findMany.mockResolvedValueOnce([{ id: 'ta', targetNumber: 1 }]);
+
+    await expect(model.getTargetRanges('t-2')).resolves.toEqual([
+      { id: 't-1', name: 'One', targetStartNumber: 1, targetCount: 2, shareTargets: true },
+    ]);
+    await expect(model.getTargetsForTournament('t-1')).resolves.toEqual([{ id: 'ta', targetNumber: 1 }]);
+
+    prisma.tournament.findMany.mockRejectedValueOnce(new Error('db'));
+    await expect(model.getTargetRanges()).rejects.toBeInstanceOf(AppError);
+
+    prisma.target.findMany.mockRejectedValueOnce(new Error('db'));
+    await expect(model.getTargetsForTournament('t-1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('counts match usage for targets and handles errors', async () => {
+    prisma.match.count.mockResolvedValueOnce(4);
+    await expect(model.getMatchCountForTargets(['ta', 'tb'])).resolves.toBe(4);
+    await expect(model.getMatchCountForTargets([])).resolves.toBe(0);
+
+    prisma.match.count.mockRejectedValueOnce(new Error('db'));
+    await expect(model.getMatchCountForTargets(['ta'])).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rebuilds targets with update/delete/create branches', async () => {
+    prisma.target.findMany
+      .mockResolvedValueOnce([
+        { id: 'ta', targetNumber: 1 },
+        { id: 'tb', targetNumber: 2 },
+        { id: 'tc', targetNumber: 3 },
+      ])
+      .mockResolvedValueOnce([{ id: 'ta', targetNumber: 1 }]);
+
+    await model.rebuildTargetsForTournament('t-1', 10, 2);
+    await model.rebuildTargetsForTournament('t-1', 20, 3);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.target.update).toHaveBeenCalled();
+    expect(prisma.target.deleteMany).toHaveBeenCalled();
+    expect(prisma.target.createMany).toHaveBeenCalled();
+  });
+
+  it('updates logo and maps logo update errors', async () => {
+    prisma.tournament.update.mockResolvedValueOnce({ ...baseTournament, logoUrl: '/uploads/logo.png' });
+    await expect(model.updateLogo('t-1', '/uploads/logo.png')).resolves.toEqual(expect.objectContaining({ id: 't-1' }));
+
+    prisma.tournament.update.mockRejectedValueOnce({ code: 'P2025' });
+    await expect(model.updateLogo('missing', '/uploads/logo.png')).rejects.toBeInstanceOf(AppError);
+
+    prisma.tournament.update.mockRejectedValueOnce(new Error('db'));
+    await expect(model.updateLogo('t-1', '/uploads/logo.png')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('maps additional updateStatus branches', async () => {
+    prisma.tournament.update.mockRejectedValueOnce({ code: 'P2025' });
+    await expect(model.updateStatus('missing', TournamentStatus.LIVE)).rejects.toBeInstanceOf(AppError);
+
+    prisma.tournament.update.mockRejectedValueOnce(new Error('db'));
+    await expect(model.updateStatus('t-1', TournamentStatus.LIVE)).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('maps date range failures and generic isEditable failures', async () => {
+    prisma.tournament.findMany.mockRejectedValueOnce(new Error('db'));
+    await expect(model.findByDateRange(new Date(), new Date())).rejects.toBeInstanceOf(AppError);
+
+    prisma.tournament.findUnique.mockRejectedValueOnce(new Error('db'));
+    await expect(model.isEditable('t-1')).rejects.toBeInstanceOf(AppError);
   });
 });

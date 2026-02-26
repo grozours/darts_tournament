@@ -46,6 +46,12 @@ type MatchFinishedPayload = MatchStartedPayload & {
   }>;
 };
 
+type MatchFormatChangedPayload = MatchStartedPayload & {
+  event: 'format_changed';
+  matchFormatKey: string;
+  matchFormatTooltip: string;
+};
+
 type ScorePayload = Record<string, unknown>;
 type PoolAssignmentPayload = Record<string, unknown>;
 type SchedulePayload = Record<string, unknown>;
@@ -61,6 +67,7 @@ export interface WebSocketEvents {
   'match:score-updated': (data: { matchId: string; tournamentId: string; score: ScorePayload }) => void;
   'match:completed': (data: { matchId: string; tournamentId: string; winner: PlayerSummary }) => void;
   'match:finished': (data: MatchFinishedPayload) => void;
+  'match:format-changed': (data: MatchFormatChangedPayload) => void;
   
   // Target events
   'target:available': (data: { targetId: string; tournamentId: string }) => void;
@@ -202,6 +209,16 @@ export class WebSocketService {
       console.log(`📡 Tournament updated event sent: ${tournamentId} -> ${status}`);
     } catch (error) {
       console.error('Error emitting tournament updated event:', error);
+    }
+  }
+
+  async emitMatchFormatChanged(payload: MatchFormatChangedPayload): Promise<void> {
+    try {
+      this.io.to(`tournament-${payload.tournamentId}`).emit('match:format-changed', payload);
+
+      console.log(`📡 Match format changed event sent: ${payload.matchId} -> ${payload.matchFormatKey}`);
+    } catch (error) {
+      console.error('Error emitting match format changed event:', error);
     }
   }
 

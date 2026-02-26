@@ -31,11 +31,13 @@ export default defineConfig({
       command: 'npm run dev',
       cwd: './backend',
       port: 3000,
+      reuseExistingServer: !process.env.CI,
     },
     {
       command: 'npm run dev',
       cwd: './frontend',
       port: 3001,
+      reuseExistingServer: !process.env.CI,
     },
   ],
 });

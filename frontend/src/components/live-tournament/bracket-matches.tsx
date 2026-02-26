@@ -135,7 +135,7 @@ type BracketMatchesProperties = {
   onStartMatch: (matchTournamentId: string, matchId: string, targetId: string) => void;
   onCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
-  onUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
+  onSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
@@ -163,7 +163,7 @@ const BracketMatches = ({
   onStartMatch,
   onCompleteMatch,
   onEditMatch,
-  onUpdateCompletedMatch,
+  onSaveMatchScores,
   onCancelMatch,
   onCancelMatchEdit,
   onScoreChange,
@@ -210,6 +210,13 @@ const BracketMatches = ({
         onScoreChange={onScoreChange}
       />
       <button
+        onClick={() => onSaveMatchScores(matchTournamentId, match)}
+        disabled={updatingMatchId === matchKey}
+        className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
+      >
+        {updatingMatchId === matchKey ? t('live.savingMatch') : t('live.saveScores')}
+      </button>
+      <button
         onClick={() => onCompleteMatch(matchTournamentId, match)}
         disabled={updatingMatchId === matchKey}
         className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
@@ -232,15 +239,38 @@ const BracketMatches = ({
   );
 
   const renderCompletedActions = (matchTournamentId: string, match: BracketMatchSlot, matchKey: string) => {
+    const targetNumberValue = match.target?.targetNumber === undefined
+      ? undefined
+      : String(match.target.targetNumber);
+    const reopenTargetId = targetNumberValue
+      ? getTargetIdForSelection(matchTournamentId, targetNumberValue)
+      : undefined;
     const isEditing = editingMatchId === matchKey;
     if (!isEditing) {
       return (
-        <button
-          onClick={() => onEditMatch(matchTournamentId, match)}
-          className="mt-3 rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
-        >
-          {t('live.editScore')}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => onEditMatch(matchTournamentId, match)}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-500"
+          >
+            {t('live.editScore')}
+          </button>
+          <button
+            onClick={() => {
+              if (!reopenTargetId) {
+                return;
+              }
+              if (!globalThis.window?.confirm(t('live.reopenMatchConfirm'))) {
+                return;
+              }
+              onStartMatch(matchTournamentId, match.id, reopenTargetId);
+            }}
+            disabled={!reopenTargetId || updatingMatchId === matchKey}
+            className="rounded-full border border-amber-500/70 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300 disabled:opacity-60"
+          >
+            {updatingMatchId === matchKey ? t('common.loading') : t('live.reopenMatch')}
+          </button>
+        </div>
       );
     }
 
@@ -255,7 +285,7 @@ const BracketMatches = ({
         />
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => onUpdateCompletedMatch(matchTournamentId, match)}
+            onClick={() => onSaveMatchScores(matchTournamentId, match)}
             disabled={updatingMatchId === matchKey}
             className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 disabled:opacity-60"
           >

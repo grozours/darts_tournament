@@ -1,11 +1,23 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { deMessages } from './locales/de';
+import { esMessages } from './locales/es';
+import { itMessages } from './locales/it';
+import { nlMessages } from './locales/nl';
+import { ptMessages } from './locales/pt';
 
-type Language = 'en' | 'fr';
+type Language = 'en' | 'fr' | 'es' | 'de' | 'it' | 'pt' | 'nl';
 
 const resolveLang = (value?: string | null): Language => {
   if (!value) return 'fr';
-  return value.toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  const normalized = value.toLowerCase();
+  if (normalized.startsWith('fr')) return 'fr';
+  if (normalized.startsWith('es')) return 'es';
+  if (normalized.startsWith('de')) return 'de';
+  if (normalized.startsWith('it')) return 'it';
+  if (normalized.startsWith('pt')) return 'pt';
+  if (normalized.startsWith('nl')) return 'nl';
+  return 'en';
 };
 
 const getStoredLang = (): Language => {
@@ -14,7 +26,7 @@ const getStoredLang = (): Language => {
   return resolveLang(storage.getItem('lang'));
 };
 
-const messages: Record<Language, Record<string, string>> = {
+const baseMessages: Record<'en' | 'fr', Record<string, string>> = {
   en: {
     'app.title': 'Tournament Manager',
     'nav.registrationPlayers': 'Registration players',
@@ -196,6 +208,8 @@ const messages: Record<Language, Record<string, string>> = {
     'live.populateBracketRoleWinner': 'Winners',
     'live.populateBracketRoleLoser': 'Losers',
     'live.editScore': 'Edit score',
+    'live.reopenMatch': 'Reopen match',
+    'live.reopenMatchConfirm': 'Reopen this match and mark its target as in use?',
     'live.saveScores': 'Save scores',
     'live.resetStage': 'Reset stage',
     'live.resettingStage': 'Resetting...',
@@ -254,6 +268,8 @@ const messages: Record<Language, Record<string, string>> = {
     'notifications.calledToTarget': 'Go to target',
     'notifications.matchCompleted': 'Match completed',
     'notifications.matchCancelled': 'Match cancelled',
+    'notifications.matchFormatChanged': 'Match format updated',
+    'notifications.matchFormat': 'Match format',
     'notifications.permissionTitle': 'Enable browser notifications',
     'notifications.permissionPrompt': 'Allow notifications to get match calls even if you switch tabs.',
     'notifications.permissionAction': 'Enable notifications',
@@ -710,6 +726,8 @@ const messages: Record<Language, Record<string, string>> = {
     'live.populateBracketRoleWinner': 'Qualifies',
     'live.populateBracketRoleLoser': 'Repeches',
     'live.editScore': 'Modifier le score',
+    'live.reopenMatch': 'Reprendre le match',
+    'live.reopenMatchConfirm': 'Reprendre ce match et remettre sa cible comme utilisée ?',
     'live.saveScores': 'Enregistrer les scores',
     'live.resetStage': 'Réinit',
     'live.resettingStage': 'Réinit...',
@@ -768,6 +786,8 @@ const messages: Record<Language, Record<string, string>> = {
     'notifications.calledToTarget': 'Rendez-vous à la cible',
     'notifications.matchCompleted': 'Match terminé',
     'notifications.matchCancelled': 'Match annulé',
+    'notifications.matchFormatChanged': 'Format de match mis à jour',
+    'notifications.matchFormat': 'Format de match',
     'notifications.permissionTitle': 'Activer les notifications du navigateur',
     'notifications.permissionPrompt': 'Autorisez les notifications pour recevoir les appels de match meme en changeant d onglet.',
     'notifications.permissionAction': 'Activer les notifications',
@@ -1043,6 +1063,18 @@ const messages: Record<Language, Record<string, string>> = {
   },
 };
 
+const messages: Record<Language, Record<string, string>> = {
+  en: baseMessages.en,
+  fr: baseMessages.fr,
+  es: { ...baseMessages.en, ...esMessages },
+  de: { ...baseMessages.en, ...deMessages },
+  it: { ...baseMessages.en, ...itMessages },
+  pt: { ...baseMessages.en, ...ptMessages },
+  nl: { ...baseMessages.en, ...nlMessages },
+};
+
+const languageOrder: Language[] = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'];
+
 type I18nContextValue = {
   lang: Language;
   toggleLang: () => void;
@@ -1062,7 +1094,8 @@ export function I18nProvider({ children }: I18nProviderProperties) {
 
   const toggleLang = () => {
     setLang((current) => {
-      const next = current === 'en' ? 'fr' : 'en';
+      const currentIndex = languageOrder.indexOf(current);
+      const next = languageOrder[(currentIndex + 1) % languageOrder.length] ?? 'fr';
       if (globalThis.window) {
         globalThis.window.localStorage.setItem('lang', next);
       }

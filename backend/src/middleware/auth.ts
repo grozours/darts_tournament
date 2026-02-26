@@ -12,11 +12,20 @@ const noopAuth = (_request: Request, _response: Response, next: NextFunction) =>
   next();
 };
 
-const authMiddleware = auth({
-  audience: config.auth.audience,
-  issuerBaseURL: config.auth.issuerBaseURL,
-  tokenSigningAlg: 'RS256',
-});
+const runConfiguredAuth = (request: Request, response: Response, next: NextFunction) => {
+  if (!config.auth.enabled) {
+    noopAuth(request, response, next);
+    return;
+  }
+
+  const authMiddleware = auth({
+    audience: config.auth.audience,
+    issuerBaseURL: config.auth.issuerBaseURL,
+    tokenSigningAlg: 'RS256',
+  });
+
+  authMiddleware(request, response, next);
+};
 
 const applyDevelopmentAdminAutologin = (request: Request): boolean => {
   const email = config.auth.devAutoLoginAdminEmail;
@@ -43,15 +52,19 @@ const applyDevelopmentAdminAutologin = (request: Request): boolean => {
   return true;
 };
 
-export const requireAuth = config.auth.enabled
-  ? (request: Request, response: Response, next: NextFunction) => {
-      if (applyDevelopmentAdminAutologin(request)) {
-        next();
-        return;
-      }
-      authMiddleware(request, response, next);
-    }
-  : noopAuth;
+export const requireAuth = (request: Request, response: Response, next: NextFunction) => {
+  if (!config.auth.enabled) {
+    noopAuth(request, response, next);
+    return;
+  }
+
+  if (applyDevelopmentAdminAutologin(request)) {
+    next();
+    return;
+  }
+
+  runConfiguredAuth(request, response, next);
+};
 
 // Optional auth middleware: validates token if present, allows requests without token
 export const optionalAuth = (request: Request, response: Response, next: NextFunction) => {
@@ -69,7 +82,7 @@ export const optionalAuth = (request: Request, response: Response, next: NextFun
     return next();
   }
 
-  return authMiddleware(request, response, next);
+  return runConfiguredAuth(request, response, next);
 };
 
 // Check if user is admin based on email

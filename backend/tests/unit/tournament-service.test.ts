@@ -29,15 +29,24 @@ type MockTournamentModel = {
   delete: jest.Mock;
   updateLogo: jest.Mock;
   getOverallStats: jest.Mock;
+  getTargetRanges: jest.Mock;
+  getTargetsForTournament: jest.Mock;
+  getMatchCountForTargets: jest.Mock;
+  rebuildTargetsForTournament: jest.Mock;
   updateStatus: jest.Mock;
   getMaxTargetNumber: jest.Mock;
   createTargetsForTournament: jest.Mock;
   getMatchById: jest.Mock;
   getTargetById: jest.Mock;
+  getBracketTargetIds: jest.Mock;
+  getMatchWithPlayerMatches: jest.Mock;
+  resetMatchToScheduled: jest.Mock;
   setTargetAvailable: jest.Mock;
   startMatchWithTarget: jest.Mock;
   finishMatchAndReleaseTarget: jest.Mock;
   updateMatchStatus: jest.Mock;
+  updateInProgressMatchScores: jest.Mock;
+  updateMatchScores: jest.Mock;
   isPlayerRegistered: jest.Mock;
   getParticipantCount: jest.Mock;
   getCheckedInCount: jest.Mock;
@@ -49,6 +58,7 @@ type MockTournamentModel = {
   updatePoolStage: jest.Mock;
   getPoolStageById: jest.Mock;
   getMatchesForPoolStage: jest.Mock;
+  completeMatchesForStage: jest.Mock;
   getPoolCountForStage: jest.Mock;
   getPoolsForStage: jest.Mock;
   getPoolAssignmentCountForStage: jest.Mock;
@@ -60,6 +70,7 @@ type MockTournamentModel = {
   getBracketMatchesByRoundWithPlayers: jest.Mock;
   completeMatch: jest.Mock;
   getPoolsWithAssignmentsForStage: jest.Mock;
+  getPoolsWithMatchesForStage: jest.Mock;
   getMatchCountForPool: jest.Mock;
   createPoolMatches: jest.Mock;
   updatePoolStatuses: jest.Mock;
@@ -102,15 +113,24 @@ describe('TournamentService core logic', () => {
       delete: jest.fn(),
       updateLogo: jest.fn(),
       getOverallStats: jest.fn(),
+      getTargetRanges: jest.fn(),
+      getTargetsForTournament: jest.fn(),
+      getMatchCountForTargets: jest.fn(),
+      rebuildTargetsForTournament: jest.fn(),
       updateStatus: jest.fn(),
       getMaxTargetNumber: jest.fn(),
       createTargetsForTournament: jest.fn(),
       getMatchById: jest.fn(),
       getTargetById: jest.fn(),
+      getBracketTargetIds: jest.fn(),
+      getMatchWithPlayerMatches: jest.fn(),
+      resetMatchToScheduled: jest.fn(),
       setTargetAvailable: jest.fn(),
       startMatchWithTarget: jest.fn(),
       finishMatchAndReleaseTarget: jest.fn(),
       updateMatchStatus: jest.fn(),
+      updateInProgressMatchScores: jest.fn(),
+      updateMatchScores: jest.fn(),
       isPlayerRegistered: jest.fn(),
       getParticipantCount: jest.fn(),
       getCheckedInCount: jest.fn(),
@@ -122,6 +142,7 @@ describe('TournamentService core logic', () => {
       updatePoolStage: jest.fn(),
       getPoolStageById: jest.fn(),
       getMatchesForPoolStage: jest.fn(),
+      completeMatchesForStage: jest.fn(),
       getPoolCountForStage: jest.fn(),
       getPoolsForStage: jest.fn(),
       getPoolAssignmentCountForStage: jest.fn(),
@@ -133,6 +154,7 @@ describe('TournamentService core logic', () => {
       getBracketMatchesByRoundWithPlayers: jest.fn(),
       completeMatch: jest.fn(),
       getPoolsWithAssignmentsForStage: jest.fn(),
+      getPoolsWithMatchesForStage: jest.fn(),
       getMatchCountForPool: jest.fn(),
       createPoolMatches: jest.fn(),
       updatePoolStatuses: jest.fn(),
@@ -150,6 +172,16 @@ describe('TournamentService core logic', () => {
       updatePlayer: jest.fn(),
       getPlayerById: jest.fn(),
     };
+
+    mockModel.getTargetRanges.mockResolvedValue([]);
+    mockModel.getPoolStages.mockResolvedValue([]);
+    mockModel.getTargetsForTournament.mockResolvedValue([]);
+    mockModel.getMatchCountForTargets.mockResolvedValue(0);
+    mockModel.getBracketTargetIds.mockResolvedValue([]);
+    mockModel.getMatchWithPlayerMatches.mockResolvedValue({
+      id: 'match-default',
+      playerMatches: [],
+    });
 
     (TournamentModel as jest.Mock).mockImplementation(() => mockModel);
     (getWebSocketService as jest.Mock).mockReturnValue(undefined);
@@ -236,11 +268,9 @@ describe('TournamentService core logic', () => {
       targetCount: 4,
       status: TournamentStatus.DRAFT,
     });
-    mockModel.getMaxTargetNumber.mockResolvedValue(2);
-
     await service.updateTournament(tournamentId, { targetCount: 4 });
 
-    expect(mockModel.createTargetsForTournament).toHaveBeenCalledWith(tournamentId, 3, 2);
+    expect(mockModel.rebuildTargetsForTournament).toHaveBeenCalledWith(tournamentId, 1, 4);
   });
 
   it('starts a match with the selected target', async () => {
@@ -343,6 +373,162 @@ describe('TournamentService core logic', () => {
 
     await service.updateMatchStatus(tournamentId, matchId, MatchStatus.COMPLETED);
 
+    expect(mockModel.finishMatchAndReleaseTarget).toHaveBeenCalledWith(
+      matchId,
+      targetId,
+      MatchStatus.COMPLETED,
+      expect.objectContaining({ completedAt: expect.any(Date) })
+    );
+  });
+
+  it('rejects saveMatchScores when match status is not editable', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000034';
+    const matchId = '00000000-0000-4000-8000-000000000134';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, format: TournamentFormat.SINGLE });
+    mockModel.getMatchWithPlayerMatches.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.SCHEDULED,
+      playerMatches: [
+        { playerId: '00000000-0000-4000-8000-000000000301' },
+        { playerId: '00000000-0000-4000-8000-000000000302' },
+      ],
+    });
+
+    await expect(
+      service.saveMatchScores(tournamentId, matchId, [
+        { playerId: '00000000-0000-4000-8000-000000000301', scoreTotal: 3 },
+        { playerId: '00000000-0000-4000-8000-000000000302', scoreTotal: 1 },
+      ])
+    ).rejects.toMatchObject({ code: 'MATCH_STATUS_NOT_EDITABLE' });
+  });
+
+  it('updates scores for IN_PROGRESS matches without completion flow', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000035';
+    const matchId = '00000000-0000-4000-8000-000000000135';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, format: TournamentFormat.SINGLE });
+    mockModel.getMatchWithPlayerMatches.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.IN_PROGRESS,
+      playerMatches: [
+        { playerId: '00000000-0000-4000-8000-000000000303' },
+        { playerId: '00000000-0000-4000-8000-000000000304' },
+      ],
+    });
+
+    await service.saveMatchScores(tournamentId, matchId, [
+      { playerId: '00000000-0000-4000-8000-000000000303', scoreTotal: 4 },
+      { playerId: '00000000-0000-4000-8000-000000000304', scoreTotal: 2 },
+    ]);
+
+    expect(mockModel.updateInProgressMatchScores).toHaveBeenCalledWith(
+      matchId,
+      expect.any(Array)
+    );
+    expect(mockModel.updateMatchScores).not.toHaveBeenCalled();
+  });
+
+  it('updates completed match scores and releases target when still in use', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000036';
+    const matchId = '00000000-0000-4000-8000-000000000136';
+    const targetId = '00000000-0000-4000-8000-000000000236';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, format: TournamentFormat.SINGLE });
+    mockModel.getMatchWithPlayerMatches.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.COMPLETED,
+      targetId,
+      playerMatches: [
+        { playerId: '00000000-0000-4000-8000-000000000305' },
+        { playerId: '00000000-0000-4000-8000-000000000306' },
+      ],
+    });
+    mockModel.getMatchById.mockResolvedValue({ id: matchId, tournamentId, status: MatchStatus.COMPLETED });
+    mockModel.getTargetById.mockResolvedValue({
+      id: targetId,
+      currentMatchId: matchId,
+      status: TargetStatus.IN_USE,
+    });
+
+    await service.saveMatchScores(tournamentId, matchId, [
+      { playerId: '00000000-0000-4000-8000-000000000305', scoreTotal: 5 },
+      { playerId: '00000000-0000-4000-8000-000000000306', scoreTotal: 1 },
+    ]);
+
+    expect(mockModel.updateMatchScores).toHaveBeenCalledWith(
+      matchId,
+      expect.any(Array),
+      '00000000-0000-4000-8000-000000000305'
+    );
+    expect(mockModel.finishMatchAndReleaseTarget).toHaveBeenCalledWith(
+      matchId,
+      targetId,
+      MatchStatus.COMPLETED,
+      expect.objectContaining({ completedAt: expect.any(Date) })
+    );
+  });
+
+  it('rejects completeMatch when match is not in progress', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000037';
+    const matchId = '00000000-0000-4000-8000-000000000137';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, format: TournamentFormat.SINGLE });
+    mockModel.getMatchWithPlayerMatches.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.SCHEDULED,
+      playerMatches: [
+        { playerId: '00000000-0000-4000-8000-000000000307' },
+        { playerId: '00000000-0000-4000-8000-000000000308' },
+      ],
+    });
+
+    await expect(
+      service.completeMatch(tournamentId, matchId, [
+        { playerId: '00000000-0000-4000-8000-000000000307', scoreTotal: 3 },
+        { playerId: '00000000-0000-4000-8000-000000000308', scoreTotal: 2 },
+      ])
+    ).rejects.toMatchObject({ code: 'MATCH_NOT_IN_PROGRESS' });
+  });
+
+  it('completes in-progress match and releases target', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000038';
+    const matchId = '00000000-0000-4000-8000-000000000138';
+    const targetId = '00000000-0000-4000-8000-000000000238';
+
+    mockModel.findById.mockResolvedValue({ id: tournamentId, format: TournamentFormat.SINGLE });
+    mockModel.getMatchWithPlayerMatches.mockResolvedValue({
+      id: matchId,
+      tournamentId,
+      status: MatchStatus.IN_PROGRESS,
+      targetId,
+      playerMatches: [
+        { playerId: '00000000-0000-4000-8000-000000000309' },
+        { playerId: '00000000-0000-4000-8000-000000000310' },
+      ],
+    });
+    mockModel.getMatchById.mockResolvedValue({ id: matchId, tournamentId, status: MatchStatus.COMPLETED });
+
+    await service.completeMatch(tournamentId, matchId, [
+      { playerId: '00000000-0000-4000-8000-000000000309', scoreTotal: 3 },
+      { playerId: '00000000-0000-4000-8000-000000000310', scoreTotal: 1 },
+    ]);
+
+    expect(mockModel.completeMatch).toHaveBeenCalledWith(
+      matchId,
+      expect.any(Array),
+      '00000000-0000-4000-8000-000000000309',
+      expect.objectContaining({ completedAt: expect.any(Date) })
+    );
     expect(mockModel.finishMatchAndReleaseTarget).toHaveBeenCalledWith(
       matchId,
       targetId,
@@ -877,14 +1063,16 @@ describe('TournamentService core logic', () => {
 
   it('updates pool stages and redistributes pools', async () => {
     const service = new TournamentService({} as never);
-    mockModel.findById.mockResolvedValue({ id: 't-42', status: TournamentStatus.DRAFT });
+    const tournamentId = '00000000-0000-4000-8000-000000000042';
+    const stageId = '00000000-0000-4000-8000-000000000043';
+    mockModel.findById.mockResolvedValue({ id: tournamentId, status: TournamentStatus.DRAFT });
     mockModel.updatePoolStage.mockResolvedValue({ id: 'stage-2', poolCount: 1 });
-    mockModel.getPoolStageById.mockResolvedValue({ id: 'stage-2', poolCount: 1 });
+    mockModel.getPoolStageById.mockResolvedValue({ id: stageId, tournamentId, poolCount: 1 });
     mockModel.getPoolsWithAssignmentsForStage.mockResolvedValue([]);
 
     await service.updatePoolStage(
-      '00000000-0000-4000-8000-000000000042',
-      '00000000-0000-4000-8000-000000000043',
+      tournamentId,
+      stageId,
       { poolCount: 1 }
     );
 

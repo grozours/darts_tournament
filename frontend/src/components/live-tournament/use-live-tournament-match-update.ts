@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { completeMatch, updateCompletedMatchScores, updateMatchStatus } from '../../services/tournament-service';
+import { completeMatch, saveMatchScores, updateMatchStatus } from '../../services/tournament-service';
 import validateMatchScores from './use-live-tournament-score-validation';
 import type { LiveViewMatch } from './types';
 
@@ -10,7 +10,7 @@ type UseLiveTournamentMatchUpdateProperties = {
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   matchScores: Record<string, Record<string, string>>;
   clearMatchTargetSelection: (matchKey: string) => void;
-  onUpdatedCompletedMatch: () => void;
+  onSavedMatchScores: () => void;
 };
 
 type LiveTournamentMatchUpdateResult = {
@@ -22,7 +22,7 @@ type LiveTournamentMatchUpdateResult = {
     targetId?: string
   ) => Promise<void>;
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
-  handleUpdateCompletedMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
+  handleSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
 };
 
 const useLiveTournamentMatchUpdate = ({
@@ -32,7 +32,7 @@ const useLiveTournamentMatchUpdate = ({
   getMatchKey,
   matchScores,
   clearMatchTargetSelection,
-  onUpdatedCompletedMatch,
+  onSavedMatchScores,
 }: UseLiveTournamentMatchUpdateProperties): LiveTournamentMatchUpdateResult => {
   const [updatingMatchId, setUpdatingMatchId] = useState<string | undefined>();
 
@@ -88,7 +88,7 @@ const useLiveTournamentMatchUpdate = ({
     }
   }, [getMatchKey, getSafeAccessToken, matchScores, reloadLiveViews, setError]);
 
-  const handleUpdateCompletedMatch = useCallback(async (matchTournamentId: string, match: LiveViewMatch) => {
+  const handleSaveMatchScores = useCallback(async (matchTournamentId: string, match: LiveViewMatch) => {
     const matchKey = getMatchKey(matchTournamentId, match.id);
     const scoresForMatch = matchScores[matchKey] || {};
     const { scores, error } = validateMatchScores(
@@ -105,23 +105,23 @@ const useLiveTournamentMatchUpdate = ({
     setError(undefined);
     try {
       const token = await getSafeAccessToken();
-      await updateCompletedMatchScores(matchTournamentId, match.id, scores, token);
+      await saveMatchScores(matchTournamentId, match.id, scores, token);
       setUpdatingMatchId(undefined);
       await reloadLiveViews({ showLoader: false });
-      onUpdatedCompletedMatch();
+      onSavedMatchScores();
     } catch (error_) {
       console.error('Error updating match scores:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to update match scores');
     } finally {
       setUpdatingMatchId(undefined);
     }
-  }, [getMatchKey, getSafeAccessToken, matchScores, onUpdatedCompletedMatch, reloadLiveViews, setError]);
+  }, [getMatchKey, getSafeAccessToken, matchScores, onSavedMatchScores, reloadLiveViews, setError]);
 
   return {
     updatingMatchId,
     handleMatchStatusUpdate,
     handleCompleteMatch,
-    handleUpdateCompletedMatch,
+    handleSaveMatchScores,
   };
 };
 
