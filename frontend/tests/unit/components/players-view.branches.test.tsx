@@ -79,7 +79,9 @@ describe('PlayersView branches', () => {
     render(<PlayersView />);
 
     await screen.findByText('Ava Archer');
-    fireEvent.click(screen.getAllByRole('button', { name: 'edit.edit' })[0]);
+    const editButtons = screen.getAllByRole('button', { name: 'edit.edit' });
+    expect(editButtons.length).toBeGreaterThan(0);
+    fireEvent.click(editButtons[0]!);
 
     fireEvent.change(screen.getByLabelText('edit.firstName'), { target: { value: ' Ava ' } });
     fireEvent.change(screen.getByLabelText('edit.lastName'), { target: { value: ' Archer ' } });
@@ -115,7 +117,9 @@ describe('PlayersView branches', () => {
     render(<PlayersView />);
 
     await screen.findByText('Ava Archer');
-    fireEvent.click(screen.getAllByRole('button', { name: 'edit.edit' })[0]);
+    const editButtons = screen.getAllByRole('button', { name: 'edit.edit' });
+    expect(editButtons.length).toBeGreaterThan(0);
+    fireEvent.click(editButtons[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }));
 
     await waitFor(() => {

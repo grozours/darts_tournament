@@ -31,7 +31,7 @@ describe('NotificationsView branches', () => {
 
     globalThis.window.localStorage.clear();
 
-    const notificationMock = vi.fn();
+    const notificationMock = vi.fn() as any;
     notificationMock.permission = 'default';
     notificationMock.requestPermission = vi.fn(async () => 'granted');
     globalThis.Notification = notificationMock as unknown as typeof Notification;
@@ -127,7 +127,9 @@ describe('NotificationsView branches', () => {
     expect(screen.getByText('notifications.matchCancelled')).toBeInTheDocument();
     expect(screen.getByText('live.finalScore: 13 - 9')).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'notifications.acknowledge' })[0]);
+    const acknowledgeButtons = screen.getAllByRole('button', { name: 'notifications.acknowledge' });
+    expect(acknowledgeButtons.length).toBeGreaterThan(0);
+    fireEvent.click(acknowledgeButtons[0]!);
     expect(await screen.findByText('notifications.acknowledged')).toBeInTheDocument();
   });
 
@@ -147,7 +149,7 @@ describe('NotificationsView branches', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     globalThis.window.localStorage.setItem('notifications:match-started', '{broken-json');
 
-    const notificationMock = vi.fn();
+    const notificationMock = vi.fn() as any;
     notificationMock.permission = 'default';
     notificationMock.requestPermission = vi.fn(async () => {
       throw new Error('permission failed');

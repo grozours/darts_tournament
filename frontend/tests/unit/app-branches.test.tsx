@@ -21,8 +21,8 @@ vi.mock('socket.io-client', () => ({
 }));
 vi.mock('../../src/components/notifications/use-match-started-notifications', () => ({ default: vi.fn() }));
 vi.mock('../../src/services/tournament-service', () => ({
-  fetchLiveTournamentSummary: (...args: unknown[]) => fetchLiveTournamentSummaryMock(...args),
-  fetchMatchFormatPresets: (...args: unknown[]) => fetchMatchFormatPresetsMock(...args),
+  fetchLiveTournamentSummary: (statuses: string[], token?: string) => fetchLiveTournamentSummaryMock(statuses, token),
+  fetchMatchFormatPresets: () => fetchMatchFormatPresetsMock(),
 }));
 vi.mock('../../src/utils/match-format-presets', () => ({ setMatchFormatPresets: vi.fn() }));
 

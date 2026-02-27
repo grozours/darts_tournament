@@ -82,6 +82,7 @@ const build = () => {
     validateUUID: jest.fn(),
     registerPlayer: jest.fn(async (_tournamentId: string, _playerId: string) => undefined),
     canViewDraftLive: jest.fn(() => false),
+    liveViewCacheTtlMs: 0,
   });
 
   return { model, logger, handlers };
@@ -269,6 +270,7 @@ describe('core handlers branch coverage', () => {
       validateUUID: jest.fn(),
       registerPlayer: jest.fn(async (_tournamentId: string, _playerId: string) => undefined),
       canViewDraftLive: () => true,
+      liveViewCacheTtlMs: 0,
     });
 
     model.findLiveView.mockResolvedValueOnce({
@@ -516,6 +518,7 @@ describe('core handlers branch coverage', () => {
       logger: logger as never,
       validateUUID: jest.fn(),
       registerPlayer: jest.fn(async (_tournamentId: string, _playerId: string) => undefined),
+      liveViewCacheTtlMs: 0,
     });
     await expect(okHandlers.validateRegistrationConstraints(baseTournament.id, 'p1')).resolves.toEqual({ canRegister: true, reasons: [] });
 
@@ -524,6 +527,7 @@ describe('core handlers branch coverage', () => {
       logger: logger as never,
       validateUUID: jest.fn(),
       registerPlayer: jest.fn(async () => { throw new AppError('already registered', 400, 'ALREADY'); }),
+      liveViewCacheTtlMs: 0,
     });
     await expect(failHandlers.validateRegistrationConstraints(baseTournament.id, 'p1')).resolves.toEqual({
       canRegister: false,
@@ -552,6 +556,7 @@ describe('core handlers branch coverage', () => {
       } as never,
       validateUUID: jest.fn(),
       registerPlayer: jest.fn(async () => { throw new Error('unexpected'); }),
+      liveViewCacheTtlMs: 0,
     });
 
     await expect(errorHandlers.validateRegistrationConstraints(baseTournament.id, 'p1')).resolves.toEqual({

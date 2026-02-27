@@ -1,4 +1,5 @@
 import { config } from '../../src/config/environment';
+import logger from '../../src/utils/logger';
 
 const redisClient = {
   sadd: jest.fn(),
@@ -11,6 +12,16 @@ const redisClient = {
 jest.mock('../../src/config/redis', () => ({
   redis: {
     getClient: () => redisClient,
+  },
+}));
+
+jest.mock('../../src/utils/logger', () => ({
+  __esModule: true,
+  default: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
   },
 }));
 
@@ -31,6 +42,10 @@ describe('websocket server', () => {
     redisClient.keys.mockReset();
     redisClient.setex.mockReset();
     redisClient.scard.mockReset();
+    (logger as unknown as { debug: jest.Mock }).debug.mockReset();
+    (logger as unknown as { info: jest.Mock }).info.mockReset();
+    (logger as unknown as { warn: jest.Mock }).warn.mockReset();
+    (logger as unknown as { error: jest.Mock }).error.mockReset();
   });
 
   it('initializes handlers and joins rooms', async () => {
@@ -279,10 +294,8 @@ describe('websocket server', () => {
     await getHandler(handlers, 'ping')();
     expect(socket.emit).toHaveBeenCalledWith('pong', expect.objectContaining({ timestamp: expect.any(Number) }));
 
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     await getHandler(handlers, 'error')(new Error('socket-fail'));
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();
   });
 
   it('handles join and leave failures gracefully', async () => {
@@ -311,7 +324,6 @@ describe('websocket server', () => {
       emit: jest.fn(),
     };
 
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const { setupWebSocketServer } = await import('../../src/websocket/server');
     setupWebSocketServer(io as never);
 
@@ -322,8 +334,7 @@ describe('websocket server', () => {
     await getHandler(handlers, 'leave-tournament')('t-1');
 
     expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'JOIN_FAILED' }));
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();
   });
 
   it('emits tournament updates and caches in redis', async () => {
@@ -416,7 +427,6 @@ describe('websocket server', () => {
 
     expect(io.emit).toHaveBeenCalled();
 
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const failingIo = {
       to: jest.fn(() => {
         throw new Error('emit-fail');
@@ -450,8 +460,7 @@ describe('websocket server', () => {
       players: [],
     });
 
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();
   });
 
   it('handles disconnect cleanup failures without throwing', async () => {
@@ -480,7 +489,6 @@ describe('websocket server', () => {
 
     redisClient.keys.mockRejectedValueOnce(new Error('keys-fail'));
 
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const { setupWebSocketServer } = await import('../../src/websocket/server');
     setupWebSocketServer(io as never);
 
@@ -491,8 +499,7 @@ describe('websocket server', () => {
     );
 
     await disconnectHandler('transport close');
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();
   });
 
   it('warns when score emission is slow', async () => {
@@ -503,7 +510,6 @@ describe('websocket server', () => {
       on: jest.fn(),
     };
 
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const nowSpy = jest.spyOn(Date, 'now');
     nowSpy.mockReturnValueOnce(1_000).mockReturnValueOnce(1_250);
 
@@ -512,14 +518,12 @@ describe('websocket server', () => {
 
     await service.emitMatchScoreUpdated('m-1', 't-1', { score: 10 });
 
-    expect(warnSpy).toHaveBeenCalled();
+    expect((logger as unknown as { warn: jest.Mock }).warn).toHaveBeenCalled();
 
     nowSpy.mockRestore();
-    warnSpy.mockRestore();
   });
 
   it('handles errors when emitting match started', async () => {
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const io = {
       to: jest.fn(() => {
         throw new Error('boom');
@@ -540,8 +544,7 @@ describe('websocket server', () => {
       players: [],
     });
 
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();
   });
 
   it('logs high connection counts when metrics enabled', async () => {

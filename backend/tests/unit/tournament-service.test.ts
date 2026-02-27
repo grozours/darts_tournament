@@ -1022,7 +1022,7 @@ describe('TournamentService core logic', () => {
       completedAt,
     });
 
-    await service.getTournamentLiveView('00000000-0000-4000-8000-000000000000');
+    await service.getTournamentLiveView('00000000-0000-4000-8000-000000000024');
 
     expect(mockModel.setTargetAvailable).toHaveBeenCalledWith('target-1');
     expect(mockModel.setTargetAvailable).toHaveBeenCalledWith('target-2', completedAt);

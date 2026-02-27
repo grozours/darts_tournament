@@ -6,6 +6,10 @@ const databaseConnect = jest.fn();
 const databaseDisconnect = jest.fn();
 const redisConnect = jest.fn();
 const redisDisconnect = jest.fn();
+const loggerInfo = jest.fn();
+const loggerWarn = jest.fn();
+const loggerError = jest.fn();
+const loggerDebug = jest.fn();
 
 jest.mock('../../src/config/database', () => ({
   database: {
@@ -27,6 +31,19 @@ jest.mock('../../src/websocket/server', () => ({
   setupWebSocketServer: jest.fn(),
 }));
 
+jest.mock('../../src/utils/logger', () => ({
+  __esModule: true,
+  default: {
+    info: (...args: unknown[]) => loggerInfo(...args),
+    warn: (...args: unknown[]) => loggerWarn(...args),
+    error: (...args: unknown[]) => loggerError(...args),
+    debug: (...args: unknown[]) => loggerDebug(...args),
+  },
+  stream: {
+    write: jest.fn(),
+  },
+}));
+
 describe('app routes', () => {
   beforeEach(() => {
     databaseHealthCheck.mockReset();
@@ -35,6 +52,10 @@ describe('app routes', () => {
     databaseDisconnect.mockReset();
     redisConnect.mockReset();
     redisDisconnect.mockReset();
+    loggerInfo.mockReset();
+    loggerWarn.mockReset();
+    loggerError.mockReset();
+    loggerDebug.mockReset();
   });
 
   it('returns healthy status when dependencies are healthy', async () => {
@@ -135,18 +156,16 @@ describe('app routes', () => {
   it('exits when start fails', async () => {
     databaseConnect.mockRejectedValue(new Error('connect failed'));
     const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     const { default: App } = await import('../../src/app');
     const app = new App();
 
     await app.start();
 
-    expect(errorSpy).toHaveBeenCalled();
+    expect(loggerError).toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     exitSpy.mockRestore();
-    errorSpy.mockRestore();
   });
 
   it('shuts down gracefully', async () => {
@@ -175,7 +194,6 @@ describe('app routes', () => {
   it('exits with error when shutdown fails', async () => {
     databaseDisconnect.mockRejectedValue(new Error('disconnect failed'));
     const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     const { default: App } = await import('../../src/app');
     const app = new App();
@@ -186,11 +204,10 @@ describe('app routes', () => {
 
     await (app as unknown as { shutdown: (signal: string) => Promise<void> }).shutdown('SIGINT');
 
-    expect(errorSpy).toHaveBeenCalled();
+    expect(loggerError).toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     closeSpy.mockRestore();
-    errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
 });
