@@ -1,7 +1,7 @@
 import type { TournamentModel } from '../../models/tournament-model';
 import type TournamentLogger from '../../utils/tournament-logger';
 import type { Tournament } from '../../../../shared/src/types';
-import { TournamentStatus } from '../../../../shared/src/types';
+import { TournamentFormat, TournamentStatus } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 
 export type StatusHandlerContext = {
@@ -12,6 +12,18 @@ export type StatusHandlerContext = {
 
 export const createStatusHandlers = (context: StatusHandlerContext) => {
   const { tournamentModel, logger, validateUUID } = context;
+
+  const getRegisteredSlotCount = async (tournament: Tournament): Promise<number> => {
+    if (tournament.format === TournamentFormat.DOUBLE) {
+      return await tournamentModel.countRegisteredDoublettes(tournament.id);
+    }
+
+    if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
+      return await tournamentModel.countRegisteredEquipes(tournament.id);
+    }
+
+    return await tournamentModel.getParticipantCount(tournament.id);
+  };
 
   const validateStatusTransition = async (
     currentStatus: TournamentStatus,
@@ -70,7 +82,7 @@ export const createStatusHandlers = (context: StatusHandlerContext) => {
       case TournamentStatus.OPEN: {
         if (tournament.totalParticipants < 2) {
           throw new AppError(
-            'Tournament must allow at least 2 participants',
+            'Tournament must allow at least 2 slots',
             400,
             'INSUFFICIENT_PARTICIPANT_CAPACITY'
           );
@@ -86,10 +98,10 @@ export const createStatusHandlers = (context: StatusHandlerContext) => {
       }
 
       case TournamentStatus.LIVE: {
-        const participantCount = await tournamentModel.getParticipantCount(tournament.id);
-        if (participantCount < 2) {
+        const slotCount = await getRegisteredSlotCount(tournament);
+        if (slotCount < 2) {
           throw new AppError(
-            'Tournament needs at least 2 registered participants to start',
+            'Tournament needs at least 2 registered slots to start',
             400,
             'INSUFFICIENT_PARTICIPANTS'
           );

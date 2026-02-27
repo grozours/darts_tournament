@@ -50,9 +50,22 @@ interface Config {
     audience: string;
     enabled: boolean;
     adminEmails: string[];
+    devAutoLoginEnabled: boolean;
+    devAutoLoginMode?: 'anonymous' | 'player' | 'admin';
     devAutoLoginAdminEmail?: string;
+    devAutoLoginPlayerEmail?: string;
   };
 }
+
+const normalizeDevelopmentAutoLoginMode = (value: string | undefined): 'anonymous' | 'player' | 'admin' | undefined => {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === 'anonymous' || normalized === 'player' || normalized === 'admin') {
+    return normalized;
+  }
+  return undefined;
+};
+
+const developmentAutoLoginMode = normalizeDevelopmentAutoLoginMode(process.env.AUTH_DEV_AUTOLOGIN_MODE);
 
 const config: Config = {
   app: {
@@ -105,10 +118,22 @@ const config: Config = {
     adminEmails: process.env.AUTH_ADMIN_EMAILS
       ? process.env.AUTH_ADMIN_EMAILS.split(',').map(email => email.trim().toLowerCase())
       : [],
+    devAutoLoginEnabled: process.env.AUTH_DEV_AUTOLOGIN_ENABLED === 'true',
+    ...(developmentAutoLoginMode
+      ? {
+          devAutoLoginMode: developmentAutoLoginMode,
+        }
+      : {}),
     ...(process.env.AUTH_DEV_AUTOLOGIN_ADMIN_EMAIL?.trim()
       ? {
           devAutoLoginAdminEmail:
             process.env.AUTH_DEV_AUTOLOGIN_ADMIN_EMAIL.trim().toLowerCase(),
+        }
+      : {}),
+    ...(process.env.AUTH_DEV_AUTOLOGIN_PLAYER_EMAIL?.trim()
+      ? {
+          devAutoLoginPlayerEmail:
+            process.env.AUTH_DEV_AUTOLOGIN_PLAYER_EMAIL.trim().toLowerCase(),
         }
       : {}),
   },

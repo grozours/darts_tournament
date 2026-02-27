@@ -35,7 +35,7 @@ const fillForm = async (user: ReturnType<typeof userEvent.setup>, data = validFo
   await user.selectOptions(screen.getByLabelText(/duration type/i), data.durationType);
   await user.type(screen.getByLabelText(/start time/i), data.startTime);
   await user.type(screen.getByLabelText(/end time/i), data.endTime);
-  await user.type(screen.getByLabelText(/total participants/i), data.totalParticipants);
+  await user.type(screen.getByLabelText(/total slots/i), data.totalParticipants);
   await user.type(screen.getByLabelText(/target count/i), data.targetCount);
 };
 
@@ -127,7 +127,7 @@ describe('TournamentForm submission states', () => {
     await user.selectOptions(screen.getByLabelText(/duration type/i), DurationType.FULL_DAY);
     await user.type(screen.getByLabelText(/start time/i), '2026-03-15T10:00');
     await user.type(screen.getByLabelText(/end time/i), '2026-03-15T18:00');
-    await user.type(screen.getByLabelText(/total participants/i), '8');
+    await user.type(screen.getByLabelText(/total slots/i), '8');
     await user.type(screen.getByLabelText(/target count/i), '2');
 
     await user.click(screen.getByRole('button', { name: /create tournament/i }));

@@ -7,6 +7,7 @@ type UseTargetsViewDerivedProperties = {
   liveViews: LiveViewData[];
   tournamentId: string | undefined;
   t: Translator;
+  groupNameByPlayerIdByTournament?: Map<string, Map<string, string>>;
 };
 
 type TargetsViewDerivedResult = {
@@ -22,6 +23,7 @@ const useTargetsViewDerived = ({
   liveViews,
   tournamentId,
   t,
+  groupNameByPlayerIdByTournament,
 }: UseTargetsViewDerivedProperties): TargetsViewDerivedResult => {
   const activeViews = useMemo(
     () => liveViews.filter((view) => (view.status ?? '').toUpperCase() === 'LIVE'),
@@ -33,8 +35,8 @@ const useTargetsViewDerived = ({
   );
 
   const { matchByTargetId, matchById, matchDetailsById, matchTournamentById } = useMemo(
-    () => buildMatchMaps(scopedViews, t),
-    [scopedViews, t]
+    () => buildMatchMaps(scopedViews, t, groupNameByPlayerIdByTournament),
+    [groupNameByPlayerIdByTournament, scopedViews, t]
   );
 
   const sharedTargets = useMemo(
@@ -43,8 +45,8 @@ const useTargetsViewDerived = ({
   );
 
   const queueItems = useMemo(
-    () => buildGlobalMatchQueue(scopedViews),
-    [scopedViews]
+    () => buildGlobalMatchQueue(scopedViews, groupNameByPlayerIdByTournament),
+    [groupNameByPlayerIdByTournament, scopedViews]
   );
   const queuePreview = useMemo(() => queueItems.slice(0, 5), [queueItems]);
 

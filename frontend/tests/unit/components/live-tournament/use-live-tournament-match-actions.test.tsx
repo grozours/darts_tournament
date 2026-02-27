@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import useLiveTournamentMatchActions from '../../../../src/components/live-tournament/use-live-tournament-match-actions';
 
 const resetPoolMatches = vi.fn();

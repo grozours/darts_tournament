@@ -49,7 +49,9 @@ function TournamentList() { // NOSONAR
     getAccessTokenSilently,
     user,
   } = useOptionalAuth();
-  const { isAdmin } = useAdminStatus();
+  const { isAdmin, adminUser } = useAdminStatus();
+  const effectiveUser = user ?? adminUser;
+  const effectiveIsAuthenticated = isAuthenticated || Boolean(adminUser);
   const { t } = useI18n();
   const parameters = globalThis.window
     ? new URLSearchParams(globalThis.window.location.search)
@@ -478,9 +480,8 @@ function TournamentList() { // NOSONAR
   } = useTournamentListRegistrations({
     t,
     tournaments: visibleTournaments,
-    isAuthenticated,
-    isAdmin,
-    user,
+    isAuthenticated: effectiveIsAuthenticated,
+    user: effectiveUser,
     getSafeAccessToken,
     refreshTournaments,
   });
@@ -563,7 +564,7 @@ function TournamentList() { // NOSONAR
           groupedTournaments={groupedTournaments}
           normalizeStatus={normalizeTournamentStatus}
           isAdmin={isAdmin}
-          isAuthenticated={isAuthenticated}
+          isAuthenticated={effectiveIsAuthenticated}
           t={t}
           userRegistrations={userRegistrations}
           registeringTournamentId={registeringTournamentId ?? undefined}
@@ -601,11 +602,9 @@ function TournamentList() { // NOSONAR
           logoFile={logoFile}
           normalizedStatus={normalizeTournamentStatus(editingTournament.status)}
           onClose={closeEdit}
-          onEditFormChange={(next) => setEditForm(next)}
+          onEditFormChange={setEditForm}
           onLogoFileChange={setLogoFile}
-          onUploadLogo={() => {
-            void uploadLogo();
-          }}
+          onUploadLogo={uploadLogo}
           poolStages={poolStages}
           poolStagesError={poolStagesError}
           onLoadPoolStages={() => {
@@ -622,15 +621,9 @@ function TournamentList() { // NOSONAR
           onPoolStageLosersAdvanceChange={handlePoolStageLosersAdvanceChange}
           onPoolStageRankingDestinationChange={handlePoolStageRankingDestinationChange}
           onPoolStageStatusChange={handlePoolStageStatusChange}
-          onOpenPoolStageAssignments={(stage) => {
-            void openPoolStageAssignments(stage);
-          }}
-          onSavePoolStage={(stage) => {
-            void savePoolStage(stage);
-          }}
-          onRemovePoolStage={(id) => {
-            void removePoolStage(id);
-          }}
+          onOpenPoolStageAssignments={openPoolStageAssignments}
+          onSavePoolStage={savePoolStage}
+          onRemovePoolStage={removePoolStage}
           isAddingPoolStage={isAddingPoolStage}
           newPoolStage={newPoolStage}
           onStartAddPoolStage={startAddPoolStage}
@@ -647,9 +640,7 @@ function TournamentList() { // NOSONAR
           isApplyingPreset={isApplyingPreset}
           quickStructurePresets={quickStructurePresets}
           quickStructurePresetsLoading={quickStructurePresetsLoading}
-          onApplyStructurePreset={(preset) => {
-            void handleApplyStructurePreset(preset);
-          }}
+          onApplyStructurePreset={handleApplyStructurePreset}
           brackets={brackets}
           bracketsError={bracketsError}
           targets={targets}
@@ -666,15 +657,9 @@ function TournamentList() { // NOSONAR
           onBracketRoundMatchFormatChange={handleBracketRoundMatchFormatChange}
           onBracketStatusChange={handleBracketStatusChange}
           onBracketTargetToggle={handleBracketTargetToggle}
-          onSaveBracket={(bracket) => {
-            void saveBracket(bracket);
-          }}
-          onSaveBracketTargets={(bracket) => {
-            void saveBracketTargets(bracket);
-          }}
-          onRemoveBracket={(id) => {
-            void removeBracket(id);
-          }}
+          onSaveBracket={saveBracket}
+          onSaveBracketTargets={saveBracketTargets}
+          onRemoveBracket={removeBracket}
           isAddingBracket={isAddingBracket}
           newBracket={newBracket}
           onStartAddBracket={startAddBracket}
@@ -707,24 +692,12 @@ function TournamentList() { // NOSONAR
           onFetchPlayers={() => {
             void fetchPlayers(editingTournament.id);
           }}
-          onConfirmAllPlayers={() => {
-            void confirmAllPlayers();
-          }}
-          onTogglePlayerCheckIn={(player) => {
-            void togglePlayerCheckIn(player);
-          }}
-          onMoveToSignature={() => {
-            void moveToSignature();
-          }}
-          onMoveToLive={() => {
-            void moveToLive();
-          }}
-          onOpenRegistration={() => {
-            void openRegistration();
-          }}
-          onSaveEdit={() => {
-            void handleSaveEdit();
-          }}
+          onConfirmAllPlayers={confirmAllPlayers}
+          onTogglePlayerCheckIn={togglePlayerCheckIn}
+          onMoveToSignature={moveToSignature}
+          onMoveToLive={moveToLive}
+          onOpenRegistration={openRegistration}
+          onSaveEdit={handleSaveEdit}
         />
       )}
 

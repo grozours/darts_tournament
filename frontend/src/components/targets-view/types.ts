@@ -76,6 +76,7 @@ export type LiveViewBracket = {
 export type LiveViewData = {
   id: string;
   name: string;
+  format?: string;
   status: string;
   targets?: LiveViewTarget[];
   poolStages?: LiveViewPoolStage[];

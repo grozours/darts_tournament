@@ -35,7 +35,15 @@ frontend/
 │   ├── main.tsx                  # Application entry point
 │   ├── App.tsx                   # Root component with routing
 │   ├── index.css                # Global styles & Tailwind imports
-│   ├── i18n.ts                  # Internationalization (FR/EN)
+│   ├── i18n.ts                  # I18n provider (language resolution + message merge)
+│   ├── locales/                 # Translation dictionaries by language
+│   │   ├── en.ts
+│   │   ├── fr.ts
+│   │   ├── es.ts
+│   │   ├── de.ts
+│   │   ├── it.ts
+│   │   ├── pt.ts
+│   │   └── nl.ts
 │   │
 │   ├── components/              # React components
 │   │   ├── TournamentList.tsx   # Main view: tournament management
@@ -80,6 +88,12 @@ frontend/
 ---
 
 ## Routing Strategy
+
+## Localization (i18n)
+
+- All frontend translations are stored as TypeScript dictionaries in `frontend/src/locales/*.ts`.
+- `frontend/src/i18n.tsx` only resolves the active language and merges dictionaries.
+- When adding a new language or key, update the corresponding file in `src/locales/`.
 
 The application uses **query parameter-based routing** instead of URL paths:
 

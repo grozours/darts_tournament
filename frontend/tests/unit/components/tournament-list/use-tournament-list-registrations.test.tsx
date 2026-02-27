@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook, waitFor } from '@testing-library/react';
 import useTournamentListRegistrations from '../../../../src/components/tournament-list/use-tournament-list-registrations';
 
 const serviceMocks = vi.hoisted(() => ({

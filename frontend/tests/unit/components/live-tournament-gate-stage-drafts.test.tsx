@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import LiveTournamentGate from '../../../src/components/live-tournament/live-tournament-gate';
 import useLiveTournamentStageDrafts from '../../../src/components/live-tournament/use-live-tournament-stage-drafts';
 import { HookHarness } from './live-tournament/live-tournament-hook-harness';
@@ -97,9 +97,7 @@ describe('live tournament stage drafts', () => {
       />
     );
 
-    act(() => {
-      drafts?.handleEditStage(stage);
-    });
+    drafts?.handleEditStage(stage);
 
     await waitFor(() => {
       expect(drafts?.editingStageId).toBe('stage-1');
@@ -108,11 +106,9 @@ describe('live tournament stage drafts', () => {
       expect(drafts?.stagePlayersPerPoolDrafts['stage-1']).toBe('4');
     });
 
-    act(() => {
-      drafts?.handleStageStatusChange('stage-1', 'COMPLETED');
-      drafts?.handleStagePoolCountChange('stage-1', '3');
-      drafts?.handleStagePlayersPerPoolChange('stage-1', '5');
-    });
+    drafts?.handleStageStatusChange('stage-1', 'COMPLETED');
+    drafts?.handleStagePoolCountChange('stage-1', '3');
+    drafts?.handleStagePlayersPerPoolChange('stage-1', '5');
 
     await waitFor(() => {
       expect(drafts?.stageStatusDrafts['stage-1']).toBe('COMPLETED');
@@ -120,9 +116,7 @@ describe('live tournament stage drafts', () => {
       expect(drafts?.stagePlayersPerPoolDrafts['stage-1']).toBe('5');
     });
 
-    act(() => {
-      drafts?.cancelEditStage();
-    });
+    drafts?.cancelEditStage();
 
     await waitFor(() => {
       expect(drafts?.editingStageId).toBeUndefined();

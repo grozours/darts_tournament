@@ -72,4 +72,5 @@ export const deMessages: Record<string, string> = {
   'tournamentForm.submit': 'Turnier erstellen',
   'tournamentForm.submitting': 'Wird erstellt...',
   'tournamentForm.errors.failedCreate': 'Turnier konnte nicht erstellt werden',
+  'presetManager.formatTeam': 'Team',
 };

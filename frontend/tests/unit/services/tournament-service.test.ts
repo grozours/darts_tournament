@@ -45,7 +45,7 @@ import {
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
-const mockFetch = vi.fn() as MockFetch;
+const mockFetch: MockFetch = vi.fn();
 const jsonHeaders = { get: () => 'application/json' };
 
 beforeEach(() => {
@@ -210,9 +210,9 @@ describe('tournament-service deletions', () => {
 
 describe('tournament-service player updates', () => {
   it('handles player registrations and updates', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'p-1' }) });
     await expect(registerTournamentPlayer('t-1', { firstName: 'Ana', lastName: 'Diaz' }))
-      .resolves.toBeUndefined();
+      .resolves.toEqual({ id: 'p-1' });
 
     mockFetch.mockResolvedValueOnce({ ok: true });
     await expect(updateTournamentPlayer('t-1', 'p-1', { firstName: 'Ana', lastName: 'Diaz' }))

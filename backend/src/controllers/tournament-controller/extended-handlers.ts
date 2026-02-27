@@ -18,6 +18,33 @@ type TournamentServiceLike = {
   getPlayerById: (playerId: string) => Promise<Player | undefined>;
   getTournamentParticipants: (tournamentId: string) => Promise<unknown[]>;
   getOrphanParticipants: () => Promise<unknown[]>;
+  listDoublettes: (tournamentId: string, search?: string) => Promise<unknown[]>;
+  createDoublette: (
+    tournamentId: string,
+    payload: { name: string; password: string; captainPlayerId?: string; memberPlayerIds?: string[] }
+  ) => Promise<unknown>;
+  updateDoublette: (tournamentId: string, doubletteId: string, payload: { name?: string }) => Promise<unknown>;
+  joinDoublette: (tournamentId: string, doubletteId: string, payload: { password: string }) => Promise<unknown>;
+  addDoubletteMember: (tournamentId: string, doubletteId: string, payload: { playerId: string }) => Promise<unknown>;
+  removeDoubletteMember: (tournamentId: string, doubletteId: string, playerId: string) => Promise<unknown>;
+  leaveDoublette: (tournamentId: string, doubletteId: string) => Promise<unknown>;
+  registerDoublette: (tournamentId: string, doubletteId: string) => Promise<unknown>;
+  deleteDoublette: (tournamentId: string, doubletteId: string) => Promise<void>;
+  updateDoublettePassword: (tournamentId: string, doubletteId: string, payload: { password: string }) => Promise<void>;
+  listEquipes: (tournamentId: string, search?: string) => Promise<unknown[]>;
+  createEquipe: (
+    tournamentId: string,
+    payload: { name: string; password: string; captainPlayerId?: string; memberPlayerIds?: string[] }
+  ) => Promise<unknown>;
+  updateEquipe: (tournamentId: string, equipeId: string, payload: { name?: string }) => Promise<unknown>;
+  joinEquipe: (tournamentId: string, equipeId: string, payload: { password: string }) => Promise<unknown>;
+  addEquipeMember: (tournamentId: string, equipeId: string, payload: { playerId: string }) => Promise<unknown>;
+  removeEquipeMember: (tournamentId: string, equipeId: string, playerId: string) => Promise<unknown>;
+  leaveEquipe: (tournamentId: string, equipeId: string) => Promise<unknown>;
+  registerEquipe: (tournamentId: string, equipeId: string) => Promise<unknown>;
+  deleteEquipe: (tournamentId: string, equipeId: string) => Promise<void>;
+  updateEquipePassword: (tournamentId: string, equipeId: string, payload: { password: string }) => Promise<void>;
+  searchGroupPlayers: (tournamentId: string, query: string) => Promise<unknown[]>;
   getPoolStages: (tournamentId: string) => Promise<unknown>;
   createPoolStage: (
     tournamentId: string,
@@ -142,6 +169,17 @@ const getAuthenticatedUserEmail = (request: Request): string | undefined => {
     payload?.['https://darts-tournament.app/email'] ??
     payload?.['https://your-domain.com/email'];
   return typeof email === 'string' && email ? email : undefined;
+};
+
+const getSingleQueryParam = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const firstValue = value.find((item) => typeof item === 'string');
+    return typeof firstValue === 'string' ? firstValue : '';
+  }
+  return '';
 };
 
 const canUnregisterPlayer = async (
@@ -301,6 +339,235 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
   getOrphanPlayers: async (request: Request, response: Response): Promise<void> => {
     try {
       const players = await context.getTournamentService(request).getOrphanParticipants();
+      response.json({ players, totalCount: players.length });
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  listDoublettes: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const search = typeof request.query.search === 'string' ? request.query.search : undefined;
+      const doublettes = await context.getTournamentService(request).listDoublettes(id, search);
+      response.json({ doublettes, totalCount: doublettes.length });
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  createDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const doublette = await context.getTournamentService(request).createDoublette(id, request.body);
+      response.status(201).json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  updateDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      const doublette = await context.getTournamentService(request).updateDoublette(id, doubletteId, request.body);
+      response.json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  joinDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      const doublette = await context
+        .getTournamentService(request)
+        .joinDoublette(id, doubletteId, request.body);
+      response.json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  addDoubletteMember: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      const doublette = await context
+        .getTournamentService(request)
+        .addDoubletteMember(id, doubletteId, request.body);
+      response.json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  removeDoubletteMember: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId, playerId } = request.params as { id: string; doubletteId: string; playerId: string };
+      const doublette = await context
+        .getTournamentService(request)
+        .removeDoubletteMember(id, doubletteId, playerId);
+      response.json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  leaveDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      const result = await context.getTournamentService(request).leaveDoublette(id, doubletteId);
+      response.json(result);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  registerDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      const doublette = await context.getTournamentService(request).registerDoublette(id, doubletteId);
+      response.json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  deleteDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      await context.getTournamentService(request).deleteDoublette(id, doubletteId);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  updateDoublettePassword: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      await context
+        .getTournamentService(request)
+        .updateDoublettePassword(id, doubletteId, request.body);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  listEquipes: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const search = typeof request.query.search === 'string' ? request.query.search : undefined;
+      const equipes = await context.getTournamentService(request).listEquipes(id, search);
+      response.json({ equipes, totalCount: equipes.length });
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  createEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const equipe = await context.getTournamentService(request).createEquipe(id, request.body);
+      response.status(201).json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  updateEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      const equipe = await context.getTournamentService(request).updateEquipe(id, equipeId, request.body);
+      response.json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  joinEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      const equipe = await context
+        .getTournamentService(request)
+        .joinEquipe(id, equipeId, request.body);
+      response.json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  addEquipeMember: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      const equipe = await context
+        .getTournamentService(request)
+        .addEquipeMember(id, equipeId, request.body);
+      response.json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  removeEquipeMember: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId, playerId } = request.params as { id: string; equipeId: string; playerId: string };
+      const equipe = await context
+        .getTournamentService(request)
+        .removeEquipeMember(id, equipeId, playerId);
+      response.json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  leaveEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      const result = await context.getTournamentService(request).leaveEquipe(id, equipeId);
+      response.json(result);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  registerEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      const equipe = await context.getTournamentService(request).registerEquipe(id, equipeId);
+      response.json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  deleteEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      await context.getTournamentService(request).deleteEquipe(id, equipeId);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  updateEquipePassword: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      await context
+        .getTournamentService(request)
+        .updateEquipePassword(id, equipeId, request.body);
+      response.status(204).send();
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  searchGroupPlayers: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const query = getSingleQueryParam(request.query.query);
+      const players = await context.getTournamentService(request).searchGroupPlayers(id, query);
       response.json({ players, totalCount: players.length });
     } catch (error) {
       context.handleError(response, error);

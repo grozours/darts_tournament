@@ -7,6 +7,7 @@ type BuildQueueItemsProperties = {
   poolQueues: PoolQueue[];
   isMatchBlocked: (match: LiveViewMatch) => boolean;
   ignoreBlocking?: boolean;
+  groupNameByPlayerId?: Map<string, string>;
 };
 
 type LiveViewBracket = NonNullable<LiveViewData['brackets']>[number];
@@ -118,10 +119,11 @@ const createQueueItem = (
   pool: LiveViewPool,
   match: LiveViewMatch,
   isMatchBlocked: (match: LiveViewMatch) => boolean,
-  poolConcurrencyLimitReached: boolean
+  poolConcurrencyLimitReached: boolean,
+  groupNameByPlayerId?: Map<string, string>
 ): MatchQueueItem => {
   const blocked = poolConcurrencyLimitReached || isMatchBlocked(match);
-  const players = getMatchPlayers(match);
+  const players = getMatchPlayers(match, groupNameByPlayerId);
   const targetCode = match.target?.targetCode;
   const targetNumber = match.target?.targetNumber;
 
@@ -165,7 +167,8 @@ const collectPoolItemsForPool = (
   pool: LiveViewPool,
   poolQueue: PoolQueue | undefined,
   isMatchBlocked: (match: LiveViewMatch) => boolean,
-  ignoreBlocking: boolean | undefined
+  ignoreBlocking: boolean | undefined,
+  groupNameByPlayerId?: Map<string, string>
 ) => {
   const assignmentPlayerIds = new Set(
     (pool.assignments ?? [])
@@ -195,7 +198,8 @@ const collectPoolItemsForPool = (
       pool,
       match,
       isMatchBlocked,
-      poolConcurrencyLimitReached
+      poolConcurrencyLimitReached,
+      groupNameByPlayerId
     );
     poolItems.push(nextItem);
     if (poolQueue) {
@@ -210,12 +214,21 @@ const collectPoolItemsForStage = (
   stage: LiveViewPoolStage,
   poolQueues: PoolQueue[],
   isMatchBlocked: (match: LiveViewMatch) => boolean,
-  ignoreBlocking: boolean | undefined
+  ignoreBlocking: boolean | undefined,
+  groupNameByPlayerId?: Map<string, string>
 ) => {
   const items: MatchQueueItem[] = [];
   for (const pool of stage.pools ?? []) {
     const poolQueue = poolQueues.find((queue) => queue.poolId === pool.id);
-    items.push(...collectPoolItemsForPool(view, stage, pool, poolQueue, isMatchBlocked, ignoreBlocking));
+    items.push(...collectPoolItemsForPool(
+      view,
+      stage,
+      pool,
+      poolQueue,
+      isMatchBlocked,
+      ignoreBlocking,
+      groupNameByPlayerId
+    ));
   }
   return items;
 };
@@ -225,11 +238,19 @@ const buildQueueItems = ({
   poolQueues,
   isMatchBlocked,
   ignoreBlocking,
+  groupNameByPlayerId,
 }: BuildQueueItemsProperties) => {
   const items: MatchQueueItem[] = [];
   for (const stage of view.poolStages ?? []) {
     if (!stage.pools) continue;
-    items.push(...collectPoolItemsForStage(view, stage, poolQueues, isMatchBlocked, ignoreBlocking));
+    items.push(...collectPoolItemsForStage(
+      view,
+      stage,
+      poolQueues,
+      isMatchBlocked,
+      ignoreBlocking,
+      groupNameByPlayerId
+    ));
   }
   return items;
 };
@@ -290,9 +311,10 @@ const buildBracketQueueItem = (
   match: LiveViewMatch,
   bracketTargetIds: string[],
   maxRoundNumber: number,
-  maxRoundMatchCount: number
+  maxRoundMatchCount: number,
+  groupNameByPlayerId?: Map<string, string>
 ): MatchQueueItem => {
-  const players = getMatchPlayers(match);
+  const players = getMatchPlayers(match, groupNameByPlayerId);
   const targetCode = match.target?.targetCode;
   const targetNumber = match.target?.targetNumber;
 
@@ -322,7 +344,10 @@ const buildBracketQueueItem = (
   };
 };
 
-const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
+const buildBracketQueueItems = (
+  view: LiveViewData,
+  groupNameByPlayerId?: Map<string, string>
+): MatchQueueItem[] => {
   const bracketItems: MatchQueueItem[] = [];
   for (const bracket of view.brackets ?? []) {
     if (!isBracketReadyFromPools(view, bracket.id)) {
@@ -344,7 +369,8 @@ const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
         match,
         bracketTargetIds,
         maxRoundNumber,
-        maxRoundMatchCount
+        maxRoundMatchCount,
+        groupNameByPlayerId
       ));
     }
   }
@@ -368,7 +394,10 @@ const buildBracketQueueItems = (view: LiveViewData): MatchQueueItem[] => {
   });
 };
 
-export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
+export const buildMatchQueue = (
+  view: LiveViewData,
+  groupNameByPlayerId?: Map<string, string>
+): MatchQueueItem[] => {
   const buildQueue = (options?: { ignoreBlocking?: boolean }) => {
     const items: MatchQueueItem[] = [];
     const activePlayerKeys = new Set<string>();
@@ -406,6 +435,7 @@ export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
       view,
       poolQueues,
       isMatchBlocked,
+      ...(groupNameByPlayerId ? { groupNameByPlayerId } : {}),
       ...(ignoreBlocking === undefined ? {} : { ignoreBlocking }),
     }));
     for (const queue of poolQueues) {
@@ -413,7 +443,7 @@ export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
     }
     const ordered = orderPoolQueuesByParallelStageGroups(view, poolQueues);
     const poolItems = ordered.length > 0 ? ordered : items;
-    const bracketItems = buildBracketQueueItems(view);
+    const bracketItems = buildBracketQueueItems(view, groupNameByPlayerId);
 
     return [...poolItems, ...bracketItems];
   };
@@ -421,8 +451,14 @@ export const buildMatchQueue = (view: LiveViewData): MatchQueueItem[] => {
   return buildQueue({ ignoreBlocking: true });
 };
 
-export const buildGlobalMatchQueue = (views: LiveViewData[]) => {
-  const perTournament = views.map((view) => buildMatchQueue(view));
+export const buildGlobalMatchQueue = (
+  views: LiveViewData[],
+  groupNameByPlayerIdByTournament?: Map<string, Map<string, string>>
+) => {
+  const perTournament = views.map((view) => buildMatchQueue(
+    view,
+    groupNameByPlayerIdByTournament?.get(view.id)
+  ));
   const ordered: MatchQueueItem[] = [];
   const maxLength = Math.max(0, ...perTournament.map((items) => items.length));
 

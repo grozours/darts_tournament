@@ -1,4 +1,4 @@
-import type { LiveViewMatch } from './types';
+import type { LiveViewMatch, LiveViewMatchPlayer } from './types';
 
 type MatchScoreInputsProperties = {
   matchTournamentId: string;
@@ -6,6 +6,7 @@ type MatchScoreInputsProperties = {
   matchScores: Record<string, Record<string, string>>;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
+  getParticipantLabel?: (player: LiveViewMatchPlayer['player']) => string;
 };
 
 const MatchScoreInputs = ({
@@ -14,6 +15,7 @@ const MatchScoreInputs = ({
   matchScores,
   getMatchKey,
   onScoreChange,
+  getParticipantLabel,
 }: MatchScoreInputsProperties) => (
   <div className="grid gap-2 sm:grid-cols-2">
     {(match.playerMatches || []).map((playerMatch) => {
@@ -22,7 +24,9 @@ const MatchScoreInputs = ({
       return (
         <label key={`${match.id}-${playerMatch.playerPosition}`} className="text-xs text-slate-300">
           <span className="block text-slate-400">
-            {playerMatch.player?.firstName} {playerMatch.player?.lastName}
+            {getParticipantLabel
+              ? getParticipantLabel(playerMatch.player)
+              : `${playerMatch.player?.firstName ?? ''} ${playerMatch.player?.lastName ?? ''}`.trim()}
           </span>
           <input
             type="number"

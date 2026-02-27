@@ -29,6 +29,7 @@ type RegistrationSectionProperties = {
 
 type RegistrationHeaderProperties = {
   t: Translator;
+  tournamentFormat: string;
   playersCount: number;
   totalParticipants: number;
   onFetchPlayers: () => void;
@@ -63,25 +64,35 @@ type RegistrationListProperties = {
 
 const RegistrationHeader = ({
   t,
+  tournamentFormat,
   playersCount,
   totalParticipants,
   onFetchPlayers,
-}: RegistrationHeaderProperties) => (
-  <div className="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h4 className="text-base font-semibold text-white">{t('edit.playerRegistration')}</h4>
-      <p className="text-sm text-slate-400">
-        {playersCount} {t('edit.spotsFilled.of')} {totalParticipants} {t('edit.spotsFilled.spotsFilled')}
-      </p>
+}: RegistrationHeaderProperties) => {
+  let unitLabel = t('common.players');
+  if (tournamentFormat === TournamentFormat.DOUBLE) {
+    unitLabel = t('groups.doublettes');
+  } else if (tournamentFormat === TournamentFormat.TEAM_4_PLAYER) {
+    unitLabel = t('groups.equipes');
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h4 className="text-base font-semibold text-white">{t('edit.playerRegistration')}</h4>
+        <p className="text-sm text-slate-400">
+          {playersCount} {t('edit.spotsFilled.of')} {totalParticipants} {unitLabel.toLowerCase()}
+        </p>
+      </div>
+      <button
+        onClick={onFetchPlayers}
+        className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500"
+      >
+        {t('common.refresh')}
+      </button>
     </div>
-    <button
-      onClick={onFetchPlayers}
-      className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500"
-    >
-      {t('common.refresh')}
-    </button>
-  </div>
-);
+  );
+};
 
 const RegistrationFormFields = ({
   t,
@@ -249,6 +260,7 @@ const RegistrationSection = ({
   <div className="mt-8 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
     <RegistrationHeader
       t={t}
+        tournamentFormat={editingTournament.format}
       playersCount={players.length}
       totalParticipants={editingTournament.totalParticipants}
       onFetchPlayers={onFetchPlayers}

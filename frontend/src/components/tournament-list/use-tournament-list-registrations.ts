@@ -12,7 +12,6 @@ type UseTournamentListRegistrationsProperties = {
   t: Translator;
   tournaments: Tournament[];
   isAuthenticated: boolean;
-  isAdmin: boolean;
   user: unknown;
   getSafeAccessToken: () => Promise<string | undefined>;
   refreshTournaments: () => void;
@@ -50,14 +49,12 @@ const useRegistrationState = (): RegistrationState & RegistrationStateSetters =>
 const useRegistrationLookup = ({
   tournaments,
   isAuthenticated,
-  isAdmin,
   user,
   getSafeAccessToken,
   setUserRegistrations,
 }: {
   tournaments: Tournament[];
   isAuthenticated: boolean;
-  isAdmin: boolean;
   user: unknown;
   getSafeAccessToken: () => Promise<string | undefined>;
   setUserRegistrations: RegistrationStateSetters['setUserRegistrations'];
@@ -99,10 +96,10 @@ const useRegistrationLookup = ({
   }, [getSafeAccessToken, isAuthenticated, setUserRegistrations, user]);
 
   useEffect(() => {
-    if (tournaments.length > 0 && isAuthenticated && !isAdmin) {
+    if (tournaments.length > 0 && isAuthenticated) {
       void checkUserRegistrations(tournaments);
     }
-  }, [checkUserRegistrations, isAdmin, isAuthenticated, tournaments]);
+  }, [checkUserRegistrations, isAuthenticated, tournaments]);
 };
 
 const useRegisterSelfAction = ({
@@ -130,9 +127,6 @@ const useRegisterSelfAction = ({
   setRegisteringTournamentId(tournamentId);
   try {
     const token = await getSafeAccessToken();
-    if (!token) {
-      throw new Error('Authentication required');
-    }
 
     const userDetails = user as {
       name?: string;
@@ -199,9 +193,6 @@ const useUnregisterSelfAction = ({
   setRegisteringTournamentId(tournamentId);
   try {
     const token = await getSafeAccessToken();
-    if (!token) {
-      throw new Error('Authentication required');
-    }
 
     const userDetails = user as { email?: string };
     const userEmail = userDetails?.email?.toLowerCase();
@@ -241,7 +232,6 @@ const useTournamentListRegistrations = ({
   t,
   tournaments,
   isAuthenticated,
-  isAdmin,
   user,
   getSafeAccessToken,
   refreshTournaments,
@@ -256,7 +246,6 @@ const useTournamentListRegistrations = ({
   useRegistrationLookup({
     tournaments,
     isAuthenticated,
-    isAdmin,
     user,
     getSafeAccessToken,
     setUserRegistrations,

@@ -35,7 +35,15 @@ frontend/
 │   ├── main.tsx                  # Point d’entrée de l’application
 │   ├── App.tsx                   # Composant racine et routing
 │   ├── index.css                # Styles globaux & imports Tailwind
-│   ├── i18n.ts                  # Internationalisation (FR/EN)
+│   ├── i18n.ts                  # Provider i18n (résolution langue + fusion des messages)
+│   ├── locales/                 # Dictionnaires de traduction par langue
+│   │   ├── en.ts
+│   │   ├── fr.ts
+│   │   ├── es.ts
+│   │   ├── de.ts
+│   │   ├── it.ts
+│   │   ├── pt.ts
+│   │   └── nl.ts
 │   │
 │   ├── components/              # Composants React
 │   │   ├── TournamentList.tsx   # Vue principale : gestion des tournois
@@ -80,6 +88,12 @@ frontend/
 ---
 
 ## Stratégie de routing
+
+## Localisation (i18n)
+
+- Toutes les traductions frontend sont stockées en dictionnaires TypeScript dans `frontend/src/locales/*.ts`.
+- `frontend/src/i18n.tsx` se limite à résoudre la langue active et fusionner les dictionnaires.
+- Lorsqu’une langue ou une clé est ajoutée, mettre à jour le fichier correspondant dans `src/locales/`.
 
 L’application utilise un **routing basé sur les paramètres de requête** plutôt que des chemins d’URL.
 

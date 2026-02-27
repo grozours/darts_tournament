@@ -36,6 +36,7 @@ jest.mock('../../src/middleware/validation', () => ({
 }));
 
 jest.mock('../../src/middleware/auth', () => ({
+  optionalAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
   requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
   requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -96,5 +97,16 @@ describe('tournament routes', () => {
 
     expect(response.status).toBe(200);
     expect(mockController.updateTournamentStatus).toHaveBeenCalled();
+  });
+
+  it('wires GET /api/tournaments/:id/doublettes', async () => {
+    const { default: router } = await import('../../src/routes/tournaments');
+    const app = express();
+    app.use('/api/tournaments', router);
+
+    const response = await request(app).get('/api/tournaments/00000000-0000-4000-8000-000000000000/doublettes');
+
+    expect(response.status).toBe(200);
+    expect(mockController.listDoublettes).toHaveBeenCalled();
   });
 });

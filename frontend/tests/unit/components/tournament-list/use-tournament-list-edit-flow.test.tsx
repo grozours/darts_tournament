@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import useTournamentListEditFlow from '../../../../src/components/tournament-list/use-tournament-list-edit-flow';
 

@@ -1,4 +1,5 @@
-import { act, render } from '@testing-library/react';
+import { render } from '@testing-library/react';
+import { act } from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { useEffect } from 'react';
 import useLiveTournamentRefresh from '../../../src/components/live-tournament/use-live-tournament-refresh';

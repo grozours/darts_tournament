@@ -20,8 +20,14 @@ export const getBracketRoundLabel = (roundNumber: number, totalRounds: number, t
   return labels[distance] ?? `${t('live.queue.roundLabel')} ${roundNumber}`;
 };
 
-export const getBracketPlayerLabel = (playerMatch?: LiveViewMatchPlayer) => {
+export const getBracketPlayerLabel = (
+  playerMatch?: LiveViewMatchPlayer,
+  getParticipantLabel?: (player: LiveViewMatchPlayer['player']) => string
+) => {
   if (!playerMatch?.player) return 'TBD';
+  if (getParticipantLabel) {
+    return getParticipantLabel(playerMatch.player);
+  }
   return `${playerMatch.player.firstName} ${playerMatch.player.lastName}`.trim();
 };
 

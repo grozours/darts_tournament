@@ -47,6 +47,7 @@ type TournamentAdminActionProperties = {
 };
 
 type TournamentRegistrationActionProperties = {
+  tournamentFormat: string;
   tournamentId: string;
   showRegistrationActions: boolean;
   isRegistered: boolean;
@@ -135,6 +136,7 @@ const TournamentAdminActions = ({
 );
 
 const TournamentRegistrationActions = ({
+  tournamentFormat,
   tournamentId,
   showRegistrationActions,
   isRegistered,
@@ -145,6 +147,28 @@ const TournamentRegistrationActions = ({
 }: TournamentRegistrationActionProperties) => {
   if (!showRegistrationActions) {
     return null;
+  }
+
+  if (tournamentFormat === 'DOUBLE') {
+    return (
+      <a
+        href={`/?view=doublettes&tournamentId=${tournamentId}`}
+        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:w-auto"
+      >
+        {t('tournaments.register')}
+      </a>
+    );
+  }
+
+  if (tournamentFormat === 'TEAM_4_PLAYER') {
+    return (
+      <a
+        href={`/?view=equipes&tournamentId=${tournamentId}`}
+        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:w-auto"
+      >
+        {t('tournaments.register')}
+      </a>
+    );
   }
 
   if (isRegistered) {
@@ -205,6 +229,18 @@ const TournamentCard = ({
   const isRegistered = userRegistrations.has(tournament.id);
   const showRegistrationActions = isAuthenticated && !isLive;
   const tournamentId = tournament.id;
+  let participantLabel = t('common.players');
+  if (tournament.format === 'DOUBLE') {
+    participantLabel = t('groups.doublettes');
+  } else if (tournament.format === 'TEAM_4_PLAYER') {
+    participantLabel = t('groups.equipes');
+  }
+  let registeredViewHref = `/?view=tournament-players&tournamentId=${tournamentId}`;
+  if (tournament.format === 'DOUBLE') {
+    registeredViewHref = `/?view=doublettes&tournamentId=${tournamentId}`;
+  } else if (tournament.format === 'TEAM_4_PLAYER') {
+    registeredViewHref = `/?view=equipes&tournamentId=${tournamentId}`;
+  }
   const poolStagesUrl = `/?view=pool-stages&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
   const bracketsUrl = `/?view=brackets&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
 
@@ -243,7 +279,7 @@ const TournamentCard = ({
 
     <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
       <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-        <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.players')}</p>
+        <p className="text-xs uppercase tracking-widest text-slate-500">{participantLabel}</p>
         <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
         <p className="mt-1 text-xs text-slate-400">
           {t('tournaments.registered')}: {tournament.currentParticipants ?? 0}
@@ -258,7 +294,7 @@ const TournamentCard = ({
     {!showWaitingSignature && (
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
         <a
-          href={`/?view=tournament-players&tournamentId=${tournamentId}`}
+          href={registeredViewHref}
           className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 sm:w-auto"
         >
           {t('tournaments.registered')}
@@ -283,7 +319,7 @@ const TournamentCard = ({
             {t('tournaments.viewLive')}
           </a>
         )}
-        {isAdmin ? (
+        {isAdmin && (
           <TournamentAdminActions
             tournament={tournament}
             normalizedStatus={normalizedStatus}
@@ -302,17 +338,17 @@ const TournamentCard = ({
             t={t}
             confirmingTournamentId={confirmingTournamentId}
           />
-        ) : (
-          <TournamentRegistrationActions
-            tournamentId={tournamentId}
-            registeringTournamentId={registeringTournamentId}
-            showRegistrationActions={showRegistrationActions}
-            isRegistered={isRegistered}
-            onRegister={onRegister}
-            onUnregister={onUnregister}
-            t={t}
-          />
         )}
+        <TournamentRegistrationActions
+          tournamentFormat={tournament.format}
+          tournamentId={tournamentId}
+          registeringTournamentId={registeringTournamentId}
+          showRegistrationActions={showRegistrationActions}
+          isRegistered={isRegistered}
+          onRegister={onRegister}
+          onUnregister={onUnregister}
+          t={t}
+        />
       </div>
     )}
   </div>

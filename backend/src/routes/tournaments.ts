@@ -11,6 +11,7 @@ import { registerTournamentPlayerRoutes } from './tournaments/player-routes';
 import { registerTournamentPoolStageRoutes } from './tournaments/pool-stage-routes';
 import { registerTournamentRegistrationRoutes } from './tournaments/registration-routes';
 import { registerTournamentStatusRoutes } from './tournaments/status-routes';
+import { registerTournamentGroupRoutes } from './tournaments/group-routes';
 
 const prisma = new PrismaClient();
 const tournamentController = new TournamentController(prisma);
@@ -22,6 +23,7 @@ registerTournamentPresetRoutes(router, tournamentController);
 registerTournamentMatchFormatRoutes(router, tournamentController);
 registerTournamentRegistrationRoutes(router, tournamentController);
 registerTournamentPlayerRoutes(router, tournamentController);
+registerTournamentGroupRoutes(router, tournamentController);
 registerTournamentPoolStageRoutes(router, tournamentController);
 registerTournamentBracketRoutes(router, tournamentController);
 registerTournamentMatchRoutes(router, tournamentController);

@@ -21,6 +21,12 @@ type BracketRound = {
   matches: BracketMatchSlot[];
 };
 
+type LiveParticipant = {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+};
+
 const getInitialActionLabel = (label: string) => {
   const trimmedLabel = label.trim();
   return trimmedLabel.charAt(0).toUpperCase();
@@ -168,6 +174,7 @@ type BracketMatchesProperties = {
   onCancelMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   onCancelMatchEdit: () => void;
   onScoreChange: (matchKey: string, playerId: string, value: string) => void;
+  getParticipantLabel?: (player: LiveParticipant | undefined) => string;
 };
 
 
@@ -196,6 +203,7 @@ const BracketMatches = ({
   onCancelMatch,
   onCancelMatchEdit,
   onScoreChange,
+  getParticipantLabel,
 }: BracketMatchesProperties) => {
 
   const renderScheduledActions = (matchTournamentId: string, match: BracketMatchSlot, matchKey: string) => {
@@ -237,6 +245,7 @@ const BracketMatches = ({
         matchScores={matchScores}
         getMatchKey={getMatchKey}
         onScoreChange={onScoreChange}
+        {...(getParticipantLabel ? { getParticipantLabel } : {})}
       />
       <div className="flex flex-wrap gap-2">
         <CompactActionButton
@@ -308,6 +317,7 @@ const BracketMatches = ({
           matchScores={matchScores}
           getMatchKey={getMatchKey}
           onScoreChange={onScoreChange}
+          {...(getParticipantLabel ? { getParticipantLabel } : {})}
         />
         <div className="flex flex-wrap gap-2">
           <CompactActionButton
@@ -388,7 +398,7 @@ const BracketMatches = ({
                 className={`flex items-center justify-between rounded-lg border ${screenMode ? 'px-2 py-1' : 'px-3 py-2'} ${options.tone.row}`}
               >
                 <span className={playerMatch.player?.id === match.winner?.id ? options.tone.winner : options.tone.accent}>
-                  {getBracketPlayerLabel(playerMatch)}
+                  {getBracketPlayerLabel(playerMatch, getParticipantLabel)}
                   {options.isFinal && match.status === 'COMPLETED' && playerMatch.player?.id === match.winner?.id && (
                     <span className="ml-1">🏆</span>
                   )}

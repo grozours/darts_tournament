@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TournamentFormat } from '@shared/types';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
 import {
+  fetchDoublettes,
+  fetchEquipes,
   fetchTournamentPlayers,
+  type TournamentGroupEntity,
   updateTournamentPlayerCheckIn,
   removeTournamentPlayer,
   type TournamentPlayer,
@@ -17,8 +21,15 @@ function TournamentPlayersView() {
   } = useOptionalAuth();
 
   const { isAdmin } = useAdminStatus();
-  const [tournament, setTournament] = useState<{ id: string; name: string; status?: string } | undefined>();
+  const [tournament, setTournament] = useState<{
+    id: string;
+    name: string;
+    status?: string;
+    format?: string;
+    totalParticipants?: number;
+  } | undefined>();
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  const [groups, setGroups] = useState<TournamentGroupEntity[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [checkingInId, setCheckingInId] = useState<string | undefined>();
@@ -58,7 +69,13 @@ function TournamentPlayersView() {
 
       if (response.ok) {
         const data = await response.json();
-        setTournament({ id: data.id, name: data.name, status: data.status });
+        setTournament({
+          id: data.id,
+          name: data.name,
+          status: data.status,
+          format: data.format,
+          totalParticipants: data.totalParticipants,
+        });
       }
     } catch (error_) {
       console.error('[TournamentPlayersView] Error fetching tournament:', error_);
@@ -76,6 +93,29 @@ function TournamentPlayersView() {
     } catch (error_) {
       console.error('[TournamentPlayersView] Error fetching players:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to load players');
+    } finally {
+      setLoading(false);
+    }
+  }, [getSafeAccessToken]);
+
+  const fetchGroups = useCallback(async (id: string, format: string) => {
+    setLoading(true);
+    setError(undefined);
+
+    try {
+      const token = await getSafeAccessToken();
+      if (format === TournamentFormat.DOUBLE) {
+        const result = await fetchDoublettes(id, token);
+        setGroups(result.filter((group) => group.isRegistered));
+      } else if (format === TournamentFormat.TEAM_4_PLAYER) {
+        const result = await fetchEquipes(id, token);
+        setGroups(result.filter((group) => group.isRegistered));
+      } else {
+        setGroups([]);
+      }
+    } catch (error_) {
+      console.error('[TournamentPlayersView] Error fetching groups:', error_);
+      setError(error_ instanceof Error ? error_.message : 'Failed to load groups');
     } finally {
       setLoading(false);
     }
@@ -150,11 +190,48 @@ function TournamentPlayersView() {
   }, []);
 
   useEffect(() => {
-    if (tournamentId) {
-      fetchTournamentDetails(tournamentId);
-      fetchPlayers(tournamentId);
+    if (!tournamentId) {
+      return;
     }
-  }, [tournamentId, fetchTournamentDetails, fetchPlayers]);
+
+    const loadData = async () => {
+      await fetchTournamentDetails(tournamentId);
+    };
+
+    void loadData();
+  }, [tournamentId, fetchTournamentDetails]);
+
+  useEffect(() => {
+    if (!tournamentId || !tournament) {
+      return;
+    }
+
+    const normalizedFormat = tournament.format ?? TournamentFormat.SINGLE;
+
+    if (normalizedFormat === TournamentFormat.DOUBLE || normalizedFormat === TournamentFormat.TEAM_4_PLAYER) {
+      void fetchGroups(tournamentId, normalizedFormat);
+      setPlayers([]);
+      return;
+    }
+
+    setGroups([]);
+    void fetchPlayers(tournamentId);
+  }, [fetchGroups, fetchPlayers, tournament, tournamentId]);
+
+  const isGroupTournament = tournament?.format === TournamentFormat.DOUBLE
+    || tournament?.format === TournamentFormat.TEAM_4_PLAYER;
+  const isSingleTournament = !isGroupTournament;
+  const slotCapacity = useMemo(() => {
+    if (!tournament?.totalParticipants) {
+      return 0;
+    }
+
+    if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
+      return Math.max(1, Math.floor(tournament.totalParticipants / 2));
+    }
+
+    return tournament.totalParticipants;
+  }, [tournament?.format, tournament?.totalParticipants]);
 
   const playerCountLabel = players.length === 1 ? t('common.player') : t('common.players');
   const filteredPlayers = useMemo(() => {
@@ -181,6 +258,21 @@ function TournamentPlayersView() {
       return haystack.includes(term);
     });
   }, [players, search, confirmationFilter]);
+
+  const filteredGroups = useMemo(() => {
+    if (!search.trim()) {
+      return groups;
+    }
+
+    const term = search.trim().toLowerCase();
+    return groups.filter((group) => {
+      if (group.name.toLowerCase().includes(term)) {
+        return true;
+      }
+
+      return group.members.some((member) => (`${member.firstName} ${member.lastName}`).toLowerCase().includes(term));
+    });
+  }, [groups, search]);
 
   if (!tournamentId) {
     return (
@@ -236,9 +328,15 @@ function TournamentPlayersView() {
       ) : (
         <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
           <div className="mb-6">
-            <p className="text-slate-400 text-sm">
-              {filteredPlayers.length} {playerCountLabel}
-            </p>
+            {isGroupTournament ? (
+              <p className="text-slate-400 text-sm">
+                {filteredGroups.length} / {slotCapacity} {t('registration.slotsCount')}
+              </p>
+            ) : (
+              <p className="text-slate-400 text-sm">
+                {filteredPlayers.length} {playerCountLabel}
+              </p>
+            )}
             <div className="mt-3 space-y-3">
               <label className="sr-only" htmlFor="tournament-players-search">
                 {t('players.searchRegistered')}
@@ -250,34 +348,38 @@ function TournamentPlayersView() {
                 placeholder={t('players.searchRegistered')}
                 className="w-full rounded-full border border-slate-800 bg-slate-950/60 px-4 py-2 text-sm text-slate-100"
               />
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: 'ALL', label: t('players.filterAll') },
-                  { value: 'CONFIRMED', label: t('players.filterConfirmed') },
-                  { value: 'UNCONFIRMED', label: t('players.filterUnconfirmed') },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setConfirmationFilter(option.value as typeof confirmationFilter)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      confirmationFilter === option.value
-                        ? 'border-cyan-400/70 text-cyan-200'
-                        : 'border-slate-700 text-slate-300 hover:border-slate-500'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              {!isGroupTournament && (
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'ALL', label: t('players.filterAll') },
+                    { value: 'CONFIRMED', label: t('players.filterConfirmed') },
+                    { value: 'UNCONFIRMED', label: t('players.filterUnconfirmed') },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setConfirmationFilter(option.value as typeof confirmationFilter)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                        confirmationFilter === option.value
+                          ? 'border-cyan-400/70 text-cyan-200'
+                          : 'border-slate-700 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {filteredPlayers.length === 0 ? (
+          {isSingleTournament && filteredPlayers.length === 0 && (
             <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
               {t('edit.noPlayersRegistered')}
             </div>
-          ) : (
+          )}
+
+          {isSingleTournament && filteredPlayers.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredPlayers.map((player) => {
                 let presenceLabel = t('players.confirmPresence');
@@ -360,6 +462,39 @@ function TournamentPlayersView() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {isGroupTournament && filteredGroups.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
+              {t('registration.noneRegisteredGroups')}
+            </div>
+          )}
+
+          {isGroupTournament && filteredGroups.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredGroups.map((group) => (
+                <div key={group.id} className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-white">{group.name}</h3>
+                    <span className="rounded-full border border-slate-700 px-2 py-1 text-[10px] text-slate-300">
+                      {group.memberCount}
+                    </span>
+                  </div>
+                  <ul className="mt-3 space-y-1 text-sm text-slate-300">
+                    {group.members.map((member) => (
+                      <li key={member.playerId} className="flex items-center gap-2">
+                        <span>{member.firstName} {member.lastName}</span>
+                        {member.playerId === group.captainPlayerId && (
+                          <span className="rounded-full border border-violet-500/60 px-2 py-0.5 text-[10px] text-violet-200">
+                            {t('groups.captain')}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           )}
         </div>

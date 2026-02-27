@@ -28,7 +28,7 @@ describe('match-format-presets utils', () => {
 
     expect(getMatchFormatTooltip('K1')).toContain('key: K1');
     expect(getMatchFormatTooltip('UNKNOWN')).toBe('UNKNOWN');
-    expect(getMatchFormatTooltip(undefined)).toBe('');
+    expect(getMatchFormatTooltip()).toBe('');
   });
 
   it('restores defaults when presets list is empty', () => {

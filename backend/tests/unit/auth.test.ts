@@ -9,15 +9,29 @@ jest.mock('express-oauth2-jwt-bearer', () => ({
 describe('auth middleware', () => {
   const originalAuthEnabled = config.auth.enabled;
   const originalAdminEmails = [...config.auth.adminEmails];
+  const originalDevAutoLoginMode = config.auth.devAutoLoginMode;
+  const originalDevAutoLoginAdminEmail = config.auth.devAutoLoginAdminEmail;
 
   beforeEach(() => {
     config.auth.enabled = false;
     config.auth.adminEmails = [];
+    delete config.auth.devAutoLoginMode;
+    delete config.auth.devAutoLoginAdminEmail;
   });
 
   afterAll(() => {
     config.auth.enabled = originalAuthEnabled;
     config.auth.adminEmails = originalAdminEmails;
+    if (originalDevAutoLoginMode) {
+      config.auth.devAutoLoginMode = originalDevAutoLoginMode;
+    } else {
+      delete config.auth.devAutoLoginMode;
+    }
+    if (originalDevAutoLoginAdminEmail) {
+      config.auth.devAutoLoginAdminEmail = originalDevAutoLoginAdminEmail;
+    } else {
+      delete config.auth.devAutoLoginAdminEmail;
+    }
   });
 
   it('returns false when no auth payload exists', () => {
@@ -145,5 +159,24 @@ describe('auth middleware', () => {
     expect(auth).toHaveBeenCalled();
     expect(authNext).toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
+  });
+
+  it('applies legacy development admin autologin when mode is unset', () => {
+    const originalIsDevelopment = config.isDevelopment;
+    try {
+      config.isDevelopment = true;
+      config.auth.enabled = true;
+      config.auth.devAutoLoginAdminEmail = 'admin@example.com';
+
+      const next = jest.fn();
+      const request = { headers: {} } as never;
+
+      optionalAuth(request, {} as never, next);
+
+      expect(next).toHaveBeenCalled();
+      expect((request as { auth?: { payload?: { sub?: string } } }).auth?.payload?.sub).toBe('dev-admin:admin@example.com');
+    } finally {
+      config.isDevelopment = originalIsDevelopment;
+    }
   });
 });

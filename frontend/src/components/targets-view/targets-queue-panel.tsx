@@ -1,4 +1,5 @@
 import type { MatchQueueItem, Translator } from './types';
+import { formatParticipantsLabel, formatTargetLabel, getMatchStatusLabel } from './target-labels';
 
 type TargetsQueuePanelProperties = {
   t: Translator;
@@ -30,7 +31,7 @@ const TargetsQueuePanel = ({ t, queueItems, queuePreview }: TargetsQueuePanelPro
                   {t('targets.bracketLabel')} {item.bracketName ?? ''}
                 </span>
               )}
-              <span className="text-xs text-slate-400">{item.status}</span>
+              <span className="text-xs text-slate-400">{getMatchStatusLabel(item.status, t)}</span>
             </div>
             <div className="mt-1 text-xs text-slate-500">{item.tournamentName}</div>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
@@ -40,12 +41,16 @@ const TargetsQueuePanel = ({ t, queueItems, queuePreview }: TargetsQueuePanelPro
               {(item.targetCode || item.targetNumber) && (
                 <>
                   <span>·</span>
-                  <span>{t('live.queue.targetLabel')} {item.targetCode ?? `#${item.targetNumber}`}</span>
+                  <span>
+                    {t('live.queue.targetLabel')} {formatTargetLabel(item.targetCode ?? `#${item.targetNumber}`, t)}
+                  </span>
                 </>
               )}
             </div>
             {item.players.length > 0 && (
-              <div className="mt-2 text-xs text-slate-300">{item.players.join(' · ')}</div>
+              <div className="mt-2 text-xs text-slate-300">
+                {formatParticipantsLabel(item.players, t('targets.unknownPlayers'))}
+              </div>
             )}
           </div>
         ))}

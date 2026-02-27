@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Darts Tournament Manager - Service Restart Script (Docker Compose)
-# Usage: ./restart.sh [-d] [-dev] [--prune] [--prune-volumes] [backend|backend+deps|frontend|both|stop|status|logs]
+# Usage: ./restart.sh [-d] [-dev] [--build|--rebuild] [--prune] [--prune-volumes] [backend|backend+deps|frontend|both|stop|status|logs]
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
@@ -12,7 +12,8 @@ DEBUG_UI=${DEBUG_UI:-false}
 DEV_PROFILE=${DEV_PROFILE:-false}
 AUTO_DOCKER_PRUNE=${AUTO_DOCKER_PRUNE:-false}
 PRUNE_VOLUMES=${PRUNE_VOLUMES:-false}
-BUILD_ID=${BUILD_ID:-$(date +%s)}
+BUILD_ID=${BUILD_ID:-local}
+FORCE_BUILD=${FORCE_BUILD:-true}
 DEV_SERVICES=(postgres_test redis_test sonarqube)
 STATUS_RETRY_COUNT=${STATUS_RETRY_COUNT:-20}
 STATUS_RETRY_DELAY=${STATUS_RETRY_DELAY:-2}
@@ -87,7 +88,11 @@ start_backend() {
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
-    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build --no-deps backend; then
+    local build_args=()
+    if [[ "$FORCE_BUILD" == "true" ]]; then
+        build_args=(--build)
+    fi
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d "${build_args[@]}" --no-deps backend; then
         print_error "Failed to start backend"
         return 1
     fi
@@ -103,7 +108,11 @@ start_backend_with_deps() {
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
-    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build backend postgres redis; then
+    local build_args=()
+    if [[ "$FORCE_BUILD" == "true" ]]; then
+        build_args=(--build)
+    fi
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d "${build_args[@]}" backend postgres redis; then
         print_error "Failed to start backend with dependencies"
         return 1
     fi
@@ -119,7 +128,11 @@ start_frontend() {
     if [[ "$DEV_PROFILE" != "true" ]]; then
         stop_dev_services
     fi
-    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build --no-deps frontend; then
+    local build_args=()
+    if [[ "$FORCE_BUILD" == "true" ]]; then
+        build_args=(--build)
+    fi
+    if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d "${build_args[@]}" --no-deps frontend; then
         print_error "Failed to start frontend"
         return 1
     fi
@@ -201,6 +214,94 @@ stop_dev_services() {
     "${COMPOSE_CMD[@]}" rm -f "${DEV_SERVICES[@]}" >/dev/null 2>&1 || true
 }
 
+ensure_presets_imported() {
+    local auto_import=${IMPORT_PRESETS_ON_RESTART:-true}
+    if [[ "$auto_import" != "true" ]]; then
+        print_status "Preset auto-import disabled (IMPORT_PRESETS_ON_RESTART=$auto_import)"
+        return 0
+    fi
+
+    local backend_container_id
+    backend_container_id="$("${COMPOSE_CMD[@]}" ps -q backend 2>/dev/null)"
+    if [[ -z "$backend_container_id" ]]; then
+        print_warning "Backend container is not running, skipping preset check"
+        return 0
+    fi
+
+    print_status "Checking presets in backend database..."
+
+    local counts_output
+    if ! counts_output="$("${COMPOSE_CMD[@]}" exec -T backend node --input-type=module -e 'import { PrismaClient } from "@prisma/client"; const prisma = new PrismaClient(); try { const tournamentCount = await prisma.tournamentPreset.count(); const matchFormatCount = await prisma.matchFormatPreset.count(); process.stdout.write(String(tournamentCount) + ":" + String(matchFormatCount)); } finally { await prisma.$disconnect(); }' 2>/dev/null)"; then
+        print_warning "Unable to check preset counts, skipping auto-import"
+        return 0
+    fi
+
+    counts_output="$(echo -n "$counts_output" | tr -d '[:space:]')"
+
+    if [[ ! "$counts_output" =~ ^[0-9]+:[0-9]+$ ]]; then
+        print_warning "Unexpected preset count output ('$counts_output'), skipping auto-import"
+        return 0
+    fi
+
+    local tournament_count=${counts_output%%:*}
+    local match_format_count=${counts_output##*:}
+
+    if (( tournament_count > 0 && match_format_count > 0 )); then
+        print_success "Presets already present (tournament: $tournament_count, match formats: $match_format_count)"
+        return 0
+    fi
+
+    print_status "Missing presets detected (tournament: $tournament_count, match formats: $match_format_count). Importing..."
+    if "${COMPOSE_CMD[@]}" exec -T backend sh -lc 'node scripts/import-presets.mjs'; then
+        print_success "Preset import completed"
+    else
+        print_warning "Preset import failed (services are still running)"
+    fi
+}
+
+ensure_seed_content_present() {
+    local auto_import=${IMPORT_PRESETS_ON_RESTART:-true}
+    if [[ "$auto_import" != "true" ]]; then
+        return 0
+    fi
+
+    local backend_container_id
+    backend_container_id="$("${COMPOSE_CMD[@]}" ps -q backend 2>/dev/null)"
+    if [[ -z "$backend_container_id" ]]; then
+        return 0
+    fi
+
+    print_status "Checking seed.mts preset content in backend database..."
+
+    local seed_check_output
+    if ! seed_check_output="$("${COMPOSE_CMD[@]}" exec -T backend node --input-type=module -e 'import fs from "node:fs"; import { PrismaClient } from "@prisma/client"; const prisma = new PrismaClient(); const seedPath = "prisma/seed.mts"; const extractDataArray = (content, variableName) => { const pattern = new RegExp(`${variableName}\\s*=\\s*await\\s*prisma\\.[\\w.]+\\.createMany\\(\\{[\\s\\S]*?data:\\s*(\\[[\\s\\S]*?\\])\\s*,\\s*skipDuplicates`, "m"); const match = content.match(pattern); if (!match || !match[1]) { return []; } try { return JSON.parse(match[1]); } catch { return []; } }; try { const seedContent = fs.readFileSync(seedPath, "utf8"); const seedMatchFormats = extractDataArray(seedContent, "const matchFormatPresets").map((item) => item?.key).filter(Boolean); const seedTournamentPresets = extractDataArray(seedContent, "const tournamentPresets").map((item) => item?.name).filter(Boolean); const dbMatchFormats = await prisma.matchFormatPreset.findMany({ select: { key: true } }); const dbTournamentPresets = await prisma.tournamentPreset.findMany({ select: { name: true } }); const dbMatchFormatKeys = new Set(dbMatchFormats.map((item) => item.key)); const dbTournamentNames = new Set(dbTournamentPresets.map((item) => item.name)); const missingMatchFormats = seedMatchFormats.filter((key) => !dbMatchFormatKeys.has(key)); const missingTournamentPresets = seedTournamentPresets.filter((name) => !dbTournamentNames.has(name)); process.stdout.write(`MISSING:${missingMatchFormats.length}:${missingTournamentPresets.length}`); } catch (error) { process.stdout.write(`CHECK_ERROR:${error instanceof Error ? error.message : String(error)}`); } finally { await prisma.$disconnect(); }' 2>/dev/null)"; then
+        print_warning "Unable to verify seed.mts content, skipping db:seed fallback"
+        return 0
+    fi
+
+    seed_check_output="$(echo -n "$seed_check_output" | tr -d '[:space:]')"
+
+    if [[ "$seed_check_output" =~ ^MISSING:([0-9]+):([0-9]+)$ ]]; then
+        local missing_match_formats="${BASH_REMATCH[1]}"
+        local missing_tournament_presets="${BASH_REMATCH[2]}"
+
+        if (( missing_match_formats == 0 && missing_tournament_presets == 0 )); then
+            print_success "seed.mts preset content already present in database"
+            return 0
+        fi
+
+        print_status "seed.mts content missing (match formats: $missing_match_formats, tournament presets: $missing_tournament_presets). Running db:seed..."
+        if "${COMPOSE_CMD[@]}" exec -T backend npm run db:seed; then
+            print_success "db:seed completed"
+        else
+            print_warning "db:seed failed (services are still running)"
+        fi
+        return 0
+    fi
+
+    print_warning "Unexpected seed check output ('$seed_check_output'), skipping db:seed fallback"
+}
+
 # Function to show logs
 show_logs() {
     local service=$1
@@ -243,6 +344,14 @@ while [[ $# -gt 0 ]]; do
             PRUNE_VOLUMES=true
             shift
             ;;
+        --build|--rebuild)
+            FORCE_BUILD=true
+            shift
+            ;;
+        --no-build)
+            FORCE_BUILD=false
+            shift
+            ;;
         *)
             POSITIONAL_ARGS+=("$1")
             shift
@@ -254,6 +363,9 @@ set -- "${POSITIONAL_ARGS[@]}"
 COMMAND="${1:-both}"
 export DEBUG_UI
 export DEV_PROFILE
+if [[ "$FORCE_BUILD" == "true" && "$BUILD_ID" == "local" ]]; then
+    BUILD_ID=$(date +%s)
+fi
 export BUILD_ID
 
 COMPOSE_PROFILE_ARGS=()
@@ -282,7 +394,14 @@ case "$COMMAND" in
         if [[ "$DEV_PROFILE" != "true" ]]; then
             stop_dev_services
         fi
-        if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build; then
+        if [[ "$FORCE_BUILD" == "true" ]]; then
+            print_status "Building backend and frontend images in parallel..."
+            if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" build --parallel backend frontend; then
+                print_error "Failed to build backend/frontend images"
+                exit 1
+            fi
+        fi
+        if ! "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d; then
             print_error "Failed to start services"
             exit 1
         fi
@@ -322,6 +441,8 @@ case "$COMMAND" in
         echo "Options:"
         echo "  -d, --debug Enable debug UI in frontend build"
         echo "  -dev, --dev Enable dev profile services"
+        echo "  --build, --rebuild Force image rebuild before start (default behavior)"
+        echo "  --no-build Start containers without rebuilding images"
         echo "  --prune     Run Docker prune before restart (safe: keeps named volumes)"
         echo "  --prune-volumes Run Docker prune including unused volumes"
         echo ""
@@ -332,6 +453,8 @@ case "$COMMAND" in
         echo "  $0 frontend       # Restart frontend only"
         echo "  $0 -d             # Restart with debug UI enabled"
         echo "  $0 -dev           # Restart with dev profile services"
+        echo "  $0 --build both   # Force rebuild then restart"
+        echo "  $0 --no-build both # Restart quickly without rebuilding"
         echo "  $0 status         # Check if services are running"
         echo "  $0 stop           # Stop all services"
         echo "  $0 logs backend   # Show backend logs"
@@ -348,6 +471,12 @@ if [[ "$COMMAND" != "logs" && "$COMMAND" != "help" && "$COMMAND" != "-h" && "$CO
     echo ""
     check_status
     status_rc=$?
+
+    if [[ "$COMMAND" == "backend" || "$COMMAND" == "backend+deps" || "$COMMAND" == "both" ]]; then
+        ensure_presets_imported
+        ensure_seed_content_present
+    fi
+
     echo ""
     print_status "🎯 Darts Tournament Manager is ready!"
     print_status "Backend:  http://localhost:$BACKEND_PORT"

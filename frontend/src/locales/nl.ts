@@ -72,4 +72,5 @@ export const nlMessages: Record<string, string> = {
   'tournamentForm.submit': 'Toernooi aanmaken',
   'tournamentForm.submitting': 'Bezig met aanmaken...',
   'tournamentForm.errors.failedCreate': 'Toernooi maken mislukt',
+  'presetManager.formatTeam': 'Team',
 };

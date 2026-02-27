@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import useLiveTournamentMatchEdit from '../../../../src/components/live-tournament/use-live-tournament-match-edit';
 
 describe('useLiveTournamentMatchEdit', () => {

@@ -6,6 +6,11 @@ const authState = { isAuthenticated: true };
 const adminState = { isAdmin: true };
 const fetchMatchFormatPresetsMock = vi.fn(async () => []);
 const setMatchFormatPresetsMock = vi.fn();
+const toUrl = (input: RequestInfo | URL) => {
+  if (input instanceof URL) return input.toString();
+  if (typeof input === 'string') return input;
+  return input.url;
+};
 
 vi.mock('socket.io-client', () => ({ io: vi.fn(() => ({ on: vi.fn(), emit: vi.fn(), removeAllListeners: vi.fn(), disconnect: vi.fn() })) }));
 vi.mock('../../src/components/notifications/use-match-started-notifications', () => ({ default: vi.fn() }));
@@ -35,6 +40,8 @@ vi.mock('../../src/components/account-view', () => ({ default: () => <div>ACCOUN
 vi.mock('../../src/components/tournament-players-view', () => ({ default: () => <div>TOURNAMENT_PLAYERS</div> }));
 vi.mock('../../src/components/tournament-presets-view', () => ({ default: () => <div>TOURNAMENT_PRESETS</div> }));
 vi.mock('../../src/components/match-formats-view', () => ({ default: () => <div>MATCH_FORMATS</div> }));
+vi.mock('../../src/components/doublettes-view', () => ({ default: () => <div>DOUBLETTES_VIEW</div> }));
+vi.mock('../../src/components/equipes-view', () => ({ default: () => <div>EQUIPES_VIEW</div> }));
 
 describe('App routing', () => {
   beforeEach(() => {
@@ -71,6 +78,14 @@ describe('App routing', () => {
     globalThis.history.pushState({}, '', '/?view=match-formats');
     rerender(<App />);
     expect(screen.getByText('MATCH_FORMATS')).toBeInTheDocument();
+
+    globalThis.history.pushState({}, '', '/?view=doublettes&tournamentId=t1');
+    rerender(<App />);
+    expect(screen.getByText('DOUBLETTES_VIEW')).toBeInTheDocument();
+
+    globalThis.history.pushState({}, '', '/?view=equipes&tournamentId=t1');
+    rerender(<App />);
+    expect(screen.getByText('EQUIPES_VIEW')).toBeInTheDocument();
   });
 
   it('falls back to live view when status=live without explicit view', () => {
@@ -87,7 +102,7 @@ describe('App routing', () => {
 
   it('hides header and loads screen rotation list in screen mode', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = toUrl(input);
       if (url === '/api/tournaments?status=LIVE') {
         return {
           ok: true,
@@ -112,7 +127,7 @@ describe('App routing', () => {
 
   it('resolves screen rotation from explicit tournament live endpoint', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = toUrl(input);
       if (url === '/api/tournaments/t1/live') {
         return {
           ok: true,

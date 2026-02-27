@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import useTournamentLogoUpload from '../../../../src/components/tournament-list/use-tournament-logo-upload';
 

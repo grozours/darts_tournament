@@ -10,6 +10,8 @@ START_STACK=true
 PRUNE_OLD_IMAGES=true
 KEEP_IMAGE_COUNT=5
 USE_EXISTING_IMAGES=false
+BACKEND_HOST_UPLOADS_DIR="/app/backend/uploads"
+BACKEND_HOST_LOGS_DIR="/app/backend/logs"
 
 print_info() {
   echo "[INFO] $1"
@@ -45,6 +47,31 @@ require_file() {
     print_error "Required file missing: $file_path"
     exit 1
   fi
+}
+
+ensure_host_directory() {
+  local dir_path="$1"
+
+  if mkdir -p "$dir_path" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    if sudo -n mkdir -p "$dir_path" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  print_error "Unable to create host directory: $dir_path"
+  print_error "Run manually (or with sudo) then retry: mkdir -p $dir_path"
+  exit 1
+}
+
+prepare_backend_host_mount_dirs() {
+  print_info "Ensuring backend host mount directories exist"
+  ensure_host_directory "$BACKEND_HOST_UPLOADS_DIR"
+  ensure_host_directory "$BACKEND_HOST_LOGS_DIR"
+  print_success "Backend host directories ready: $BACKEND_HOST_UPLOADS_DIR and $BACKEND_HOST_LOGS_DIR"
 }
 
 prune_old_images() {
@@ -202,6 +229,8 @@ if [[ "$START_STACK" == "false" ]]; then
   print_info "Skipping docker compose up (--no-up)."
   exit 0
 fi
+
+prepare_backend_host_mount_dirs
 
 print_info "Starting stack with production env files preserved"
 (

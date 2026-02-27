@@ -72,4 +72,5 @@ export const esMessages: Record<string, string> = {
   'tournamentForm.submit': 'Crear torneo',
   'tournamentForm.submitting': 'Creando...',
   'tournamentForm.errors.failedCreate': 'No se pudo crear el torneo',
+  'presetManager.formatTeam': 'Equipo',
 };

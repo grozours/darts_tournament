@@ -11,6 +11,12 @@ import MatchScoreInputs from './match-score-inputs';
 import MatchTargetSelector from './match-target-selector';
 import { getMatchFormatPresets, getMatchFormatTooltip } from '../../utils/match-format-presets';
 
+type LiveParticipant = {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+};
+
 const formatScheduledMatchTime = (value: string | undefined) => {
   if (!value) {
     return undefined;
@@ -506,6 +512,7 @@ type PoolStageCardProperties = {
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   canManageStageActions?: boolean;
+  getParticipantLabel?: (player: LiveParticipant | undefined) => string;
 };
 
 const PoolStageCard = ({
@@ -562,6 +569,7 @@ const PoolStageCard = ({
   stagePoolCountDrafts,
   stagePlayersPerPoolDrafts,
   canManageStageActions = true,
+  getParticipantLabel,
 }: PoolStageCardProperties) => {
   const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
   const [showCompletedMatchesByPool, setShowCompletedMatchesByPool] = useState<Record<string, boolean>>({});
@@ -821,7 +829,9 @@ const PoolStageCard = ({
               key={assignment.id}
               className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200"
             >
-              {assignment.player.firstName} {assignment.player.lastName}
+              {getParticipantLabel
+                ? getParticipantLabel(assignment.player)
+                : `${assignment.player.firstName} ${assignment.player.lastName}`.trim()}
             </span>
           ))}
         </div>
@@ -832,7 +842,7 @@ const PoolStageCard = ({
   };
 
   const renderPoolLeaderboard = (pool: LiveViewPool) => {
-    const leaderboard = buildPoolLeaderboard(pool);
+    const leaderboard = buildPoolLeaderboard(pool, getParticipantLabel);
     const hasCompletedMatches = (pool.matches || []).some((match) => match.status === 'COMPLETED');
     const showCompletedMatches = showCompletedMatchesByPool[pool.id] ?? false;
 
@@ -923,6 +933,7 @@ const PoolStageCard = ({
           matchScores={matchScores}
           getMatchKey={getMatchKey}
           onScoreChange={onScoreChange}
+          {...(getParticipantLabel ? { getParticipantLabel } : {})}
         />
         <div className="flex flex-wrap gap-2">
           <button
@@ -1002,6 +1013,7 @@ const PoolStageCard = ({
           matchScores={matchScores}
           getMatchKey={getMatchKey}
           onScoreChange={onScoreChange}
+          {...(getParticipantLabel ? { getParticipantLabel } : {})}
         />
         <div className="flex flex-wrap gap-2">
           <button
@@ -1045,7 +1057,9 @@ const PoolStageCard = ({
     if (match.playerMatches && match.playerMatches.length > 0) {
       return match.playerMatches.map((playerMatch) => (
         <span key={`${match.id}-${playerMatch.playerPosition}`}>
-          {playerMatch.player?.firstName} {playerMatch.player?.lastName}
+          {getParticipantLabel
+            ? getParticipantLabel(playerMatch.player)
+            : `${playerMatch.player?.firstName ?? ''} ${playerMatch.player?.lastName ?? ''}`.trim()}
         </span>
       ));
     }
@@ -1119,7 +1133,9 @@ const PoolStageCard = ({
                               : 'text-slate-300'
                           }
                         >
-                          {playerMatch.player?.firstName} {playerMatch.player?.lastName}
+                          {getParticipantLabel
+                            ? getParticipantLabel(playerMatch.player)
+                            : `${playerMatch.player?.firstName ?? ''} ${playerMatch.player?.lastName ?? ''}`.trim()}
                         </span>
                         <span className="text-slate-200">
                           {playerMatch.scoreTotal ?? playerMatch.legsWon ?? '-'}
@@ -1131,7 +1147,9 @@ const PoolStageCard = ({
             )}
             {match.winner && (
               <p className="mt-2 text-xs text-emerald-300">
-                {t('live.winner')}: {match.winner.firstName} {match.winner.lastName}
+                {t('live.winner')}: {getParticipantLabel
+                  ? getParticipantLabel(match.winner)
+                  : `${match.winner.firstName} ${match.winner.lastName}`.trim()}
               </p>
             )}
           </div>
@@ -1149,30 +1167,40 @@ const PoolStageCard = ({
           <h4 className="text-2xl font-semibold text-white mt-2">
             {stage.stageNumber.toString().padStart(2, '0')} · {stage.name}
           </h4>
-          <p className="text-sm text-slate-400">{t('common.status')}: {getStatusLabel('stage', stage.status)}</p>
-          <p className="mt-1 text-xs text-slate-300">
-            {t('live.estimatedDuration')}: {formatDurationClock(stageParallelizedEstimatedDurationMinutes)}
-          </p>
-          <p className="mt-1 text-xs text-slate-300">
-            {t('live.estimatedStartTime')}: {formatHourMinute(stageEstimatedStartTime)}
-          </p>
-          <p className="mt-1 text-xs text-slate-300">
-            {t('live.estimatedEndTime')}: {formatHourMinute(stageEstimatedEndTime)}
-          </p>
-          {stage.matchFormatKey && (
-            <p className="mt-1 text-xs text-cyan-200" title={stageMatchFormatTooltip}>
-              {stage.matchFormatKey}
-            </p>
-          )}
-          <p className="text-xs text-slate-500 mt-1">
-            {pools.length} pools · {stage.playersPerPool ?? 'n/a'} per pool
-          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {renderStageControls(tournamentId)}
-          <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-            {pools.length} pools
-          </span>
+        <div className="w-full sm:w-auto flex flex-col items-start sm:items-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-start sm:justify-end gap-2 text-xs">
+            {stage.matchFormatKey && (
+              <span
+                className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-cyan-200"
+                title={stageMatchFormatTooltip}
+              >
+                {stage.matchFormatKey}
+              </span>
+            )}
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+              <span className="hidden sm:inline">{t('common.status')}: </span>
+              {getStatusLabel('stage', stage.status)}
+            </span>
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+              <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
+              {formatDurationClock(stageParallelizedEstimatedDurationMinutes)}
+            </span>
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+              <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
+              {formatHourMinute(stageEstimatedStartTime)}
+            </span>
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+              <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
+              {formatHourMinute(stageEstimatedEndTime)}
+            </span>
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+              {pools.length} {t('live.poolsLabel')} · {stage.playersPerPool ?? 'n/a'} {t('live.perPoolLabel')}
+            </span>
+          </div>
+          <div className="flex w-full flex-wrap items-center justify-start sm:justify-end gap-2">
+            {renderStageControls(tournamentId)}
+          </div>
         </div>
       </div>
 
@@ -1182,7 +1210,7 @@ const PoolStageCard = ({
         <div className="mt-6 space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" style={{ fontFamily: '"Oswald", sans-serif' }}>
             {pools.map((pool) => {
-              const leaderboard = buildPoolLeaderboard(pool).slice(0, 5);
+              const leaderboard = buildPoolLeaderboard(pool, getParticipantLabel).slice(0, 5);
               const isActive = pool.id === activePool?.id;
               const playerCount = pool.assignments?.length ?? 0;
               return (

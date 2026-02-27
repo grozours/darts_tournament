@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Tournament } from './types';
 
 type UseTournamentListDataProperties = {
@@ -21,8 +21,11 @@ const useTournamentListData = (
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const latestFetchRequestId = useRef(0);
 
   const fetchTournaments = useCallback(async () => {
+    latestFetchRequestId.current += 1;
+    const requestId = latestFetchRequestId.current;
     setLoading(true);
     setError(undefined);
 
@@ -30,8 +33,8 @@ const useTournamentListData = (
       const token = await getSafeAccessToken();
       console.log('[TournamentList] Fetching tournaments, token:', token ? 'present' : 'none');
       const response = await fetch('/api/tournaments', token
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : {});
+        ? { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+        : { cache: 'no-store' });
       console.log('[TournamentList] Response status:', response.status, response.statusText);
       if (!response.ok) {
         const errorText = await response.text();
@@ -47,12 +50,18 @@ const useTournamentListData = (
           logoUrl: item.logoUrl ?? fallbackLogoUrl,
         };
       });
-      setTournaments(normalizedTournaments);
+      if (requestId === latestFetchRequestId.current) {
+        setTournaments(normalizedTournaments);
+      }
     } catch (error_) {
       console.error('[TournamentList] Error fetching tournaments:', error_);
-      setError(error_ instanceof Error ? error_.message : 'Failed to fetch tournaments');
+      if (requestId === latestFetchRequestId.current) {
+        setError(error_ instanceof Error ? error_.message : 'Failed to fetch tournaments');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === latestFetchRequestId.current) {
+        setLoading(false);
+      }
     }
   }, [getSafeAccessToken]);
 

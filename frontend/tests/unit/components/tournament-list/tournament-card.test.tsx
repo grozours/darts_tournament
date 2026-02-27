@@ -125,4 +125,101 @@ describe('TournamentCard', () => {
     fireEvent.click(screen.getByText('tournaments.autoSignature'));
     expect(onConfirmAllPlayers).toHaveBeenCalledWith('t1');
   });
+
+  it('routes registered link to format-specific views', () => {
+    const { rerender } = render(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'DOUBLE' } as never}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'tournaments.registered' })).toHaveAttribute(
+      'href',
+      '/?view=doublettes&tournamentId=t1'
+    );
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'TEAM_4_PLAYER' } as never}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'tournaments.registered' })).toHaveAttribute(
+      'href',
+      '/?view=equipes&tournamentId=t1'
+    );
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'SINGLE' } as never}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'tournaments.registered' })).toHaveAttribute(
+      'href',
+      '/?view=tournament-players&tournamentId=t1'
+    );
+  });
+
+  it('shows format-aware participant label on the stats card', () => {
+    const { rerender } = render(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'SINGLE' } as never}
+      />
+    );
+
+    expect(screen.getByText('common.players')).toBeInTheDocument();
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'DOUBLE' } as never}
+      />
+    );
+
+    expect(screen.getAllByText('groups.doublettes').length).toBeGreaterThan(0);
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'TEAM_4_PLAYER' } as never}
+      />
+    );
+
+    expect(screen.getAllByText('groups.equipes').length).toBeGreaterThan(0);
+  });
+
+  it('uses generic register label for DOUBLE and TEAM card registration links', () => {
+    const { rerender } = render(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'DOUBLE' } as never}
+      />
+    );
+
+    const doubleRegisterLink = screen.getByRole('link', { name: 'tournaments.register' });
+    expect(doubleRegisterLink).toHaveAttribute(
+      'href',
+      '/?view=doublettes&tournamentId=t1'
+    );
+    expect(doubleRegisterLink.className).toContain('border-emerald-500/60');
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'TEAM_4_PLAYER' } as never}
+      />
+    );
+
+    const teamRegisterLink = screen.getByRole('link', { name: 'tournaments.register' });
+    expect(teamRegisterLink).toHaveAttribute(
+      'href',
+      '/?view=equipes&tournamentId=t1'
+    );
+    expect(teamRegisterLink.className).toContain('border-emerald-500/60');
+  });
 });

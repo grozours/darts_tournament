@@ -300,6 +300,7 @@ type PoolStagesSectionProperties = {
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   playerIdByTournament: Record<string, string>;
+  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string } | undefined) => string;
 };
 
 const PoolStagesSection = ({
@@ -311,6 +312,7 @@ const PoolStagesSection = ({
   stages,
   isAdmin,
   playerIdByTournament = {},
+  getParticipantLabel,
   ...stageProperties
 }: PoolStagesSectionProperties) => {
   if (stages.length === 0) {
@@ -365,6 +367,7 @@ const PoolStagesSection = ({
                 stage={stage}
                 estimatedStartOffsetMinutes={estimatedOffsetByStageId.get(stage.id) ?? 0}
                 isAdmin={isAdmin}
+                {...(getParticipantLabel ? { getParticipantLabel } : {})}
                 {...(optimisticOverride ? { optimisticStartTimeByMatchIdOverride: optimisticOverride } : {})}
                 {...(durationOverride === undefined ? {} : { estimatedDurationMinutesOverride: durationOverride })}
                 {...(startTimestampOverride === undefined

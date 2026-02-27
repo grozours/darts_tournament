@@ -42,6 +42,12 @@ type PrismaMock = {
     update: jest.Mock;
     findFirst: jest.Mock;
   };
+  doublette: {
+    groupBy: jest.Mock;
+  };
+  equipe: {
+    groupBy: jest.Mock;
+  };
   match: {
     count: jest.Mock;
   };
@@ -105,6 +111,12 @@ describe('tournament model', () => {
         count: jest.fn(),
         update: jest.fn(),
         findFirst: jest.fn(),
+      },
+      doublette: {
+        groupBy: jest.fn(),
+      },
+      equipe: {
+        groupBy: jest.fn(),
       },
       match: {
         count: jest.fn(),
@@ -484,6 +496,8 @@ describe('tournament model', () => {
     prisma.player.groupBy = jest.fn().mockResolvedValueOnce([
       { tournamentId: 't-1', _count: { _all: 3 } },
     ]);
+    prisma.doublette.groupBy = jest.fn().mockResolvedValueOnce([]);
+    prisma.equipe.groupBy = jest.fn().mockResolvedValueOnce([]);
 
     const result = await model.findAll({
       status: TournamentStatus.DRAFT,
@@ -508,6 +522,8 @@ describe('tournament model', () => {
   it('findAll supports excludeDraft and maps errors', async () => {
     prisma.tournament.findMany.mockResolvedValueOnce([]);
     prisma.tournament.count.mockResolvedValueOnce(0);
+    prisma.doublette.groupBy = jest.fn().mockResolvedValueOnce([]);
+    prisma.equipe.groupBy = jest.fn().mockResolvedValueOnce([]);
 
     await expect(model.findAll({ excludeDraft: true })).resolves.toEqual({
       tournaments: [],
@@ -518,6 +534,26 @@ describe('tournament model', () => {
 
     prisma.tournament.findMany.mockRejectedValueOnce(new Error('db'));
     await expect(model.findAll()).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('findAll returns registered group slots for grouped formats', async () => {
+    prisma.tournament.findMany.mockResolvedValueOnce([
+      {
+        ...baseTournament,
+        format: TournamentFormat.DOUBLE,
+      },
+    ]);
+    prisma.tournament.count.mockResolvedValueOnce(1);
+    prisma.player.groupBy = jest.fn().mockResolvedValueOnce([
+      { tournamentId: 't-1', _count: { _all: 8 } },
+    ]);
+    prisma.doublette.groupBy = jest.fn().mockResolvedValueOnce([
+      { tournamentId: 't-1', _count: { _all: 4 } },
+    ]);
+    prisma.equipe.groupBy = jest.fn().mockResolvedValueOnce([]);
+
+    const result = await model.findAll();
+    expect(result.tournaments[0]?.currentParticipants).toBe(4);
   });
 
   it('maps target range and target list queries with error branches', async () => {

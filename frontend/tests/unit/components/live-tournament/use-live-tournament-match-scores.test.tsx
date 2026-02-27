@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { describe, expect, it } from 'vitest';
 import useLiveTournamentMatchScores from '../../../../src/components/live-tournament/use-live-tournament-match-scores';
 

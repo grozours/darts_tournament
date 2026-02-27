@@ -1,19 +1,26 @@
 import type { LiveViewMatch, LiveViewMatchPlayer, LiveViewPool, PoolLeaderboardRow } from './types';
 
-const getLeaderboardPlayerLabel = (player: LiveViewMatchPlayer['player']) => {
+const getLeaderboardPlayerLabel = (
+  player: LiveViewMatchPlayer['player'],
+  getParticipantLabel?: (player: LiveViewMatchPlayer['player']) => string
+) => {
   if (!player) return '';
+  if (getParticipantLabel) {
+    return getParticipantLabel(player);
+  }
   return `${player.firstName} ${player.lastName}`.trim();
 };
 
 const ensureLeaderboardRow = (
   rows: Map<string, PoolLeaderboardRow>,
-  player: LiveViewMatchPlayer['player']
+  player: LiveViewMatchPlayer['player'],
+  getParticipantLabel?: (player: LiveViewMatchPlayer['player']) => string
 ) => {
   if (!player) return;
   if (!rows.has(player.id)) {
     rows.set(player.id, {
       playerId: player.id,
-      name: getLeaderboardPlayerLabel(player),
+      name: getLeaderboardPlayerLabel(player, getParticipantLabel),
       legsWon: 0,
       legsLost: 0,
       headToHeadBonus: 0,
@@ -121,10 +128,13 @@ const sortLeaderboardRows = (rows: Map<string, PoolLeaderboardRow>) => {
   return sorted;
 };
 
-export const buildPoolLeaderboard = (pool: LiveViewPool): PoolLeaderboardRow[] => {
+export const buildPoolLeaderboard = (
+  pool: LiveViewPool,
+  getParticipantLabel?: (player: LiveViewMatchPlayer['player']) => string
+): PoolLeaderboardRow[] => {
   const rows = new Map<string, PoolLeaderboardRow>();
   for (const assignment of pool.assignments ?? []) {
-    ensureLeaderboardRow(rows, assignment.player);
+    ensureLeaderboardRow(rows, assignment.player, getParticipantLabel);
   }
 
   for (const match of pool.matches ?? []) {

@@ -22,7 +22,7 @@ type ModelMock = {
   updatePlayer: jest.Mock;
 };
 
-const buildContext = () => {
+const buildContext = (options?: { isAdminAction?: boolean }) => {
   const model: ModelMock = {
     findById: jest.fn(),
     isPlayerRegistered: jest.fn(),
@@ -61,6 +61,7 @@ const buildContext = () => {
       logger: logger as never,
       validateUUID: jest.fn(),
       transitionTournamentStatus,
+      isAdminAction: () => options?.isAdminAction ?? false,
     }),
   };
 };
@@ -124,8 +125,28 @@ describe('player handlers', () => {
     expect(model.registerPlayer).toHaveBeenCalledWith('t1', 'p1');
   });
 
-  it('registers player details and enforces team uniqueness for team formats', async () => {
+  it('rejects registerPlayerDetails for grouped formats when not admin', async () => {
     const { model, handlers } = buildContext();
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.DOUBLE,
+    });
+    await expect(handlers.registerPlayerDetails('t1', {
+      firstName: 'Alice',
+      lastName: 'Doe',
+      surname: 'A-Doe',
+      teamName: 'Team A',
+      email: 'alice@example.com',
+      phone: '123',
+    } as never)).rejects.toThrow('registration must be completed by a doublette/equipe captain');
+  });
+
+  it('registers player details for grouped formats in admin context', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
     config.auth.enabled = false;
     model.findById.mockResolvedValue({
       id: 't1',
@@ -152,6 +173,40 @@ describe('player handlers', () => {
 
     expect(created).toEqual({ id: 'p-created' });
     expect(model.createPlayer).toHaveBeenCalled();
+  });
+
+  it('uses slot-based player capacity for grouped admin registration', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 2,
+      format: TournamentFormat.DOUBLE,
+    });
+    model.getParticipantCount.mockResolvedValue(3);
+    model.findPlayerBySurname.mockResolvedValue(undefined);
+    model.findPlayerByTeamName.mockResolvedValue(undefined);
+    model.findPersonByEmailAndPhone.mockResolvedValue(undefined);
+    model.createPerson.mockResolvedValue({ id: 'person-created' });
+    model.createPlayer.mockResolvedValue({ id: 'p-created' });
+
+    await expect(handlers.registerPlayerDetails('t1', {
+      firstName: 'Alice',
+      lastName: 'Doe',
+      surname: 'A-Doe',
+      teamName: 'Team A',
+      email: 'alice@example.com',
+      phone: '123',
+    } as never)).resolves.toEqual({ id: 'p-created' });
+
+    model.getParticipantCount.mockResolvedValue(4);
+    await expect(handlers.registerPlayerDetails('t1', {
+      firstName: 'Bob',
+      lastName: 'Doe',
+      surname: 'B-Doe',
+    } as never)).rejects.toThrow('Tournament is full');
   });
 
   it('rejects registerPlayerDetails when surname is already used', async () => {

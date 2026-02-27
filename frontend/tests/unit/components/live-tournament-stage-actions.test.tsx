@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { render, waitFor } from '@testing-library/react';
 import { getServiceMocks, makeMatch, translate } from './live-tournament/live-tournament-test-mocks';
 import { HookHarness } from './live-tournament/live-tournament-hook-harness';
 import useLiveTournamentStageUpdate from '../../../src/components/live-tournament/use-live-tournament-stage-update';

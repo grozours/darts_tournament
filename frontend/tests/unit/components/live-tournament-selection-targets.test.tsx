@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { render, waitFor } from '@testing-library/react';
 import useLiveTournamentSelection from '../../../src/components/live-tournament/use-live-tournament-selection';
 import useLiveTournamentTargets from '../../../src/components/live-tournament/use-live-tournament-targets';
 import type { LiveViewData } from '../../../src/components/live-tournament/types';

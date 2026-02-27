@@ -72,4 +72,37 @@ describe('AppHeader', () => {
     expect(setLanguage).toHaveBeenCalledWith('fr');
     expect(screen.getByLabelText('live.exitScreenMode')).toBeInTheDocument();
   });
+
+  it('shows only selected dev autologin mode until dropdown opens', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ mode: 'admin' }),
+    } as Response);
+
+    render(
+      <AppHeader
+        t={t}
+        isAdmin={false}
+        isAuthenticated={false}
+        lang="fr"
+        setLanguage={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('account.devAutologinMode')).toBeInTheDocument();
+    });
+
+    const modeSelector = screen.getByLabelText('account.devAutologinMode');
+    expect(modeSelector).toHaveTextContent('account.devAutologinAdmin');
+
+    const details = modeSelector.closest('details');
+    details?.setAttribute('open', 'open');
+
+    expect(screen.getByRole('button', { name: 'account.devAutologinAnonymous' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'account.devAutologinPlayer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'account.devAutologinAdmin' })).toBeInTheDocument();
+
+    fetchMock.mockRestore();
+  });
 });

@@ -12,6 +12,86 @@ const noopAuth = (_request: Request, _response: Response, next: NextFunction) =>
   next();
 };
 
+export const DEVELOPMENT_AUTOLOGIN_MODES = ['anonymous', 'player', 'admin'] as const;
+export type DevelopmentAutologinMode = (typeof DEVELOPMENT_AUTOLOGIN_MODES)[number];
+export const DEVELOPMENT_AUTOLOGIN_COOKIE_NAME = 'dev-autologin-mode';
+
+export const parseDevelopmentAutologinMode = (value: unknown): DevelopmentAutologinMode | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'anonymous' || normalized === 'player' || normalized === 'admin') {
+    return normalized;
+  }
+  return undefined;
+};
+
+const parseCookieHeader = (cookieHeader: string | undefined): Record<string, string> => {
+  if (!cookieHeader) {
+    return {};
+  }
+
+  const parsedCookies: Record<string, string> = {};
+  for (const rawEntry of cookieHeader.split(';')) {
+    const entry = rawEntry.trim();
+    if (!entry) {
+      continue;
+    }
+    const separator = entry.indexOf('=');
+    if (separator <= 0) {
+      continue;
+    }
+    const key = decodeURIComponent(entry.slice(0, separator).trim());
+    const value = decodeURIComponent(entry.slice(separator + 1).trim());
+    if (!key) {
+      continue;
+    }
+    parsedCookies[key] = value;
+  }
+
+  return parsedCookies;
+};
+
+const resolveRequestedDevelopmentAutologinMode = (request: Request): DevelopmentAutologinMode | undefined => {
+  const queryModeCandidate = request.query?.devAuthMode;
+  const queryMode = parseDevelopmentAutologinMode(
+    Array.isArray(queryModeCandidate) ? queryModeCandidate[0] : queryModeCandidate
+  );
+  if (queryMode) {
+    return queryMode;
+  }
+
+  const headerMode = parseDevelopmentAutologinMode(request.headers['x-dev-autologin-mode']);
+  if (headerMode) {
+    return headerMode;
+  }
+
+  const cookies = parseCookieHeader(request.headers.cookie);
+  const cookieMode = parseDevelopmentAutologinMode(cookies[DEVELOPMENT_AUTOLOGIN_COOKIE_NAME]);
+  if (cookieMode) {
+    return cookieMode;
+  }
+
+  const configuredMode = parseDevelopmentAutologinMode(config.auth.devAutoLoginMode);
+  if (configuredMode) {
+    return configuredMode;
+  }
+
+  if (config.auth.devAutoLoginAdminEmail) {
+    return 'admin';
+  }
+
+  return undefined;
+};
+
+export const getActiveDevelopmentAutologinMode = (request: Request): DevelopmentAutologinMode | undefined => {
+  if (!config.isDevelopment || !config.auth.enabled || !config.auth.devAutoLoginEnabled) {
+    return undefined;
+  }
+  return resolveRequestedDevelopmentAutologinMode(request);
+};
+
 const runConfiguredAuth = (request: Request, response: Response, next: NextFunction) => {
   if (!config.auth.enabled) {
     noopAuth(request, response, next);
@@ -27,10 +107,8 @@ const runConfiguredAuth = (request: Request, response: Response, next: NextFunct
   authMiddleware(request, response, next);
 };
 
-const applyDevelopmentAdminAutologin = (request: Request): boolean => {
-  const email = config.auth.devAutoLoginAdminEmail;
-
-  if (!config.isDevelopment || !email) {
+const applyDevelopmentAutologin = (request: Request): boolean => {
+  if (!config.isDevelopment) {
     return false;
   }
 
@@ -39,13 +117,29 @@ const applyDevelopmentAdminAutologin = (request: Request): boolean => {
     return false;
   }
 
+  const mode = getActiveDevelopmentAutologinMode(request);
+  if (!mode || mode === 'anonymous') {
+    return false;
+  }
+
+  const email = mode === 'admin'
+    ? config.auth.devAutoLoginAdminEmail ?? config.auth.adminEmails[0]
+    : config.auth.devAutoLoginPlayerEmail ?? 'dev-player@example.com';
+
+  if (!email) {
+    return false;
+  }
+
+  const subjectPrefix = mode === 'admin' ? 'dev-admin' : 'dev-player';
+  const displayName = mode === 'admin' ? 'Dev Admin (autologin)' : 'Dev Player (autologin)';
+
   request.auth = {
     header: { alg: 'none' },
     token: 'dev-autologin',
     payload: {
-      sub: `dev-admin:${email}`,
+      sub: `${subjectPrefix}:${email}`,
       email,
-      name: 'Dev Admin (autologin)',
+      name: displayName,
     },
   } as unknown as AuthResult;
 
@@ -58,7 +152,7 @@ export const requireAuth = (request: Request, response: Response, next: NextFunc
     return;
   }
 
-  if (applyDevelopmentAdminAutologin(request)) {
+  if (applyDevelopmentAutologin(request)) {
     next();
     return;
   }
@@ -72,7 +166,7 @@ export const optionalAuth = (request: Request, response: Response, next: NextFun
     return next();
   }
 
-  if (applyDevelopmentAdminAutologin(request)) {
+  if (applyDevelopmentAutologin(request)) {
     return next();
   }
 

@@ -35,6 +35,8 @@ model Tournament {
   poolStages        PoolStage[]
   brackets          Bracket[]
   players           Player[]
+  doublettes        Doublette[]
+  equipes           Equipe[]
   matches           Match[]
   schedule          Schedule?
   targets           Target[]
@@ -92,10 +94,80 @@ model Player {
   bracketEntries    BracketEntry[]
   wonMatches        Match[]        @relation("MatchWinner")
   scores            Score[]        @relation("PlayerScores")
+  captainOfDoublettes Doublette[]  @relation("DoubletteCaptain")
+  doubletteMemberships DoubletteMember[] @relation("DoubletteMemberships")
+  captainOfEquipes  Equipe[]       @relation("EquipeCaptain")
+  equipeMemberships EquipeMember[] @relation("EquipeMemberships")
 
   @@unique([tournamentId, email])
   @@unique([tournamentId, firstName, lastName])
   @@map("players")
+}
+
+model Doublette {
+  id              String   @id @default(uuid())
+  tournamentId    String   @map("tournament_id")
+  captainPlayerId String?  @map("captain_player_id")
+  name            String   @db.VarChar(100)
+  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  isRegistered    Boolean  @default(false) @map("is_registered")
+  registeredAt    DateTime? @map("registered_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  captain         Player?    @relation("DoubletteCaptain", fields: [captainPlayerId], references: [id], onDelete: SetNull)
+  members         DoubletteMember[]
+
+  @@unique([tournamentId, name])
+  @@unique([tournamentId, captainPlayerId])
+  @@map("doublettes")
+}
+
+model DoubletteMember {
+  id          String   @id @default(uuid())
+  doubletteId String   @map("doublette_id")
+  playerId    String   @map("player_id")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  doublette   Doublette @relation(fields: [doubletteId], references: [id], onDelete: Cascade)
+  player      Player    @relation("DoubletteMemberships", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([doubletteId, playerId])
+  @@map("doublette_members")
+}
+
+model Equipe {
+  id              String   @id @default(uuid())
+  tournamentId    String   @map("tournament_id")
+  captainPlayerId String?  @map("captain_player_id")
+  name            String   @db.VarChar(120)
+  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  isRegistered    Boolean  @default(false) @map("is_registered")
+  registeredAt    DateTime? @map("registered_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  captain         Player?    @relation("EquipeCaptain", fields: [captainPlayerId], references: [id], onDelete: SetNull)
+  members         EquipeMember[]
+
+  @@unique([tournamentId, name])
+  @@unique([tournamentId, captainPlayerId])
+  @@map("equipes")
+}
+
+model EquipeMember {
+  id       String   @id @default(uuid())
+  equipeId String   @map("equipe_id")
+  playerId String   @map("player_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  equipe   Equipe @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  player   Player @relation("EquipeMemberships", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([equipeId, playerId])
+  @@map("equipe_members")
 }
 
 model Person {

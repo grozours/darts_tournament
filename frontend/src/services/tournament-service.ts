@@ -412,7 +412,7 @@ export async function registerTournamentPlayer(
   tournamentId: string,
   payload: CreatePlayerPayload,
   token?: string
-): Promise<void> {
+): Promise<{ id: string; firstName?: string; lastName?: string }> {
   const response = await fetch(`/api/tournaments/${tournamentId}/players`, {
     method: 'POST',
     headers: {
@@ -426,6 +426,8 @@ export async function registerTournamentPlayer(
     const message = await response.text();
     throw new Error(message || 'Failed to register player');
   }
+
+  return response.json();
 }
 
 export async function updateTournamentPlayer(
@@ -980,4 +982,448 @@ export async function deleteMatchFormatPreset(formatId: string, token?: string):
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to delete match format preset');
   }
+}
+
+export interface GroupMemberEntity {
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  joinedAt: string;
+}
+
+export interface TournamentGroupEntity {
+  id: string;
+  name: string;
+  captainPlayerId?: string | null;
+  isRegistered: boolean;
+  registeredAt?: string | null;
+  createdAt: string;
+  memberCount: number;
+  members: GroupMemberEntity[];
+}
+
+export interface GroupSearchPlayerEntity {
+  id: string;
+  firstName: string;
+  lastName: string;
+  surname?: string | null;
+  teamName?: string | null;
+  email?: string | null;
+  doublettes: Array<{ id: string; name: string }>;
+  equipes: Array<{ id: string; name: string }>;
+}
+
+export async function fetchDoublettes(
+  tournamentId: string,
+  token?: string,
+  search?: string
+): Promise<TournamentGroupEntity[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : '';
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes${query}`, buildAuthRequestOptions(token));
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch doublettes');
+  }
+
+  const data = await response.json();
+  return data.doublettes || [];
+}
+
+export async function createDoublette(
+  tournamentId: string,
+  payload: {
+    name: string;
+    password: string;
+    captainPlayerId?: string;
+    memberPlayerIds?: string[];
+  },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to create doublette');
+  }
+
+  return response.json();
+}
+
+export async function joinDoublette(
+  tournamentId: string,
+  doubletteId: string,
+  payload: { password: string },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}/join`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to join doublette');
+  }
+
+  return response.json();
+}
+
+export async function leaveDoublette(
+  tournamentId: string,
+  doubletteId: string,
+  token?: string
+): Promise<{ deleted: boolean }> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}/leave`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to leave doublette');
+  }
+
+  return response.json();
+}
+
+export async function registerDoublette(
+  tournamentId: string,
+  doubletteId: string,
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}/register`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to register doublette');
+  }
+
+  return response.json();
+}
+
+export async function deleteDoublette(
+  tournamentId: string,
+  doubletteId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}`, {
+    method: 'DELETE',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to delete doublette');
+  }
+}
+
+export async function updateDoublettePassword(
+  tournamentId: string,
+  doubletteId: string,
+  payload: { password: string },
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}/password`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to update doublette password');
+  }
+}
+
+export async function updateDoublette(
+  tournamentId: string,
+  doubletteId: string,
+  payload: { name?: string },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to update doublette');
+  }
+
+  return response.json();
+}
+
+export async function addDoubletteMember(
+  tournamentId: string,
+  doubletteId: string,
+  payload: { playerId: string },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}/members`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to add doublette member');
+  }
+
+  return response.json();
+}
+
+export async function removeDoubletteMember(
+  tournamentId: string,
+  doubletteId: string,
+  playerId: string,
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(
+    `/api/tournaments/${tournamentId}/doublettes/${doubletteId}/members/${playerId}`,
+    {
+      method: 'DELETE',
+      ...buildAuthRequestOptions(token),
+    }
+  );
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to remove doublette member');
+  }
+
+  return response.json();
+}
+
+export async function fetchEquipes(
+  tournamentId: string,
+  token?: string,
+  search?: string
+): Promise<TournamentGroupEntity[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : '';
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes${query}`, buildAuthRequestOptions(token));
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch equipes');
+  }
+
+  const data = await response.json();
+  return data.equipes || [];
+}
+
+export async function createEquipe(
+  tournamentId: string,
+  payload: {
+    name: string;
+    password: string;
+    captainPlayerId?: string;
+    memberPlayerIds?: string[];
+  },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to create equipe');
+  }
+
+  return response.json();
+}
+
+export async function joinEquipe(
+  tournamentId: string,
+  equipeId: string,
+  payload: { password: string },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}/join`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to join equipe');
+  }
+
+  return response.json();
+}
+
+export async function leaveEquipe(
+  tournamentId: string,
+  equipeId: string,
+  token?: string
+): Promise<{ deleted: boolean }> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}/leave`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to leave equipe');
+  }
+
+  return response.json();
+}
+
+export async function registerEquipe(
+  tournamentId: string,
+  equipeId: string,
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}/register`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to register equipe');
+  }
+
+  return response.json();
+}
+
+export async function deleteEquipe(
+  tournamentId: string,
+  equipeId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}`, {
+    method: 'DELETE',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to delete equipe');
+  }
+}
+
+export async function updateEquipePassword(
+  tournamentId: string,
+  equipeId: string,
+  payload: { password: string },
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}/password`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to update equipe password');
+  }
+}
+
+export async function updateEquipe(
+  tournamentId: string,
+  equipeId: string,
+  payload: { name?: string },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to update equipe');
+  }
+
+  return response.json();
+}
+
+export async function addEquipeMember(
+  tournamentId: string,
+  equipeId: string,
+  payload: { playerId: string },
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}/members`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to add equipe member');
+  }
+
+  return response.json();
+}
+
+export async function removeEquipeMember(
+  tournamentId: string,
+  equipeId: string,
+  playerId: string,
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(
+    `/api/tournaments/${tournamentId}/equipes/${equipeId}/members/${playerId}`,
+    {
+      method: 'DELETE',
+      ...buildAuthRequestOptions(token),
+    }
+  );
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to remove equipe member');
+  }
+
+  return response.json();
+}
+
+export async function searchGroupPlayers(
+  tournamentId: string,
+  query: string,
+  token?: string
+): Promise<GroupSearchPlayerEntity[]> {
+  const response = await fetch(
+    `/api/tournaments/${tournamentId}/group-players/search?query=${encodeURIComponent(query)}`,
+    buildAuthRequestOptions(token)
+  );
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to search players for groups');
+  }
+
+  const data = await response.json();
+  return data.players || [];
 }

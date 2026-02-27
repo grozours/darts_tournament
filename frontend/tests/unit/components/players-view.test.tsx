@@ -20,7 +20,7 @@ vi.mock('../../../src/services/tournament-service', async () => {
 });
 
 describe('PlayersView', () => {
-  const mockFetch = vi.fn() as MockFetch;
+  const mockFetch: MockFetch = vi.fn();
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);

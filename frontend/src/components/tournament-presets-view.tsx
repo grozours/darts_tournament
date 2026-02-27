@@ -109,6 +109,25 @@ const normalizeStageRankingDestinations = (
   return normalized;
 };
 
+const normalizeRankingDestinationsForPlayersPerPool = (
+  rankingDestinations: PoolStageRankingDestination[] | undefined,
+  playersPerPool: number
+): PoolStageRankingDestination[] => {
+  const normalizedPlayersPerPool = Number.isFinite(playersPerPool) ? Math.max(0, playersPerPool) : 0;
+  const destinationsByPosition = new Map(
+    (rankingDestinations ?? [])
+      .filter((destination) => destination.position >= 1 && destination.position <= normalizedPlayersPerPool)
+      .map((destination) => [destination.position, destination])
+  );
+
+  const normalized: PoolStageRankingDestination[] = [];
+  for (let position = 1; position <= normalizedPlayersPerPool; position += 1) {
+    normalized.push(destinationsByPosition.get(position) ?? { position, destinationType: 'ELIMINATED' });
+  }
+
+  return normalized;
+};
+
 const buildEditorStateFromTemplate = (config: TournamentPresetTemplateConfig): {
   poolStages: PoolStageConfig[];
   brackets: BracketConfig[];
@@ -820,6 +839,7 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
             >
               <option value={TournamentFormat.SINGLE}>{t('presetManager.formatSingle')}</option>
               <option value={TournamentFormat.DOUBLE}>{t('presetManager.formatDouble')}</option>
+              <option value={TournamentFormat.TEAM_4_PLAYER}>{t('presetManager.formatTeam')}</option>
             </select>
           </label>
         </div>
@@ -838,7 +858,11 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
           onPoolStageNumberChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, stageNumber: value }))}
           onPoolStageNameChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, name: value }))}
           onPoolStagePoolCountChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, poolCount: value }))}
-          onPoolStagePlayersPerPoolChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, playersPerPool: value }))}
+          onPoolStagePlayersPerPoolChange={(id, value) => updatePoolStage(id, (stage) => ({
+            ...stage,
+            playersPerPool: value,
+            rankingDestinations: normalizeRankingDestinationsForPlayersPerPool(stage.rankingDestinations, value),
+          }))}
           onPoolStageAdvanceCountChange={(id, value) => updatePoolStage(id, (stage) => ({ ...stage, advanceCount: value }))}
           onPoolStageMatchFormatChange={(id, value) => updatePoolStage(id, (stage) => {
             if (value === undefined) {
@@ -859,7 +883,11 @@ function TournamentPresetsView({ mode = 'list' }: TournamentPresetsViewPropertie
           onNewPoolStageStageNumberChange={(value) => setNewPoolStage((current) => ({ ...current, stageNumber: value }))}
           onNewPoolStageNameChange={(value) => setNewPoolStage((current) => ({ ...current, name: value }))}
           onNewPoolStagePoolCountChange={(value) => setNewPoolStage((current) => ({ ...current, poolCount: value }))}
-          onNewPoolStagePlayersPerPoolChange={(value) => setNewPoolStage((current) => ({ ...current, playersPerPool: value }))}
+          onNewPoolStagePlayersPerPoolChange={(value) => setNewPoolStage((current) => ({
+            ...current,
+            playersPerPool: value,
+            rankingDestinations: normalizeRankingDestinationsForPlayersPerPool(current.rankingDestinations, value),
+          }))}
           onNewPoolStageAdvanceCountChange={(value) => setNewPoolStage((current) => ({ ...current, advanceCount: value }))}
           onNewPoolStageMatchFormatChange={(value) => setNewPoolStage((current) => {
             if (value === undefined) {

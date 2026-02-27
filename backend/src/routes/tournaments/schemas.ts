@@ -578,3 +578,114 @@ export const updatePlayerSchema = {
     skillLevel: z.nativeEnum(SkillLevel).optional(),
   }),
 };
+
+const groupNameSchema = z
+  .string({ required_error: 'Name is required' })
+  .min(2, 'Name must be at least 2 characters long')
+  .max(120, 'Name cannot exceed 120 characters')
+  .trim();
+
+const groupPasswordSchema = z
+  .string({ required_error: 'Password is required' })
+  .min(4, 'Password must be at least 4 characters long')
+  .max(64, 'Password cannot exceed 64 characters');
+
+export const groupListSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+  }),
+  query: z.object({
+    search: z.string().trim().min(1).max(120).optional(),
+  }),
+};
+
+export const createGroupSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+  }),
+  body: z.object({
+    name: groupNameSchema,
+    password: groupPasswordSchema,
+    captainPlayerId: z.string().uuid('Invalid captain player ID').optional(),
+    memberPlayerIds: z.array(z.string().uuid('Invalid member player ID')).max(8).optional(),
+  }),
+};
+
+export const updateGroupSchema = {
+  body: z.object({
+    name: groupNameSchema.optional(),
+  }).refine((data) => data.name !== undefined, {
+    message: 'At least one field is required',
+  }),
+};
+
+export const joinDoubletteSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    doubletteId: z.string().uuid('Invalid doublette ID'),
+  }),
+  body: z.object({
+    password: groupPasswordSchema,
+  }),
+};
+
+export const joinEquipeSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    equipeId: z.string().uuid('Invalid equipe ID'),
+  }),
+  body: z.object({
+    password: groupPasswordSchema,
+  }),
+};
+
+export const doubletteRouteSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    doubletteId: z.string().uuid('Invalid doublette ID'),
+  }),
+};
+
+export const equipeRouteSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    equipeId: z.string().uuid('Invalid equipe ID'),
+  }),
+};
+
+export const updateGroupPasswordSchema = {
+  body: z.object({
+    password: groupPasswordSchema,
+  }),
+};
+
+export const groupPlayerSearchSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+  }),
+  query: z.object({
+    query: z.string().trim().min(1).max(120),
+  }),
+};
+
+export const addGroupMemberSchema = {
+  body: z.object({
+    playerId: z.string().uuid('Invalid player ID'),
+  }),
+};
+
+export const removeDoubletteMemberSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    doubletteId: z.string().uuid('Invalid doublette ID'),
+    playerId: z.string().uuid('Invalid player ID'),
+  }),
+};
+
+export const removeEquipeMemberSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid tournament ID'),
+    equipeId: z.string().uuid('Invalid equipe ID'),
+    playerId: z.string().uuid('Invalid player ID'),
+  }),
+};

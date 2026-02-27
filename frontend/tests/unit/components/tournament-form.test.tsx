@@ -34,7 +34,7 @@ describe('TournamentForm rendering', () => {
     expect(screen.getByLabelText(/duration type/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/start time/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/end time/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/total participants/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/total slots/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/target count/i)).toBeInTheDocument();
 
     // Logo upload
@@ -122,14 +122,14 @@ describe('TournamentForm validation fields', () => {
     const user = userEvent.setup();
     render(<TournamentForm {...defaultProps} />);
 
-    const participantsInput = screen.getByLabelText(/total participants/i);
+    const participantsInput = screen.getByLabelText(/total slots/i);
 
     // Test minimum
     await user.type(participantsInput, '1');
     await user.tab();
 
     await waitFor(() => {
-      expect(screen.getByText(/minimum 2 participants/i)).toBeInTheDocument();
+      expect(screen.getByText(/minimum 2 slots/i)).toBeInTheDocument();
     });
 
     // Test maximum
@@ -138,7 +138,7 @@ describe('TournamentForm validation fields', () => {
     await user.tab();
 
     await waitFor(() => {
-      expect(screen.getByText(/maximum 512 participants/i)).toBeInTheDocument();
+      expect(screen.getByText(/maximum 512 slots/i)).toBeInTheDocument();
     });
   });
 

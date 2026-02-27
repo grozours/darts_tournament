@@ -11,6 +11,8 @@ import AccountView from "./components/account-view";
 import TournamentPlayersView from "./components/tournament-players-view";
 import TournamentPresetsView from './components/tournament-presets-view';
 import MatchFormatsView from './components/match-formats-view';
+import DoublettesView from './components/doublettes-view';
+import EquipesView from './components/equipes-view';
 import { fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
@@ -164,6 +166,12 @@ const resolveMainContent = (
     }
     case 'match-formats': {
       return <MatchFormatsView />;
+    }
+    case 'doublettes': {
+      return <DoublettesView />;
+    }
+    case 'equipes': {
+      return <EquipesView />;
     }
     case 'account': {
       return <AccountView />;

@@ -694,7 +694,12 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         matches?: Array<{ status?: string }>;
       };
       const tournament = tournamentDetails;
-      const currentParticipants = tournamentDetails.players?.length || 0;
+      let currentParticipants = tournamentDetails.players?.length || 0;
+      if (tournament.format === TournamentFormat.DOUBLE) {
+        currentParticipants = await tournamentModel.countRegisteredDoublettes(id);
+      } else if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
+        currentParticipants = await tournamentModel.countRegisteredEquipes(id);
+      }
       const matchesTotal = tournamentDetails.matches?.length || 0;
       const matchesCompleted = tournamentDetails.matches?.filter((m) => m.status === 'completed').length || 0;
 

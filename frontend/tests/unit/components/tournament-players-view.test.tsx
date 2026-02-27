@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const mockFetchTournamentPlayers = vi.fn();
+const mockFetchDoublettes = vi.fn();
+const mockFetchEquipes = vi.fn();
 const mockUpdateTournamentPlayerCheckIn = vi.fn();
 const mockGetAccessTokenSilently = vi.fn();
 
@@ -22,7 +24,10 @@ vi.mock('../../../src/i18n', () => ({
 
 vi.mock('../../../src/services/tournament-service', () => ({
   fetchTournamentPlayers: (...arguments_: unknown[]) => mockFetchTournamentPlayers(...arguments_),
+  fetchDoublettes: (...arguments_: unknown[]) => mockFetchDoublettes(...arguments_),
+  fetchEquipes: (...arguments_: unknown[]) => mockFetchEquipes(...arguments_),
   updateTournamentPlayerCheckIn: (...arguments_: unknown[]) => mockUpdateTournamentPlayerCheckIn(...arguments_),
+  removeTournamentPlayer: vi.fn(),
 }));
 
 vi.mock('../../../src/auth/use-admin-status', () => ({
@@ -35,6 +40,8 @@ describe('TournamentPlayersView', () => {
   beforeEach(() => {
     authEnabled = false;
     mockFetchTournamentPlayers.mockReset();
+    mockFetchDoublettes.mockReset();
+    mockFetchEquipes.mockReset();
     mockUpdateTournamentPlayerCheckIn.mockReset();
     mockGetAccessTokenSilently.mockReset();
   });
@@ -115,5 +122,44 @@ describe('TournamentPlayersView', () => {
     });
 
     expect(screen.getByText('players.confirmed')).toBeInTheDocument();
+  });
+
+  it('renders registered group cards for DOUBLE tournaments', async () => {
+    globalThis.window?.history.pushState({}, '', '/?tournamentId=t2');
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 't2', name: 'Double Cup', status: 'OPEN', format: 'DOUBLE', totalParticipants: 16 }),
+    }) as typeof fetch;
+
+    mockFetchDoublettes.mockResolvedValueOnce([
+      {
+        id: 'd1',
+        name: 'Duo One',
+        captainPlayerId: 'p1',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p1', firstName: 'Ava', lastName: 'Archer', joinedAt: new Date().toISOString() },
+          { playerId: 'p2', firstName: 'Bea', lastName: 'Bell', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    const { default: TournamentPlayersView } = await import('../../../src/components/tournament-players-view');
+    render(<TournamentPlayersView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Double Cup')).toBeInTheDocument();
+      expect(screen.getByText('Duo One')).toBeInTheDocument();
+      expect(screen.getAllByText((content, element) => {
+        const text = element?.textContent ?? content;
+        return text.includes('1') && text.includes('/') && text.includes('16') && text.includes('registration.slotsCount');
+      }).length).toBeGreaterThan(0);
+    });
+
+    expect(mockFetchDoublettes).toHaveBeenCalledWith('t2', undefined);
+    expect(mockFetchTournamentPlayers).not.toHaveBeenCalled();
   });
 });

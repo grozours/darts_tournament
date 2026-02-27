@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TargetsView from '../../../src/components/targets-view';
 import { completeMatch, fetchTournamentLiveView, updateMatchStatus } from '../../../src/services/tournament-service';
@@ -22,7 +23,7 @@ vi.mock('../../../src/auth/use-admin-status', () => ({
   useAdminStatus: () => ({ isAdmin: true }),
 }));
 
-const mockFetch = vi.fn() as MockFetch;
+const mockFetch: MockFetch = vi.fn();
 const originalConsoleError = console.error;
 
 beforeEach(() => {

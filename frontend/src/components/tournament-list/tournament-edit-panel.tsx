@@ -270,6 +270,7 @@ const TournamentEditPanel = (properties: TournamentEditPanelProperties) => {
         <TournamentEditHeader
           t={properties.t}
           tournamentId={properties.editingTournament.id}
+          tournamentFormat={properties.editingTournament.format}
           onClose={properties.onClose}
         />
 

@@ -72,4 +72,5 @@ export const ptMessages: Record<string, string> = {
   'tournamentForm.submit': 'Criar torneio',
   'tournamentForm.submitting': 'Criando...',
   'tournamentForm.errors.failedCreate': 'Falha ao criar torneio',
+  'presetManager.formatTeam': 'Equipa',
 };

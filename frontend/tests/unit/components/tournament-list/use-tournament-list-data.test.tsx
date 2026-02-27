@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import useTournamentListData from '../../../../src/components/tournament-list/use-tournament-list-data';
 
 const createResponse = (options: { ok: boolean; status?: number; statusText?: string; json?: unknown; text?: string }) => ({

@@ -33,6 +33,12 @@ vi.mock('../../../../src/auth/optional-auth', () => ({
 }));
 
 describe('useMatchStartedNotifications', () => {
+  const toUrl = (input: RequestInfo | URL) => {
+    if (input instanceof URL) return input.toString();
+    if (typeof input === 'string') return input;
+    return input.url;
+  };
+
   beforeEach(() => {
     authState.enabled = true;
     authState.isAuthenticated = true;
@@ -47,7 +53,7 @@ describe('useMatchStartedNotifications', () => {
     globalThis.localStorage.clear();
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = toUrl(input);
       if (url.endsWith('/api/auth/me')) {
         return { ok: true, json: async () => ({ user: { email: 'p@example.com' } }) } as Response;
       }

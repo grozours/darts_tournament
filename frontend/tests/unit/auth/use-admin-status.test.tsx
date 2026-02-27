@@ -1,6 +1,6 @@
-import { act, render, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
+import { act, useEffect } from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { useEffect } from 'react';
 import { useAdminStatus } from '../../../src/auth/use-admin-status';
 
 const authState = {

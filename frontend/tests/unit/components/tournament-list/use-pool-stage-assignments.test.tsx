@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import usePoolStageAssignments from '../../../../src/components/tournament-list/use-pool-stage-assignments';
 
@@ -92,6 +93,34 @@ describe('usePoolStageAssignments', () => {
 
     await waitFor(() => {
       expect(result.current.poolStageEditError).toBe('edit.error.failedLoadPoolAssignments');
+    });
+  });
+
+  it('sets translated error when save fails with non-error', async () => {
+    fetchTournamentPlayers.mockResolvedValue([{ playerId: 'p1', name: 'Player One' }]);
+    fetchPoolStagePools.mockResolvedValue([{ id: 'pool-1', poolNumber: 1, assignments: [{ playerId: 'p1' }] }]);
+    updatePoolAssignments.mockRejectedValue('boom');
+
+    const { result } = renderHook(() => usePoolStageAssignments({
+      t: (key: string) => key,
+      editingTournament: tournament,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+    }));
+
+    await act(async () => {
+      await result.current.openPoolStageAssignments({ id: 's1', name: 'Stage 1' } as never);
+    });
+
+    await waitFor(() => {
+      expect(result.current.editingPoolStage?.id).toBe('s1');
+    });
+
+    await act(async () => {
+      await result.current.savePoolStageAssignments();
+    });
+
+    await waitFor(() => {
+      expect(result.current.poolStageEditError).toBe('edit.error.failedUpdatePoolAssignments');
     });
   });
 });

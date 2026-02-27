@@ -116,6 +116,7 @@ export interface LiveViewBracket {
 export interface LiveViewData {
   id: string;
   name: string;
+  format?: string;
   status: string;
   startTime?: string;
   endTime?: string;

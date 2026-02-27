@@ -79,4 +79,25 @@ describe('buildPoolLeaderboard', () => {
     const p1 = leaderboard.find((row) => row.playerId === 'p1');
     expect(p1?.headToHeadBonus).toBe(1);
   });
+
+  it('uses custom participant labels when provided', () => {
+    const leaderboard = buildPoolLeaderboard({
+      id: 'pool-1',
+      poolNumber: 1,
+      name: 'Pool 1',
+      status: 'IN_PROGRESS',
+      assignments: [
+        { id: 'a1', player: { id: 'p1', firstName: 'Alice', lastName: 'A' } },
+        { id: 'a2', player: { id: 'p2', firstName: 'Bob', lastName: 'B' } },
+      ],
+      matches: [],
+    } as never, (player) => {
+      if (!player?.id) {
+        return 'TBD';
+      }
+      return player.id === 'p1' ? 'Doublette Alpha' : 'Doublette Beta';
+    });
+
+    expect(leaderboard.map((row) => row.name)).toEqual(['Doublette Alpha', 'Doublette Beta']);
+  });
 });

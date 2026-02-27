@@ -10,17 +10,21 @@ import {
   ensureTournamentAllowsPlayerUpdate,
   ensureUniquePlayerAttributes,
   ensureUniqueSurname,
-  ensureUniqueTeamName,
   updateLinkedPerson,
   validatePlayerData,
 } from './player-helpers';
+import { getPlayerCapacityFromSlots } from './slot-capacity';
 
 type PlayerHandlerContext = {
   tournamentModel: TournamentModel;
   logger: TournamentLogger;
   validateUUID: (id: string) => void;
   transitionTournamentStatus: (tournamentId: string, status: TournamentStatus) => Promise<Tournament>;
+  isAdminAction: () => boolean;
 };
+
+const requiresGroupCaptainRegistration = (format: TournamentFormat) =>
+  format === TournamentFormat.DOUBLE || format === TournamentFormat.TEAM_4_PLAYER;
 
 export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
   registerPlayer: async (tournamentId: string, playerId: string): Promise<void> => {
@@ -46,6 +50,14 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
           tournament.name
         );
         throw new AppError('Tournament registration is not open', 400, 'REGISTRATION_NOT_OPEN');
+      }
+
+      if (requiresGroupCaptainRegistration(tournament.format) && !context.isAdminAction()) {
+        throw new AppError(
+          'For this tournament format, registration must be completed by a doublette/equipe captain',
+          400,
+          'REGISTRATION_REQUIRES_GROUP_CAPTAIN'
+        );
       }
 
       if (config.auth.enabled) {
@@ -79,7 +91,8 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
       }
 
       const currentParticipants = await context.tournamentModel.getParticipantCount(tournamentId);
-      if (currentParticipants >= tournament.totalParticipants) {
+      const playerCapacity = getPlayerCapacityFromSlots(tournament.totalParticipants, tournament.format);
+      if (currentParticipants >= playerCapacity) {
         context.logger.validationError(
           'TOURNAMENT_FULL',
           `Tournament is full: ${tournament.name}`,
@@ -128,6 +141,14 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
         throw new AppError('Tournament registration is not open', 400, 'REGISTRATION_NOT_OPEN');
       }
 
+      if (requiresGroupCaptainRegistration(tournament.format) && !context.isAdminAction()) {
+        throw new AppError(
+          'For this tournament format, registration must be completed by a doublette/equipe captain',
+          400,
+          'REGISTRATION_REQUIRES_GROUP_CAPTAIN'
+        );
+      }
+
       if (config.auth.enabled) {
         const now = new Date();
         const registrationDeadline = new Date(tournament.startTime);
@@ -145,7 +166,8 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
       }
 
       const currentParticipants = await context.tournamentModel.getParticipantCount(tournamentId);
-      if (currentParticipants >= tournament.totalParticipants) {
+      const playerCapacity = getPlayerCapacityFromSlots(tournament.totalParticipants, tournament.format);
+      if (currentParticipants >= playerCapacity) {
         context.logger.validationError(
           'TOURNAMENT_FULL',
           `Tournament is full: ${tournament.name}`,
@@ -157,14 +179,6 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
 
       if (playerData.surname?.trim()) {
         await ensureUniqueSurname(context, tournamentId, playerData.surname);
-      }
-
-      if (
-        playerData.teamName?.trim() &&
-        (tournament.format === TournamentFormat.DOUBLE ||
-          tournament.format === TournamentFormat.TEAM_4_PLAYER)
-      ) {
-        await ensureUniqueTeamName(context, tournamentId, playerData.teamName);
       }
 
       const playerPayload = await buildPlayerPayload(context, playerData);

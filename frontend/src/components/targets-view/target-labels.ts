@@ -8,6 +8,7 @@ type PlayerIdentity = {
 };
 
 type PlayerLabel = {
+  id?: string;
   firstName: string;
   lastName: string;
   surname?: string;
@@ -36,8 +37,17 @@ export const getTargetLabel = (target: LiveViewTarget, t: Translator) => {
   return formatTargetLabel(base, t);
 };
 
-export const getPlayerLabel = (player?: PlayerLabel) => {
+export const getPlayerLabel = (
+  player?: PlayerLabel,
+  groupNameByPlayerId?: Map<string, string>
+) => {
   if (!player) return '';
+  if (player.id) {
+    const groupName = groupNameByPlayerId?.get(player.id);
+    if (groupName) {
+      return groupName;
+    }
+  }
   if (player.teamName) return player.teamName;
   if (player.surname) return player.surname;
   return `${player.firstName} ${player.lastName}`.trim();
@@ -52,7 +62,26 @@ export const getSurnameList = (players: string[]) =>
     .filter(Boolean)
     .join(' · ');
 
-export const getMatchPlayers = (match: LiveViewMatch) =>
+export const formatParticipantsLabel = (players: string[], fallback: string) => {
+  const label = players.join(' · ').trim();
+  return label || fallback;
+};
+
+export const getMatchStatusLabel = (status: string, t: Translator) => {
+  const key = status.trim().toUpperCase();
+  const labels: Record<string, string> = {
+    SCHEDULED: t('status.match.scheduled'),
+    IN_PROGRESS: t('status.match.in_progress'),
+    COMPLETED: t('status.match.completed'),
+    CANCELLED: t('status.match.cancelled'),
+  };
+  return labels[key] ?? status;
+};
+
+export const getMatchPlayers = (
+  match: LiveViewMatch,
+  groupNameByPlayerId?: Map<string, string>
+) =>
   (match.playerMatches ?? [])
-    .map((playerMatch) => getPlayerLabel(playerMatch.player))
+    .map((playerMatch) => getPlayerLabel(playerMatch.player, groupNameByPlayerId))
     .filter(Boolean);

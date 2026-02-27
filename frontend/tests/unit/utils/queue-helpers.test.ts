@@ -70,6 +70,49 @@ describe('queue-helpers items', () => {
     expect(poolItem?.blocked).toBe(false);
     expect(bracketItem?.matchId).toBe('match-3');
   });
+
+  it('uses grouped participant labels when mapping is provided', () => {
+    const view: LiveViewData = {
+      id: 't-1',
+      name: 'Spring Cup',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 'stage-1',
+          stageNumber: 1,
+          name: 'Stage 1',
+          pools: [
+            {
+              id: 'pool-1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              matches: [
+                {
+                  id: 'match-1',
+                  matchNumber: 1,
+                  roundNumber: 1,
+                  status: 'SCHEDULED',
+                  playerMatches: [
+                    { player: { id: 'p1', firstName: 'Ana', lastName: 'Diaz' } },
+                    { player: { id: 'p2', firstName: 'Bo', lastName: 'Kim' } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      brackets: [],
+    };
+
+    const grouped = new Map<string, string>([
+      ['p1', 'Doublette Alpha'],
+      ['p2', 'Doublette Alpha'],
+    ]);
+
+    const queue = buildMatchQueue(view, grouped);
+    expect(queue[0]?.players).toEqual(['Doublette Alpha', 'Doublette Alpha']);
+  });
 });
 
 describe('queue-helpers interleaving', () => {
@@ -144,5 +187,47 @@ describe('queue-helpers interleaving', () => {
     expect(globalQueue).toHaveLength(2);
     expect(globalQueue[0]?.tournamentId).toBe('t-1');
     expect(globalQueue[1]?.tournamentId).toBe('t-2');
+  });
+
+  it('uses grouped participant labels map by tournament in global queue', () => {
+    const viewOne: LiveViewData = {
+      id: 't-1',
+      name: 'Alpha',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 'stage-1',
+          stageNumber: 1,
+          name: 'Stage 1',
+          pools: [
+            {
+              id: 'pool-1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              matches: [
+                {
+                  id: 'match-1',
+                  matchNumber: 1,
+                  roundNumber: 1,
+                  status: 'SCHEDULED',
+                  playerMatches: [
+                    { player: { id: 'p1', firstName: 'Ana', lastName: 'Diaz' } },
+                    { player: { id: 'p2', firstName: 'Bo', lastName: 'Kim' } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      brackets: [],
+    };
+
+    const groupedByTournament = new Map<string, Map<string, string>>([
+      ['t-1', new Map<string, string>([['p1', 'Equipe X'], ['p2', 'Equipe X']])],
+    ]);
+
+    const globalQueue = buildGlobalMatchQueue([viewOne], groupedByTournament);
+    expect(globalQueue[0]?.players).toEqual(['Equipe X', 'Equipe X']);
   });
 });

@@ -6,7 +6,7 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   const matchFormatPresets = await prisma.matchFormatPreset.createMany({
-    data:             [
+    data:                 [
       {
         "key": "BO3",
         "durationMinutes": 45,
@@ -152,7 +152,7 @@ async function main() {
   console.log(`✅ Created ${matchFormatPresets.count} match format presets`);
 
   const tournamentPresets = await prisma.tournamentPreset.createMany({
-    data:             [
+    data:                 [
       {
         "name": "Doublette 40 joueurs",
         "presetType": "three-pool-stages",

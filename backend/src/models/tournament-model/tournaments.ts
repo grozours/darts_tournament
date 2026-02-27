@@ -133,17 +133,50 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
             _count: { _all: true },
           })
           : [];
+        const registeredDoubletteCounts = tournamentIds.length > 0
+          ? await prisma.doublette.groupBy({
+            by: ['tournamentId'],
+            where: { tournamentId: { in: tournamentIds }, isRegistered: true },
+            _count: { _all: true },
+          })
+          : [];
+        const registeredEquipeCounts = tournamentIds.length > 0
+          ? await prisma.equipe.groupBy({
+            by: ['tournamentId'],
+            where: { tournamentId: { in: tournamentIds }, isRegistered: true },
+            _count: { _all: true },
+          })
+          : [];
         const participantCountByTournament = new Map(
           participantCounts
             .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
             .map((entry) => [entry.tournamentId, entry._count._all])
         );
+        const registeredDoubletteCountByTournament = new Map(
+          registeredDoubletteCounts
+            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+            .map((entry) => [entry.tournamentId, entry._count._all])
+        );
+        const registeredEquipeCountByTournament = new Map(
+          registeredEquipeCounts
+            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+            .map((entry) => [entry.tournamentId, entry._count._all])
+        );
 
         return {
-          tournaments: tournaments.map((tournament) => ({
-            ...mapToTournament(tournament),
-            currentParticipants: participantCountByTournament.get(tournament.id) ?? 0,
-          })),
+          tournaments: tournaments.map((tournament) => {
+            let currentParticipants = participantCountByTournament.get(tournament.id) ?? 0;
+            if (tournament.format === TournamentFormat.DOUBLE) {
+              currentParticipants = registeredDoubletteCountByTournament.get(tournament.id) ?? 0;
+            } else if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
+              currentParticipants = registeredEquipeCountByTournament.get(tournament.id) ?? 0;
+            }
+
+            return {
+              ...mapToTournament(tournament),
+              currentParticipants,
+            };
+          }),
           total,
           page,
           limit,

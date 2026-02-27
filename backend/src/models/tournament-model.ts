@@ -20,6 +20,10 @@ import {
   createTournamentModelStats,
   type TournamentModelStatsHandlers,
 } from './tournament-model/stats';
+import {
+  createTournamentModelGroups,
+  type TournamentModelGroupHandlers,
+} from './tournament-model/groups';
 
 export class TournamentModel {
   public findById!: TournamentModelCoreHandlers['findById'];
@@ -55,6 +59,34 @@ export class TournamentModel {
   public updatePlayer!: TournamentModelPlayerHandlers['updatePlayer'];
   public findPlayerBySurname!: TournamentModelPlayerHandlers['findPlayerBySurname'];
   public findPlayerByTeamName!: TournamentModelPlayerHandlers['findPlayerByTeamName'];
+  public findPlayerByEmail!: TournamentModelPlayerHandlers['findPlayerByEmail'];
+
+  public listDoublettes!: TournamentModelGroupHandlers['listDoublettes'];
+  public countRegisteredDoublettes!: TournamentModelGroupHandlers['countRegisteredDoublettes'];
+  public getDoubletteById!: TournamentModelGroupHandlers['getDoubletteById'];
+  public createDoublette!: TournamentModelGroupHandlers['createDoublette'];
+  public updateDoublette!: TournamentModelGroupHandlers['updateDoublette'];
+  public updateDoublettePassword!: TournamentModelGroupHandlers['updateDoublettePassword'];
+  public addDoubletteMember!: TournamentModelGroupHandlers['addDoubletteMember'];
+  public removeDoubletteMember!: TournamentModelGroupHandlers['removeDoubletteMember'];
+  public updateDoubletteCaptain!: TournamentModelGroupHandlers['updateDoubletteCaptain'];
+  public markDoubletteRegistered!: TournamentModelGroupHandlers['markDoubletteRegistered'];
+  public deleteDoublette!: TournamentModelGroupHandlers['deleteDoublette'];
+  public findDoubletteMembershipByPlayer!: TournamentModelGroupHandlers['findDoubletteMembershipByPlayer'];
+
+  public listEquipes!: TournamentModelGroupHandlers['listEquipes'];
+  public countRegisteredEquipes!: TournamentModelGroupHandlers['countRegisteredEquipes'];
+  public getEquipeById!: TournamentModelGroupHandlers['getEquipeById'];
+  public createEquipe!: TournamentModelGroupHandlers['createEquipe'];
+  public updateEquipe!: TournamentModelGroupHandlers['updateEquipe'];
+  public updateEquipePassword!: TournamentModelGroupHandlers['updateEquipePassword'];
+  public addEquipeMember!: TournamentModelGroupHandlers['addEquipeMember'];
+  public removeEquipeMember!: TournamentModelGroupHandlers['removeEquipeMember'];
+  public updateEquipeCaptain!: TournamentModelGroupHandlers['updateEquipeCaptain'];
+  public markEquipeRegistered!: TournamentModelGroupHandlers['markEquipeRegistered'];
+  public deleteEquipe!: TournamentModelGroupHandlers['deleteEquipe'];
+  public findEquipeMembershipByPlayer!: TournamentModelGroupHandlers['findEquipeMembershipByPlayer'];
+  public searchPlayersForGroups!: TournamentModelGroupHandlers['searchPlayersForGroups'];
 
   public getPoolStages!: TournamentModelPoolStageHandlers['getPoolStages'];
   public getPoolById!: TournamentModelPoolStageHandlers['getPoolById'];
@@ -129,6 +161,7 @@ export class TournamentModel {
       this,
       createTournamentModelCore(prisma),
       createTournamentModelPlayers(prisma),
+      createTournamentModelGroups(prisma),
       createTournamentModelPoolStages(prisma),
       createTournamentModelBrackets(prisma),
       createTournamentModelMatches(prisma),

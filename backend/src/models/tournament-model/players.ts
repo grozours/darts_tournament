@@ -439,6 +439,15 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
       },
     });
   },
+
+  findPlayerByEmail: async (tournamentId: string, email: string) => {
+    return await prisma.player.findFirst({
+      where: {
+        tournamentId,
+        email: { equals: email, mode: 'insensitive' },
+      },
+    });
+  },
 });
 
 export type TournamentModelPlayerHandlers = ReturnType<typeof createTournamentModelPlayers>;

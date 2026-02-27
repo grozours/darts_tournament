@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-02-26T10:18:00.447Z",
+  "exportedAt": "2026-02-27T15:02:01.838Z",
   "tournamentPresets": [
     {
       "id": "60676568-0072-4a16-93f2-03ba0f49025f",
@@ -162,7 +162,7 @@
       },
       "isSystem": true,
       "createdAt": "2026-02-25T18:39:02.859Z",
-      "updatedAt": "2026-02-25T18:39:02.859Z"
+      "updatedAt": "2026-02-26T13:08:43.953Z"
     },
     {
       "id": "d98bfd23-1e8f-4ee4-82f6-8c81956f79d8",
@@ -243,7 +243,7 @@
       },
       "isSystem": true,
       "createdAt": "2026-02-25T18:39:02.863Z",
-      "updatedAt": "2026-02-25T18:39:02.863Z"
+      "updatedAt": "2026-02-26T13:08:43.958Z"
     }
   ],
   "matchFormatPresets": [
@@ -267,7 +267,7 @@
       ],
       "isSystem": true,
       "createdAt": "2026-02-25T18:39:02.849Z",
-      "updatedAt": "2026-02-25T18:39:02.849Z"
+      "updatedAt": "2026-02-26T13:08:43.932Z"
     },
     {
       "id": "eaebc92a-47a6-4333-b9de-bc81983b1246",
@@ -289,7 +289,7 @@
       ],
       "isSystem": false,
       "createdAt": "2026-02-25T18:39:02.854Z",
-      "updatedAt": "2026-02-25T18:39:02.854Z"
+      "updatedAt": "2026-02-26T13:08:43.945Z"
     },
     {
       "id": "bc3368ef-1b2b-4830-acf8-0d240ce5f70a",
@@ -311,7 +311,7 @@
       ],
       "isSystem": false,
       "createdAt": "2026-02-25T18:39:02.855Z",
-      "updatedAt": "2026-02-25T18:39:02.855Z"
+      "updatedAt": "2026-02-26T13:08:43.946Z"
     },
     {
       "id": "a1ecad82-929c-42b7-b9a8-e53211ddfb2c",
@@ -341,7 +341,7 @@
       ],
       "isSystem": true,
       "createdAt": "2026-02-25T18:39:02.856Z",
-      "updatedAt": "2026-02-25T18:39:02.856Z"
+      "updatedAt": "2026-02-26T13:08:43.949Z"
     },
     {
       "id": "7eeac739-914e-4df0-9929-375466e68654",
@@ -371,7 +371,7 @@
       ],
       "isSystem": true,
       "createdAt": "2026-02-25T18:39:02.857Z",
-      "updatedAt": "2026-02-25T18:39:02.857Z"
+      "updatedAt": "2026-02-26T13:08:43.950Z"
     },
     {
       "id": "aa058c20-fe16-4679-bd37-7676e5a06fb5",
@@ -401,7 +401,7 @@
       ],
       "isSystem": false,
       "createdAt": "2026-02-25T18:39:02.858Z",
-      "updatedAt": "2026-02-25T18:39:02.858Z"
+      "updatedAt": "2026-02-26T13:08:43.951Z"
     }
   ]
 }

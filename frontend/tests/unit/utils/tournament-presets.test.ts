@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TournamentFormat } from '@shared/types';
 import {
   buildPresetRoutingUpdates,
   buildTournamentPresetTemplate,
@@ -28,7 +29,7 @@ describe('tournament-presets utils', () => {
     const template = buildTournamentPresetTemplate({
       presetType: 'custom',
       templateConfig: {
-        format: 'DOUBLE',
+        format: TournamentFormat.DOUBLE,
         stages: [
           {
             name: 'Stage A',
@@ -71,7 +72,7 @@ describe('tournament-presets utils', () => {
   it('builds routing updates and skips invalid destinations or missing stage ids', () => {
     const updates = buildPresetRoutingUpdates(
       {
-        format: 'DOUBLE',
+        format: TournamentFormat.DOUBLE,
         stages: [],
         brackets: [],
         routingRules: [
@@ -102,6 +103,6 @@ describe('tournament-presets utils', () => {
 
   it('returns empty routing updates when config is missing or has no rules', () => {
     expect(buildPresetRoutingUpdates(undefined, [], [])).toEqual([]);
-    expect(buildPresetRoutingUpdates({ format: 'SINGLE', stages: [], brackets: [], routingRules: [] }, [], [])).toEqual([]);
+    expect(buildPresetRoutingUpdates({ format: TournamentFormat.SINGLE, stages: [], brackets: [], routingRules: [] }, [], [])).toEqual([]);
   });
 });

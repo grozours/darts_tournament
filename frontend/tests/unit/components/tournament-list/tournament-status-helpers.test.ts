@@ -19,11 +19,11 @@ describe('tournament-status-helpers', () => {
     expect(normalizeTournamentStatus('IN_PROGRESS')).toBe('LIVE');
     expect(normalizeTournamentStatus('archived')).toBe('FINISHED');
     expect(normalizeTournamentStatus(' draft ')).toBe('DRAFT');
-    expect(normalizeTournamentStatus(undefined)).toBe('');
+    expect(normalizeTournamentStatus()).toBe('');
   });
 
   it('normalizes stage status', () => {
     expect(normalizeStageStatus(' in_progress ')).toBe('IN_PROGRESS');
-    expect(normalizeStageStatus(undefined)).toBe('');
+    expect(normalizeStageStatus()).toBe('');
   });
 });

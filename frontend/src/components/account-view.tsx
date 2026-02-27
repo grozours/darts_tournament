@@ -20,9 +20,10 @@ type AccountProfileProperties = {
   userDetails: AccountUserDetails;
   onSignOut?: () => void;
   showDetails: boolean;
+  roleLabel?: string;
 };
 
-const AccountProfile = ({ t, userDetails, onSignOut, showDetails }: AccountProfileProperties) => (
+const AccountProfile = ({ t, userDetails, onSignOut, showDetails, roleLabel }: AccountProfileProperties) => (
   <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
     <div className="flex items-start gap-6">
       {userDetails.picture && (
@@ -34,6 +35,11 @@ const AccountProfile = ({ t, userDetails, onSignOut, showDetails }: AccountProfi
       )}
       <div className="flex-1">
         <h3 className="text-xl font-semibold text-white">{userDetails.name || t('account.anonymous')}</h3>
+        {roleLabel && (
+          <p className="mt-1 inline-flex rounded-full border border-cyan-700/50 bg-cyan-900/30 px-2 py-1 text-xs font-semibold text-cyan-200">
+            {roleLabel}
+          </p>
+        )}
         {userDetails.email && (
           <p className="mt-1 text-sm text-slate-400">{userDetails.email}</p>
         )}
@@ -122,9 +128,15 @@ function AccountView() {
   }
 
   const hasAuthSession = isAuthenticated && Boolean(user);
+  const hasAutologinProfile = !hasAuthSession && Boolean(adminUser);
   let effectiveUser = user;
-  if (!hasAuthSession && isAdmin) {
+  if (!hasAuthSession && adminUser) {
     effectiveUser = adminUser;
+  }
+
+  let autologinRoleLabel: string | undefined;
+  if (hasAutologinProfile) {
+    autologinRoleLabel = isAdmin ? t('account.autologinAdmin') : t('account.autologinPlayer');
   }
 
   if (!effectiveUser) {
@@ -164,6 +176,7 @@ function AccountView() {
         t={t}
         userDetails={userDetails}
         showDetails={isAdmin}
+        {...(autologinRoleLabel ? { roleLabel: autologinRoleLabel } : {})}
         {...(hasAuthSession
           ? {
               onSignOut: () => logout({ logoutParams: { returnTo: globalThis.window?.location.origin } }),

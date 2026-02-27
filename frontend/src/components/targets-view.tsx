@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { TournamentFormat } from '@shared/types';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
+import { fetchDoublettes, fetchEquipes } from '../services/tournament-service';
 import TargetsViewContent from './targets-view/targets-view-content';
 import TargetsViewState from './targets-view/targets-view-state';
 import useTargetsViewActions from './targets-view/use-targets-view-actions';
@@ -36,18 +38,79 @@ function TargetsView() {
     tournamentId,
   });
 
+  const scopedViews = useMemo(() => {
+    const activeViews = liveViews.filter((view) => (view.status ?? '').toUpperCase() === 'LIVE');
+    return tournamentId ? activeViews.filter((view) => view.id === tournamentId) : activeViews;
+  }, [liveViews, tournamentId]);
+
+  const [groupNameByPlayerIdByTournament, setGroupNameByPlayerIdByTournament] = useState<Map<string, Map<string, string>>>(new Map());
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadGroupLabels = async () => {
+      const groupedViews = scopedViews.filter(
+        (view) => view.format === TournamentFormat.DOUBLE || view.format === TournamentFormat.TEAM_4_PLAYER
+      );
+
+      if (groupedViews.length === 0) {
+        if (!isCancelled) {
+          setGroupNameByPlayerIdByTournament(new Map());
+        }
+        return;
+      }
+
+      try {
+        const token = await getSafeAccessToken();
+        const nextMap = new Map<string, Map<string, string>>();
+
+        await Promise.all(groupedViews.map(async (view) => {
+          const groups = view.format === TournamentFormat.DOUBLE
+            ? await fetchDoublettes(view.id, token)
+            : await fetchEquipes(view.id, token);
+
+          const byPlayerId = new Map<string, string>();
+          for (const group of groups) {
+            for (const member of group.members) {
+              byPlayerId.set(member.playerId, group.name);
+            }
+          }
+
+          nextMap.set(view.id, byPlayerId);
+        }));
+
+        if (!isCancelled) {
+          setGroupNameByPlayerIdByTournament(nextMap);
+        }
+      } catch (error_) {
+        console.error('[TargetsView] Failed to load group labels:', error_);
+        if (!isCancelled) {
+          setGroupNameByPlayerIdByTournament(new Map());
+        }
+      }
+    };
+
+    void loadGroupLabels();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [getSafeAccessToken, scopedViews]);
+
+  const derived = useTargetsViewDerived({
+    liveViews,
+    tournamentId,
+    t,
+    groupNameByPlayerIdByTournament,
+  });
   const {
-    scopedViews,
+    scopedViews: derivedScopedViews,
     matchDetailsById,
     matchTournamentById,
     sharedTargets,
     queueItems,
     queuePreview,
-  } = useTargetsViewDerived({
-    liveViews,
-    tournamentId,
-    t,
-  });
+  } = derived;
   const {
     matchSelectionByTarget,
     startingMatchId,
@@ -69,13 +132,13 @@ function TargetsView() {
     matchTournamentById,
   });
 
-  if (loading || error || scopedViews.length === 0) {
+  if (loading || error || derivedScopedViews.length === 0) {
     return (
       <TargetsViewState
         t={t}
         loading={loading}
         error={error}
-        scopedViewsCount={scopedViews.length}
+        scopedViewsCount={derivedScopedViews.length}
         onRetry={loadTargets}
       />
     );
@@ -86,7 +149,7 @@ function TargetsView() {
       t={t}
       isAdmin={isAdmin}
       tournamentId={tournamentId}
-      scopedViews={scopedViews}
+      scopedViews={derivedScopedViews}
       sharedTargets={sharedTargets}
       queueItems={queueItems}
       queuePreview={queuePreview}

@@ -41,6 +41,7 @@ type BracketsSectionProperties = {
   onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketId: string;
+  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string } | undefined) => string;
 };
 
 const FALLBACK_MATCH_DURATION_MINUTES = 12;
@@ -464,48 +465,59 @@ const BracketSummaryHeader = ({
   <div className="flex flex-wrap items-center justify-between gap-3">
     <div>
       <h4 className="text-lg font-semibold text-white">{bracket.name}</h4>
-      <p className="text-sm text-slate-400">
-        {bracket.bracketType} · {getStatusLabel('bracket', bracket.status)}
-      </p>
-      <p className="mt-1 text-xs text-slate-300">
-        {t('live.estimatedDuration')}: {formatDurationClock(estimatedDurationMinutes)}
-      </p>
-      <p className="mt-1 text-xs text-slate-300">
-        {t('live.estimatedStartTime')}: {estimatedStartTimeLabel}
-      </p>
-      <p className="mt-1 text-xs text-slate-300">
-        {t('live.estimatedEndTime')}: {estimatedEndTimeLabel}
-      </p>
     </div>
-    <div className="flex flex-wrap items-center gap-2">
-      {canManageBrackets && !isBracketsReadonly && (
-        <button
-          type="button"
-          onClick={() => onCompleteBracketRound(tournamentId, bracket)}
-          disabled={isUpdatingRound}
-          className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
-        >
-          {isUpdatingRound ? t('live.completingRound') : t('live.completeRound')}
-        </button>
-      )}
-      {canManageBrackets && !isBracketsReadonly && (
-        <button
-          type="button"
-          onClick={() => {
-            if (!globalThis.window?.confirm(t('live.resetBracketConfirm'))) {
-              return;
-            }
-            onResetBracketMatches(tournamentId, bracket.id);
-          }}
-          disabled={isResettingBracket}
-          className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
-        >
-          {isResettingBracket ? t('common.loading') : t('live.resetBracket')}
-        </button>
-      )}
-      <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-        {bracket.entries?.length || 0} entries
-      </span>
+    <div className="w-full sm:w-auto flex flex-col items-start sm:items-end gap-2">
+      <div className="flex w-full flex-wrap items-center justify-start sm:justify-end gap-2 text-xs">
+        <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-cyan-200">
+          {bracket.bracketType}
+        </span>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+          <span className="hidden sm:inline">{t('common.status')}: </span>
+          {getStatusLabel('bracket', bracket.status)}
+        </span>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+          <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
+          {formatDurationClock(estimatedDurationMinutes)}
+        </span>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+          <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
+          {estimatedStartTimeLabel}
+        </span>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+          <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
+          {estimatedEndTimeLabel}
+        </span>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+          {bracket.entries?.length || 0} entries
+        </span>
+      </div>
+      <div className="flex w-full flex-wrap items-center justify-start sm:justify-end gap-2">
+        {canManageBrackets && !isBracketsReadonly && (
+          <button
+            type="button"
+            onClick={() => onCompleteBracketRound(tournamentId, bracket)}
+            disabled={isUpdatingRound}
+            className="rounded-full border border-indigo-500/70 px-3 py-1 text-xs font-semibold text-indigo-200 transition hover:border-indigo-300 disabled:opacity-60"
+          >
+            {isUpdatingRound ? t('live.completingRound') : t('live.completeRound')}
+          </button>
+        )}
+        {canManageBrackets && !isBracketsReadonly && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!globalThis.window?.confirm(t('live.resetBracketConfirm'))) {
+                return;
+              }
+              onResetBracketMatches(tournamentId, bracket.id);
+            }}
+            disabled={isResettingBracket}
+            className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:border-rose-300 disabled:opacity-60"
+          >
+            {isResettingBracket ? t('common.loading') : t('live.resetBracket')}
+          </button>
+        )}
+      </div>
     </div>
   </div>
 );
@@ -543,6 +555,7 @@ const BracketsSection = ({
   onResetBracketMatches,
   onSelectBracket,
   activeBracketId,
+  getParticipantLabel,
 }: BracketsSectionProperties) => {
   if (brackets.length === 0) {
     return <SectionEmptyState title={t('live.bracketStages')} message={t('live.noBrackets')} />;
@@ -580,10 +593,26 @@ const BracketsSection = ({
     return (
       <div className="space-y-3">
         <p className="text-xs uppercase tracking-[0.3em] text-amber-300/80">{activeBracket.name}</p>
-        <div className="text-[11px] text-slate-300 space-y-1">
-          <p>{t('live.estimatedStartTime')}: {bracketForecast.estimatedStartTimeLabel}</p>
-          <p>{t('live.estimatedEndTime')}: {bracketForecast.estimatedEndTimeLabel}</p>
-          <p>{t('live.estimatedDuration')}: {formatDurationClock(bracketForecast.estimatedDurationMinutes)}</p>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-cyan-200">
+            {activeBracket.bracketType}
+          </span>
+          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+            <span className="hidden sm:inline">{t('common.status')}: </span>
+            {getStatusLabel('bracket', activeBracket.status)}
+          </span>
+          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+            <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
+            {bracketForecast.estimatedStartTimeLabel}
+          </span>
+          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+            <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
+            {bracketForecast.estimatedEndTimeLabel}
+          </span>
+          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+            <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
+            {formatDurationClock(bracketForecast.estimatedDurationMinutes)}
+          </span>
         </div>
         <BracketMatches
           t={t}
@@ -610,6 +639,7 @@ const BracketsSection = ({
           onCancelMatch={onCancelMatch}
           onCancelMatchEdit={onCancelMatchEdit}
           onScoreChange={onScoreChange}
+          {...(getParticipantLabel ? { getParticipantLabel } : {})}
         />
       </div>
     );
@@ -669,6 +699,7 @@ const BracketsSection = ({
             onCancelMatch={onCancelMatch}
             onCancelMatchEdit={onCancelMatchEdit}
             onScoreChange={onScoreChange}
+            {...(getParticipantLabel ? { getParticipantLabel } : {})}
           />
         </div>
       </div>

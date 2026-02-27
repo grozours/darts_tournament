@@ -23,6 +23,14 @@ describe('bracket-utilities', () => {
     expect(getBracketPlayerLabel({ playerPosition: 1, player: { id: 'p2', firstName: 'Ava', lastName: '' } })).toBe('Ava');
   });
 
+  it('builds player labels from provided participant resolver', () => {
+    const label = getBracketPlayerLabel(
+      { playerPosition: 1, player: { id: 'p1', firstName: 'Ava', lastName: 'Archer' } },
+      (player) => (player?.id === 'p1' ? 'Doublette Alpha' : 'TBD')
+    );
+    expect(label).toBe('Doublette Alpha');
+  });
+
   it('builds bracket rounds with placeholders', () => {
     const rounds = buildBracketRounds({
       id: 'br1',

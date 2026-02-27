@@ -1,5 +1,5 @@
 import ActiveMatchScorePanel from './active-match-score-panel';
-import { getSurnameList } from './target-labels';
+import { formatParticipantsLabel } from './target-labels';
 import { getMatchFormatTooltip } from '../../utils/match-format-presets';
 import type { LiveViewMatch, MatchQueueItem, SharedTarget, Translator } from './types';
 
@@ -170,7 +170,7 @@ const TargetsGridCard = ({
                     {item.tournamentName} · {item.source === 'pool'
                       ? `${t('live.queue.stageLabel')} ${item.stageNumber} · ${t('live.queue.poolLabel')} ${item.poolNumber}`
                       : `${t('targets.bracketLabel')} ${item.bracketName ?? ''}`}
-                    {` · ${getSurnameList(item.players) || t('targets.unknownPlayers')}`}
+                    {` · ${formatParticipantsLabel(item.players, t('targets.unknownPlayers'))}`}
                   </option>
                 ))}
               </select>

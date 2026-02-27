@@ -72,4 +72,5 @@ export const itMessages: Record<string, string> = {
   'tournamentForm.submit': 'Crea torneo',
   'tournamentForm.submitting': 'Creazione...',
   'tournamentForm.errors.failedCreate': 'Impossibile creare il torneo',
+  'presetManager.formatTeam': 'Squadra',
 };

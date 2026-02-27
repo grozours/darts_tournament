@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import useLiveTournamentLoaders from '../../../../src/components/live-tournament/use-live-tournament-loaders';
 
@@ -10,6 +11,11 @@ vi.mock('../../../../src/services/tournament-service', () => ({
 
 describe('useLiveTournamentLoaders', () => {
   const getSafeAccessToken = vi.fn(async () => 'token');
+  const toUrl = (input: RequestInfo | URL) => {
+    if (input instanceof URL) return input.toString();
+    if (typeof input === 'string') return input;
+    return input.url;
+  };
 
   beforeEach(() => {
     fetchTournamentLiveViewMock.mockReset();
@@ -62,7 +68,7 @@ describe('useLiveTournamentLoaders', () => {
 
   it('loads aggregate views across status list and de-duplicates tournaments by id', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = toUrl(input);
       if (url.includes('status=LIVE')) {
         return {
           ok: true,
@@ -96,6 +102,6 @@ describe('useLiveTournamentLoaders', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchTournamentLiveViewMock).toHaveBeenCalledTimes(4);
-    expect(result.current.liveViews.map((view) => view.id).sort()).toEqual(['t1', 't2', 't3']);
+    expect(result.current.liveViews.map((view) => view.id).sort((left, right) => left.localeCompare(right))).toEqual(['t1', 't2', 't3']);
   });
 });

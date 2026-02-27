@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { TournamentFormat } from '@shared/types';
 import type { LiveViewStatus } from '../../utils/live-view-helpers';
 import { hasActiveBrackets, isBracketsView, isPoolStagesView } from '../../utils/live-view-helpers';
+import { fetchDoublettes, fetchEquipes } from '../../services/tournament-service';
 import BracketsSection from './brackets-section';
 import {
   applyPoolConcurrencySlots,
@@ -133,6 +135,12 @@ const formatDateTime = (value: Date) => new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
   minute: '2-digit',
 }).format(value);
+
+type LiveParticipant = {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+};
 
 const formatDurationClock = (durationMinutes: number) => {
   const hours = Math.floor(durationMinutes / 60);
@@ -927,7 +935,9 @@ const LiveTournamentViewHeader = ({
     ? 'text-lg font-semibold text-white mt-0.5'
     : 'text-xl font-semibold text-white mt-1';
   const idClass = screenMode ? 'mt-0 text-[11px] text-slate-500' : 'mt-0.5 text-xs text-slate-500';
-  const statusClass = screenMode ? 'mt-0 text-[11px] text-slate-400' : 'mt-0.5 text-xs text-slate-400';
+  const infoBadgeClass = screenMode
+    ? 'rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300'
+    : 'rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300';
   const actionsGap = screenMode ? 'gap-1.5' : 'gap-2';
   const actionButtonClass = screenMode
     ? 'rounded-full border border-slate-700/70 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white'
@@ -1038,20 +1048,37 @@ const LiveTournamentViewHeader = ({
       {isAdmin && (
         <p className={idClass}>ID: {view.id}</p>
       )}
-      <p className={statusClass}>{t('common.status')}: {view.status}</p>
-      {startAt && (
-        <p className={statusClass}>{t('live.startTime')}: {formatDateTime(startAt)}</p>
-      )}
-      {estimatedEndAt && (
-        <p className={statusClass}>{t('live.estimatedEndTime')}: {formatDateTime(estimatedEndAt)}</p>
-      )}
-      <p className={statusClass}>{t('live.estimatedDuration')}: {formatDurationClock(estimatedDurationMinutes)}</p>
-      {remainingDurationMinutes !== undefined && (
-        <p className={statusClass}>{t('live.remainingDuration')}: {formatDurationClock(remainingDurationMinutes)}</p>
-      )}
     </div>
-    <div className={`flex flex-col items-end ${actionsGap}`}>
-      <div className={`flex flex-wrap items-center justify-end ${actionsGap}`}>
+    <div className={`w-full sm:w-auto flex flex-col items-start sm:items-end ${actionsGap}`}>
+      <div className={`flex w-full flex-wrap items-center justify-start sm:justify-end ${actionsGap}`}>
+        <span className={infoBadgeClass} title={`${t('common.status')}: ${view.status}`}>
+          <span className="hidden sm:inline">{t('common.status')}: </span>
+          {view.status}
+        </span>
+        <span className={infoBadgeClass} title={`${t('live.estimatedDuration')}: ${formatDurationClock(estimatedDurationMinutes)}`}>
+          <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
+          {formatDurationClock(estimatedDurationMinutes)}
+        </span>
+        {startAt && (
+          <span className={infoBadgeClass} title={`${t('live.startTime')}: ${formatDateTime(startAt)}`}>
+            <span className="hidden sm:inline">{t('live.startTime')}: </span>
+            {formatDateTime(startAt)}
+          </span>
+        )}
+        {estimatedEndAt && (
+          <span className={infoBadgeClass} title={`${t('live.estimatedEndTime')}: ${formatDateTime(estimatedEndAt)}`}>
+            <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
+            {formatDateTime(estimatedEndAt)}
+          </span>
+        )}
+        {remainingDurationMinutes !== undefined && (
+          <span className={infoBadgeClass} title={`${t('live.remainingDuration')}: ${formatDurationClock(remainingDurationMinutes)}`}>
+            <span className="hidden sm:inline">{t('live.remainingDuration')}: </span>
+            {formatDurationClock(remainingDurationMinutes)}
+          </span>
+        )}
+      </div>
+      <div className={`flex w-full flex-wrap items-center justify-start sm:justify-end ${actionsGap}`}>
         {isAdmin && !screenMode && (
           <a
             href={`/?view=edit-tournament&tournamentId=${view.id}`}
@@ -1211,6 +1238,58 @@ const LiveTournamentView = ({
   activeBracketId,
   onRefresh,
 }: LiveTournamentViewProperties) => {
+  const [groupNameByPlayerId, setGroupNameByPlayerId] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadGroupLabels = async () => {
+      if (view.format !== TournamentFormat.DOUBLE && view.format !== TournamentFormat.TEAM_4_PLAYER) {
+        if (!isCancelled) {
+          setGroupNameByPlayerId(new Map());
+        }
+        return;
+      }
+
+      try {
+        const groups = view.format === TournamentFormat.DOUBLE
+          ? await fetchDoublettes(view.id)
+          : await fetchEquipes(view.id);
+        const nextMap = new Map<string, string>();
+        for (const group of groups) {
+          for (const member of group.members) {
+            nextMap.set(member.playerId, group.name);
+          }
+        }
+        if (!isCancelled) {
+          setGroupNameByPlayerId(nextMap);
+        }
+      } catch (error_) {
+        console.error('[LiveTournamentView] Failed to load group labels:', error_);
+        if (!isCancelled) {
+          setGroupNameByPlayerId(new Map());
+        }
+      }
+    };
+
+    void loadGroupLabels();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [view.format, view.id]);
+
+  const getParticipantLabel = (player: LiveParticipant | undefined) => {
+    if (!player) {
+      return 'TBD';
+    }
+    const groupLabel = player.id ? groupNameByPlayerId.get(player.id) : undefined;
+    if (groupLabel) {
+      return groupLabel;
+    }
+    const fallback = `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim();
+    return fallback || 'TBD';
+  };
   const [showSummary, setShowSummary] = useState(false);
   const handleToggleSummary = () => setShowSummary((value) => !value);
   const filteredPoolStages = filterPoolStagesForView(
@@ -1322,6 +1401,7 @@ const LiveTournamentView = ({
     stagePlayersPerPoolDrafts,
     playerIdByTournament,
     isAdmin,
+    getParticipantLabel,
   };
 
   const bracketsProperties = {
@@ -1357,6 +1437,7 @@ const LiveTournamentView = ({
     onResetBracketMatches,
     onSelectBracket,
     activeBracketId,
+    getParticipantLabel,
   };
 
   return (
