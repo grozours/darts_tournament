@@ -333,6 +333,33 @@ export async function fetchTournamentLiveView(
   return response.json();
 }
 
+export async function fetchLiveTournamentSummary(
+  statuses: string[] = ['LIVE'],
+  token?: string
+): Promise<unknown[]> {
+  const normalizedStatuses = [...new Set(
+    statuses
+      .map((status) => status.trim().toUpperCase())
+      .filter((status) => status.length > 0)
+  )];
+
+  const query = normalizedStatuses.length > 0
+    ? `?statuses=${encodeURIComponent(normalizedStatuses.join(','))}`
+    : '';
+
+  const response = await fetch(`/api/tournaments/live-summary${query}`, {
+    cache: 'no-store',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch live tournament summary');
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.tournaments) ? data.tournaments : [];
+}
+
 export async function fetchTournamentTargets(
   tournamentId: string,
   token?: string

@@ -1,6 +1,7 @@
 import { auth, type AuthResult } from 'express-oauth2-jwt-bearer';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/environment';
+import logger from '../utils/logger';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -240,16 +241,23 @@ export const isAdmin = (request: Request): boolean => {
   const userEmail = resolveUserEmailFromPayload(payload);
 
   if (!userEmail) {
-    console.log('[Admin Check] No email found in token. Available claims:', Object.keys(payload));
-    console.log('[Admin Check] Full payload:', JSON.stringify(payload, undefined, 2));
+    logger.debug('Admin check skipped: no resolvable email claim', {
+      correlationId: request.correlationId,
+      metadata: {
+        availableClaims: Object.keys(payload),
+      },
+    });
     return false;
   }
 
   const isUserAdmin = config.auth.adminEmails.includes(userEmail);
-  console.log('[Admin Check]', { 
-    userEmail, 
-    isAdmin: isUserAdmin, 
-    configuredAdmins: config.auth.adminEmails 
+  logger.debug('Admin check evaluated', {
+    correlationId: request.correlationId,
+    metadata: {
+      userEmail,
+      isAdmin: isUserAdmin,
+      configuredAdminsCount: config.auth.adminEmails.length,
+    },
   });
   
   return isUserAdmin;
@@ -262,7 +270,9 @@ export const requireAdmin = (request: Request, response: Response, next: NextFun
     return;
   }
   if (!request.auth?.payload) {
-    console.log('[requireAdmin] No auth payload found');
+    logger.debug('Admin access denied: missing auth payload', {
+      correlationId: request.correlationId,
+    });
     response.status(401).json({
       error: 'Unauthorized',
       message: 'Authentication required',
@@ -271,7 +281,12 @@ export const requireAdmin = (request: Request, response: Response, next: NextFun
   }
 
   if (!isAdmin(request)) {
-    console.log('[requireAdmin] User is not admin. Payload:', request.auth.payload);
+    logger.debug('Admin access denied: user is not admin', {
+      correlationId: request.correlationId,
+      metadata: {
+        userEmail: resolveUserEmailFromPayload(request.auth.payload),
+      },
+    });
     response.status(403).json({
       error: 'Forbidden',
       message: 'Admin access required',

@@ -6,6 +6,7 @@ export const translate = (key: string) => key;
 
 const serviceMocks = vi.hoisted(() => ({
   fetchTournamentLiveView: vi.fn(),
+  fetchLiveTournamentSummary: vi.fn(),
   updateMatchStatus: vi.fn(),
   completeMatch: vi.fn(),
   saveMatchScores: vi.fn(),
@@ -19,6 +20,7 @@ export const getServiceMocks = () => serviceMocks;
 
 vi.mock('../../../../src/services/tournament-service', () => ({
   fetchTournamentLiveView: serviceMocks.fetchTournamentLiveView,
+  fetchLiveTournamentSummary: serviceMocks.fetchLiveTournamentSummary,
   updateMatchStatus: serviceMocks.updateMatchStatus,
   completeMatch: serviceMocks.completeMatch,
   saveMatchScores: serviceMocks.saveMatchScores,

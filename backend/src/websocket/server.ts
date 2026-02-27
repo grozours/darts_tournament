@@ -1,6 +1,7 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import { redis } from '../config/redis';
 import { config } from '../config/environment';
+import logger from '../utils/logger';
 
 type PlayerSummary = {
   id?: string;
@@ -88,90 +89,117 @@ export interface WebSocketEvents {
   'disconnect': (reason: string) => void;
 }
 
+const handleSocketConnection = (socket: Socket): void => {
+  logger.debug('WebSocket client connected', {
+    metadata: { socketId: socket.id },
+  });
+
+  socket.on('join-tournament', async (tournamentId: string) => {
+    if (!tournamentId || typeof tournamentId !== 'string') {
+      socket.emit('error', { message: 'Invalid tournament ID', code: 'INVALID_TOURNAMENT_ID' });
+      return;
+    }
+
+    try {
+      await socket.join(`tournament-${tournamentId}`);
+      logger.debug('WebSocket client joined tournament room', {
+        metadata: { socketId: socket.id, tournamentId },
+      });
+
+      await redis.getClient().sadd(`tournament:${tournamentId}:clients`, socket.id);
+
+      socket.emit('joined-tournament', { tournamentId, clientId: socket.id });
+    } catch (error) {
+      logger.error('Failed to join tournament room', {
+        metadata: {
+          socketId: socket.id,
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      socket.emit('error', { message: 'Failed to join tournament', code: 'JOIN_FAILED' });
+    }
+  });
+
+  socket.on('leave-tournament', async (tournamentId: string) => {
+    if (!tournamentId || typeof tournamentId !== 'string') {
+      return;
+    }
+
+    try {
+      await socket.leave(`tournament-${tournamentId}`);
+      logger.debug('WebSocket client left tournament room', {
+        metadata: { socketId: socket.id, tournamentId },
+      });
+
+      await redis.getClient().srem(`tournament:${tournamentId}:clients`, socket.id);
+
+      socket.emit('left-tournament', { tournamentId, clientId: socket.id });
+    } catch (error) {
+      logger.error('Failed to leave tournament room', {
+        metadata: {
+          socketId: socket.id,
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  socket.on('ping', () => {
+    socket.emit('pong', { timestamp: Date.now() });
+  });
+
+  socket.on('disconnect', async (reason: string) => {
+    logger.debug('WebSocket client disconnected', {
+      metadata: { socketId: socket.id, reason },
+    });
+
+    try {
+      const keys = await redis.getClient().keys('tournament:*:clients');
+      for (const key of keys) {
+        await redis.getClient().srem(key, socket.id);
+      }
+    } catch (error) {
+      logger.error('Failed to clean up websocket client tracking', {
+        metadata: {
+          socketId: socket.id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  socket.on('error', (error: Error) => {
+    logger.error('WebSocket client error', {
+      metadata: {
+        socketId: socket.id,
+        errorMessage: error.message,
+      },
+    });
+  });
+};
+
 // WebSocket server setup per constitution real-time requirements
 export const setupWebSocketServer = (io: SocketServer): void => {
   webSocketService = new WebSocketService(io);
-  // Connection handling
-  io.on('connection', (socket: Socket) => {
-    console.log(`🔗 WebSocket client connected: ${socket.id}`);
-
-    // Join tournament room
-    socket.on('join-tournament', async (tournamentId: string) => {
-      if (!tournamentId || typeof tournamentId !== 'string') {
-        socket.emit('error', { message: 'Invalid tournament ID', code: 'INVALID_TOURNAMENT_ID' });
-        return;
-      }
-
-      try {
-        await socket.join(`tournament-${tournamentId}`);
-        console.log(`👤 Client ${socket.id} joined tournament ${tournamentId}`);
-        
-        // Store in Redis for tracking
-        await redis.getClient().sadd(`tournament:${tournamentId}:clients`, socket.id);
-        
-        socket.emit('joined-tournament', { tournamentId, clientId: socket.id });
-      } catch (error) {
-        console.error('Error joining tournament room:', error);
-        socket.emit('error', { message: 'Failed to join tournament', code: 'JOIN_FAILED' });
-      }
-    });
-
-    // Leave tournament room
-    socket.on('leave-tournament', async (tournamentId: string) => {
-      if (!tournamentId || typeof tournamentId !== 'string') {
-        return;
-      }
-
-      try {
-        await socket.leave(`tournament-${tournamentId}`);
-        console.log(`👋 Client ${socket.id} left tournament ${tournamentId}`);
-        
-        // Remove from Redis tracking
-        await redis.getClient().srem(`tournament:${tournamentId}:clients`, socket.id);
-        
-        socket.emit('left-tournament', { tournamentId, clientId: socket.id });
-      } catch (error) {
-        console.error('Error leaving tournament room:', error);
-      }
-    });
-
-    // Heartbeat for connection monitoring
-    socket.on('ping', () => {
-      socket.emit('pong', { timestamp: Date.now() });
-    });
-
-    // Handle disconnection
-    socket.on('disconnect', async (reason: string) => {
-      console.log(`❌ WebSocket client disconnected: ${socket.id} (${reason})`);
-      
-      try {
-        // Clean up Redis tracking for all tournaments
-        const keys = await redis.getClient().keys('tournament:*:clients');
-        for (const key of keys) {
-          await redis.getClient().srem(key, socket.id);
-        }
-      } catch (error) {
-        console.error('Error cleaning up client tracking:', error);
-      }
-    });
-
-    // Error handling
-    socket.on('error', (error: Error) => {
-      console.error(`❌ WebSocket error for client ${socket.id}:`, error);
-    });
-  });
+  io.on('connection', handleSocketConnection);
 
   // Performance monitoring per constitution
   const monitorConnections = (): void => {
     const connectionCount = io.sockets.sockets.size;
     
     if (config.performance.enableMetrics) {
-      console.log(`📊 WebSocket connections: ${connectionCount}`);
+      logger.debug('WebSocket connection count', {
+        metadata: { connectionCount },
+      });
     }
     
     // Performance warning if too many connections
     if (connectionCount > 1000) {
-      console.warn(`⚠️  High WebSocket connection count: ${connectionCount}`);
+      logger.warn('High WebSocket connection count', {
+        metadata: { connectionCount },
+      });
     }
   };
 
@@ -179,7 +207,9 @@ export const setupWebSocketServer = (io: SocketServer): void => {
   const monitorInterval = setInterval(monitorConnections, 30_000);
   monitorInterval.unref?.();
 
-  console.log('🚀 WebSocket server initialized with real-time tournament support');
+  logger.info('WebSocket server initialized', {
+    metadata: { realtimeSupport: true },
+  });
 };
 
 let webSocketService: WebSocketService | undefined;
@@ -205,10 +235,18 @@ export class WebSocketService {
         300, // 5 minutes TTL
         JSON.stringify({ tournamentId, status, timestamp: Date.now() })
       );
-      
-      console.log(`📡 Tournament updated event sent: ${tournamentId} -> ${status}`);
+
+      logger.debug('Tournament updated event emitted', {
+        metadata: { tournamentId, status },
+      });
     } catch (error) {
-      console.error('Error emitting tournament updated event:', error);
+      logger.error('Failed to emit tournament updated event', {
+        metadata: {
+          tournamentId,
+          status,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -216,9 +254,17 @@ export class WebSocketService {
     try {
       this.io.to(`tournament-${payload.tournamentId}`).emit('match:format-changed', payload);
 
-      console.log(`📡 Match format changed event sent: ${payload.matchId} -> ${payload.matchFormatKey}`);
+      logger.debug('Match format changed event emitted', {
+        metadata: { matchId: payload.matchId, tournamentId: payload.tournamentId, matchFormatKey: payload.matchFormatKey },
+      });
     } catch (error) {
-      console.error('Error emitting match format changed event:', error);
+      logger.error('Failed to emit match format changed event', {
+        metadata: {
+          matchId: payload.matchId,
+          tournamentId: payload.tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -228,10 +274,18 @@ export class WebSocketService {
         tournamentId, 
         player 
       });
-      
-      console.log(`📡 Player registered event sent: ${tournamentId} -> ${player.firstName} ${player.lastName}`);
+
+      logger.debug('Player registered event emitted', {
+        metadata: { tournamentId, playerId: player.id },
+      });
     } catch (error) {
-      console.error('Error emitting player registered event:', error);
+      logger.error('Failed to emit player registered event', {
+        metadata: {
+          tournamentId,
+          playerId: player.id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -248,12 +302,22 @@ export class WebSocketService {
       
       const duration = Date.now() - startTime;
       if (duration > 100) { // Warning if over 100ms for real-time updates
-        console.warn(`⚠️  Slow WebSocket emission: ${duration}ms`);
+        logger.warn('Slow websocket emission', {
+          metadata: { matchId, tournamentId, durationMs: duration },
+        });
       }
-      
-      console.log(`📡 Match score updated: ${matchId} (${duration}ms)`);
+
+      logger.debug('Match score updated event emitted', {
+        metadata: { matchId, tournamentId, durationMs: duration },
+      });
     } catch (error) {
-      console.error('Error emitting match score update:', error);
+      logger.error('Failed to emit match score update', {
+        metadata: {
+          matchId,
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -264,10 +328,18 @@ export class WebSocketService {
         tournamentId, 
         winner 
       });
-      
-      console.log(`📡 Match completed event sent: ${matchId} -> winner: ${winner?.firstName}`);
+
+      logger.debug('Match completed event emitted', {
+        metadata: { matchId, tournamentId, winnerId: winner?.id },
+      });
     } catch (error) {
-      console.error('Error emitting match completed event:', error);
+      logger.error('Failed to emit match completed event', {
+        metadata: {
+          matchId,
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -275,9 +347,17 @@ export class WebSocketService {
     try {
       this.io.to(`tournament-${payload.tournamentId}`).emit('match:finished', payload);
 
-      console.log(`📡 Match finished event sent: ${payload.matchId} (${payload.event})`);
+      logger.debug('Match finished event emitted', {
+        metadata: { matchId: payload.matchId, tournamentId: payload.tournamentId, event: payload.event },
+      });
     } catch (error) {
-      console.error('Error emitting match finished event:', error);
+      logger.error('Failed to emit match finished event', {
+        metadata: {
+          matchId: payload.matchId,
+          tournamentId: payload.tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -285,9 +365,21 @@ export class WebSocketService {
     try {
       this.io.to(`tournament-${payload.tournamentId}`).emit('match:started', payload);
 
-      console.log(`📡 Match started event sent: ${payload.matchId} -> target ${payload.target?.targetNumber ?? 'n/a'}`);
+      logger.debug('Match started event emitted', {
+        metadata: {
+          matchId: payload.matchId,
+          tournamentId: payload.tournamentId,
+          targetNumber: payload.target?.targetNumber,
+        },
+      });
     } catch (error) {
-      console.error('Error emitting match started event:', error);
+      logger.error('Failed to emit match started event', {
+        metadata: {
+          matchId: payload.matchId,
+          tournamentId: payload.tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -298,10 +390,18 @@ export class WebSocketService {
         targetId, 
         tournamentId 
       });
-      
-      console.log(`📡 Target available event sent: ${targetId}`);
+
+      logger.debug('Target available event emitted', {
+        metadata: { targetId, tournamentId },
+      });
     } catch (error) {
-      console.error('Error emitting target available event:', error);
+      logger.error('Failed to emit target available event', {
+        metadata: {
+          targetId,
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -312,10 +412,17 @@ export class WebSocketService {
         tournamentId, 
         poolAssignments 
       });
-      
-      console.log(`📡 Pool assigned event sent: ${tournamentId} (${poolAssignments.length} assignments)`);
+
+      logger.debug('Pool assigned event emitted', {
+        metadata: { tournamentId, assignmentsCount: poolAssignments.length },
+      });
     } catch (error) {
-      console.error('Error emitting pool assigned event:', error);
+      logger.error('Failed to emit pool assigned event', {
+        metadata: {
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -326,10 +433,17 @@ export class WebSocketService {
         tournamentId, 
         schedule 
       });
-      
-      console.log(`📡 Schedule generated event sent: ${tournamentId}`);
+
+      logger.debug('Schedule generated event emitted', {
+        metadata: { tournamentId },
+      });
     } catch (error) {
-      console.error('Error emitting schedule generated event:', error);
+      logger.error('Failed to emit schedule generated event', {
+        metadata: {
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 
@@ -339,7 +453,12 @@ export class WebSocketService {
       const clients = await redis.getClient().scard(`tournament:${tournamentId}:clients`);
       return clients;
     } catch (error) {
-      console.error('Error getting connected clients count:', error);
+      logger.error('Failed to get connected clients count', {
+        metadata: {
+          tournamentId,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       return 0;
     }
   }

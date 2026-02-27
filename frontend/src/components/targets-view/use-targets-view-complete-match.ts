@@ -8,6 +8,7 @@ type UseTargetsViewCompleteMatchProperties = {
   t: Translator;
   getSafeAccessToken: () => Promise<string | undefined>;
   loadTargets: (options?: { silent?: boolean }) => Promise<void>;
+  applyOptimisticMatchStatus: (tournamentId: string, matchId: string, status: 'SCHEDULED' | 'COMPLETED') => void;
   setError: (value: string | undefined) => void;
   matchTournamentById: Map<string, MatchTournamentInfo>;
   matchScores: Record<string, Record<string, string>>;
@@ -22,6 +23,7 @@ const useTargetsViewCompleteMatch = ({
   t,
   getSafeAccessToken,
   loadTargets,
+  applyOptimisticMatchStatus,
   setError,
   matchTournamentById,
   matchScores,
@@ -54,8 +56,9 @@ const useTargetsViewCompleteMatch = ({
     setError(undefined);
     try {
       const token = await getSafeAccessToken();
+      applyOptimisticMatchStatus(matchTournament.tournamentId, match.id, 'COMPLETED');
       await completeMatch(matchTournament.tournamentId, match.id, scores, token);
-      await loadTargets();
+      await loadTargets({ silent: true });
     } catch (error_) {
       console.error('Error completing match:', error_);
       setError(error_ instanceof Error ? error_.message : t('targets.error'));
@@ -63,7 +66,7 @@ const useTargetsViewCompleteMatch = ({
     } finally {
       setUpdatingMatchId(undefined);
     }
-  }, [getSafeAccessToken, loadTargets, matchScores, matchTournamentById, setError, t]);
+  }, [applyOptimisticMatchStatus, getSafeAccessToken, loadTargets, matchScores, matchTournamentById, setError, t]);
 
   return { updatingMatchId, handleCompleteMatch };
 };

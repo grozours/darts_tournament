@@ -1,6 +1,7 @@
 import type { TournamentModel } from '../../models/tournament-model';
 import type { TournamentLiveView } from '../../models/tournament-model/helpers';
 import type TournamentLogger from '../../utils/tournament-logger';
+import { liveComputationCache } from '../live-computation-cache';
 import {
   Tournament,
   TournamentFormat,
@@ -44,10 +45,11 @@ type TournamentCoreContext = {
   validateUUID: (id: string) => void;
   registerPlayer: (tournamentId: string, playerId: string) => Promise<void>;
   canViewDraftLive?: () => boolean;
+  liveViewCacheTtlMs?: number;
 };
 
 export const createTournamentCoreHandlers = (context: TournamentCoreContext) => {
-  const { tournamentModel, logger, validateUUID, registerPlayer, canViewDraftLive } = context;
+  const { tournamentModel, logger, validateUUID, registerPlayer, canViewDraftLive, liveViewCacheTtlMs } = context;
 
   const sanitizeName = (name: string): string => {
     let sanitized = '';
@@ -532,7 +534,11 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     getTournamentLiveView: async (tournamentId: string): Promise<TournamentLiveView> => {
       validateUUID(tournamentId);
 
-      const tournament = await tournamentModel.findLiveView(tournamentId);
+      const tournament = await liveComputationCache.getOrLoadLiveView(
+        tournamentId,
+        () => tournamentModel.findLiveView(tournamentId),
+        liveViewCacheTtlMs
+      );
       if (!tournament) {
         throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
       }

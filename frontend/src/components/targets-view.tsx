@@ -29,7 +29,6 @@ function TargetsView() {
     setError,
     setLiveViews,
     loadTargets,
-    fetchLiveViews,
     getSafeAccessToken,
   } = useTargetsViewData({
     t,
@@ -125,11 +124,11 @@ function TargetsView() {
   } = useTargetsViewActions({
     t,
     getSafeAccessToken,
-    fetchLiveViews,
     loadTargets,
     setLiveViews,
     setError,
     matchTournamentById,
+    sharedTargets,
   });
 
   if (loading || error || derivedScopedViews.length === 0) {

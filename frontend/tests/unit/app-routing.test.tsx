@@ -5,6 +5,7 @@ import App from '../../src/app';
 const authState = { isAuthenticated: true };
 const adminState = { isAdmin: true };
 const fetchMatchFormatPresetsMock = vi.fn(async () => []);
+const fetchLiveTournamentSummaryMock = vi.fn(async () => []);
 const setMatchFormatPresetsMock = vi.fn();
 const toUrl = (input: RequestInfo | URL) => {
   if (input instanceof URL) return input.toString();
@@ -16,6 +17,7 @@ vi.mock('socket.io-client', () => ({ io: vi.fn(() => ({ on: vi.fn(), emit: vi.fn
 vi.mock('../../src/components/notifications/use-match-started-notifications', () => ({ default: vi.fn() }));
 vi.mock('../../src/services/tournament-service', () => ({
   fetchMatchFormatPresets: (...arguments_: unknown[]) => fetchMatchFormatPresetsMock(...arguments_),
+  fetchLiveTournamentSummary: (...arguments_: unknown[]) => fetchLiveTournamentSummaryMock(...arguments_),
 }));
 vi.mock('../../src/utils/match-format-presets', () => ({
   setMatchFormatPresets: (...arguments_: unknown[]) => setMatchFormatPresetsMock(...arguments_),
@@ -49,6 +51,8 @@ describe('App routing', () => {
     adminState.isAdmin = true;
     fetchMatchFormatPresetsMock.mockReset();
     fetchMatchFormatPresetsMock.mockResolvedValue([]);
+    fetchLiveTournamentSummaryMock.mockReset();
+    fetchLiveTournamentSummaryMock.mockResolvedValue([]);
     setMatchFormatPresetsMock.mockReset();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ tournaments: [] }) })));
   });
@@ -101,27 +105,14 @@ describe('App routing', () => {
   });
 
   it('hides header and loads screen rotation list in screen mode', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = toUrl(input);
-      if (url === '/api/tournaments?status=LIVE') {
-        return {
-          ok: true,
-          json: async () => ({ tournaments: [] }),
-        } as Response;
-      }
-      return {
-        ok: true,
-        json: async () => ({ poolStages: [], brackets: [] }),
-      } as Response;
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    fetchLiveTournamentSummaryMock.mockResolvedValue([]);
 
     globalThis.history.pushState({}, '', '/?screen=1');
     render(<App />);
 
     expect(screen.queryByText('APP_HEADER')).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/tournaments?status=LIVE');
+      expect(fetchLiveTournamentSummaryMock).toHaveBeenCalledWith(['LIVE']);
     });
   });
 

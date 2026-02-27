@@ -84,4 +84,68 @@ describe('tournament logger', () => {
       })
     );
   });
+
+  it('covers lifecycle, player and logo event branches', () => {
+    const logger = new TournamentLogger();
+
+    logger.tournamentUpdated('t-1', 'Cup', { old: true }, { old: false });
+    logger.tournamentDeleted('t-1', 'Cup');
+    logger.tournamentStatusChanged('t-1', 'Cup', 'OPEN', 'LIVE');
+    logger.playerRegistered('t-1', 'Cup', 'p-1');
+    logger.playerRegistered('t-1', 'Cup', 'p-1', 'Alice');
+    logger.playerUnregistered('t-1', 'Cup', 'p-1');
+    logger.playerUnregistered('t-1', 'Cup', 'p-1', 'Alice');
+    logger.logoUploaded('t-1', 'Cup', 'https://example.test/logo.png');
+    logger.logoDeleted('t-1', 'Cup');
+
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Tournament updated'),
+      expect.objectContaining({ event: TournamentLogEvent.UPDATED, tournamentId: 't-1' })
+    );
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Tournament deleted'),
+      expect.objectContaining({ event: TournamentLogEvent.DELETED, tournamentId: 't-1' })
+    );
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('status changed'),
+      expect.objectContaining({ event: TournamentLogEvent.STATUS_CHANGED, tournamentId: 't-1' })
+    );
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Player registered for tournament'),
+      expect.objectContaining({ event: TournamentLogEvent.PLAYER_REGISTERED, playerId: 'p-1' })
+    );
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Player unregistered from tournament'),
+      expect.objectContaining({ event: TournamentLogEvent.PLAYER_UNREGISTERED, playerId: 'p-1' })
+    );
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Logo uploaded for tournament'),
+      expect.objectContaining({ event: TournamentLogEvent.LOGO_UPLOADED, tournamentId: 't-1' })
+    );
+    expect(loggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Logo deleted for tournament'),
+      expect.objectContaining({ event: TournamentLogEvent.LOGO_DELETED, tournamentId: 't-1' })
+    );
+  });
+
+  it('covers validation/access optional data and non-object generic errors', () => {
+    const logger = new TournamentLogger();
+
+    logger.validationError('INVALID', 'missing data');
+    logger.accessError('FORBIDDEN', 'blocked');
+    logger.error('plain', undefined, 'just-a-string');
+
+    expect(loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('validation error'),
+      expect.objectContaining({ event: TournamentLogEvent.VALIDATION_ERROR })
+    );
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.stringContaining('access error'),
+      expect.objectContaining({ event: TournamentLogEvent.ACCESS_ERROR })
+    );
+    expect(loggerError).toHaveBeenCalledWith(
+      'plain',
+      expect.objectContaining({ event: TournamentLogEvent.ACCESS_ERROR })
+    );
+  });
 });

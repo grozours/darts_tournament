@@ -41,6 +41,7 @@ model Tournament {
   schedule          Schedule?
   targets           Target[]
 
+  @@index([status])
   @@map("tournaments")
 }
 
@@ -207,6 +208,7 @@ model PoolStage {
   pools          Pool[]
 
   @@unique([tournamentId, stageNumber])
+  @@index([status])
   @@map("pool_stages")
 }
 
@@ -226,6 +228,7 @@ model Pool {
   matches      Match[]
 
   @@unique([poolStageId, poolNumber])
+  @@index([status])
   @@map("pools")
 }
 
@@ -266,6 +269,8 @@ model Bracket {
   matches        Match[]
   bracketTargets BracketTarget[]
 
+  @@index([tournamentId])
+  @@index([status])
   @@map("brackets")
 }
 
@@ -323,6 +328,7 @@ model Target {
 
   @@unique([tournamentId, targetNumber])
   @@unique([tournamentId, targetCode])
+  @@index([status])
   @@map("targets")
 }
 
@@ -355,6 +361,10 @@ model Match {
   scores           Score[]
   scheduledMatch   ScheduledMatch?
 
+  @@index([tournamentId])
+  @@index([status])
+  @@index([bracketId])
+  @@index([targetId])
   @@map("matches")
 }
 
@@ -428,6 +438,7 @@ model ScheduledMatch {
   match          Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
   target         Target    @relation(fields: [targetId], references: [id])
 
+  @@index([targetId])
   @@map("scheduled_matches")
 }
 

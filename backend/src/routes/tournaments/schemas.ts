@@ -505,6 +505,23 @@ export const getTournamentsSchema = {
   }),
 };
 
+export const getLiveSummarySchema = {
+  query: z.object({
+    status: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.toUpperCase() : value),
+        z.nativeEnum(TournamentStatus, {
+          errorMap: () => ({ message: 'Invalid tournament status' }),
+        })
+      )
+      .optional(),
+    statuses: z
+      .string()
+      .regex(/^[A-Za-z_,]+$/, 'statuses must be a comma-separated list of status values')
+      .optional(),
+  }),
+};
+
 export const dateRangeSchema = {
   query: z
     .object({

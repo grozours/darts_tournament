@@ -53,7 +53,11 @@ jest.mock('../../src/middleware/auth', () => ({
 jest.mock('../../src/utils/logger', () => ({
   __esModule: true,
   default: {
+    info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
+    debug: jest.fn(),
+    http: jest.fn(),
   },
 }));
 

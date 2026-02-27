@@ -3,7 +3,12 @@ import { act } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TargetsView from '../../../src/components/targets-view';
-import { completeMatch, fetchTournamentLiveView, updateMatchStatus } from '../../../src/services/tournament-service';
+import {
+  completeMatch,
+  fetchLiveTournamentSummary,
+  fetchTournamentLiveView,
+  updateMatchStatus,
+} from '../../../src/services/tournament-service';
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
@@ -13,6 +18,7 @@ vi.mock('../../../src/services/tournament-service', async () => {
   );
   return {
     ...actual,
+    fetchLiveTournamentSummary: vi.fn(),
     fetchTournamentLiveView: vi.fn(),
     updateMatchStatus: vi.fn(),
     completeMatch: vi.fn(),
@@ -47,14 +53,7 @@ afterEach(() => {
 
 describe('TargetsView rendering', () => {
   it('renders live targets and queue', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        tournaments: [{ id: 't1', name: 'Live Tournament', status: 'LIVE' }],
-      }),
-    });
-
-    vi.mocked(fetchTournamentLiveView).mockResolvedValue({
+    vi.mocked(fetchLiveTournamentSummary).mockResolvedValue([{ 
       id: 't1',
       name: 'Live Tournament',
       status: 'LIVE',
@@ -93,7 +92,7 @@ describe('TargetsView rendering', () => {
         },
       ],
       brackets: [],
-    });
+    }]);
 
     await act(async () => {
       render(<TargetsView />);
@@ -105,20 +104,14 @@ describe('TargetsView rendering', () => {
     expect(screen.getByText(/Match queue|File des matchs/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Stage 1|Phase 1/i).length).toBeGreaterThan(0);
     expect(vi.mocked(updateMatchStatus)).not.toHaveBeenCalled();
+    expect(vi.mocked(fetchTournamentLiveView)).not.toHaveBeenCalled();
   });
 });
 
 describe('TargetsView actions', () => {
   it('allows completing an in-progress match from targets view', async () => {
     const user = userEvent.setup();
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        tournaments: [{ id: 't1', name: 'Live Tournament', status: 'LIVE' }],
-      }),
-    });
-
-    vi.mocked(fetchTournamentLiveView).mockResolvedValue({
+    vi.mocked(fetchLiveTournamentSummary).mockResolvedValue([{ 
       id: 't1',
       name: 'Live Tournament',
       status: 'LIVE',
@@ -159,7 +152,7 @@ describe('TargetsView actions', () => {
         },
       ],
       brackets: [],
-    });
+    }]);
 
     vi.mocked(completeMatch).mockResolvedValue();
 
@@ -188,7 +181,7 @@ describe('TargetsView actions', () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(fetchTournamentLiveView)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(fetchLiveTournamentSummary)).toHaveBeenCalledTimes(2);
     });
 
     await waitFor(() => {

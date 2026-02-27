@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import TournamentController from '../controllers/tournament-controller';
+import { config } from '../config/environment';
 import { registerTournamentBracketRoutes } from './tournaments/bracket-routes';
 import { registerTournamentCrudRoutes } from './tournaments/tournament-crud-routes';
 import { registerTournamentListRoutes } from './tournaments/list-routes';
@@ -13,7 +14,13 @@ import { registerTournamentRegistrationRoutes } from './tournaments/registration
 import { registerTournamentStatusRoutes } from './tournaments/status-routes';
 import { registerTournamentGroupRoutes } from './tournaments/group-routes';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+	datasources: {
+		db: {
+			url: config.database.prismaUrl,
+		},
+	},
+});
 const tournamentController = new TournamentController(prisma);
 
 const router = Router();

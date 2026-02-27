@@ -18,6 +18,9 @@ import {
   createTournamentCoreHandlers,
   type TournamentCoreHandlers,
 } from './tournament-service/core-handlers';
+import { liveComputationCache } from './live-computation-cache';
+import { config } from '../config/environment';
+import { redis } from '../config/redis';
 
 export type { CreateTournamentData, TournamentFilters } from './tournament-service/core-handlers';
 
@@ -160,6 +163,11 @@ export class TournamentService {
       validateUUID: this.validateUUID.bind(this),
       transitionTournamentStatus: (tournamentId, status) =>
         this.transitionTournamentStatus(tournamentId, status),
+      getCachedTournamentLiveView: (tournamentId) => liveComputationCache.getOrLoadLiveView(
+        tournamentId,
+        () => this.tournamentModel.findLiveView(tournamentId),
+        config.performance.liveEndpointCacheTtlSeconds * 1000
+      ),
           recomputeDoubleStageProgression: async (tournamentId, stageId) => {
             await recomputeReference.current?.(tournamentId, stageId);
           },
@@ -196,6 +204,7 @@ export class TournamentService {
       validateUUID: this.validateUUID.bind(this),
       registerPlayer: (tournamentId, playerId) => this.registerPlayer(tournamentId, playerId),
       canViewDraftLive: () => actorContext.isAdminRequest,
+      liveViewCacheTtlMs: config.performance.liveEndpointCacheTtlSeconds * 1000,
     });
 
     Object.assign(
@@ -234,18 +243,74 @@ export class TournamentService {
   }
 
   private initializeMatchAutosaveHooks(): void {
-    this.updateMatchStatus = this.wrapMutationWithAutosave(this.updateMatchStatus, (tournamentId) => tournamentId, 'UPDATE_MATCH_STATUS');
-    this.completeMatch = this.wrapMutationWithAutosave(this.completeMatch, (tournamentId) => tournamentId, 'COMPLETE_MATCH');
-    this.saveMatchScores = this.wrapMutationWithAutosave(this.saveMatchScores, (tournamentId) => tournamentId, 'SAVE_MATCH_SCORES');
+    this.updateMatchStatus = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(
+      this.updateMatchStatus,
+      (tournamentId) => tournamentId,
+      'UPDATE_MATCH_STATUS'
+    );
+    this.completeMatch = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(
+      this.completeMatch,
+      (tournamentId) => tournamentId,
+      'COMPLETE_MATCH'
+    );
+    this.saveMatchScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(
+      this.saveMatchScores,
+      (tournamentId) => tournamentId,
+      'SAVE_MATCH_SCORES'
+    );
+  }
+
+  private wrapMutationWithAutosaveAndLiveCacheInvalidation<TArguments extends unknown[], TResult>(
+    method: (...arguments_: TArguments) => Promise<TResult>,
+    getTournamentId: (...arguments_: TArguments) => string,
+    action: string
+  ): (...arguments_: TArguments) => Promise<TResult> {
+    const wrapped = this.wrapMutationWithAutosave(method, getTournamentId, action);
+
+    return async (...arguments_: TArguments): Promise<TResult> => {
+      const result = await wrapped(...arguments_);
+      const tournamentId = getTournamentId(...arguments_);
+      await this.invalidateLiveCachesForTournament(tournamentId);
+      return result;
+    };
+  }
+
+  private async invalidateLiveCachesForTournament(tournamentId: string): Promise<void> {
+    liveComputationCache.invalidateTournament(tournamentId);
+
+    if (config.env === 'test') {
+      return;
+    }
+
+    try {
+      const client = redis.getClient();
+      const cacheKeys = new Set<string>([
+        `tournaments:live:${tournamentId}:admin`,
+        `tournaments:live:${tournamentId}:public`,
+      ]);
+
+      const summaryKeys = await client.keys('tournaments:live-summary:*');
+      const listKeys = await client.keys('tournaments:list:*');
+
+      for (const key of [...summaryKeys, ...listKeys]) {
+        cacheKeys.add(key);
+      }
+
+      if (cacheKeys.size > 0) {
+        await client.del([...cacheKeys]);
+      }
+    } catch (error) {
+      this.logger.error('Failed to invalidate live caches', tournamentId, error);
+    }
   }
 
   private initializeBracketAutosaveHooks(): void {
-    this.createBracket = this.wrapMutationWithAutosave(this.createBracket, (tournamentId) => tournamentId, 'CREATE_BRACKET');
-    this.updateBracket = this.wrapMutationWithAutosave(this.updateBracket, (tournamentId) => tournamentId, 'UPDATE_BRACKET');
-    this.deleteBracket = this.wrapMutationWithAutosave(this.deleteBracket, (tournamentId) => tournamentId, 'DELETE_BRACKET');
-    this.updateBracketTargets = this.wrapMutationWithAutosave(this.updateBracketTargets, (tournamentId) => tournamentId, 'UPDATE_BRACKET_TARGETS');
-    this.completeBracketRoundWithRandomScores = this.wrapMutationWithAutosave(this.completeBracketRoundWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_BRACKET_ROUND');
-    this.resetBracketMatches = this.wrapMutationWithAutosave(this.resetBracketMatches, (tournamentId) => tournamentId, 'RESET_BRACKET_MATCHES');
+    this.createBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.createBracket, (tournamentId) => tournamentId, 'CREATE_BRACKET');
+    this.updateBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updateBracket, (tournamentId) => tournamentId, 'UPDATE_BRACKET');
+    this.deleteBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.deleteBracket, (tournamentId) => tournamentId, 'DELETE_BRACKET');
+    this.updateBracketTargets = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updateBracketTargets, (tournamentId) => tournamentId, 'UPDATE_BRACKET_TARGETS');
+    this.completeBracketRoundWithRandomScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.completeBracketRoundWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_BRACKET_ROUND');
+    this.resetBracketMatches = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.resetBracketMatches, (tournamentId) => tournamentId, 'RESET_BRACKET_MATCHES');
   }
 
   private initializePlayerAutosaveHooks(): void {
@@ -281,14 +346,14 @@ export class TournamentService {
   }
 
   private initializePoolStageAutosaveHooks(): void {
-    this.createPoolStage = this.wrapMutationWithAutosave(this.createPoolStage, (tournamentId) => tournamentId, 'CREATE_POOL_STAGE');
-    this.updatePoolStage = this.wrapMutationWithAutosave(this.updatePoolStage, (tournamentId) => tournamentId, 'UPDATE_POOL_STAGE');
-    this.recomputeDoubleStageProgression = this.wrapMutationWithAutosave(this.recomputeDoubleStageProgression, (tournamentId) => tournamentId, 'RECOMPUTE_DOUBLE_STAGE');
-    this.completePoolStageWithRandomScores = this.wrapMutationWithAutosave(this.completePoolStageWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_POOL_STAGE');
-    this.populateBracketFromPools = this.wrapMutationWithAutosave(this.populateBracketFromPools, (tournamentId) => tournamentId, 'POPULATE_BRACKET_FROM_POOLS');
-    this.deletePoolStage = this.wrapMutationWithAutosave(this.deletePoolStage, (tournamentId) => tournamentId, 'DELETE_POOL_STAGE');
-    this.resetPoolMatches = this.wrapMutationWithAutosave(this.resetPoolMatches, (tournamentId) => tournamentId, 'RESET_POOL_MATCHES');
-    this.updatePoolAssignments = this.wrapMutationWithAutosave(this.updatePoolAssignments, (tournamentId) => tournamentId, 'UPDATE_POOL_ASSIGNMENTS');
+    this.createPoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.createPoolStage, (tournamentId) => tournamentId, 'CREATE_POOL_STAGE');
+    this.updatePoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updatePoolStage, (tournamentId) => tournamentId, 'UPDATE_POOL_STAGE');
+    this.recomputeDoubleStageProgression = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.recomputeDoubleStageProgression, (tournamentId) => tournamentId, 'RECOMPUTE_DOUBLE_STAGE');
+    this.completePoolStageWithRandomScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.completePoolStageWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_POOL_STAGE');
+    this.populateBracketFromPools = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.populateBracketFromPools, (tournamentId) => tournamentId, 'POPULATE_BRACKET_FROM_POOLS');
+    this.deletePoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.deletePoolStage, (tournamentId) => tournamentId, 'DELETE_POOL_STAGE');
+    this.resetPoolMatches = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.resetPoolMatches, (tournamentId) => tournamentId, 'RESET_POOL_MATCHES');
+    this.updatePoolAssignments = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updatePoolAssignments, (tournamentId) => tournamentId, 'UPDATE_POOL_ASSIGNMENTS');
   }
 
   private resolveActorContext(request?: Request): {

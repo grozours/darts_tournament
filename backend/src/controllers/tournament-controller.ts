@@ -78,6 +78,7 @@ export class TournamentController {
   public deleteMatchFormatPreset!: (request: Request, response: Response) => Promise<void>;
   public getTournament!: (request: Request, response: Response) => Promise<void>;
   public getTournamentLiveView!: (request: Request, response: Response) => Promise<void>;
+  public getLiveSummary!: (request: Request, response: Response) => Promise<void>;
   public getTournaments!: (request: Request, response: Response) => Promise<void>;
   public updateTournament!: (request: Request, response: Response) => Promise<void>;
   public deleteTournament!: (request: Request, response: Response) => Promise<void>;

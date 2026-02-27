@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { config } from './environment';
+import logger from '../utils/logger';
 
 class DatabaseConfig {
   private readonly pool: Pool;
@@ -7,7 +8,7 @@ class DatabaseConfig {
   constructor() {
     this.pool = new Pool({
       connectionString: config.database.url,
-      max: config.database.maxConnections,
+      max: config.database.healthCheckMaxConnections,
       idleTimeoutMillis: config.database.idleTimeout,
       connectionTimeoutMillis: config.database.connectionTimeout,
       ssl: config.database.ssl ? { rejectUnauthorized: false } : false,
@@ -15,24 +16,32 @@ class DatabaseConfig {
 
     // Handle connection errors
     this.pool.on('error', (error) => {
-      console.error('Unexpected error on idle client', error);
+      logger.error('Unexpected database error on idle client', {
+        metadata: {
+          errorMessage: error.message,
+        },
+      });
     });
   }
 
   public async connect(): Promise<void> {
     try {
       const client = await this.pool.connect();
-      console.log('Database connected successfully');
+      logger.info('Database connected successfully');
       client.release();
     } catch (error) {
-      console.error('Database connection failed:', error);
+      logger.error('Database connection failed', {
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       throw error;
     }
   }
 
   public async disconnect(): Promise<void> {
     await this.pool.end();
-    console.log('Database disconnected');
+    logger.info('Database disconnected');
   }
 
   public getPool(): Pool {
@@ -46,7 +55,11 @@ class DatabaseConfig {
       client.release();
       return result.rowCount === 1;
     } catch (error) {
-      console.error('Database health check failed:', error);
+      logger.debug('Database health check failed', {
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }

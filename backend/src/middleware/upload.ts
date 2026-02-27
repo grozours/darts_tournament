@@ -5,12 +5,17 @@ import { randomUUID } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/environment';
 import { AppError } from './error-handler';
+import logger from '../utils/logger';
 
 // Ensure upload directory exists
 const ensureUploadDirectory = (): void => {
   if (!fs.existsSync(config.upload.directory)) {
     fs.mkdirSync(config.upload.directory, { recursive: true });
-    console.log(`📁 Created upload directory: ${config.upload.directory}`);
+    logger.info('Created upload directory', {
+      metadata: {
+        directory: config.upload.directory,
+      },
+    });
   }
 };
 
@@ -98,7 +103,14 @@ export const validateUploadedFile = (request: Request, _response: Response, next
   if (file.size > maxUploadSize) {
     // Clean up the uploaded file
     fs.unlink(file.path, (error) => {
-      if (error) console.error('Error cleaning up oversized file:', error);
+      if (error) {
+        logger.error('Failed to clean up oversized uploaded file', {
+          metadata: {
+            filePath: file.path,
+            errorMessage: error.message,
+          },
+        });
+      }
     });
     
     return next(new AppError(
@@ -121,9 +133,18 @@ export const cleanupFile = (filePath: string): void => {
   if (fs.existsSync(filePath)) {
     fs.unlink(filePath, (error) => {
       if (error) {
-        console.error('Error cleaning up file:', error);
+        logger.error('Failed to clean up file', {
+          metadata: {
+            filePath,
+            errorMessage: error.message,
+          },
+        });
       } else {
-        console.log('🗑️  Cleaned up file:', filePath);
+        logger.debug('Cleaned up file', {
+          metadata: {
+            filePath,
+          },
+        });
       }
     });
   }
@@ -164,6 +185,11 @@ export const validateLogoFile = (request: Request, _response: Response, next: Ne
     ));
   }
 
-  console.log(`📷 Logo uploaded: ${file.originalname} (${Math.round(file.size / 1024)}KB)`);
+  logger.info('Logo uploaded', {
+    metadata: {
+      fileName: file.originalname,
+      sizeKb: Math.round(file.size / 1024),
+    },
+  });
   next();
 };

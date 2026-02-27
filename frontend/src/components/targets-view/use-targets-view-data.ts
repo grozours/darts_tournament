@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { fetchTournamentLiveView } from '../../services/tournament-service';
+import { fetchLiveTournamentSummary, fetchTournamentLiveView } from '../../services/tournament-service';
 import type { LiveViewData, Translator } from './types';
 
 type UseTargetsViewDataProperties = {
@@ -46,20 +46,7 @@ const useTargetsViewData = ({
       return [data];
     }
 
-    const response = await fetch('/api/tournaments?status=LIVE', token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : {});
-    if (!response.ok) {
-      throw new Error('Failed to fetch live tournaments');
-    }
-    const data = await response.json();
-    const tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
-    const liveTournaments = tournaments.filter((item: { status?: string }) =>
-      (item.status ?? '').toUpperCase() === 'LIVE'
-    );
-    const views = await Promise.all(
-      liveTournaments.map((item: { id: string }) => fetchTournamentLiveView(item.id, token))
-    );
+    const views = await fetchLiveTournamentSummary(['LIVE'], token);
     return views as LiveViewData[];
   }, [tournamentId]);
 

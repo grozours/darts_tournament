@@ -4,15 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import useTargetsViewData from '../../../../src/components/targets-view/use-targets-view-data';
 
 const fetchTournamentLiveViewMock = vi.fn();
+const fetchLiveTournamentSummaryMock = vi.fn();
 const translate = (key: string) => key;
 
 vi.mock('../../../../src/services/tournament-service', () => ({
   fetchTournamentLiveView: (...args: unknown[]) => fetchTournamentLiveViewMock(...args),
+  fetchLiveTournamentSummary: (...args: unknown[]) => fetchLiveTournamentSummaryMock(...args),
 }));
 
 describe('useTargetsViewData', () => {
   beforeEach(() => {
     fetchTournamentLiveViewMock.mockReset();
+    fetchLiveTournamentSummaryMock.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -44,20 +47,10 @@ describe('useTargetsViewData', () => {
     const getAccessTokenSilently = vi.fn(async () => {
       throw new Error('no token');
     });
-    fetchTournamentLiveViewMock
-      .mockResolvedValueOnce({ id: 't1', name: 'One' })
-      .mockResolvedValueOnce({ id: 't3', name: 'Three' });
-
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        tournaments: [
-          { id: 't1', status: 'LIVE' },
-          { id: 't2', status: 'OPEN' },
-          { id: 't3', status: 'live' },
-        ],
-      }),
-    })));
+    fetchLiveTournamentSummaryMock.mockResolvedValue([
+      { id: 't1', name: 'One' },
+      { id: 't3', name: 'Three' },
+    ]);
 
     const { result } = renderHook(() => useTargetsViewData({
       t: translate,
@@ -70,19 +63,14 @@ describe('useTargetsViewData', () => {
       expect(result.current.liveViews).toHaveLength(2);
     });
 
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/tournaments?status=LIVE', {});
-    expect(fetchTournamentLiveViewMock).toHaveBeenNthCalledWith(1, 't1', undefined);
-    expect(fetchTournamentLiveViewMock).toHaveBeenNthCalledWith(2, 't3', undefined);
+    expect(fetchLiveTournamentSummaryMock).toHaveBeenCalledWith(['LIVE'], undefined);
     expect(warningSpy).toHaveBeenCalled();
   });
 
   it('throws on aggregate fetch failures and exposes setters', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const getAccessTokenSilently = vi.fn(async () => 'token');
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: false,
-      json: async () => ({}),
-    })));
+    fetchLiveTournamentSummaryMock.mockRejectedValue(new Error('Failed to fetch live tournaments'));
 
     const { result } = renderHook(() => useTargetsViewData({
       t: translate,

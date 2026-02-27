@@ -293,11 +293,6 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
           errorStack: error instanceof Error ? error.stack : undefined,
         },
       });
-      console.error('[unregisterPlayer] Failed to unregister player', {
-        tournamentId: request.params?.id,
-        playerId: request.params?.playerId,
-        error,
-      });
       context.handleError(response, error);
     }
   },

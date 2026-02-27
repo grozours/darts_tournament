@@ -42,11 +42,11 @@ describe('useTargetsViewActions', () => {
     const { result } = renderHook(() => useTargetsViewActions({
       t: (key: string) => key,
       getSafeAccessToken: vi.fn(async () => 'token'),
-      fetchLiveViews: vi.fn(async () => []),
       loadTargets: vi.fn(async () => undefined),
       setLiveViews: vi.fn(),
       setError,
       matchTournamentById: new Map(),
+      sharedTargets: [],
     }));
 
     await act(async () => {
@@ -65,11 +65,11 @@ describe('useTargetsViewActions', () => {
     const { result } = renderHook(() => useTargetsViewActions({
       t: (key: string) => key,
       getSafeAccessToken: vi.fn(async () => 'token'),
-      fetchLiveViews: vi.fn(async () => []),
       loadTargets,
       setLiveViews: vi.fn(),
       setError,
       matchTournamentById: new Map([['m1', { tournamentId: 't1', tournamentName: 'Cup' }]]),
+      sharedTargets: [],
     }));
 
     await act(async () => {
@@ -77,7 +77,7 @@ describe('useTargetsViewActions', () => {
     });
 
     expect(updateMatchStatus).toHaveBeenCalledWith('t1', 'm1', 'SCHEDULED', undefined, 'token');
-    expect(loadTargets).toHaveBeenCalledWith();
+    expect(loadTargets).toHaveBeenCalledWith({ silent: true });
     expect(setError).toHaveBeenCalledWith(undefined);
   });
 
@@ -89,11 +89,11 @@ describe('useTargetsViewActions', () => {
     const { result } = renderHook(() => useTargetsViewActions({
       t: (key: string) => key,
       getSafeAccessToken: vi.fn(async () => 'token'),
-      fetchLiveViews: vi.fn(async () => []),
       loadTargets,
       setLiveViews: vi.fn(),
       setError,
       matchTournamentById: new Map([['m1', { tournamentId: 't1', tournamentName: 'Cup' }]]),
+      sharedTargets: [],
     }));
 
     await act(async () => {

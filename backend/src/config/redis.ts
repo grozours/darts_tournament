@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { config } from './environment';
+import logger from '../utils/logger';
 
 class RedisConfig {
   private readonly client: Redis;
@@ -22,19 +23,31 @@ class RedisConfig {
 
     // Handle connection events
     this.client.on('connect', () => {
-      console.log('Redis client connected');
+      logger.debug('Redis client connected');
     });
 
     this.client.on('error', (error) => {
-      console.error('Redis client error:', error);
+      logger.error('Redis client error', {
+        metadata: {
+          errorMessage: error.message,
+        },
+      });
     });
 
     this.publisher.on('error', (error) => {
-      console.error('Redis publisher error:', error);
+      logger.error('Redis publisher error', {
+        metadata: {
+          errorMessage: error.message,
+        },
+      });
     });
 
     this.subscriber.on('error', (error) => {
-      console.error('Redis subscriber error:', error);
+      logger.error('Redis subscriber error', {
+        metadata: {
+          errorMessage: error.message,
+        },
+      });
     });
   }
 
@@ -43,9 +56,13 @@ class RedisConfig {
       await this.client.connect();
       await this.publisher.connect();
       await this.subscriber.connect();
-      console.log('Redis connected successfully');
+      logger.info('Redis connected successfully');
     } catch (error) {
-      console.error('Redis connection failed:', error);
+      logger.error('Redis connection failed', {
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       throw error;
     }
   }
@@ -54,7 +71,7 @@ class RedisConfig {
     this.client.disconnect();
     this.publisher.disconnect();
     this.subscriber.disconnect();
-    console.log('Redis disconnected');
+    logger.info('Redis disconnected');
   }
 
   public getClient(): Redis {
@@ -74,7 +91,11 @@ class RedisConfig {
       const result = await this.client.ping();
       return result === 'PONG';
     } catch (error) {
-      console.error('Redis health check failed:', error);
+      logger.debug('Redis health check failed', {
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       return false;
     }
   }

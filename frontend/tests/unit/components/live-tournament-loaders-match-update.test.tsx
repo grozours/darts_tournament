@@ -9,10 +9,9 @@ import type { LiveViewMatch } from '../../../src/components/live-tournament/type
 
 const serviceMocks = getServiceMocks();
 
-const originalFetch = globalThis.fetch;
-
 beforeEach(() => {
   serviceMocks.fetchTournamentLiveView.mockReset();
+  serviceMocks.fetchLiveTournamentSummary.mockReset();
   serviceMocks.updateMatchStatus.mockReset();
   serviceMocks.completeMatch.mockReset();
   serviceMocks.saveMatchScores.mockReset();
@@ -23,7 +22,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
   vi.restoreAllMocks();
 });
 
@@ -56,19 +54,10 @@ describe('live tournament loaders', () => {
     expect(latest?.liveViews).toHaveLength(1);
     serviceMocks.fetchTournamentLiveView.mockClear();
 
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        tournaments: [
-          { id: 't1', status: 'LIVE' },
-          { id: 't2', status: 'LIVE' },
-          { id: 't3', status: 'SIGNATURE' },
-        ],
-      }),
-    }) as typeof fetch;
-
-    serviceMocks.fetchTournamentLiveView.mockResolvedValueOnce({ id: 't1', name: 'One', status: 'LIVE' });
-    serviceMocks.fetchTournamentLiveView.mockResolvedValueOnce({ id: 't2', name: 'Two', status: 'LIVE' });
+    serviceMocks.fetchLiveTournamentSummary.mockResolvedValueOnce([
+      { id: 't1', name: 'One', status: 'LIVE' },
+      { id: 't2', name: 'Two', status: 'LIVE' },
+    ]);
 
     rerender(
       <HookHarness
@@ -87,9 +76,7 @@ describe('live tournament loaders', () => {
       await latest?.reloadLiveViews();
     });
 
-    expect(serviceMocks.fetchTournamentLiveView).toHaveBeenCalledTimes(2);
-    expect(serviceMocks.fetchTournamentLiveView).toHaveBeenCalledWith('t1', 'token');
-    expect(serviceMocks.fetchTournamentLiveView).toHaveBeenCalledWith('t2', 'token');
+    expect(serviceMocks.fetchLiveTournamentSummary).toHaveBeenCalledWith(['LIVE'], 'token');
     expect(latest?.liveViews).toHaveLength(2);
   });
 });

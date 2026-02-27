@@ -13,7 +13,7 @@ import TournamentPresetsView from './components/tournament-presets-view';
 import MatchFormatsView from './components/match-formats-view';
 import DoublettesView from './components/doublettes-view';
 import EquipesView from './components/equipes-view';
-import { fetchMatchFormatPresets } from './services/tournament-service';
+import { fetchLiveTournamentSummary, fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
 import { useI18n } from './i18n';
@@ -96,23 +96,13 @@ const resolveScreenRotationItems = async (tournamentId?: string): Promise<Screen
     return [...items, { view: 'targets', tournamentId }];
   }
 
-  const listResponse = await fetch('/api/tournaments?status=LIVE');
-  if (!listResponse.ok) {
-    return undefined;
-  }
-  const listData = await listResponse.json();
-  const tournaments = Array.isArray(listData?.tournaments) ? listData.tournaments : [];
-
+  const tournaments = await fetchLiveTournamentSummary(['LIVE']) as LiveViewSummary[];
   const items: ScreenRotationItem[] = [];
   for (const tournament of tournaments) {
     if (!tournament?.id) {
       continue;
     }
-    const data = await loadLiveView(tournament.id);
-    if (!data) {
-      continue;
-    }
-    items.push(...toRotationItems(data, tournament.id));
+    items.push(...toRotationItems(tournament, tournament.id));
   }
 
   return [...items, { view: 'targets' }];

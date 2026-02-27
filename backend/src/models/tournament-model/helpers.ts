@@ -7,6 +7,7 @@ import {
   Player,
   SkillLevel,
 } from '../../../../shared/src/types';
+import logger from '../../utils/logger';
 
 type PrismaError = { code?: string; meta?: { target?: unknown } };
 
@@ -16,7 +17,12 @@ export const getPrismaErrorCode = (error: unknown): string | undefined => {
 };
 
 export const logModelError = (context: string, error: unknown) => {
-  console.error(`[TournamentModel] ${context}`, error);
+  logger.error(`TournamentModel error: ${context}`, {
+    metadata: {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    },
+  });
 };
 
 export const liveViewArguments = {

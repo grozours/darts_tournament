@@ -1,7 +1,11 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
 import { AppError } from '../../middleware/error-handler';
+import { isAdmin } from '../../middleware/auth';
 import { TournamentService, TournamentFilters } from '../../services/tournament-service';
+import { redis } from '../../config/redis';
+import { config } from '../../config/environment';
+import { TournamentStatus } from '../../../../shared/src/types';
 import {
   listTournamentSnapshots,
   readTournamentSnapshot,
@@ -43,6 +47,97 @@ const handleAppError = (response: Response, error: unknown) => {
       code: 'INTERNAL_SERVER_ERROR',
     },
   });
+};
+
+const isLiveEndpointCacheEnabled = (): boolean => config.env !== 'test';
+
+const getCacheScope = (request: Request): 'admin' | 'public' => (isAdmin(request) ? 'admin' : 'public');
+
+const normalizeQueryForCacheKey = (query: Request['query']): string => {
+  const keys = Object.keys(query).sort((first, second) => first.localeCompare(second));
+  const pairs: string[] = [];
+
+  for (const key of keys) {
+    const rawValue = query[key];
+    if (rawValue === undefined) {
+      continue;
+    }
+
+    const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+    for (const value of values) {
+      if (value === undefined) {
+        continue;
+      }
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        pairs.push(`${key}=${String(value)}`);
+        continue;
+      }
+      pairs.push(`${key}=${JSON.stringify(value)}`);
+    }
+  }
+
+  return pairs.join('&');
+};
+
+const readJsonCache = async <T>(key: string): Promise<T | undefined> => {
+  if (!isLiveEndpointCacheEnabled()) {
+    return undefined;
+  }
+
+  try {
+    const value = await redis.getClient().get(key);
+    if (!value) {
+      return undefined;
+    }
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+};
+
+const writeJsonCache = async (key: string, value: unknown): Promise<void> => {
+  if (!isLiveEndpointCacheEnabled()) {
+    return;
+  }
+
+  try {
+    await redis.getClient().setex(
+      key,
+      config.performance.liveEndpointCacheTtlSeconds,
+      JSON.stringify(value)
+    );
+  } catch {
+    return;
+  }
+};
+
+const parseLiveSummaryStatuses = (query: Request['query']): TournamentStatus[] => {
+  const rawValues: string[] = [];
+
+  const singleStatus = query.status;
+  if (typeof singleStatus === 'string' && singleStatus.trim() !== '') {
+    rawValues.push(singleStatus);
+  }
+
+  const multipleStatuses = query.statuses;
+  if (typeof multipleStatuses === 'string' && multipleStatuses.trim() !== '') {
+    rawValues.push(...multipleStatuses.split(','));
+  }
+
+  if (rawValues.length === 0) {
+    return [TournamentStatus.LIVE];
+  }
+
+  const validStatuses = new Set(Object.values(TournamentStatus));
+  const normalized = rawValues
+    .map((value) => value.trim().toUpperCase())
+    .filter((value): value is TournamentStatus => validStatuses.has(value as TournamentStatus));
+
+  if (normalized.length === 0) {
+    return [TournamentStatus.LIVE];
+  }
+
+  return [...new Set(normalized)];
 };
 
 export const createCoreHandlers = (context: CoreHandlerContext) => ({
@@ -271,7 +366,16 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
   getTournamentLiveView: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id } = request.params as { id: string };
+
+      const cacheKey = `tournaments:live:${id}:${getCacheScope(request)}`;
+      const cachedLiveView = await readJsonCache(cacheKey);
+      if (cachedLiveView !== undefined) {
+        response.json(cachedLiveView);
+        return;
+      }
+
       const liveView = await context.getTournamentService(request).getTournamentLiveView(id);
+      await writeJsonCache(cacheKey, liveView);
       response.json(liveView);
     } catch (error) {
       handleAppError(response, error);
@@ -285,8 +389,72 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         return;
       }
 
+      const shouldUseCache = typeof request.query.status === 'string';
+      const cacheKey = shouldUseCache
+        ? `tournaments:list:${getCacheScope(request)}:${normalizeQueryForCacheKey(request.query) || 'default'}`
+        : undefined;
+
+      if (cacheKey) {
+        const cachedResult = await readJsonCache(cacheKey);
+        if (cachedResult !== undefined) {
+          response.json(cachedResult);
+          return;
+        }
+      }
+
       const result = await context.getTournamentService(request).getTournaments(filters);
+      if (cacheKey) {
+        await writeJsonCache(cacheKey, result);
+      }
       response.json(result);
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  getLiveSummary: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const requestedStatuses = parseLiveSummaryStatuses(request.query);
+      const scope = getCacheScope(request);
+      const cacheKey = `tournaments:live-summary:${scope}:${requestedStatuses.join(',')}`;
+
+      const cachedSummary = await readJsonCache<{ tournaments: unknown[] }>(cacheKey);
+      if (cachedSummary !== undefined) {
+        response.json(cachedSummary);
+        return;
+      }
+
+      const visibleStatuses = scope === 'admin'
+        ? requestedStatuses
+        : requestedStatuses.filter((status) => status !== TournamentStatus.DRAFT);
+
+      if (visibleStatuses.length === 0) {
+        response.json({ tournaments: [] });
+        return;
+      }
+
+      const tournaments = await context.prisma.tournament.findMany({
+        where: { status: { in: visibleStatuses } },
+        select: { id: true },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+
+      const tournamentService = context.getTournamentService(request);
+      const results = await Promise.allSettled(
+        tournaments.map((tournament) => tournamentService.getTournamentLiveView(tournament.id))
+      );
+
+      const liveViews: unknown[] = [];
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          liveViews.push(result.value);
+        }
+      }
+
+      const payload = { tournaments: liveViews };
+      await writeJsonCache(cacheKey, payload);
+      response.json(payload);
     } catch (error) {
       handleAppError(response, error);
     }

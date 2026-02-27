@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 
 import type { TournamentModel } from '../../models/tournament-model';
+import type { TournamentLiveView } from '../../models/tournament-model/helpers';
 import { AppError } from '../../middleware/error-handler';
 import { getWebSocketService } from '../../websocket/server';
 import {
@@ -30,13 +31,20 @@ export type MatchHandlerContext = {
   validateUUID: (id: string) => void;
   transitionTournamentStatus: (tournamentId: string, newStatus: TournamentStatus) => Promise<Tournament>;
   recomputeDoubleStageProgression?: (tournamentId: string, stageId: string) => Promise<void>;
+  getCachedTournamentLiveView?: (tournamentId: string) => Promise<TournamentLiveView | undefined>;
 };
 
 const randomIntInclusive = (min: number, max: number): number =>
   randomInt(min, max + 1);
 
 export const createMatchHandlers = (context: MatchHandlerContext) => {
-  const { tournamentModel, validateUUID, transitionTournamentStatus, recomputeDoubleStageProgression } = context;
+  const {
+    tournamentModel,
+    validateUUID,
+    transitionTournamentStatus,
+    recomputeDoubleStageProgression,
+    getCachedTournamentLiveView,
+  } = context;
 
   const getMatchPlayerIds = (match: { playerMatches?: Array<{ playerId?: string | null }> | null }): string[] => {
     return (match.playerMatches || [])
@@ -207,7 +215,9 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       return;
     }
 
-    const liveView = await tournamentModel.findLiveView(tournamentId);
+    const liveView = getCachedTournamentLiveView
+      ? await getCachedTournamentLiveView(tournamentId)
+      : await tournamentModel.findLiveView(tournamentId);
     if (!liveView) {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
     }

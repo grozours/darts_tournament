@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { config } from '../config/environment';
 
 type ImportPayload = {
   tournamentPresets?: unknown[];
@@ -24,7 +25,13 @@ type NormalizedMatchFormatPreset = {
   isSystem: boolean;
 };
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: config.database.prismaUrl,
+    },
+  },
+});
 
 const DEFAULT_IMPORT_CANDIDATES = [
   path.resolve(process.cwd(), 'prisma', 'current-presets-export.json'),

@@ -173,13 +173,23 @@ class App {
 
       // Start server
       this.server.listen(config.port, () => {
-        console.log(`🚀 ${config.app.name} v${config.app.version}`);
-        console.log(`📡 Server running on port ${config.port} in ${config.env} mode`);
-        console.log(`🏥 Health check available at http://localhost:${config.port}/health`);
-        console.log(`🔗 API available at http://localhost:${config.port}/api`);
+        logger.info('Backend server started', {
+          metadata: {
+            appName: config.app.name,
+            appVersion: config.app.version,
+            port: config.port,
+            env: config.env,
+            healthUrl: `http://localhost:${config.port}/health`,
+            apiUrl: `http://localhost:${config.port}/api`,
+          },
+        });
         if (config.isDevelopment) {
-          console.log(`📝 Database: ${config.database.url.split('@')[1]}`);
-          console.log(`📦 Redis: ${config.redis.host}:${config.redis.port}`);
+          logger.debug('Backend dependencies in development mode', {
+            metadata: {
+              database: config.database.url.split('@')[1],
+              redis: `${config.redis.host}:${config.redis.port}`,
+            },
+          });
         }
       });
 
@@ -187,19 +197,25 @@ class App {
       process.on('SIGTERM', () => this.shutdown('SIGTERM'));
       process.on('SIGINT', () => this.shutdown('SIGINT'));
     } catch (error) {
-      console.error('❌ Failed to start server:', error);
+      logger.error('Failed to start server', {
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       process.exit(1);
     }
   }
 
   private async shutdown(signal: string): Promise<void> {
-    console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+    logger.info('Starting graceful shutdown', {
+      metadata: { signal },
+    });
     
     try {
       // Close server
       await new Promise<void>((resolve) => {
         this.server.close(() => {
-          console.log('📡 HTTP server closed');
+          logger.info('HTTP server closed');
           resolve();
         });
       });
@@ -208,10 +224,15 @@ class App {
       await database.disconnect();
       await redis.disconnect();
 
-      console.log('✅ Graceful shutdown completed');
+      logger.info('Graceful shutdown completed');
       process.exit(0);
     } catch (error) {
-      console.error('❌ Error during shutdown:', error);
+      logger.error('Error during graceful shutdown', {
+        metadata: {
+          signal,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
       process.exit(1);
     }
   }

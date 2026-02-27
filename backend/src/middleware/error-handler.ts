@@ -205,9 +205,15 @@ export const errorHandler = (
         name: error.name,
       },
     });
-    console.error('❌ Server Error:', errorLog);
+    logger.error('Server error detail', {
+      correlationId: (request as { correlationId?: string }).correlationId,
+      metadata: errorLog,
+    });
   } else {
-    console.warn('⚠️  Client Error:', errorLog);
+    logger.warn('Client error', {
+      correlationId: (request as { correlationId?: string }).correlationId,
+      metadata: errorLog,
+    });
   }
 
   // Response format per constitution consistency requirements
