@@ -76,7 +76,7 @@ test('pool stages view renders live pool stages', async ({ page }) => {
     });
   });
 
-  await page.goto('/?view=pool-stages');
+  await page.goto('/?view=pool-stages&status=LIVE');
 
   await expect(page.getByText('Main Stage')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Pool 1 of 1: Pool A' })).toBeVisible();

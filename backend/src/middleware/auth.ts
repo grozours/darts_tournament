@@ -86,9 +86,17 @@ const resolveRequestedDevelopmentAutologinMode = (request: Request): Development
 };
 
 export const getActiveDevelopmentAutologinMode = (request: Request): DevelopmentAutologinMode | undefined => {
-  if (!config.isDevelopment || !config.auth.enabled || !config.auth.devAutoLoginEnabled) {
+  if (!config.isDevelopment || !config.auth.enabled) {
     return undefined;
   }
+
+  if (!config.auth.devAutoLoginEnabled) {
+    if (config.auth.devAutoLoginAdminEmail) {
+      return 'admin';
+    }
+    return undefined;
+  }
+
   return resolveRequestedDevelopmentAutologinMode(request);
 };
 

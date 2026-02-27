@@ -18,7 +18,7 @@ const isLocalDevelopmentRequest = (request: Request): boolean => {
 };
 
 router.get('/dev-autologin', (request: Request, response: Response): void => {
-  if (!isLocalDevelopmentRequest(request) || !config.auth.enabled || !config.auth.devAutoLoginEnabled) {
+  if (!isLocalDevelopmentRequest(request) || !config.auth.enabled) {
     response.status(404).json({ error: 'Not Found' });
     return;
   }
@@ -30,7 +30,7 @@ router.get('/dev-autologin', (request: Request, response: Response): void => {
 });
 
 router.post('/dev-autologin', (request: Request, response: Response): void => {
-  if (!isLocalDevelopmentRequest(request) || !config.auth.enabled || !config.auth.devAutoLoginEnabled) {
+  if (!isLocalDevelopmentRequest(request) || !config.auth.enabled) {
     response.status(404).json({ error: 'Not Found' });
     return;
   }

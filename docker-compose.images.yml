@@ -1,28 +1,65 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: darts_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: darts_tournament
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U darts_user -d darts_tournament"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   backend:
-    build: null
     image: darts-tournament/backend:${IMAGE_TAG:-latest}
-    command: npm start
+    command: sh -lc "npm run db:migrate && npm start"
+    ports:
+      - "3000:3000"
     env_file:
       - ./backend/.env
     environment:
       NODE_ENV: production
+      DATABASE_URL: postgresql://darts_user:${POSTGRES_PASSWORD}@postgres:5432/darts_tournament
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - backend_src_data:/app/backend/src
-      - backend_prisma_data:/app/backend/prisma
-      - backend_shared_data:/app/shared
       - backend_logs:/app/backend/logs
       - backend_uploads:/app/backend/uploads
 
   frontend:
-    build: null
     image: darts-tournament/frontend:${IMAGE_TAG:-latest}
     env_file:
       - ./frontend/.env
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
 
 volumes:
-  backend_src_data:
-  backend_prisma_data:
-  backend_shared_data:
+  postgres_data:
+  redis_data:
   backend_logs:
   backend_uploads:

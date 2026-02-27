@@ -197,7 +197,6 @@ ROOT_ENV="$PROJECT_ROOT/.env"
 require_file "$ROOT_ENV"
 require_file "$BACKEND_ENV"
 require_file "$FRONTEND_ENV"
-require_file "$PROJECT_ROOT/docker-compose.yml"
 require_file "$PROJECT_ROOT/docker-compose.images.yml"
 
 if [[ "$USE_EXISTING_IMAGES" == "false" ]]; then
@@ -237,7 +236,6 @@ print_info "Starting stack with production env files preserved"
   cd "$PROJECT_ROOT"
   IMAGE_TAG="$IMAGE_TAG" docker compose \
     --env-file "$ROOT_ENV" \
-    -f docker-compose.yml \
     -f docker-compose.images.yml \
     up -d --no-build --force-recreate --remove-orphans
 )
@@ -247,7 +245,6 @@ print_info "Checking backend container status"
   cd "$PROJECT_ROOT"
   IMAGE_TAG="$IMAGE_TAG" docker compose \
     --env-file "$ROOT_ENV" \
-    -f docker-compose.yml \
     -f docker-compose.images.yml \
     ps
 )
@@ -256,7 +253,6 @@ BACKEND_STATE="$(
   cd "$PROJECT_ROOT"
   IMAGE_TAG="$IMAGE_TAG" docker compose \
     --env-file "$ROOT_ENV" \
-    -f docker-compose.yml \
     -f docker-compose.images.yml \
     ps --format json backend 2>/dev/null || true
 )"
@@ -268,7 +264,6 @@ if [[ "$BACKEND_STATE" != *'"State":"running"'* ]]; then
     cd "$PROJECT_ROOT"
     IMAGE_TAG="$IMAGE_TAG" docker compose \
       --env-file "$ROOT_ENV" \
-      -f docker-compose.yml \
       -f docker-compose.images.yml \
       logs --tail=120 backend || true
   )
@@ -279,7 +274,6 @@ BACKEND_CONTAINER_ID="$(
   cd "$PROJECT_ROOT"
   IMAGE_TAG="$IMAGE_TAG" docker compose \
     --env-file "$ROOT_ENV" \
-    -f docker-compose.yml \
     -f docker-compose.images.yml \
     ps -q backend
 )"
@@ -323,7 +317,6 @@ if [[ "$SHARED_PATHS_OK" != "yes" ]]; then
     cd "$PROJECT_ROOT"
     IMAGE_TAG="$IMAGE_TAG" docker compose \
       --env-file "$ROOT_ENV" \
-      -f docker-compose.yml \
       -f docker-compose.images.yml \
       logs --tail=120 backend || true
   )
@@ -337,7 +330,6 @@ if ! docker exec "$BACKEND_CONTAINER_ID" node -e "require('/app/backend/dist/bac
     cd "$PROJECT_ROOT"
     IMAGE_TAG="$IMAGE_TAG" docker compose \
       --env-file "$ROOT_ENV" \
-      -f docker-compose.yml \
       -f docker-compose.images.yml \
       logs --tail=120 backend || true
   )
@@ -356,7 +348,6 @@ for required_file in \
       cd "$PROJECT_ROOT"
       IMAGE_TAG="$IMAGE_TAG" docker compose \
         --env-file "$ROOT_ENV" \
-        -f docker-compose.yml \
         -f docker-compose.images.yml \
         logs --tail=120 backend || true
     )
@@ -372,7 +363,6 @@ if [[ "$AUTH_ME_STATUS" == "404" ]]; then
     cd "$PROJECT_ROOT"
     IMAGE_TAG="$IMAGE_TAG" docker compose \
       --env-file "$ROOT_ENV" \
-      -f docker-compose.yml \
       -f docker-compose.images.yml \
       logs --tail=120 backend || true
   )
@@ -387,7 +377,6 @@ if [[ "$MATCH_FORMATS_STATUS" != "200" ]]; then
     cd "$PROJECT_ROOT"
     IMAGE_TAG="$IMAGE_TAG" docker compose \
       --env-file "$ROOT_ENV" \
-      -f docker-compose.yml \
       -f docker-compose.images.yml \
       logs --tail=120 backend || true
   )
