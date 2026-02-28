@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/prefer-top-level-await */
 import fs from 'node:fs';
 import path from 'node:path';
 import { PrismaClient, Prisma } from '@prisma/client';
@@ -33,23 +32,23 @@ const prisma = new PrismaClient({
   },
 });
 
-const DEFAULT_IMPORT_CANDIDATES = [
+export const DEFAULT_IMPORT_CANDIDATES = [
   path.resolve(process.cwd(), 'prisma', 'current-presets-export.json'),
   path.resolve(process.cwd(), 'backend', 'prisma', 'current-presets-export.json'),
 ];
 
-const asObject = (value: unknown): Record<string, unknown> => {
+export const asObject = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return value as Record<string, unknown>;
 };
 
-const asString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
-const asNumber = (value: unknown): number => (typeof value === 'number' ? value : Number(value));
-const asBoolean = (value: unknown): boolean => value === true;
+export const asString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+export const asNumber = (value: unknown): number => (typeof value === 'number' ? value : Number(value));
+export const asBoolean = (value: unknown): boolean => value === true;
 
-const resolveImportPath = (): string => {
+export const resolveImportPath = (): string => {
   const fileArgument = process.argv.find((argument) => argument.startsWith('--file='));
   if (fileArgument) {
     const filePath = fileArgument.slice('--file='.length).trim();
@@ -67,7 +66,7 @@ const resolveImportPath = (): string => {
   return DEFAULT_IMPORT_CANDIDATES[0] ?? path.resolve(process.cwd(), 'prisma', 'current-presets-export.json');
 };
 
-const readImportFile = (filePath: string): { tournamentPresets: unknown[]; matchFormatPresets: unknown[] } => {
+export const readImportFile = (filePath: string): { tournamentPresets: unknown[]; matchFormatPresets: unknown[] } => {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Import file not found: ${filePath}`);
   }
@@ -81,7 +80,7 @@ const readImportFile = (filePath: string): { tournamentPresets: unknown[]; match
   };
 };
 
-const normalizeTournamentPreset = (value: unknown): NormalizedTournamentPreset => {
+export const normalizeTournamentPreset = (value: unknown): NormalizedTournamentPreset => {
   const candidate = asObject(value);
   const templateConfig = candidate.templateConfig === null
     ? Prisma.JsonNull
@@ -96,7 +95,7 @@ const normalizeTournamentPreset = (value: unknown): NormalizedTournamentPreset =
   };
 };
 
-const normalizeMatchFormatPreset = (value: unknown): NormalizedMatchFormatPreset => {
+export const normalizeMatchFormatPreset = (value: unknown): NormalizedMatchFormatPreset => {
   const candidate = asObject(value);
   return {
     key: asString(candidate.key),
@@ -106,7 +105,7 @@ const normalizeMatchFormatPreset = (value: unknown): NormalizedMatchFormatPreset
   };
 };
 
-const validateTournamentPreset = (preset: NormalizedTournamentPreset): void => {
+export const validateTournamentPreset = (preset: NormalizedTournamentPreset): void => {
   if (!preset.name) {
     throw new Error('Invalid tournament preset: missing name');
   }
@@ -121,7 +120,7 @@ const validateTournamentPreset = (preset: NormalizedTournamentPreset): void => {
   }
 };
 
-const validateMatchFormatPreset = (preset: NormalizedMatchFormatPreset): void => {
+export const validateMatchFormatPreset = (preset: NormalizedMatchFormatPreset): void => {
   if (!preset.key) {
     throw new Error('Invalid match format preset: missing key');
   }
@@ -133,7 +132,7 @@ const validateMatchFormatPreset = (preset: NormalizedMatchFormatPreset): void =>
   }
 };
 
-const runImport = async (filePath: string, replace: boolean): Promise<void> => {
+export const runImport = async (filePath: string, replace: boolean): Promise<void> => {
   const { tournamentPresets, matchFormatPresets } = readImportFile(filePath);
 
   const normalizedTournamentPresets = tournamentPresets.map((value) => normalizeTournamentPreset(value));
@@ -192,13 +191,13 @@ const runImport = async (filePath: string, replace: boolean): Promise<void> => {
   console.log(replace ? 'Mode: replace' : 'Mode: upsert');
 };
 
-const main = async (): Promise<void> => {
+export const main = async (): Promise<void> => {
   const filePath = resolveImportPath();
   const replace = process.argv.includes('--replace');
   await runImport(filePath, replace);
 };
 
-(async () => {
+export const executeCli = async (): Promise<void> => {
   try {
     await main();
   } catch (error: unknown) {
@@ -207,4 +206,10 @@ const main = async (): Promise<void> => {
   } finally {
     await prisma.$disconnect();
   }
-})();
+};
+
+/* istanbul ignore next */
+// eslint-disable-next-line unicorn/prefer-module
+if (require.main === module) {
+  void executeCli();
+}
