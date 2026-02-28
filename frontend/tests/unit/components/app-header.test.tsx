@@ -28,7 +28,10 @@ describe('AppHeader', () => {
 
     expect(screen.getByText('nav.manage')).toBeInTheDocument();
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
+    const signUpLink = screen.getByRole('link', { name: 'nav.signUp' });
     expect(screen.getByRole('link', { name: 'nav.players' })).toBeInTheDocument();
+    const playersLink = screen.getByRole('link', { name: 'nav.players' });
+    expect(signUpLink.compareDocumentPosition(playersLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByLabelText('1 unread notifications')).toBeInTheDocument();
   });
 
@@ -44,6 +47,7 @@ describe('AppHeader', () => {
     );
 
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'nav.signUp' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'nav.players' })).not.toBeInTheDocument();
 
     globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));

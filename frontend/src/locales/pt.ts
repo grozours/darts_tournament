@@ -4,6 +4,7 @@ export const ptMessages: Record<string, string> = {
   'nav.players': 'Jogadores',
   'nav.manage': 'Admin',
   'nav.inscription': 'Inscrição',
+  'nav.signUp': 'Inscrever-se',
   'nav.drafts': 'Rascunhos',
   'nav.open': 'Abertos',
   'nav.signature': 'Assinatura',

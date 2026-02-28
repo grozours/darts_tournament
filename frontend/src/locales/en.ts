@@ -4,6 +4,7 @@ export const enMessages: Record<string, string> = {
   'nav.players': 'Players',
   'nav.manage': 'Admin',
   'nav.inscription': 'Registration',
+  'nav.signUp': 'Sign up',
   'nav.drafts': 'Drafts',
   'nav.open': 'Open',
   'nav.signature': 'Signature',

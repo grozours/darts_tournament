@@ -4,6 +4,7 @@ export const esMessages: Record<string, string> = {
   'nav.players': 'Jugadores',
   'nav.manage': 'Admin',
   'nav.inscription': 'Inscripción',
+  'nav.signUp': 'Inscribirse',
   'nav.drafts': 'Borradores',
   'nav.open': 'Abiertos',
   'nav.signature': 'Firma',

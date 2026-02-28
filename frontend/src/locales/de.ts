@@ -4,6 +4,7 @@ export const deMessages: Record<string, string> = {
   'nav.players': 'Spieler',
   'nav.manage': 'Admin',
   'nav.inscription': 'Anmeldung',
+  'nav.signUp': 'Anmelden',
   'nav.drafts': 'Entwürfe',
   'nav.open': 'Offen',
   'nav.signature': 'Check-in',

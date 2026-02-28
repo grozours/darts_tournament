@@ -4,6 +4,7 @@ export const nlMessages: Record<string, string> = {
   'nav.players': 'Spelers',
   'nav.manage': 'Admin',
   'nav.inscription': 'Inschrijving',
+  'nav.signUp': 'Inschrijven',
   'nav.drafts': 'Concepten',
   'nav.open': 'Open',
   'nav.signature': 'Aanwezigheid',
