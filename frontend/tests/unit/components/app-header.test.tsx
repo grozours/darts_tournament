@@ -27,13 +27,12 @@ describe('AppHeader', () => {
     );
 
     expect(screen.getByText('nav.manage')).toBeInTheDocument();
-    const manageButton = screen.getByRole('button', { name: 'nav.manage' });
-    const playersLink = screen.getByRole('link', { name: 'nav.players' });
-    expect(manageButton.compareDocumentPosition(playersLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'nav.players' })).toBeInTheDocument();
     expect(screen.getByLabelText('1 unread notifications')).toBeInTheDocument();
   });
 
-  it('shows inscription link for non-admin and updates unread on custom event', () => {
+  it('shows registrations menu for non-admin and updates unread on custom event', () => {
     render(
       <AppHeader
         t={t}
@@ -44,7 +43,8 @@ describe('AppHeader', () => {
       />
     );
 
-    expect(screen.getByText('nav.inscription')).toBeInTheDocument();
+    expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'nav.players' })).not.toBeInTheDocument();
 
     globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
     globalThis.dispatchEvent(new Event('notifications:updated'));

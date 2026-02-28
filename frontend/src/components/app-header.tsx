@@ -242,11 +242,6 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
               </div>
             </div>
           )}
-          {isAdmin && (
-            <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
-              {t('nav.players')}
-            </a>
-          )}
           <div className="relative group">
             <button
               type="button"
@@ -254,11 +249,16 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
               aria-haspopup="true"
               aria-expanded="false"
             >
-              {t('nav.inscription')}{' '}
+              {t('nav.registrationPlayers')}{' '}
               <span aria-hidden="true">▾</span>
             </button>
             <div className="absolute left-0 top-full z-10 pt-2 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
               <div className="min-w-[12rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
+                {isAdmin && (
+                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=players">
+                    {t('nav.players')}
+                  </a>
+                )}
                 <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=OPEN">
                   {t('nav.open')}
                 </a>
