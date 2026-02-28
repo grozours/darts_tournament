@@ -59,6 +59,8 @@ const requiredMembersByMode: Record<GroupMode, number> = {
   equipes: 4,
 };
 
+const isValidEmailFormat = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
 const GroupsView = ({ mode }: GroupsViewProperties) => {
   const { t } = useI18n();
   const { enabled, isAuthenticated, getAccessTokenSilently, user } = useOptionalAuth();
@@ -87,6 +89,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const [quickCreateFirstName, setQuickCreateFirstName] = useState('');
   const [quickCreateLastName, setQuickCreateLastName] = useState('');
   const [quickCreateSurname, setQuickCreateSurname] = useState('');
+  const [quickCreateEmail, setQuickCreateEmail] = useState('');
   const [createCaptainSearchTerm, setCreateCaptainSearchTerm] = useState('');
   const [createCaptainSearchLoading, setCreateCaptainSearchLoading] = useState(false);
   const [createCaptainSearchResults, setCreateCaptainSearchResults] = useState<GroupSearchPlayerEntity[]>([]);
@@ -100,6 +103,9 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   );
   const effectiveIsAuthenticated = isAuthenticated || Boolean(adminUser?.id);
   const requiredMembers = requiredMembersByMode[mode];
+  const quickCreateEmailTrimmed = quickCreateEmail.trim();
+  const quickCreateEmailIsValid =
+    quickCreateEmailTrimmed.length === 0 || isValidEmailFormat(quickCreateEmailTrimmed);
 
   const title = mode === 'doublettes' ? t('groups.doublettes') : t('groups.equipes');
   const registerLabel = mode === 'doublettes' ? t('groups.registerDoublette') : t('groups.registerEquipe');
@@ -561,10 +567,23 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                           placeholder={t('edit.surname')}
                           className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
                         />
+                        <input
+                          value={quickCreateEmail}
+                          onChange={(event) => setQuickCreateEmail(event.target.value)}
+                          type="email"
+                          aria-invalid={!quickCreateEmailIsValid}
+                          placeholder={t('edit.email')}
+                          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                        />
                       </div>
                       <button
                         type="button"
-                        disabled={saving || quickCreateFirstName.trim().length === 0 || quickCreateLastName.trim().length === 0}
+                        disabled={
+                          saving
+                          || quickCreateFirstName.trim().length === 0
+                          || quickCreateLastName.trim().length === 0
+                          || !quickCreateEmailIsValid
+                        }
                         onClick={() => {
                           void handleQuickCreateAndAddMember(group.id, group.tournamentId);
                         }}
@@ -642,6 +661,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     setQuickCreateFirstName('');
     setQuickCreateLastName('');
     setQuickCreateSurname('');
+    setQuickCreateEmail('');
   }, []);
 
   const openRenameEditor = useCallback((groupId: string, currentName: string) => {
@@ -823,8 +843,9 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     const firstName = quickCreateFirstName.trim();
     const lastName = quickCreateLastName.trim();
     const surname = quickCreateSurname.trim();
+    const email = quickCreateEmail.trim();
 
-    if (!firstName || !lastName) {
+    if (!firstName || !lastName || (email.length > 0 && !isValidEmailFormat(email))) {
       return;
     }
 
@@ -836,6 +857,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
           firstName,
           lastName,
           ...(surname ? { surname } : {}),
+          ...(email ? { email } : {}),
         },
         token
       );
@@ -861,6 +883,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     quickCreateFirstName,
     quickCreateLastName,
     quickCreateSurname,
+    quickCreateEmail,
     runAction,
   ]);
 

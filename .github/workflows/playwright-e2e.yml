@@ -46,6 +46,27 @@ jobs:
       - name: Install Playwright browsers
         run: npm --prefix frontend exec -- playwright install
 
+      - name: Cleanup orphan Playwright web servers
+        shell: bash
+        run: |
+          set +e
+          for port in 3310 3311; do
+            echo "Checking port ${port}"
+            if command -v lsof >/dev/null 2>&1; then
+              pids="$(lsof -tiTCP:${port} -sTCP:LISTEN 2>/dev/null)"
+              if [ -n "${pids}" ]; then
+                echo "Stopping listener(s) on ${port}: ${pids}"
+                kill ${pids} || true
+                sleep 1
+                kill -9 ${pids} || true
+              fi
+            elif command -v fuser >/dev/null 2>&1; then
+              fuser -k ${port}/tcp || true
+            else
+              echo "No lsof/fuser available; skipping forced cleanup for ${port}"
+            fi
+          done
+
       - name: Run Playwright smoke tests (Chromium)
         timeout-minutes: 15
         run: npm --prefix frontend exec -- playwright test -c ./playwright.config.ts --project=chromium
@@ -101,6 +122,27 @@ jobs:
 
       - name: Install Playwright browsers
         run: npm --prefix frontend exec -- playwright install
+
+      - name: Cleanup orphan Playwright web servers
+        shell: bash
+        run: |
+          set +e
+          for port in 3310 3311; do
+            echo "Checking port ${port}"
+            if command -v lsof >/dev/null 2>&1; then
+              pids="$(lsof -tiTCP:${port} -sTCP:LISTEN 2>/dev/null)"
+              if [ -n "${pids}" ]; then
+                echo "Stopping listener(s) on ${port}: ${pids}"
+                kill ${pids} || true
+                sleep 1
+                kill -9 ${pids} || true
+              fi
+            elif command -v fuser >/dev/null 2>&1; then
+              fuser -k ${port}/tcp || true
+            else
+              echo "No lsof/fuser available; skipping forced cleanup for ${port}"
+            fi
+          done
 
       - name: Run Playwright full suite (all projects)
         timeout-minutes: 25
