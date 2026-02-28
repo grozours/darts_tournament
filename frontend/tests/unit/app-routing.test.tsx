@@ -7,6 +7,10 @@ const adminState = { isAdmin: true };
 const fetchMatchFormatPresetsMock = vi.fn(async () => []);
 const fetchLiveTournamentSummaryMock = vi.fn(async () => []);
 const setMatchFormatPresetsMock = vi.fn();
+const navigateTo = (url: string) => {
+  globalThis.history.pushState({}, '', url);
+  globalThis.dispatchEvent(new PopStateEvent('popstate'));
+};
 const toUrl = (input: RequestInfo | URL) => {
   if (input instanceof URL) return input.toString();
   if (typeof input === 'string') return input;
@@ -63,7 +67,7 @@ describe('App routing', () => {
 
   it('renders admin-only guard for players view when non-admin', () => {
     adminState.isAdmin = false;
-    globalThis.history.pushState({}, '', '/?view=players');
+    navigateTo('/?view=players');
     render(<App />);
     expect(screen.getByText('auth.adminOnly')).toBeInTheDocument();
   });
@@ -71,35 +75,35 @@ describe('App routing', () => {
   it('renders requested views from query params', () => {
     adminState.isAdmin = true;
 
-    globalThis.history.pushState({}, '', '/?view=registration-players');
+    navigateTo('/?view=registration-players');
     const { rerender } = render(<App />);
     expect(screen.getByText('REGISTRATION_PLAYERS')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=tournament-preset-editor');
+    navigateTo('/?view=tournament-preset-editor');
     rerender(<App />);
     expect(screen.getByText('TOURNAMENT_PRESETS')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=match-formats');
+    navigateTo('/?view=match-formats');
     rerender(<App />);
     expect(screen.getByText('MATCH_FORMATS')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=doublettes&tournamentId=t1');
+    navigateTo('/?view=doublettes&tournamentId=t1');
     rerender(<App />);
     expect(screen.getByText('DOUBLETTES_VIEW')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=equipes&tournamentId=t1');
+    navigateTo('/?view=equipes&tournamentId=t1');
     rerender(<App />);
     expect(screen.getByText('EQUIPES_VIEW')).toBeInTheDocument();
   });
 
   it('falls back to live view when status=live without explicit view', () => {
-    globalThis.history.pushState({}, '', '/?status=live');
+    navigateTo('/?status=live');
     render(<App />);
     expect(screen.getByText('LIVE_TOURNAMENT')).toBeInTheDocument();
   });
 
   it('falls back to tournament list for unknown status without explicit view', () => {
-    globalThis.history.pushState({}, '', '/?status=draft');
+    navigateTo('/?status=draft');
     render(<App />);
     expect(screen.getByText('TOURNAMENT_LIST')).toBeInTheDocument();
   });
@@ -107,7 +111,7 @@ describe('App routing', () => {
   it('hides header and loads screen rotation list in screen mode', async () => {
     fetchLiveTournamentSummaryMock.mockResolvedValue([]);
 
-    globalThis.history.pushState({}, '', '/?screen=1');
+    navigateTo('/?screen=1');
     render(<App />);
 
     expect(screen.queryByText('APP_HEADER')).not.toBeInTheDocument();
@@ -133,7 +137,7 @@ describe('App routing', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    globalThis.history.pushState({}, '', '/?screen=1&tournamentId=t1');
+    navigateTo('/?screen=1&tournamentId=t1');
     render(<App />);
 
     await waitFor(() => {
@@ -154,44 +158,44 @@ describe('App routing', () => {
   it('renders remaining route branches and admin guard for presets', () => {
     adminState.isAdmin = true;
 
-    globalThis.history.pushState({}, '', '/?view=tournament-players');
+    navigateTo('/?view=tournament-players');
     const { rerender } = render(<App />);
     expect(screen.getByText('TOURNAMENT_PLAYERS')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=live');
+    navigateTo('/?view=live');
     rerender(<App />);
     expect(screen.getByText('LIVE_TOURNAMENT')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=pool-stages');
+    navigateTo('/?view=pool-stages');
     rerender(<App />);
     expect(screen.getByText('LIVE_TOURNAMENT')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=brackets');
+    navigateTo('/?view=brackets');
     rerender(<App />);
     expect(screen.getByText('LIVE_TOURNAMENT')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=targets');
+    navigateTo('/?view=targets');
     rerender(<App />);
     expect(screen.getByText('TARGETS_VIEW')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=notifications');
+    navigateTo('/?view=notifications');
     rerender(<App />);
     expect(screen.getByText('NOTIFICATIONS_VIEW')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=create-tournament');
+    navigateTo('/?view=create-tournament');
     rerender(<App />);
     expect(screen.getByText('CREATE_TOURNAMENT')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=account');
+    navigateTo('/?view=account');
     rerender(<App />);
     expect(screen.getByText('ACCOUNT_VIEW')).toBeInTheDocument();
 
-    globalThis.history.pushState({}, '', '/?view=tournament-presets');
+    navigateTo('/?view=tournament-presets');
     rerender(<App />);
     expect(screen.getByText('TOURNAMENT_PRESETS')).toBeInTheDocument();
 
     adminState.isAdmin = false;
-    globalThis.history.pushState({}, '', '/?view=tournament-presets');
+    navigateTo('/?view=tournament-presets');
     rerender(<App />);
     expect(screen.getByText('auth.adminOnly')).toBeInTheDocument();
   });

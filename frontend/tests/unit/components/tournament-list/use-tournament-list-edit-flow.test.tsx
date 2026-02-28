@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import useTournamentListEditFlow from '../../../../src/components/tournament-list/use-tournament-list-edit-flow';
 
 const fetchTournamentDetails = vi.fn();
@@ -28,6 +28,10 @@ vi.mock('../../../../src/components/tournament-list/use-tournament-edit-actions'
 }));
 
 describe('useTournamentListEditFlow', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const base = {
     t: (key: string) => key,
     isEditPage: false,
@@ -83,6 +87,25 @@ describe('useTournamentListEditFlow', () => {
     expect(openRegistration).toHaveBeenCalledTimes(1);
     expect(moveToSignature).toHaveBeenCalledTimes(1);
     expect(moveToLive).toHaveBeenCalledTimes(1);
+  });
+
+  it('executes edit-page close branch and still resets local state', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const props = {
+      ...base,
+      isEditPage: true,
+    };
+    const { result } = renderHook(() => useTournamentListEditFlow(props as never));
+
+    act(() => {
+      result.current.closeEdit();
+    });
+
+    expect(props.setEditingTournament).toHaveBeenCalledWith(undefined);
+    expect(props.setEditForm).toHaveBeenCalledWith(undefined);
+    expect(props.setEditError).toHaveBeenCalledWith(undefined);
+    expect(props.setLogoFile).toHaveBeenCalledWith(undefined);
   });
 
 });

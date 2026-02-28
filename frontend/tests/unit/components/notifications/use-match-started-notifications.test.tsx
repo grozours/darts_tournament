@@ -172,4 +172,359 @@ describe('useMatchStartedNotifications', () => {
     expect(socket.removeAllListeners).toHaveBeenCalled();
     expect(socket.disconnect).toHaveBeenCalled();
   });
+
+  it('stores started notification when player is in same pool even without direct player match', async () => {
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const startedHandler = socketHandlers.get('match:started');
+    startedHandler?.({
+      matchId: 'm-pool-only',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      target: { id: 'target-1', targetCode: 'target7' },
+      match: { source: 'pool', poolId: 'pool-1', stageNumber: 1, poolNumber: 1, matchNumber: 9 },
+      players: [{ id: 'other-player' }],
+    });
+
+    const stored = JSON.parse(globalThis.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) || '[]');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.payload?.matchId).toBe('m-pool-only');
+  });
+
+  it('does not create browser notifications when permission is denied', async () => {
+    const notificationSpy = vi.fn();
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      writable: true,
+      value: Object.assign(notificationSpy, { permission: 'denied' }),
+    });
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const finishedHandler = socketHandlers.get('match:finished');
+    finishedHandler?.({
+      event: 'completed',
+      matchId: 'm5',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      match: { source: 'pool', poolId: 'pool-1', stageNumber: 1, poolNumber: 1, matchNumber: 5 },
+      players: [{ id: 'p1', scoreTotal: 3, isWinner: true }, { id: 'p2', scoreTotal: 2 }],
+    });
+
+    expect(notificationSpy).not.toHaveBeenCalled();
+    const stored = JSON.parse(globalThis.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) || '[]');
+    expect(stored).toHaveLength(1);
+  });
+
+  it('does not open socket when auth profile endpoint fails', async () => {
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => ({ ok: false, json: async () => ({}) } as Response));
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(authState.getAccessTokenSilently).toHaveBeenCalled();
+    });
+    expect(io).not.toHaveBeenCalled();
+  });
+
+  it('does not open socket when tournaments endpoint fails', async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = toUrl(input);
+      if (url.endsWith('/api/auth/me')) {
+        return { ok: true, json: async () => ({ user: { email: 'p@example.com' } }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=LIVE')) {
+        return { ok: false, json: async () => ({}) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=SIGNATURE')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
+      return { ok: true, json: async () => ({}) } as Response;
+    });
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(authState.getAccessTokenSilently).toHaveBeenCalled();
+    });
+    expect(io).not.toHaveBeenCalled();
+  });
+
+  it('does not open socket when auth email is missing', async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = toUrl(input);
+      if (url.endsWith('/api/auth/me')) {
+        return { ok: true, json: async () => ({ user: {} }) } as Response;
+      }
+      return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+    });
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(authState.getAccessTokenSilently).toHaveBeenCalled();
+    });
+    expect(io).not.toHaveBeenCalled();
+  });
+
+  it('ignores finished and format-changed events for unrelated players', async () => {
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const finishedHandler = socketHandlers.get('match:finished');
+    const formatChangedHandler = socketHandlers.get('match:format-changed');
+
+    finishedHandler?.({
+      event: 'completed',
+      matchId: 'm6',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      match: { source: 'bracket', matchNumber: 7 },
+      players: [{ id: 'other' }],
+    });
+
+    formatChangedHandler?.({
+      event: 'format_changed',
+      matchId: 'm7',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      matchFormatKey: 'BO5',
+      match: { source: 'bracket', matchNumber: 8 },
+      players: [{ id: 'other' }],
+    });
+
+    const stored = JSON.parse(globalThis.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) || '[]');
+    expect(stored).toHaveLength(0);
+  });
+
+  it('opens socket without auth payload when token is unavailable at socket opening', async () => {
+    authState.getAccessTokenSilently
+      .mockResolvedValueOnce('token')
+      .mockResolvedValueOnce(undefined as unknown as string);
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const options = io.mock.calls[0]?.[1] as { auth?: unknown } | undefined;
+    expect(options?.auth).toBeUndefined();
+  });
+
+  it('stores notification when local storage content is malformed JSON shape', async () => {
+    globalThis.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, '{"unexpected":true}');
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const startedHandler = socketHandlers.get('match:started');
+    startedHandler?.({
+      matchId: 'm8',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      target: { id: 'target-1', name: 'Table A' },
+      match: { source: 'pool', poolId: 'pool-1', stageNumber: 2, poolNumber: 3, matchNumber: 1 },
+      players: [{ id: 'p1' }],
+    });
+
+    const stored = JSON.parse(globalThis.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) || '[]');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.payload?.matchId).toBe('m8');
+  });
+
+  it('skips state update when unmounted before pool loading completes', async () => {
+    let resolvePools: ((value: Response) => void) | undefined;
+    vi.mocked(globalThis.fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = toUrl(input);
+      if (url.endsWith('/api/auth/me')) {
+        return { ok: true, json: async () => ({ user: { email: 'p@example.com' } }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=LIVE')) {
+        return { ok: true, json: async () => ({ tournaments: [{ id: 't1', name: 'Cup', status: 'LIVE' }] }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=SIGNATURE')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
+      if (url.includes('/api/tournaments/t1/players')) {
+        return { ok: true, json: async () => ({ players: [{ playerId: 'p1', email: 'p@example.com' }] }) } as Response;
+      }
+      if (url.includes('/api/tournaments/t1/pool-stages/s1/pools')) {
+        return await new Promise<Response>((resolve) => {
+          resolvePools = resolve;
+        });
+      }
+      if (url.includes('/api/tournaments/t1/pool-stages')) {
+        return { ok: true, json: async () => ({ poolStages: [{ id: 's1' }] }) } as Response;
+      }
+      return { ok: false, json: async () => ({}) } as Response;
+    });
+
+    const { unmount } = renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(resolvePools).toBeTypeOf('function');
+    });
+
+    unmount();
+    resolvePools?.({ ok: true, json: async () => ({ pools: [{ id: 'pool-1', assignments: [{ playerId: 'p1' }] }] }) } as Response);
+    await Promise.resolve();
+
+    expect(io).not.toHaveBeenCalled();
+  });
+
+  it('aborts socket opening when disposed before token resolution', async () => {
+    let resolveSecondToken: ((value: string | undefined) => void) | undefined;
+    authState.getAccessTokenSilently
+      .mockResolvedValueOnce('token')
+      .mockImplementationOnce(async () => await new Promise<string | undefined>((resolve) => {
+        resolveSecondToken = resolve;
+      }));
+
+    const { unmount } = renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(authState.getAccessTokenSilently).toHaveBeenCalledTimes(2);
+      expect(resolveSecondToken).toBeTypeOf('function');
+    });
+
+    unmount();
+    resolveSecondToken?.('token');
+    await Promise.resolve();
+
+    expect(io).not.toHaveBeenCalled();
+  });
+
+  it('stores notification when local storage contains invalid JSON', async () => {
+    globalThis.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, '{invalid-json');
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const startedHandler = socketHandlers.get('match:started');
+    startedHandler?.({
+      matchId: 'm9',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      target: { id: 'target-1', targetCode: 'target 12' },
+      match: { source: 'pool', poolId: 'pool-1', stageNumber: 1, poolNumber: 1, matchNumber: 12 },
+      players: [{ id: 'p1' }],
+    });
+
+    const stored = JSON.parse(globalThis.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) || '[]');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.payload?.matchId).toBe('m9');
+  });
+
+  it('builds browser notification text for started bracket and completed with incomplete score', async () => {
+    const notificationSpy = vi.fn();
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      writable: true,
+      value: Object.assign(notificationSpy, { permission: 'granted' }),
+    });
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const startedHandler = socketHandlers.get('match:started');
+    const finishedHandler = socketHandlers.get('match:finished');
+
+    startedHandler?.({
+      matchId: 'm10',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      target: { id: 'target-2', targetCode: 'target 7' },
+      match: { source: 'bracket', bracketName: 'Final', matchNumber: 10 },
+      players: [{ id: 'p1' }],
+    });
+
+    finishedHandler?.({
+      event: 'completed',
+      matchId: 'm11',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      match: { source: 'pool', poolId: 'pool-1', stageNumber: 1, poolNumber: 1, matchNumber: 11 },
+      players: [{ id: 'p1', scoreTotal: 2 }, { id: 'p2' }],
+    });
+
+    expect(notificationSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('continues loading when one tournament players endpoint fails and uses raw target label fallback', async () => {
+    const notificationSpy = vi.fn();
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      writable: true,
+      value: Object.assign(notificationSpy, { permission: 'granted' }),
+    });
+
+    vi.mocked(globalThis.fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = toUrl(input);
+      if (url.endsWith('/api/auth/me')) {
+        return { ok: true, json: async () => ({ user: { email: 'p@example.com' } }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=LIVE')) {
+        return {
+          ok: true,
+          json: async () => ({ tournaments: [{ id: 't1', name: 'Cup' }, { id: 't2', name: 'Cup 2' }] }),
+        } as Response;
+      }
+      if (url.includes('/api/tournaments?status=SIGNATURE')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
+      if (url.includes('/api/tournaments/t1/players')) {
+        return { ok: true, json: async () => ({ players: [{ playerId: 'p1', email: 'p@example.com' }] }) } as Response;
+      }
+      if (url.includes('/api/tournaments/t2/players')) {
+        return { ok: false, json: async () => ({}) } as Response;
+      }
+      if (url.includes('/api/tournaments/t1/pool-stages/s1/pools')) {
+        return { ok: true, json: async () => ({ pools: [{ id: 'pool-1', assignments: [{ playerId: 'p1' }] }] }) } as Response;
+      }
+      if (url.includes('/api/tournaments/t2/pool-stages')) {
+        return { ok: true, json: async () => ({ poolStages: [] }) } as Response;
+      }
+      if (url.includes('/api/tournaments/t1/pool-stages')) {
+        return { ok: true, json: async () => ({ poolStages: [{ id: 's1' }] }) } as Response;
+      }
+      return { ok: false, json: async () => ({}) } as Response;
+    });
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const startedHandler = socketHandlers.get('match:started');
+    startedHandler?.({
+      matchId: 'm12',
+      tournamentId: 't1',
+      tournamentName: 'Cup',
+      target: { id: 'target-3', name: 'Board A' },
+      match: { source: 'pool', poolId: 'pool-1', stageNumber: 2, poolNumber: 2, matchNumber: 3 },
+      players: [{ id: 'p1' }],
+    });
+
+    expect(notificationSpy).toHaveBeenCalledTimes(1);
+  });
 });

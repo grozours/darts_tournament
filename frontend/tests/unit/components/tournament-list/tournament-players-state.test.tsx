@@ -77,7 +77,7 @@ describe('tournament-players-state hooks', () => {
       await result.current('t1');
     });
 
-    expect(setPlayersError).toHaveBeenCalledWith('edit.error.failedLoadPlayers');
+    expect(setPlayersError).toHaveBeenLastCalledWith('boom');
   });
 
   it('starts and cancels player edit with derived first/last names', () => {

@@ -273,4 +273,117 @@ describe('computeOptimisticStartTimes', () => {
     expect(result.optimisticById.size).toBe(2);
     expect(result.estimatedDurationMinutes).toBeGreaterThanOrEqual(5);
   });
+
+  it('falls back to global best queue when fairness queue would delay start despite idle target', () => {
+    const pools = [
+      {
+        id: 'pool-fair',
+        poolNumber: 1,
+        assignments: [{ player: { id: 'p1' } }, { player: { id: 'p2' } }],
+        matches: [
+          {
+            id: 'm-delayed',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [{ player: { id: 'p1' } }, { player: { id: 'p2' } }],
+          },
+        ],
+      },
+      {
+        id: 'pool-loaded',
+        poolNumber: 2,
+        assignments: [
+          { player: { id: 'p3' } },
+          { player: { id: 'p4' } },
+          { player: { id: 'p7' } },
+          { player: { id: 'p8' } },
+        ],
+        matches: [
+          {
+            id: 'm-in-progress',
+            status: 'IN_PROGRESS',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [{ player: { id: 'p1' } }, { player: { id: 'p2' } }],
+          },
+          {
+            id: 'm-ready-now',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 2,
+            playerMatches: [{ player: { id: 'p3' } }, { player: { id: 'p4' } }],
+          },
+          {
+            id: 'm-completed',
+            status: 'COMPLETED',
+            roundNumber: 1,
+            matchNumber: 3,
+            playerMatches: [{ player: { id: 'p5' } }, { player: { id: 'p6' } }],
+          },
+        ],
+      },
+    ] as unknown as OptimisticPools;
+
+    const result = computeOptimisticStartTimes({
+      pools,
+      schedulableTargetCount: 2,
+      nowTimestamp: 0,
+      prioritizeLeastProgressedPools: true,
+      resolveDurationMinutes: () => 10,
+    });
+
+    expect(result.finishTimestampByMatchId.get('m-in-progress')).toBe(600_000);
+    expect(result.finishTimestampByMatchId.get('m-ready-now')).toBe(600_000);
+    expect(result.finishTimestampByMatchId.get('m-delayed')).toBe(1_200_000);
+  });
+
+  it('limits in-progress reservation to available targets', () => {
+    const pools = [
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        matches: [
+          {
+            id: 'm-in-progress-1',
+            status: 'IN_PROGRESS',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [{ player: { id: 'p1' } }, { player: { id: 'p2' } }],
+          },
+        ],
+      },
+      {
+        id: 'pool-2',
+        poolNumber: 2,
+        matches: [
+          {
+            id: 'm-in-progress-2',
+            status: 'IN_PROGRESS',
+            roundNumber: 1,
+            matchNumber: 1,
+            playerMatches: [{ player: { id: 'p3' } }, { player: { id: 'p4' } }],
+          },
+          {
+            id: 'm-scheduled',
+            status: 'SCHEDULED',
+            roundNumber: 1,
+            matchNumber: 2,
+            playerMatches: [{ player: { id: 'p5' } }, { player: { id: 'p6' } }],
+          },
+        ],
+      },
+    ] as unknown as OptimisticPools;
+
+    const result = computeOptimisticStartTimes({
+      pools,
+      schedulableTargetCount: 1,
+      nowTimestamp: 0,
+      resolveDurationMinutes: () => 7,
+    });
+
+    expect(result.finishTimestampByMatchId.has('m-in-progress-1')).toBe(true);
+    expect(result.finishTimestampByMatchId.has('m-in-progress-2')).toBe(false);
+    expect(result.finishTimestampByMatchId.has('m-scheduled')).toBe(true);
+  });
 });

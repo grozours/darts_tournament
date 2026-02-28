@@ -17,6 +17,7 @@ vi.mock('../../../../src/services/tournament-service', () => ({
 
 describe('useLiveTournamentStageUpdate', () => {
   const stage = { id: 's1', status: 'EDITION', pools: [{ assignments: [{ playerId: 'p1' }] }] } as never;
+  const emptyStage = { id: 's1', status: 'EDITION', pools: [{ assignments: [] }] } as never;
 
   beforeEach(() => {
     completePoolStageWithScores.mockReset();
@@ -46,6 +47,16 @@ describe('useLiveTournamentStageUpdate', () => {
     });
 
     expect(updatePoolStage).toHaveBeenCalledWith('t1', 's1', { status: 'IN_PROGRESS' }, 'token');
+  });
+
+  it('launches stage with EDITION when assignments are missing', async () => {
+    const { result } = build();
+
+    await act(async () => {
+      await result.current.handleLaunchStage('t1', emptyStage);
+    });
+
+    expect(updatePoolStage).toHaveBeenCalledWith('t1', 's1', { status: 'EDITION' }, 'token');
   });
 
   it('resets/deletes/completes/recomputes only when confirmed', async () => {
@@ -85,5 +96,57 @@ describe('useLiveTournamentStageUpdate', () => {
 
     expect(setError).toHaveBeenCalledWith('Failed to update pool stage');
     expect(onFinishEdit).not.toHaveBeenCalled();
+  });
+
+  it('updates stage with valid numeric drafts and calls finish edit', async () => {
+    const onFinishEdit = vi.fn();
+    const { result } = build({
+      onFinishEdit,
+      stageStatusDrafts: {},
+      stagePoolCountDrafts: { s1: '5' },
+      stagePlayersPerPoolDrafts: { s1: '2' },
+    });
+
+    await act(async () => {
+      await result.current.handleUpdateStage('t1', stage);
+    });
+
+    expect(updatePoolStage).toHaveBeenCalledWith(
+      't1',
+      's1',
+      { status: 'EDITION', poolCount: 5, playersPerPool: 2 },
+      'token'
+    );
+    expect(onFinishEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports explicit error message for reset/delete/complete/recompute failures', async () => {
+    const setError = vi.fn();
+    const { result } = build({ setError });
+
+    updatePoolStage.mockRejectedValueOnce(new Error('reset failed'));
+    await act(async () => {
+      await result.current.handleResetStage('t1', stage);
+    });
+
+    deletePoolStage.mockRejectedValueOnce(new Error('delete failed'));
+    await act(async () => {
+      await result.current.handleDeleteStage('t1', stage);
+    });
+
+    completePoolStageWithScores.mockRejectedValueOnce(new Error('complete failed'));
+    await act(async () => {
+      await result.current.handleCompleteStageWithScores('t1', stage);
+    });
+
+    recomputeDoubleStageProgression.mockRejectedValueOnce(new Error('recompute failed'));
+    await act(async () => {
+      await result.current.handleRecomputeDoubleStage('t1', stage);
+    });
+
+    expect(setError).toHaveBeenCalledWith('reset failed');
+    expect(setError).toHaveBeenCalledWith('delete failed');
+    expect(setError).toHaveBeenCalledWith('complete failed');
+    expect(setError).toHaveBeenCalledWith('recompute failed');
   });
 });

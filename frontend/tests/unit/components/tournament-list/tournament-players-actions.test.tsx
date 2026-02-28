@@ -3,6 +3,7 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   autoFillTournamentPlayers,
+  confirmAllTournamentPlayers,
   usePlayerAutoFillMutation,
   usePlayerCheckInMutations,
   usePlayerRegistrationMutations,
@@ -145,6 +146,7 @@ describe('tournament-players-actions hooks', () => {
       setPlayersError: vi.fn(),
       setCheckingInPlayerId: vi.fn(),
       setIsConfirmingAll: vi.fn(),
+      setConfirmAllProgress: vi.fn(),
     }));
 
     await act(async () => {
@@ -172,6 +174,7 @@ describe('tournament-players-actions hooks', () => {
       fetchPlayers,
       setPlayersError,
       setIsAutoFillingPlayers: vi.fn(),
+      setAutoFillProgress: vi.fn(),
     }));
 
     await act(async () => {
@@ -276,5 +279,313 @@ describe('tournament-players-actions hooks', () => {
       'token'
     );
     expect(registerEquipe).toHaveBeenCalledWith('t2', 'e1', 'token');
+  });
+
+  it('throws when SINGLE tournament has no remaining slot', async () => {
+    await expect(autoFillTournamentPlayers({
+      tournament: {
+        id: 't-single-full',
+        format: 'SINGLE',
+        totalParticipants: 1,
+      } as never,
+      players: [{ playerId: 'p1' }] as never,
+      token: 'token',
+    })).rejects.toThrow('All spots are already filled.');
+  });
+
+  it('throws when group tournament has no remaining group slots', async () => {
+    fetchDoublettes.mockResolvedValue([
+      { id: 'd1', isRegistered: true, members: [{ playerId: 'p1' }, { playerId: 'p2' }] },
+    ]);
+
+    await expect(autoFillTournamentPlayers({
+      tournament: {
+        id: 't-double-full',
+        format: 'DOUBLE',
+        totalParticipants: 1,
+      } as never,
+      players: [{ playerId: 'p1' }, { playerId: 'p2' }] as never,
+      token: 'token',
+    })).rejects.toThrow('All spots are already filled.');
+  });
+
+  it('throws when group tournament cannot build a complete auto-group', async () => {
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-existing',
+        isRegistered: false,
+        members: [{ playerId: 'p1' }, { playerId: 'p2' }, { playerId: 'p3' }],
+      },
+    ]);
+
+    await expect(autoFillTournamentPlayers({
+      tournament: {
+        id: 't-double-incomplete',
+        format: 'DOUBLE',
+        totalParticipants: 2,
+      } as never,
+      players: [{ playerId: 'p1' }, { playerId: 'p2' }, { playerId: 'p3' }] as never,
+      token: 'token',
+    })).rejects.toThrow('Not enough available slots to create a complete group automatically.');
+  });
+
+  it('does nothing when confirming all but everyone is already checked-in', async () => {
+    const onProgress = vi.fn();
+
+    await confirmAllTournamentPlayers({
+      tournament: { id: 't-confirm' } as never,
+      players: [
+        { playerId: 'p1', checkedIn: true },
+        { playerId: 'p2', checkedIn: true },
+      ] as never,
+      token: 'token',
+      onProgress,
+    });
+
+    expect(updateTournamentPlayerCheckIn).not.toHaveBeenCalled();
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it('skips remove when user cancels confirmation', async () => {
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(false);
+
+    const { result } = renderHook(() => usePlayerRegistrationMutations({
+      t: (key: string) => key,
+      editingTournament: { id: 't1' } as never,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      playerForm: { firstName: 'Jane', lastName: 'Doe' },
+      editingPlayerId: undefined,
+      fetchPlayers: vi.fn(async () => undefined),
+      cancelEditPlayer: vi.fn(),
+      setPlayersError: vi.fn(),
+      setPlayerForm: vi.fn(),
+      setIsRegisteringPlayer: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.removePlayer('p1');
+    });
+
+    expect(removeTournamentPlayer).not.toHaveBeenCalled();
+  });
+
+  it('returns early when no editing tournament is selected', async () => {
+    const { result } = renderHook(() => usePlayerRegistrationMutations({
+      t: (key: string) => key,
+      editingTournament: undefined,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      playerForm: { firstName: 'Jane', lastName: 'Doe' },
+      editingPlayerId: 'p1',
+      fetchPlayers: vi.fn(async () => undefined),
+      cancelEditPlayer: vi.fn(),
+      setPlayersError: vi.fn(),
+      setPlayerForm: vi.fn(),
+      setIsRegisteringPlayer: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.registerPlayer();
+      await result.current.savePlayerEdit();
+      await result.current.removePlayer('p1');
+    });
+
+    expect(registerTournamentPlayer).not.toHaveBeenCalled();
+    expect(updateTournamentPlayer).not.toHaveBeenCalled();
+    expect(removeTournamentPlayer).not.toHaveBeenCalled();
+  });
+
+  it('returns early for empty confirm-all list and missing tournament in hooks', async () => {
+    const { result } = renderHook(() => usePlayerCheckInMutations({
+      t: (key: string) => key,
+      editingTournament: undefined,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      players: [] as never,
+      fetchPlayers: vi.fn(async () => undefined),
+      refreshTournamentDetails: vi.fn(async () => undefined),
+      setPlayersError: vi.fn(),
+      setCheckingInPlayerId: vi.fn(),
+      setIsConfirmingAll: vi.fn(),
+      setConfirmAllProgress: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.confirmAllPlayers();
+      await result.current.togglePlayerCheckIn({ playerId: 'p1', checkedIn: false } as never);
+    });
+
+    expect(updateTournamentPlayerCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('sets translated errors when check-in and auto-fill fail with non-Error', async () => {
+    updateTournamentPlayerCheckIn.mockRejectedValue('boom');
+    const checkinError = vi.fn();
+    const { result: checkin } = renderHook(() => usePlayerCheckInMutations({
+      t: (key: string) => key,
+      editingTournament: { id: 't1' } as never,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      players: [{ playerId: 'p1', checkedIn: false }] as never,
+      fetchPlayers: vi.fn(async () => undefined),
+      refreshTournamentDetails: vi.fn(async () => undefined),
+      setPlayersError: checkinError,
+      setCheckingInPlayerId: vi.fn(),
+      setIsConfirmingAll: vi.fn(),
+      setConfirmAllProgress: vi.fn(),
+    }));
+
+    await act(async () => {
+      await checkin.current.togglePlayerCheckIn({ playerId: 'p1', checkedIn: false } as never);
+    });
+
+    expect(checkinError).toHaveBeenCalledWith('edit.error.failedUpdateCheckIn');
+
+    buildAutoFillRegistrations.mockReturnValue({ registrations: [{ firstName: 'A', lastName: 'B' }], error: undefined });
+    registerTournamentPlayer.mockRejectedValue('nope');
+    const autofillError = vi.fn();
+    const { result: autofill } = renderHook(() => usePlayerAutoFillMutation({
+      t: (key: string) => key,
+      editingTournament: { id: 't1', totalParticipants: 2, format: 'SINGLE' } as never,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      players: [],
+      fetchPlayers: vi.fn(async () => undefined),
+      setPlayersError: autofillError,
+      setIsAutoFillingPlayers: vi.fn(),
+      setAutoFillProgress: vi.fn(),
+    }));
+
+    await act(async () => {
+      await autofill.current.autoFillPlayers();
+    });
+
+    expect(autofillError).toHaveBeenCalledWith('edit.error.failedAutoFillPlayers');
+  });
+
+  it('handles save/remove/confirm-all failures with translated fallback for non-Error', async () => {
+    updateTournamentPlayer.mockRejectedValue('save-failed');
+    removeTournamentPlayer.mockRejectedValue('remove-failed');
+    updateTournamentPlayerCheckIn.mockRejectedValue('confirm-failed');
+
+    const setPlayersError = vi.fn();
+    const { result } = renderHook(() => usePlayerRegistrationMutations({
+      t: (key: string) => key,
+      editingTournament: { id: 't1' } as never,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      playerForm: { firstName: 'Jane', lastName: 'Doe' },
+      editingPlayerId: 'p1',
+      fetchPlayers: vi.fn(async () => undefined),
+      cancelEditPlayer: vi.fn(),
+      setPlayersError,
+      setPlayerForm: vi.fn(),
+      setIsRegisteringPlayer: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.savePlayerEdit();
+      await result.current.removePlayer('p1');
+    });
+
+    expect(setPlayersError).toHaveBeenCalledWith('edit.error.failedUpdatePlayer');
+    expect(setPlayersError).toHaveBeenCalledWith('edit.error.failedRemovePlayer');
+
+    const checkinError = vi.fn();
+    const { result: checkin } = renderHook(() => usePlayerCheckInMutations({
+      t: (key: string) => key,
+      editingTournament: { id: 't1' } as never,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      players: [{ playerId: 'p1', checkedIn: false }] as never,
+      fetchPlayers: vi.fn(async () => undefined),
+      refreshTournamentDetails: vi.fn(async () => undefined),
+      setPlayersError: checkinError,
+      setCheckingInPlayerId: vi.fn(),
+      setIsConfirmingAll: vi.fn(),
+      setConfirmAllProgress: vi.fn(),
+    }));
+
+    await act(async () => {
+      await checkin.current.confirmAllPlayers();
+    });
+
+    expect(checkinError).toHaveBeenCalledWith('edit.error.failedConfirmAllPlayers');
+  });
+
+  it('returns early for missing edit player id and missing auto-fill tournament', async () => {
+    const updateError = vi.fn();
+    const { result } = renderHook(() => usePlayerRegistrationMutations({
+      t: (key: string) => key,
+      editingTournament: { id: 't1' } as never,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      playerForm: { firstName: 'Jane', lastName: 'Doe' },
+      editingPlayerId: undefined,
+      fetchPlayers: vi.fn(async () => undefined),
+      cancelEditPlayer: vi.fn(),
+      setPlayersError: updateError,
+      setPlayerForm: vi.fn(),
+      setIsRegisteringPlayer: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.savePlayerEdit();
+    });
+    expect(updateTournamentPlayer).not.toHaveBeenCalled();
+
+    const { result: autofill } = renderHook(() => usePlayerAutoFillMutation({
+      t: (key: string) => key,
+      editingTournament: undefined,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      players: [],
+      fetchPlayers: vi.fn(async () => undefined),
+      setPlayersError: vi.fn(),
+      setIsAutoFillingPlayers: vi.fn(),
+      setAutoFillProgress: vi.fn(),
+    }));
+
+    await act(async () => {
+      await autofill.current.autoFillPlayers();
+    });
+    expect(registerTournamentPlayer).not.toHaveBeenCalled();
+  });
+
+  it('handles group autofill edge failures after loading players', async () => {
+    fetchDoublettes.mockResolvedValue([]);
+    buildAutoFillRegistrations.mockReturnValue({
+      registrations: [{ firstName: 'A', lastName: 'B' }],
+      error: undefined,
+    });
+
+    fetchTournamentPlayers.mockResolvedValue([{ playerId: 'p1' }]);
+    await expect(autoFillTournamentPlayers({
+      tournament: { id: 'tg1', format: 'DOUBLE', totalParticipants: 1 } as never,
+      players: [],
+      token: 'token',
+    })).rejects.toThrow('Not enough available players to create groups automatically.');
+
+    fetchDoublettes.mockResolvedValue([]);
+    buildAutoFillRegistrations.mockReturnValue({
+      registrations: [],
+      error: undefined,
+    });
+    fetchTournamentPlayers.mockResolvedValue([
+      { playerId: 'p1' },
+      { playerId: undefined },
+    ]);
+
+    await expect(autoFillTournamentPlayers({
+      tournament: { id: 'tg2', format: 'DOUBLE', totalParticipants: 1 } as never,
+      players: [{ playerId: 'p1' }, { playerId: 'p2' }] as never,
+      token: 'token',
+    })).rejects.toThrow('Failed to build complete groups for auto-fill.');
+  });
+
+  it('supports single autofill with empty registrations and no progress callback', async () => {
+    buildAutoFillRegistrations.mockReturnValue({ registrations: [], error: undefined });
+    const onProgress = vi.fn();
+
+    await autoFillTournamentPlayers({
+      tournament: { id: 'ts1', format: 'SINGLE', totalParticipants: 3 } as never,
+      players: [] as never,
+      token: 'token',
+      onProgress,
+    });
+
+    expect(onProgress).not.toHaveBeenCalled();
   });
 });

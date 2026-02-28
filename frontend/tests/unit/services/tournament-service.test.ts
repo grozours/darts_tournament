@@ -412,6 +412,72 @@ describe('tournament-service presets and match formats', () => {
       Authorization: 'Bearer token-x',
     });
   });
+
+  it('covers empty-list fallbacks for presets and match formats', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await expect(fetchTournamentPresets()).resolves.toEqual([]);
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await expect(fetchMatchFormatPresets()).resolves.toEqual([]);
+
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ brackets: [] }) });
+    await expect(fetchBrackets('t-1')).resolves.toEqual([]);
+  });
+
+  it('surfaces fallback errors for preset and format operations', async () => {
+    const emptyTextErrorResponse = {
+      ok: false,
+      status: 500,
+      headers: { get: () => 'text/plain' },
+      text: async () => '',
+      json: async () => ({}),
+    };
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(updateTournamentPreset('preset-1', { name: 'x' })).rejects.toThrow('Failed to update tournament preset');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(deleteTournamentPreset('preset-1')).rejects.toThrow('Failed to delete tournament preset');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(fetchMatchFormatPresets()).rejects.toThrow('Failed to fetch match format presets');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(createMatchFormatPreset({ key: 'BO5', durationMinutes: 20, segments: [{ game: '501_DO', targetCount: 2 }] }))
+      .rejects.toThrow('Failed to create match format preset');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(updateMatchFormatPreset('fmt-1', { key: 'BO3' })).rejects.toThrow('Failed to update match format preset');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(deleteMatchFormatPreset('fmt-1')).rejects.toThrow('Failed to delete match format preset');
+  });
+});
+
+describe('tournament-service fallback branches for match/bracket updates', () => {
+  it('covers fallback errors and payload variants for match and bracket updates', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(updateMatchStatus('t-1', 'm-1', 'READY')).rejects.toThrow('Failed to update match status');
+
+    const updateRequest = mockFetch.mock.calls[0]?.[1] as RequestInit;
+    expect(updateRequest.body).toBe(JSON.stringify({ status: 'READY' }));
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(completeMatch('t-1', 'm-1', [{ playerId: 'p-1', scoreTotal: 2 }]))
+      .rejects.toThrow('Failed to complete match');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(createBracket('t-1', { name: 'Main', bracketType: 'SINGLE', totalRounds: 2 }))
+      .rejects.toThrow('Failed to create bracket');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(updateBracket('t-1', 'b-1', { name: 'Main 2' }))
+      .rejects.toThrow('Failed to update bracket');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(saveMatchScores('t-1', 'm-1', [{ playerId: 'p-1', scoreTotal: 2 }]))
+      .rejects.toThrow('Failed to update match scores');
+  });
 });
 
 describe('tournament-service additional operations', () => {
@@ -506,5 +572,17 @@ describe('tournament-service additional operations', () => {
 
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
     await expect(fetchBrackets('t-1')).rejects.toThrow('Failed to fetch brackets');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(unregisterTournamentPlayer('t-1', 'p-1')).rejects.toThrow('Failed to unregister player');
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: { get: () => 'text/plain' },
+      text: async () => '',
+      json: async () => ({}),
+    });
+    await expect(fetchTournamentPresets()).rejects.toThrow('Failed to fetch tournament presets');
   });
 });

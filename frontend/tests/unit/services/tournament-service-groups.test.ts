@@ -10,11 +10,15 @@ import {
   fetchEquipes,
   joinDoublette,
   joinEquipe,
+  leaveDoublette,
+  leaveEquipe,
   registerDoublette,
   registerEquipe,
   removeDoubletteMember,
   removeEquipeMember,
   searchGroupPlayers,
+  unregisterDoublette,
+  unregisterEquipe,
   updateDoublette,
   updateDoublettePassword,
   updateEquipe,
@@ -97,6 +101,76 @@ describe('tournament-service groups api', () => {
     expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/group-players/search?query=ana');
   });
 
+  it('handles leave and unregister flows for both group types', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ deleted: false }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ deleted: true }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'd1', isRegistered: false }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e1', isRegistered: false }) });
+
+    await expect(leaveDoublette('t1', 'd1')).resolves.toEqual({ deleted: false });
+    await expect(leaveEquipe('t1', 'e1')).resolves.toEqual({ deleted: true });
+    await expect(unregisterDoublette('t1', 'd1')).resolves.toEqual({ id: 'd1', isRegistered: false });
+    await expect(unregisterEquipe('t1', 'e1')).resolves.toEqual({ id: 'e1', isRegistered: false });
+  });
+
+  it('covers token header branches and remaining group fallback errors', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'd-token' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'd-token' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e-token' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e-token' }) });
+
+    await expect(createDoublette('t1', { name: 'D', password: '1234' }, 'tok-d')).resolves.toEqual({ id: 'd-token' });
+    await expect(joinDoublette('t1', 'd1', { password: '1234' }, 'tok-d')).resolves.toEqual({ id: 'd-token' });
+    await expect(createEquipe('t1', { name: 'E', password: '1234' }, 'tok-e')).resolves.toEqual({ id: 'e-token' });
+    await expect(joinEquipe('t1', 'e1', { password: '1234' }, 'tok-e')).resolves.toEqual({ id: 'e-token' });
+
+    const createDoubletteRequest = mockFetch.mock.calls[0]?.[1] as RequestInit;
+    const joinDoubletteRequest = mockFetch.mock.calls[1]?.[1] as RequestInit;
+    const createEquipeRequest = mockFetch.mock.calls[2]?.[1] as RequestInit;
+    const joinEquipeRequest = mockFetch.mock.calls[3]?.[1] as RequestInit;
+    expect(createDoubletteRequest.headers).toMatchObject({ Authorization: 'Bearer tok-d' });
+    expect(joinDoubletteRequest.headers).toMatchObject({ Authorization: 'Bearer tok-d' });
+    expect(createEquipeRequest.headers).toMatchObject({ Authorization: 'Bearer tok-e' });
+    expect(joinEquipeRequest.headers).toMatchObject({ Authorization: 'Bearer tok-e' });
+
+    const emptyTextErrorResponse = {
+      ok: false,
+      status: 500,
+      headers: { get: () => 'text/plain' },
+      text: async () => '',
+      json: async () => ({}),
+    };
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(joinDoublette('t1', 'd1', { password: 'bad' })).rejects.toThrow('Failed to join doublette');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(leaveDoublette('t1', 'd1')).rejects.toThrow('Failed to leave doublette');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(registerDoublette('t1', 'd1')).rejects.toThrow('Failed to register doublette');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(unregisterDoublette('t1', 'd1')).rejects.toThrow('Failed to unregister doublette');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(createEquipe('t1', { name: 'E', password: '1234' })).rejects.toThrow('Failed to create equipe');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(joinEquipe('t1', 'e1', { password: 'bad' })).rejects.toThrow('Failed to join equipe');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(leaveEquipe('t1', 'e1')).rejects.toThrow('Failed to leave equipe');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(registerEquipe('t1', 'e1')).rejects.toThrow('Failed to register equipe');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(unregisterEquipe('t1', 'e1')).rejects.toThrow('Failed to unregister equipe');
+  });
+
   it('surfaces API errors on group endpoints', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'group error' });
     await expect(fetchDoublettes('t1')).rejects.toThrow();
@@ -106,5 +180,46 @@ describe('tournament-service groups api', () => {
 
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'group error' });
     await expect(searchGroupPlayers('t1', 'a')).rejects.toThrow();
+
+    const emptyTextErrorResponse = {
+      ok: false,
+      status: 500,
+      headers: { get: () => 'text/plain' },
+      text: async () => '',
+      json: async () => ({}),
+    };
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(deleteEquipe('t1', 'e1')).rejects.toThrow('Failed to delete equipe');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(updateEquipePassword('t1', 'e1', { password: 'x' })).rejects.toThrow('Failed to update equipe password');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(updateEquipe('t1', 'e1', { name: 'E' })).rejects.toThrow('Failed to update equipe');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(addEquipeMember('t1', 'e1', { playerId: 'p1' })).rejects.toThrow('Failed to add equipe member');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(removeEquipeMember('t1', 'e1', 'p1')).rejects.toThrow('Failed to remove equipe member');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(deleteDoublette('t1', 'd1')).rejects.toThrow('Failed to delete doublette');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(updateDoublettePassword('t1', 'd1', { password: 'x' })).rejects.toThrow('Failed to update doublette password');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(removeDoubletteMember('t1', 'd1', 'p1')).rejects.toThrow('Failed to remove doublette member');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(updateDoublette('t1', 'd1', { name: 'D2' })).rejects.toThrow('Failed to update doublette');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(addDoubletteMember('t1', 'd1', { playerId: 'p1' })).rejects.toThrow('Failed to add doublette member');
+
+    mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
+    await expect(fetchEquipes('t1')).rejects.toThrow('Failed to fetch equipes');
   });
 });
