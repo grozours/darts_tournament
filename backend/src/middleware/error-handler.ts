@@ -34,6 +34,12 @@ type ErrorContext = {
 type ErrorWithDetails = Error & { details?: unknown; code?: string };
 type PrismaError = { code?: string; meta?: { target?: unknown } };
 type MulterErrorLike = { code?: string; field?: string; message?: string };
+type HttpErrorLike = {
+  status?: number;
+  statusCode?: number;
+  code?: string;
+  message?: string;
+};
 
 const defaultErrorContext: ErrorContext = {
   statusCode: 500,
@@ -152,6 +158,29 @@ const buildMulterErrorContext = (error: Error): ErrorContext | undefined => {
   return undefined;
 };
 
+const buildHttpOrAuthErrorContext = (error: Error): ErrorContext | undefined => {
+  const httpError = error as HttpErrorLike;
+  const resolvedStatusCode = httpError.statusCode ?? httpError.status;
+
+  if (resolvedStatusCode && resolvedStatusCode >= 400 && resolvedStatusCode < 600) {
+    return {
+      statusCode: resolvedStatusCode,
+      message: error.message || (resolvedStatusCode === 401 ? 'Unauthorized' : 'Request failed'),
+      ...(httpError.code ? { code: httpError.code } : {}),
+    };
+  }
+
+  if (error.name === 'UnauthorizedError') {
+    return {
+      statusCode: 401,
+      message: error.message || 'Unauthorized',
+      code: httpError.code || 'UNAUTHORIZED',
+    };
+  }
+
+  return undefined;
+};
+
 const resolveErrorContext = (error: Error | AppError | ZodError): ErrorContext => {
   if (error instanceof AppError) {
     return buildAppErrorContext(error);
@@ -165,6 +194,7 @@ const resolveErrorContext = (error: Error | AppError | ZodError): ErrorContext =
     buildSyntaxErrorContext(error) ||
     buildPrismaErrorContext(error) ||
     buildMulterErrorContext(error) ||
+    buildHttpOrAuthErrorContext(error) ||
     defaultErrorContext
   );
 };
