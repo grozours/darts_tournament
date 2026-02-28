@@ -27,6 +27,9 @@ describe('AppHeader', () => {
     );
 
     expect(screen.getByText('nav.manage')).toBeInTheDocument();
+    const manageButton = screen.getByRole('button', { name: 'nav.manage' });
+    const playersLink = screen.getByRole('link', { name: 'nav.players' });
+    expect(manageButton.compareDocumentPosition(playersLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByLabelText('1 unread notifications')).toBeInTheDocument();
   });
 

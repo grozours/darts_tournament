@@ -199,11 +199,6 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
 
         <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-200">
           {isAdmin && (
-            <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
-              {t('nav.players')}
-            </a>
-          )}
-          {isAdmin && (
             <div className="relative group">
               <button
                 type="button"
@@ -246,6 +241,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
                 </div>
               </div>
             </div>
+          )}
+          {isAdmin && (
+            <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=players">
+              {t('nav.players')}
+            </a>
           )}
           <div className="relative group">
             <button
