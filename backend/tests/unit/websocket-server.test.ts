@@ -27,6 +27,7 @@ jest.mock('../../src/utils/logger', () => ({
 
 describe('websocket server', () => {
   type HandlerMap = Record<string, (...args: unknown[]) => unknown>;
+  const validTournamentId = '11111111-1111-4111-8111-111111111111';
 
   const getHandler = (handlers: HandlerMap, key: string): ((...args: unknown[]) => unknown) => {
     const handler = handlers[key];
@@ -89,10 +90,10 @@ describe('websocket server', () => {
       'join-tournament'
     );
 
-    await joinHandler('t-1');
+    await joinHandler(validTournamentId);
 
-    expect(socket.join).toHaveBeenCalledWith('tournament-t-1');
-    expect(redisClient.sadd).toHaveBeenCalledWith('tournament:t-1:clients', 'socket-1');
+    expect(socket.join).toHaveBeenCalledWith(`tournament-${validTournamentId}`);
+    expect(redisClient.sadd).toHaveBeenCalledWith(`tournament:${validTournamentId}:clients`, 'socket-1');
 
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
@@ -330,8 +331,8 @@ describe('websocket server', () => {
     getHandler(onHandlers, 'connection')(socket as never);
     const handlers = (socket as unknown as { handlers: Record<string, (...args: unknown[]) => void> }).handlers;
 
-    await getHandler(handlers, 'join-tournament')('t-1');
-    await getHandler(handlers, 'leave-tournament')('t-1');
+    await getHandler(handlers, 'join-tournament')(validTournamentId);
+    await getHandler(handlers, 'leave-tournament')(validTournamentId);
 
     expect(socket.emit).toHaveBeenCalledWith('error', expect.objectContaining({ code: 'JOIN_FAILED' }));
     expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();

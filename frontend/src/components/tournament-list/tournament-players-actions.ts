@@ -28,6 +28,13 @@ import type { Tournament } from './types';
 import type { PlayersStateSetters } from './tournament-players-state';
 import { emptyPlayerForm } from './tournament-players-state';
 
+type ActionProgress = {
+  current: number;
+  total: number;
+};
+
+type ProgressCallback = (progress: ActionProgress) => void;
+
 const getGroupFormatConfig = (format: string) => {
   if (format === TournamentFormat.DOUBLE) {
     return {
@@ -49,6 +56,37 @@ const buildAutoGroupName = (format: string, index: number, suffix: string) => {
     return `Auto Doublette ${index + 1} ${suffix}`;
   }
   return `Auto Equipe ${index + 1} ${suffix}`;
+};
+
+const runWithConcurrency = async <TItem>(parameters: {
+  items: TItem[];
+  concurrency: number;
+  worker: (item: TItem, index: number) => Promise<void>;
+}): Promise<void> => {
+  const { items, concurrency, worker } = parameters;
+  if (items.length === 0) {
+    return;
+  }
+
+  const effectiveConcurrency = Math.max(1, Math.min(concurrency, items.length));
+  let nextIndex = 0;
+
+  const runners = Array.from({ length: effectiveConcurrency }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) {
+        return;
+      }
+      const item = items[index];
+      if (item === undefined) {
+        return;
+      }
+      await worker(item, index);
+    }
+  });
+
+  await Promise.all(runners);
 };
 
 const createAndRegisterGroup = async (parameters: {
@@ -98,8 +136,9 @@ const registerAutoPlayers = async (parameters: {
   token: string | undefined;
   players: TournamentPlayer[];
   missingPlayersCount: number;
+  onStepCompleted?: () => void;
 }) => {
-  const { tournamentId, token, players, missingPlayersCount } = parameters;
+  const { tournamentId, token, players, missingPlayersCount, onStepCompleted } = parameters;
   if (missingPlayersCount <= 0) {
     return;
   }
@@ -120,9 +159,14 @@ const registerAutoPlayers = async (parameters: {
     throw new Error(error);
   }
 
-  for (const registration of autoRegistrations) {
-    await registerTournamentPlayer(tournamentId, registration, token);
-  }
+  await runWithConcurrency({
+    items: autoRegistrations,
+    concurrency: 6,
+    worker: async (registration) => {
+      await registerTournamentPlayer(tournamentId, registration, token);
+      onStepCompleted?.();
+    },
+  });
 };
 
 const autoFillGroupTournament = async (parameters: {
@@ -130,8 +174,9 @@ const autoFillGroupTournament = async (parameters: {
   players: TournamentPlayer[];
   token: string | undefined;
   groupConfig: NonNullable<ReturnType<typeof getGroupFormatConfig>>;
+  onProgress?: ProgressCallback | undefined;
 }) => {
-  const { tournament, players, token, groupConfig } = parameters;
+  const { tournament, players, token, groupConfig, onProgress } = parameters;
 
   const existingGroups = tournament.format === TournamentFormat.DOUBLE
     ? await fetchDoublettes(tournament.id, token)
@@ -163,12 +208,23 @@ const autoFillGroupTournament = async (parameters: {
 
   const playersNeeded = maxCreatableGroups * groupConfig.requiredMembers;
   const missingPlayersCount = Math.max(playersNeeded - freePlayers.length, 0);
+  const totalSteps = missingPlayersCount + maxCreatableGroups;
+  let completedSteps = 0;
+  const reportStepCompleted = () => {
+    completedSteps += 1;
+    onProgress?.({ current: completedSteps, total: totalSteps });
+  };
+
+  if (totalSteps > 0) {
+    onProgress?.({ current: 0, total: totalSteps });
+  }
 
   await registerAutoPlayers({
     tournamentId: tournament.id,
     token,
     players,
     missingPlayersCount,
+    onStepCompleted: reportStepCompleted,
   });
 
   const refreshedPlayers = await fetchTournamentPlayers(tournament.id, token);
@@ -179,6 +235,7 @@ const autoFillGroupTournament = async (parameters: {
   }
 
   const autoNameSuffix = Date.now().toString(36).toUpperCase();
+  const groupPlans: Array<{ memberIds: string[]; index: number }> = [];
   for (let index = 0; index < maxCreatableGroups; index += 1) {
     const start = index * groupConfig.requiredMembers;
     const members = availablePlayers.slice(start, start + groupConfig.requiredMembers);
@@ -186,22 +243,31 @@ const autoFillGroupTournament = async (parameters: {
     if (memberIds.length !== groupConfig.requiredMembers) {
       throw new Error('Failed to build complete groups for auto-fill.');
     }
-
-    await createAndRegisterGroup({
-      tournament,
-      token,
-      groupName: buildAutoGroupName(tournament.format, index, autoNameSuffix),
-      memberIds,
-    });
+    groupPlans.push({ memberIds, index });
   }
+
+  await runWithConcurrency({
+    items: groupPlans,
+    concurrency: 3,
+    worker: async (plan) => {
+      await createAndRegisterGroup({
+        tournament,
+        token,
+        groupName: buildAutoGroupName(tournament.format, plan.index, autoNameSuffix),
+        memberIds: plan.memberIds,
+      });
+      reportStepCompleted();
+    },
+  });
 };
 
 const autoFillSingleTournament = async (parameters: {
   tournament: Tournament;
   players: TournamentPlayer[];
   token: string | undefined;
+  onProgress?: ProgressCallback | undefined;
 }) => {
-  const { tournament, players, token } = parameters;
+  const { tournament, players, token, onProgress } = parameters;
   const totalSlots = tournament.totalParticipants || 0;
   const remainingSlots = Math.max(totalSlots - players.length, 0);
   if (remainingSlots === 0) {
@@ -224,44 +290,72 @@ const autoFillSingleTournament = async (parameters: {
     throw new Error(error);
   }
 
-  for (const registration of uniqueRegistrations) {
-    await registerTournamentPlayer(tournament.id, registration, token);
+  if (uniqueRegistrations.length > 0) {
+    onProgress?.({ current: 0, total: uniqueRegistrations.length });
   }
+
+  let completed = 0;
+
+  await runWithConcurrency({
+    items: uniqueRegistrations,
+    concurrency: 6,
+    worker: async (registration) => {
+      await registerTournamentPlayer(tournament.id, registration, token);
+      completed += 1;
+      onProgress?.({ current: completed, total: uniqueRegistrations.length });
+    },
+  });
 };
 
 const autoFillTournamentPlayers = async ({
   tournament,
   players,
   token,
+  onProgress,
 }: {
   tournament: Tournament;
   players: TournamentPlayer[];
   token: string | undefined;
+  onProgress?: ProgressCallback | undefined;
 }): Promise<void> => {
   const groupConfig = getGroupFormatConfig(tournament.format);
   if (groupConfig) {
-    await autoFillGroupTournament({ tournament, players, token, groupConfig });
+    await autoFillGroupTournament({ tournament, players, token, groupConfig, onProgress });
 
     return;
   }
 
-  await autoFillSingleTournament({ tournament, players, token });
+  await autoFillSingleTournament({ tournament, players, token, onProgress });
 };
 
 const confirmAllTournamentPlayers = async ({
   tournament,
   players,
   token,
+  onProgress,
 }: {
   tournament: Tournament;
   players: TournamentPlayer[];
   token: string | undefined;
+  onProgress?: ProgressCallback | undefined;
 }): Promise<void> => {
   const pendingPlayers = players.filter((player) => !player.checkedIn);
 
-  for (const player of pendingPlayers) {
-    await updateTournamentPlayerCheckIn(tournament.id, player.playerId, true, token);
+  if (pendingPlayers.length > 0) {
+    onProgress?.({ current: 0, total: pendingPlayers.length });
   }
+
+  let completed = 0;
+
+  await runWithConcurrency({
+    items: pendingPlayers,
+    concurrency: 8,
+    worker: async (player) => {
+      await updateTournamentPlayerCheckIn(tournament.id, player.playerId, true, token);
+      completed += 1;
+      onProgress?.({ current: completed, total: pendingPlayers.length });
+    },
+  });
 };
 
 const buildPlayerPayload = (playerForm: CreatePlayerPayload): CreatePlayerPayload => {
@@ -378,6 +472,7 @@ const usePlayerCheckInMutations = ({
   setPlayersError,
   setCheckingInPlayerId,
   setIsConfirmingAll,
+  setConfirmAllProgress,
 }: {
   t: TournamentPlayersContext['t'];
   editingTournament: Tournament | undefined;
@@ -388,6 +483,7 @@ const usePlayerCheckInMutations = ({
   setPlayersError: PlayersStateSetters['setPlayersError'];
   setCheckingInPlayerId: PlayersStateSetters['setCheckingInPlayerId'];
   setIsConfirmingAll: PlayersStateSetters['setIsConfirmingAll'];
+  setConfirmAllProgress: PlayersStateSetters['setConfirmAllProgress'];
 }) => {
   const togglePlayerCheckIn = useCallback(async (player: TournamentPlayer) => {
     if (!editingTournament) return;
@@ -413,6 +509,7 @@ const usePlayerCheckInMutations = ({
   const confirmAllPlayers = useCallback(async () => {
     if (!editingTournament || players.length === 0) return;
     setIsConfirmingAll(true);
+    setConfirmAllProgress(undefined);
     setPlayersError(undefined);
     try {
       const token = await getSafeAccessToken();
@@ -420,6 +517,7 @@ const usePlayerCheckInMutations = ({
         tournament: editingTournament,
         players,
         token,
+        onProgress: setConfirmAllProgress,
       });
       await fetchPlayers(editingTournament.id);
       await refreshTournamentDetails?.(editingTournament.id);
@@ -427,8 +525,9 @@ const usePlayerCheckInMutations = ({
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {
       setIsConfirmingAll(false);
+      setConfirmAllProgress(undefined);
     }
-  }, [editingTournament, fetchPlayers, getSafeAccessToken, players, refreshTournamentDetails, setIsConfirmingAll, setPlayersError, t]);
+  }, [editingTournament, fetchPlayers, getSafeAccessToken, players, refreshTournamentDetails, setConfirmAllProgress, setIsConfirmingAll, setPlayersError, t]);
 
   return { togglePlayerCheckIn, confirmAllPlayers };
 };
@@ -441,6 +540,7 @@ const usePlayerAutoFillMutation = ({
   fetchPlayers,
   setPlayersError,
   setIsAutoFillingPlayers,
+  setAutoFillProgress,
 }: {
   t: TournamentPlayersContext['t'];
   editingTournament: Tournament | undefined;
@@ -449,10 +549,12 @@ const usePlayerAutoFillMutation = ({
   fetchPlayers: (tournamentId: string) => Promise<void>;
   setPlayersError: PlayersStateSetters['setPlayersError'];
   setIsAutoFillingPlayers: PlayersStateSetters['setIsAutoFillingPlayers'];
+  setAutoFillProgress: PlayersStateSetters['setAutoFillProgress'];
 }) => {
   const autoFillPlayers = useCallback(async () => {
     if (!editingTournament) return;
     setIsAutoFillingPlayers(true);
+    setAutoFillProgress(undefined);
     setPlayersError(undefined);
 
     try {
@@ -461,14 +563,16 @@ const usePlayerAutoFillMutation = ({
         tournament: editingTournament,
         players,
         token,
+        onProgress: setAutoFillProgress,
       });
       await fetchPlayers(editingTournament.id);
     } catch (error_) {
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedAutoFillPlayers'));
     } finally {
       setIsAutoFillingPlayers(false);
+      setAutoFillProgress(undefined);
     }
-  }, [editingTournament, fetchPlayers, getSafeAccessToken, players, setIsAutoFillingPlayers, setPlayersError, t]);
+  }, [editingTournament, fetchPlayers, getSafeAccessToken, players, setAutoFillProgress, setIsAutoFillingPlayers, setPlayersError, t]);
 
   return { autoFillPlayers };
 };

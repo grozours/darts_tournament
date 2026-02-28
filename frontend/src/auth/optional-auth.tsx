@@ -13,12 +13,23 @@ const debugLog = debugNoop;
 const debugWarn = debugNoop;
 const debugError = debugNoop;
 
-const resolveAuth0CacheLocation = (): Auth0CacheLocation => {
-  const rawValue = String(import.meta.env.VITE_AUTH0_CACHE_LOCATION || '').trim().toLowerCase();
-  if (rawValue === 'localstorage') {
-    return 'localstorage';
+const getEnvironmentValue = (key: string): string | undefined => {
+  const globalEnvironment = (globalThis as typeof globalThis & {
+    __APP_ENV__?: Record<string, string>;
+  }).__APP_ENV__;
+  if (globalEnvironment && key in globalEnvironment) {
+    return globalEnvironment[key];
   }
-  return 'memory';
+  const environment = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
+  return environment ? environment[key] : undefined;
+};
+
+const resolveAuth0CacheLocation = (): Auth0CacheLocation => {
+  const rawValue = String(getEnvironmentValue('VITE_AUTH0_CACHE_LOCATION') || '').trim().toLowerCase();
+  if (rawValue === 'memory') {
+    return 'memory';
+  }
+  return 'localstorage';
 };
 
 const decodeJwtPayload = (accessToken: string): Record<string, unknown> | undefined => {

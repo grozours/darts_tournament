@@ -416,10 +416,17 @@ describe('Tournament Management - Integration Tests', () => {
       const response = await request(server)
         .post('/api/tournaments')
         .send(maliciousData)
-        .expect(201);
+        .expect(400);
 
-      // Should sanitize or reject malicious input
-      expect(response.body.name).not.toContain('<script>');
+      // Request is sanitized first, then rejected by schema validation (name becomes too short)
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            code: 'VALIDATION_ERROR',
+            message: expect.stringContaining('at least 3 characters long'),
+          }),
+        })
+      );
     });
   });
 

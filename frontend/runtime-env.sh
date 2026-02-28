@@ -11,6 +11,7 @@ window.__APP_ENV__ = {
   "VITE_AUTH0_DOMAIN": "$(escape_json "${VITE_AUTH0_DOMAIN:-}")",
   "VITE_AUTH0_CLIENT_ID": "$(escape_json "${VITE_AUTH0_CLIENT_ID:-}")",
   "VITE_AUTH0_AUDIENCE": "$(escape_json "${VITE_AUTH0_AUDIENCE:-}")",
+  "VITE_AUTH0_CACHE_LOCATION": "$(escape_json "${VITE_AUTH0_CACHE_LOCATION:-localstorage}")",
   "VITE_AUTH0_CONNECTION_GOOGLE": "$(escape_json "${VITE_AUTH0_CONNECTION_GOOGLE:-google-oauth2}")",
   "VITE_AUTH0_CONNECTION_FACEBOOK": "$(escape_json "${VITE_AUTH0_CONNECTION_FACEBOOK:-facebook}")",
   "VITE_AUTH0_CONNECTION_DISCORD": "$(escape_json "${VITE_AUTH0_CONNECTION_DISCORD:-discord}")",

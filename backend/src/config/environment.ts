@@ -49,6 +49,7 @@ interface Config {
     maxResponseTime: number;
     enableMetrics: boolean;
     liveEndpointCacheTtlSeconds: number;
+    rateLimitEnabled: boolean;
   };
   auth: {
     issuerBaseURL: string;
@@ -167,6 +168,7 @@ const config: Config = {
     maxResponseTime: Number.parseInt(process.env.MAX_RESPONSE_TIME || '2000', 10),
     enableMetrics: process.env.ENABLE_METRICS === 'true',
     liveEndpointCacheTtlSeconds: parseLiveEndpointCacheTtlSeconds(process.env.LIVE_ENDPOINT_CACHE_TTL_SECONDS),
+    rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== 'false',
   },
   auth: {
     issuerBaseURL: process.env.AUTH_ISSUER_BASE_URL || '',

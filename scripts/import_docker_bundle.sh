@@ -216,7 +216,12 @@ FRONTEND_IMAGE="darts-tournament/frontend:${IMAGE_TAG}"
 docker image inspect "$BACKEND_IMAGE" >/dev/null
 docker image inspect "$FRONTEND_IMAGE" >/dev/null
 
+EXPECTED_BACKEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$BACKEND_IMAGE")"
+EXPECTED_FRONTEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$FRONTEND_IMAGE")"
+
 print_success "Images available: $BACKEND_IMAGE and $FRONTEND_IMAGE"
+print_info "Backend image id:  $EXPECTED_BACKEND_IMAGE_ID"
+print_info "Frontend image id: $EXPECTED_FRONTEND_IMAGE_ID"
 
 if [[ "$PRUNE_OLD_IMAGES" == "true" ]]; then
   print_info "Pruning old images while keeping current tag and last $KEEP_IMAGE_COUNT tags"
@@ -283,10 +288,36 @@ if [[ -z "$BACKEND_CONTAINER_ID" ]]; then
   exit 1
 fi
 
-BACKEND_RUNNING_IMAGE="$(docker inspect --format '{{.Config.Image}}' "$BACKEND_CONTAINER_ID")"
-if [[ "$BACKEND_RUNNING_IMAGE" != "$BACKEND_IMAGE" ]]; then
-  print_error "Backend running image mismatch. Expected: $BACKEND_IMAGE / Actual: $BACKEND_RUNNING_IMAGE"
+BACKEND_RUNNING_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' "$BACKEND_CONTAINER_ID")"
+BACKEND_RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
+if [[ "$BACKEND_RUNNING_IMAGE_ID" != "$EXPECTED_BACKEND_IMAGE_ID" ]]; then
+  print_error "Backend running image ID mismatch."
+  print_error "Expected image: $BACKEND_IMAGE"
+  print_error "Expected id:    $EXPECTED_BACKEND_IMAGE_ID"
+  print_error "Running image:  $BACKEND_RUNNING_IMAGE_REF"
+  print_error "Running id:     $BACKEND_RUNNING_IMAGE_ID"
   exit 1
+fi
+
+FRONTEND_CONTAINER_ID="$({
+  cd "$PROJECT_ROOT"
+  IMAGE_TAG="$IMAGE_TAG" docker compose \
+    --env-file "$ROOT_ENV" \
+    -f docker-compose.images.yml \
+    ps -q frontend
+} || true)"
+
+if [[ -n "$FRONTEND_CONTAINER_ID" ]]; then
+  FRONTEND_RUNNING_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' "$FRONTEND_CONTAINER_ID")"
+  FRONTEND_RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$FRONTEND_CONTAINER_ID")"
+  if [[ "$FRONTEND_RUNNING_IMAGE_ID" != "$EXPECTED_FRONTEND_IMAGE_ID" ]]; then
+    print_error "Frontend running image ID mismatch."
+    print_error "Expected image: $FRONTEND_IMAGE"
+    print_error "Expected id:    $EXPECTED_FRONTEND_IMAGE_ID"
+    print_error "Running image:  $FRONTEND_RUNNING_IMAGE_REF"
+    print_error "Running id:     $FRONTEND_RUNNING_IMAGE_ID"
+    exit 1
+  fi
 fi
 
 print_info "Repairing shared path symlinks if needed"

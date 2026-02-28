@@ -22,6 +22,8 @@ type TournamentListGroupsProperties = {
   openingSignatureId?: string | undefined;
   autoFillingTournamentId?: string | undefined;
   confirmingTournamentId?: string | undefined;
+  autoFillProgressByTournament?: Record<string, { current: number; total: number } | undefined>;
+  confirmAllProgressByTournament?: Record<string, { current: number; total: number } | undefined>;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -50,6 +52,8 @@ const TournamentListGroups = ({
   openingSignatureId,
   autoFillingTournamentId,
   confirmingTournamentId,
+  autoFillProgressByTournament,
+  confirmAllProgressByTournament,
   onEdit,
   onDelete,
   onRegister,
@@ -112,6 +116,8 @@ const TournamentListGroups = ({
                   openingSignatureId={openingSignatureId}
                   autoFillingTournamentId={autoFillingTournamentId}
                   confirmingTournamentId={confirmingTournamentId}
+                  autoFillProgress={autoFillProgressByTournament?.[tournament.id]}
+                  confirmAllProgress={confirmAllProgressByTournament?.[tournament.id]}
                   userRegistrations={userRegistrations}
                   userGroupStatus={userGroupStatuses[tournament.id]}
                 />

@@ -15,10 +15,29 @@ const isLocalDevelopmentRequest = (request: Request): boolean => {
   return request.ip === '::1' || host === 'localhost' || host === '127.0.0.1' || host === '::1';
 };
 
-const isDevelopmentProfileEndpoint = (request: Request): boolean => {
-  const path = request.originalUrl.split('?')[0] ?? request.originalUrl;
-  return path === '/api/auth/me' || path === '/api/auth/dev-autologin';
+const normalizeRequestPath = (request: Request): string => {
+  const rawPath = request.originalUrl.split('?')[0] ?? request.originalUrl;
+  if (rawPath.length > 1 && rawPath.endsWith('/')) {
+    return rawPath.slice(0, -1);
+  }
+  return rawPath;
 };
+
+const isAuthProfileEndpoint = (request: Request): boolean => {
+  const path = normalizeRequestPath(request);
+  return path === '/api/auth/me' || path.endsWith('/auth/me');
+};
+
+const isDevelopmentAutologinEndpoint = (request: Request): boolean => {
+  if (!config.isDevelopment) {
+    return false;
+  }
+  const path = normalizeRequestPath(request);
+  return path === '/api/auth/dev-autologin' || path.endsWith('/auth/dev-autologin');
+};
+
+const isReadOnlyMethod = (request: Request): boolean =>
+  request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS';
 
 // Security middleware per constitution requirements
 export const securityMiddleware = (
@@ -55,6 +74,9 @@ export const createRateLimit = (
     standardHeaders: true,
     legacyHeaders: false,
     skip: (request: Request) => {
+      if (!config.performance.rateLimitEnabled) {
+        return true;
+      }
       if (isLocalDevelopmentRequest(request)) {
         return true;
       }
@@ -65,11 +87,14 @@ export const createRateLimit = (
 
 // API rate limits
 export const apiRateLimit = createRateLimit(15 * 60 * 1000, 100, {
-  skip: isDevelopmentProfileEndpoint,
+  skip: (request) => isAuthProfileEndpoint(request) || isDevelopmentAutologinEndpoint(request),
 }); // 100 requests per 15 minutes
 export const uploadRateLimit = createRateLimit(60 * 60 * 1000, 10); // 10 uploads per hour
 export const authRateLimit = createRateLimit(15 * 60 * 1000, 5, {
-  skip: isDevelopmentProfileEndpoint,
+  skip: (request) =>
+    isReadOnlyMethod(request)
+    || isAuthProfileEndpoint(request)
+    || isDevelopmentAutologinEndpoint(request),
 }); // 5 auth attempts per 15 minutes
 
 // Content Security Policy

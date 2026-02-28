@@ -217,55 +217,10 @@ function App() {
       setLocationSearch(globalThis.window?.location.search ?? '');
     };
 
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0) {
-        return;
-      }
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
-
-      const target = event.target;
-      if (!(target instanceof Element)) {
-        return;
-      }
-
-      const anchor = target.closest('a');
-      if (!anchor || !anchor.href) {
-        return;
-      }
-
-      if (anchor.target && anchor.target !== '_self') {
-        return;
-      }
-      if (anchor.hasAttribute('download')) {
-        return;
-      }
-
-      const destination = new URL(anchor.href, globalThis.window.location.origin);
-      const current = new URL(globalThis.window.location.href);
-
-      if (destination.origin !== current.origin) {
-        return;
-      }
-
-      const nextPath = `${destination.pathname}${destination.search}${destination.hash}`;
-      const currentPath = `${current.pathname}${current.search}${current.hash}`;
-      if (nextPath === currentPath) {
-        return;
-      }
-
-      event.preventDefault();
-      globalThis.window.history.pushState({}, '', nextPath);
-      globalThis.window.dispatchEvent(new PopStateEvent('popstate'));
-    };
-
     globalThis.window.addEventListener('popstate', updateLocationSearch);
-    globalThis.document.addEventListener('click', handleDocumentClick);
 
     return () => {
       globalThis.window?.removeEventListener('popstate', updateLocationSearch);
-      globalThis.document?.removeEventListener('click', handleDocumentClick);
     };
   }, []);
 

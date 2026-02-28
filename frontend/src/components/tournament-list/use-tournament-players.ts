@@ -23,6 +23,8 @@ type UseTournamentPlayersResult = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  autoFillProgress: { current: number; total: number } | undefined;
+  confirmAllProgress: { current: number; total: number } | undefined;
   playerActionLabel: string;
   setPlayerForm: (next: CreatePlayerPayload) => void;
   clearPlayers: () => void;
@@ -55,6 +57,8 @@ const useTournamentPlayers = ({
     isRegisteringPlayer,
     isAutoFillingPlayers,
     isConfirmingAll,
+    autoFillProgress,
+    confirmAllProgress,
     setPlayers,
     setPlayersLoading,
     setPlayersError,
@@ -64,6 +68,8 @@ const useTournamentPlayers = ({
     setIsRegisteringPlayer,
     setIsAutoFillingPlayers,
     setIsConfirmingAll,
+    setAutoFillProgress,
+    setConfirmAllProgress,
     clearPlayers,
     clearPlayersError,
     resetPlayersState,
@@ -106,6 +112,7 @@ const useTournamentPlayers = ({
     setPlayersError,
     setCheckingInPlayerId,
     setIsConfirmingAll,
+    setConfirmAllProgress,
   });
 
   const { autoFillPlayers } = usePlayerAutoFillMutation({
@@ -116,6 +123,7 @@ const useTournamentPlayers = ({
     fetchPlayers,
     setPlayersError,
     setIsAutoFillingPlayers,
+    setAutoFillProgress,
   });
 
   const playerActionLabel = useMemo(
@@ -139,6 +147,8 @@ const useTournamentPlayers = ({
     isRegisteringPlayer,
     isAutoFillingPlayers,
     isConfirmingAll,
+    autoFillProgress,
+    confirmAllProgress,
     playerActionLabel,
     setPlayerForm,
     clearPlayers,

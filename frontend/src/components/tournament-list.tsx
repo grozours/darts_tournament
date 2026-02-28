@@ -97,6 +97,8 @@ function TournamentList() { // NOSONAR
   const [openingSignatureId, setOpeningSignatureId] = useState<string | undefined>();
   const [autoFillingTournamentId, setAutoFillingTournamentId] = useState<string | undefined>();
   const [confirmingTournamentId, setConfirmingTournamentId] = useState<string | undefined>();
+  const [autoFillProgressByTournament, setAutoFillProgressByTournament] = useState<Record<string, { current: number; total: number } | undefined>>({});
+  const [confirmAllProgressByTournament, setConfirmAllProgressByTournament] = useState<Record<string, { current: number; total: number } | undefined>>({});
   const visibleTournaments = useMemo(
     () => (isAdmin
       ? tournaments
@@ -145,12 +147,22 @@ function TournamentList() { // NOSONAR
         tournament,
         players: tournamentPlayers,
         token,
+        onProgress: (progress) => {
+          setAutoFillProgressByTournament((current) => ({
+            ...current,
+            [tournamentId]: progress,
+          }));
+        },
       });
       await fetchTournaments();
     } catch (error_) {
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedAutoFillPlayers'));
     } finally {
       setAutoFillingTournamentId(undefined);
+      setAutoFillProgressByTournament((current) => ({
+        ...current,
+        [tournamentId]: undefined,
+      }));
     }
   }, [fetchTournaments, getSafeAccessToken, t, visibleTournaments]);
   const confirmAllFromCard = useCallback(async (tournamentId: string) => {
@@ -167,12 +179,22 @@ function TournamentList() { // NOSONAR
         tournament,
         players: tournamentPlayers,
         token,
+        onProgress: (progress) => {
+          setConfirmAllProgressByTournament((current) => ({
+            ...current,
+            [tournamentId]: progress,
+          }));
+        },
       });
       await fetchTournaments();
     } catch (error_) {
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {
       setConfirmingTournamentId(undefined);
+      setConfirmAllProgressByTournament((current) => ({
+        ...current,
+        [tournamentId]: undefined,
+      }));
     }
   }, [fetchTournaments, getSafeAccessToken, t, visibleTournaments]);
   const refreshTournaments = useCallback(() => {
@@ -224,6 +246,8 @@ function TournamentList() { // NOSONAR
     isRegisteringPlayer,
     isAutoFillingPlayers,
     isConfirmingAll,
+    autoFillProgress,
+    confirmAllProgress,
     playerActionLabel,
     setPlayerForm,
     clearPlayers,
@@ -582,6 +606,8 @@ function TournamentList() { // NOSONAR
           openingSignatureId={openingSignatureId ?? undefined}
           autoFillingTournamentId={autoFillingTournamentId ?? undefined}
           confirmingTournamentId={confirmingTournamentId ?? undefined}
+          autoFillProgressByTournament={autoFillProgressByTournament}
+          confirmAllProgressByTournament={confirmAllProgressByTournament}
         />
       ))}
 
@@ -680,6 +706,8 @@ function TournamentList() { // NOSONAR
           isRegisteringPlayer={isRegisteringPlayer}
           isAutoFillingPlayers={isAutoFillingPlayers}
           isConfirmingAll={isConfirmingAll}
+          autoFillProgress={autoFillProgress}
+          confirmAllProgress={confirmAllProgress}
           onPlayerFormChange={setPlayerForm}
           onStartEditPlayer={startEditPlayer}
           onCancelEditPlayer={cancelEditPlayer}

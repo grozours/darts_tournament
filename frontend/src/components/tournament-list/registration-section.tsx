@@ -17,6 +17,7 @@ type RegistrationSectionProperties = {
   playerActionLabel: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
+  autoFillProgress?: { current: number; total: number } | undefined;
   skillLevelOptions: Array<{ value: string; label: string }>;
   onPlayerFormChange: (next: CreatePlayerPayload) => void;
   onStartEditPlayer: (player: TournamentPlayer) => void;
@@ -49,6 +50,7 @@ type RegistrationActionsProperties = {
   playerActionLabel: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
+  autoFillProgress?: { current: number; total: number } | undefined;
   onCancelEditPlayer: () => void;
   onAutoFillPlayers: () => void;
   onSubmitPlayer: () => void;
@@ -188,35 +190,46 @@ const RegistrationActions = ({
   playerActionLabel,
   isRegisteringPlayer,
   isAutoFillingPlayers,
+  autoFillProgress,
   onCancelEditPlayer,
   onAutoFillPlayers,
   onSubmitPlayer,
-}: RegistrationActionsProperties) => (
-  <div className="mt-4 flex flex-wrap justify-end gap-3">
-    {editingPlayerId && (
+}: RegistrationActionsProperties) => {
+  let autoFillLabel = t('edit.autoFillPlayers');
+  if (isAutoFillingPlayers) {
+    const progressLabel = autoFillProgress
+      ? ` (${autoFillProgress.current}/${autoFillProgress.total})`
+      : '';
+    autoFillLabel = `${t('edit.filling')}${progressLabel}`;
+  }
+
+  return (
+    <div className="mt-4 flex flex-wrap justify-end gap-3">
+      {editingPlayerId && (
+        <button
+          onClick={onCancelEditPlayer}
+          className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+        >
+          {t('edit.cancelEdit')}
+        </button>
+      )}
       <button
-        onClick={onCancelEditPlayer}
-        className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
+        onClick={onAutoFillPlayers}
+        disabled={isRegisteringPlayer || isAutoFillingPlayers}
+        className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500 disabled:opacity-60"
       >
-        {t('edit.cancelEdit')}
+        {autoFillLabel}
       </button>
-    )}
-    <button
-      onClick={onAutoFillPlayers}
-      disabled={isRegisteringPlayer || isAutoFillingPlayers}
-      className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500 disabled:opacity-60"
-    >
-      {isAutoFillingPlayers ? t('edit.filling') : t('edit.autoFillPlayers')}
-    </button>
-    <button
-      onClick={onSubmitPlayer}
-      disabled={isRegisteringPlayer || isAutoFillingPlayers}
-      className="rounded-full bg-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-60"
-    >
-      {playerActionLabel}
-    </button>
-  </div>
-);
+      <button
+        onClick={onSubmitPlayer}
+        disabled={isRegisteringPlayer || isAutoFillingPlayers}
+        className="rounded-full bg-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-60"
+      >
+        {playerActionLabel}
+      </button>
+    </div>
+  );
+};
 
 const RegistrationList = ({
   t,
@@ -248,6 +261,7 @@ const RegistrationSection = ({
   playerActionLabel,
   isRegisteringPlayer,
   isAutoFillingPlayers,
+  autoFillProgress,
   skillLevelOptions,
   onPlayerFormChange,
   onStartEditPlayer,
@@ -282,6 +296,7 @@ const RegistrationSection = ({
       playerActionLabel={playerActionLabel}
       isRegisteringPlayer={isRegisteringPlayer}
       isAutoFillingPlayers={isAutoFillingPlayers}
+      autoFillProgress={autoFillProgress}
       onCancelEditPlayer={onCancelEditPlayer}
       onAutoFillPlayers={onAutoFillPlayers}
       onSubmitPlayer={onSubmitPlayer}

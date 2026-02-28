@@ -50,6 +50,15 @@ export function useAdminStatus() {
       return;
     }
 
+    // When Auth0 is enabled, avoid unauthenticated /api/auth/me calls
+    // during bootstrap/transitions to prevent expected 401 noise.
+    if (enabled && !isAuthenticated) {
+      setIsAdmin(false);
+      setAdminUser(undefined);
+      setCheckingAdmin(false);
+      return;
+    }
+
     // Fetch admin status from backend
     const fetchAdminStatus = async () => {
       setCheckingAdmin(true);

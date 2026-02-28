@@ -60,7 +60,7 @@ const toResponseGroup = (group: GroupEntity) => ({
   memberCount: group.members.length,
 });
 
-const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (value: string): string => value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 const installCommonAuthRoutes = async (
   page: Page,
@@ -110,11 +110,11 @@ const installGroupRoutes = async (
   const basePath = `/api/tournaments/${tournamentId}/${configuration.view}`;
   const escapedBasePath = escapeRegex(basePath);
 
-  const listPattern = new RegExp(`${escapedBasePath}(\\?.*)?$`);
-  const joinPattern = new RegExp(`${escapedBasePath}/[^/?]+/join(\\?.*)?$`);
-  const registerPattern = new RegExp(`${escapedBasePath}/[^/?]+/register(\\?.*)?$`);
-  const unregisterPattern = new RegExp(`${escapedBasePath}/[^/?]+/unregister(\\?.*)?$`);
-  const patchPattern = new RegExp(`${escapedBasePath}/[^/?]+(\\?.*)?$`);
+  const listPattern = new RegExp(String.raw`${escapedBasePath}(\?.*)?$`);
+  const joinPattern = new RegExp(String.raw`${escapedBasePath}/[^/?]+/join(\?.*)?$`);
+  const registerPattern = new RegExp(String.raw`${escapedBasePath}/[^/?]+/register(\?.*)?$`);
+  const unregisterPattern = new RegExp(String.raw`${escapedBasePath}/[^/?]+/unregister(\?.*)?$`);
+  const patchPattern = new RegExp(String.raw`${escapedBasePath}/[^/?]+(\?.*)?$`);
 
   await page.route(listPattern, async (route) => {
     const method = route.request().method();
@@ -157,7 +157,7 @@ const installGroupRoutes = async (
 
   await page.route(joinPattern, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const groupId = path.split('/').slice(-2, -1)[0] ?? '';
+    const groupId = path.split('/').at(-2) ?? '';
     const group = groups.find((entry) => entry.id === groupId);
 
     if (!group) {
@@ -179,7 +179,7 @@ const installGroupRoutes = async (
 
   await page.route(registerPattern, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const groupId = path.split('/').slice(-2, -1)[0] ?? '';
+    const groupId = path.split('/').at(-2) ?? '';
     const group = groups.find((entry) => entry.id === groupId);
 
     if (!group) {
@@ -198,7 +198,7 @@ const installGroupRoutes = async (
 
   await page.route(unregisterPattern, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const groupId = path.split('/').slice(-2, -1)[0] ?? '';
+    const groupId = path.split('/').at(-2) ?? '';
     const group = groups.find((entry) => entry.id === groupId);
 
     if (!group) {

@@ -20,6 +20,8 @@ type TournamentStatusSectionsProperties = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  autoFillProgress?: { current: number; total: number } | undefined;
+  confirmAllProgress?: { current: number; total: number } | undefined;
   skillLevelOptions: Array<{ value: string; label: string }>;
   onPlayerFormChange: (next: CreatePlayerPayload) => void;
   onStartEditPlayer: (player: TournamentPlayer) => void;
@@ -46,6 +48,8 @@ const TournamentStatusSections = ({
   isRegisteringPlayer,
   isAutoFillingPlayers,
   isConfirmingAll,
+  autoFillProgress,
+  confirmAllProgress,
   skillLevelOptions,
   onPlayerFormChange,
   onStartEditPlayer,
@@ -70,6 +74,7 @@ const TournamentStatusSections = ({
         playerActionLabel={playerActionLabel}
         isRegisteringPlayer={isRegisteringPlayer}
         isAutoFillingPlayers={isAutoFillingPlayers}
+        autoFillProgress={autoFillProgress}
         skillLevelOptions={skillLevelOptions}
         onPlayerFormChange={onPlayerFormChange}
         onStartEditPlayer={onStartEditPlayer}
@@ -88,6 +93,7 @@ const TournamentStatusSections = ({
         playersError={playersError}
         checkingInPlayerId={checkingInPlayerId}
         isConfirmingAll={isConfirmingAll}
+        confirmAllProgress={confirmAllProgress}
         onConfirmAllPlayers={onConfirmAllPlayers}
         onFetchPlayers={onFetchPlayers}
         onTogglePlayerCheckIn={onTogglePlayerCheckIn}

@@ -163,8 +163,27 @@ docker build -f "$PROJECT_ROOT/backend/Dockerfile" -t "$BACKEND_IMAGE" "$PROJECT
 print_info "Building frontend image: $FRONTEND_IMAGE"
 docker build -f "$PROJECT_ROOT/frontend/Dockerfile" -t "$FRONTEND_IMAGE" "$PROJECT_ROOT"
 
+BACKEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$BACKEND_IMAGE")"
+FRONTEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$FRONTEND_IMAGE")"
+print_info "Built backend image id:  $BACKEND_IMAGE_ID"
+print_info "Built frontend image id: $FRONTEND_IMAGE_ID"
+
 print_info "Exporting images archive"
 docker save "$BACKEND_IMAGE" "$FRONTEND_IMAGE" | gzip > "$OUTPUT_PATH"
 
+MANIFEST_PATH="${OUTPUT_PATH%.tar.gz}.manifest.txt"
+{
+  echo "tag=$TAG"
+  echo "backend_image=$BACKEND_IMAGE"
+  echo "backend_id=$BACKEND_IMAGE_ID"
+  echo "frontend_image=$FRONTEND_IMAGE"
+  echo "frontend_id=$FRONTEND_IMAGE_ID"
+  echo "exported_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if command -v git >/dev/null 2>&1; then
+    echo "git_commit=$(git -C \"$PROJECT_ROOT\" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  fi
+} > "$MANIFEST_PATH"
+
 print_success "Bundle exported: $OUTPUT_PATH"
+print_success "Bundle manifest: $MANIFEST_PATH"
 print_info "Transfer this file to prod, then run scripts/import_docker_bundle.sh there."

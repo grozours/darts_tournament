@@ -128,6 +128,8 @@ export type TournamentEditPanelProperties = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  autoFillProgress?: { current: number; total: number } | undefined;
+  confirmAllProgress?: { current: number; total: number } | undefined;
   isApplyingPreset: boolean;
   onPlayerFormChange: (next: CreatePlayerPayload) => void;
   onStartEditPlayer: (player: TournamentPlayer) => void;
@@ -186,6 +188,8 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   isRegisteringPlayer: properties.isRegisteringPlayer,
   isAutoFillingPlayers: properties.isAutoFillingPlayers,
   isConfirmingAll: properties.isConfirmingAll,
+  autoFillProgress: properties.autoFillProgress,
+  confirmAllProgress: properties.confirmAllProgress,
   isApplyingPreset: properties.isApplyingPreset,
   quickStructurePresets: properties.quickStructurePresets,
   quickStructurePresetsLoading: properties.quickStructurePresetsLoading,

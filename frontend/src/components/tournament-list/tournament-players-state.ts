@@ -13,6 +13,8 @@ type PlayersState = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  autoFillProgress: { current: number; total: number } | undefined;
+  confirmAllProgress: { current: number; total: number } | undefined;
 };
 
 type PlayersStateSetters = {
@@ -25,6 +27,8 @@ type PlayersStateSetters = {
   setIsRegisteringPlayer: Dispatch<SetStateAction<boolean>>;
   setIsAutoFillingPlayers: Dispatch<SetStateAction<boolean>>;
   setIsConfirmingAll: Dispatch<SetStateAction<boolean>>;
+  setAutoFillProgress: Dispatch<SetStateAction<{ current: number; total: number } | undefined>>;
+  setConfirmAllProgress: Dispatch<SetStateAction<{ current: number; total: number } | undefined>>;
 };
 
 const emptyPlayerForm: CreatePlayerPayload = {
@@ -50,6 +54,8 @@ const usePlayersState = (): PlayersState & PlayersStateSetters & {
   const [isRegisteringPlayer, setIsRegisteringPlayer] = useState(false);
   const [isAutoFillingPlayers, setIsAutoFillingPlayers] = useState(false);
   const [isConfirmingAll, setIsConfirmingAll] = useState(false);
+  const [autoFillProgress, setAutoFillProgress] = useState<{ current: number; total: number } | undefined>();
+  const [confirmAllProgress, setConfirmAllProgress] = useState<{ current: number; total: number } | undefined>();
 
   const clearPlayers = useCallback(() => {
     setPlayers([]);
@@ -68,6 +74,8 @@ const usePlayersState = (): PlayersState & PlayersStateSetters & {
     setIsRegisteringPlayer(false);
     setIsAutoFillingPlayers(false);
     setIsConfirmingAll(false);
+    setAutoFillProgress(undefined);
+    setConfirmAllProgress(undefined);
     setPlayerForm(emptyPlayerForm);
   }, []);
 
@@ -81,6 +89,8 @@ const usePlayersState = (): PlayersState & PlayersStateSetters & {
     isRegisteringPlayer,
     isAutoFillingPlayers,
     isConfirmingAll,
+    autoFillProgress,
+    confirmAllProgress,
     setPlayers,
     setPlayersLoading,
     setPlayersError,
@@ -90,6 +100,8 @@ const usePlayersState = (): PlayersState & PlayersStateSetters & {
     setIsRegisteringPlayer,
     setIsAutoFillingPlayers,
     setIsConfirmingAll,
+    setAutoFillProgress,
+    setConfirmAllProgress,
     clearPlayers,
     clearPlayersError,
     resetPlayersState,
@@ -116,7 +128,10 @@ const usePlayersFetch = ({
     const data = await fetchTournamentPlayers(tournamentId, token);
     setPlayers(data);
   } catch (error_) {
-    setPlayersError(t('edit.error.failedLoadPlayers'));
+    const message = error_ instanceof Error && error_.message.trim().length > 0
+      ? error_.message
+      : t('edit.error.failedLoadPlayers');
+    setPlayersError(message);
   } finally {
     setPlayersLoading(false);
   }

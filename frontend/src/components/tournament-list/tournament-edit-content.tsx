@@ -62,6 +62,8 @@ export type TournamentEditContentProperties = {
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
+  autoFillProgress?: { current: number; total: number } | undefined;
+  confirmAllProgress?: { current: number; total: number } | undefined;
   isApplyingPreset: boolean;
   quickStructurePresets: TournamentPreset[];
   quickStructurePresetsLoading: boolean;
@@ -161,6 +163,8 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
     isRegisteringPlayer,
     isAutoFillingPlayers,
     isConfirmingAll,
+    autoFillProgress,
+    confirmAllProgress,
     isApplyingPreset,
     quickStructurePresets,
     quickStructurePresetsLoading,
@@ -355,6 +359,8 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
         isRegisteringPlayer={isRegisteringPlayer}
         isAutoFillingPlayers={isAutoFillingPlayers}
         isConfirmingAll={isConfirmingAll}
+        autoFillProgress={autoFillProgress}
+        confirmAllProgress={confirmAllProgress}
         skillLevelOptions={skillLevelOptions}
         onPlayerFormChange={onPlayerFormChange}
         onStartEditPlayer={onStartEditPlayer}

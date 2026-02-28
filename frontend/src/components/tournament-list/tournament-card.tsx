@@ -26,6 +26,8 @@ export type TournamentCardProperties = {
   openingSignatureId?: string | undefined;
   autoFillingTournamentId?: string | undefined;
   confirmingTournamentId?: string | undefined;
+  autoFillProgress?: { current: number; total: number } | undefined;
+  confirmAllProgress?: { current: number; total: number } | undefined;
   userRegistrations: Set<string>;
   userGroupStatus: UserTournamentGroupStatus | undefined;
 };
@@ -37,6 +39,8 @@ type TournamentAdminActionProperties = {
   openingSignatureId?: string | undefined;
   autoFillingTournamentId?: string | undefined;
   confirmingTournamentId?: string | undefined;
+  autoFillProgress?: { current: number; total: number } | undefined;
+  confirmAllProgress?: { current: number; total: number } | undefined;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -173,6 +177,8 @@ const TournamentAdminActions = ({
   openingSignatureId,
   autoFillingTournamentId,
   confirmingTournamentId,
+  autoFillProgress,
+  confirmAllProgress,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -183,8 +189,28 @@ const TournamentAdminActions = ({
   onEdit,
   onDelete,
   t,
-}: TournamentAdminActionProperties) => (
-  <>
+}: TournamentAdminActionProperties) => {
+  const isAutoFillingCurrent = autoFillingTournamentId === tournament.id;
+  const isConfirmingCurrent = confirmingTournamentId === tournament.id;
+
+  let autoFillLabel = t('edit.autoFillPlayers');
+  if (isAutoFillingCurrent) {
+    const progressLabel = autoFillProgress
+      ? ` (${autoFillProgress.current}/${autoFillProgress.total})`
+      : '';
+    autoFillLabel = `${t('edit.filling')}${progressLabel}`;
+  }
+
+  let autoConfirmLabel = t('tournaments.autoSignature');
+  if (isConfirmingCurrent) {
+    const progressLabel = confirmAllProgress
+      ? ` (${confirmAllProgress.current}/${confirmAllProgress.total})`
+      : '';
+    autoConfirmLabel = `${t('edit.confirming')}${progressLabel}`;
+  }
+
+  return (
+    <>
     {normalizedStatus === 'DRAFT' && (
       <button
         onClick={() => onOpenRegistration(tournament.id)}
@@ -199,12 +225,10 @@ const TournamentAdminActions = ({
     {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && showOpenAutoFillAction && (
       <button
         onClick={() => onAutoFillPlayers(tournament.id)}
-        disabled={autoFillingTournamentId === tournament.id}
+        disabled={isAutoFillingCurrent}
         className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
-        {autoFillingTournamentId === tournament.id
-          ? t('edit.filling')
-          : t('edit.autoFillPlayers')}
+        {autoFillLabel}
       </button>
     )}
     {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && (
@@ -221,12 +245,10 @@ const TournamentAdminActions = ({
     {normalizedStatus === 'SIGNATURE' && showSignatureAutoConfirmAction && (
       <button
         onClick={() => onConfirmAllPlayers(tournament.id)}
-        disabled={confirmingTournamentId === tournament.id}
+        disabled={isConfirmingCurrent}
         className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
-        {confirmingTournamentId === tournament.id
-          ? t('edit.confirming')
-          : t('tournaments.autoSignature')}
+        {autoConfirmLabel}
       </button>
     )}
     <button
@@ -241,8 +263,9 @@ const TournamentAdminActions = ({
     >
       {t('tournaments.delete')}
     </button>
-  </>
-);
+    </>
+  );
+};
 
 const TournamentRegistrationActions = ({
   tournamentFormat,
@@ -330,6 +353,8 @@ const TournamentCard = ({
   openingSignatureId,
   autoFillingTournamentId,
   confirmingTournamentId,
+  autoFillProgress,
+  confirmAllProgress,
   userRegistrations,
   userGroupStatus,
 }: TournamentCardProperties) => {
@@ -435,6 +460,8 @@ const TournamentCard = ({
             openingRegistrationId={openingRegistrationId}
             openingSignatureId={openingSignatureId}
             autoFillingTournamentId={autoFillingTournamentId}
+            autoFillProgress={autoFillProgress}
+            confirmAllProgress={confirmAllProgress}
             onOpenRegistration={onOpenRegistration}
             onOpenSignature={onOpenSignature}
             onAutoFillPlayers={onAutoFillPlayers}
