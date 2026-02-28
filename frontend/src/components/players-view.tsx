@@ -52,7 +52,6 @@ function PlayersView() {
     try {
       return await getAccessTokenSilently();
     } catch (error) {
-      console.warn('Failed to get access token, proceeding without auth:', error);
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -94,7 +93,6 @@ function PlayersView() {
       }));
       setPlayers([...playerLists.flat(), ...orphanMapped]);
     } catch (error) {
-      console.error('Error loading players view:', error);
       setError(error instanceof Error ? error.message : t('players.error'));
     } finally {
       setLoading(false);
@@ -204,7 +202,6 @@ function PlayersView() {
       await loadPlayers();
       cancelEdit();
     } catch (error) {
-      console.error('Error saving player:', error);
       setError(error instanceof Error ? error.message : t('players.error'));
     } finally {
       setSaving(false);
@@ -229,7 +226,6 @@ function PlayersView() {
       }
       await loadPlayers();
     } catch (error) {
-      console.error('Error deleting players:', error);
       setError(error instanceof Error ? error.message : t('players.error'));
     } finally {
       setDeletingAll(false);

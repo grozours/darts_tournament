@@ -245,6 +245,7 @@ VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
 VITE_AUTH0_CONNECTION_GOOGLE=google-oauth2
 VITE_AUTH0_CONNECTION_FACEBOOK=facebook
 VITE_AUTH0_CONNECTION_DISCORD=discord
+VITE_AUTH0_CACHE_LOCATION=memory
 ```
 
 Backend (`backend/.env`):

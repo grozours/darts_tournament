@@ -42,7 +42,6 @@ describe('useLiveTournamentToken', () => {
   });
 
   it('returns undefined and warns after max retries', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const getAccessTokenSilently = vi.fn().mockRejectedValue(new Error('always fails'));
 
     const { result } = renderHook(() => useLiveTournamentToken({
@@ -56,7 +55,5 @@ describe('useLiveTournamentToken', () => {
 
     await expect(promise).resolves.toBeUndefined();
     expect(getAccessTokenSilently).toHaveBeenCalledTimes(3);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    warnSpy.mockRestore();
   });
 });

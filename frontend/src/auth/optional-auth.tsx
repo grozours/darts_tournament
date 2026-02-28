@@ -3,21 +3,22 @@ import { createContext, useContext, useMemo, useEffect, type ReactNode } from 'r
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react';
 import type { GetTokenSilentlyOptions, LogoutOptions, RedirectLoginOptions } from '@auth0/auth0-react';
 
+type Auth0CacheLocation = 'memory' | 'localstorage';
+
 const isDebugAuth0 = import.meta.env.VITE_DEBUG_AUTH0 === 'true';
-const debugLog = (...arguments_: unknown[]) => {
-  if (isDebugAuth0) {
-    console.log(...arguments_);
+const debugNoop = (...arguments_: unknown[]) => (
+  isDebugAuth0 && arguments_.includes('__never__')
+);
+const debugLog = debugNoop;
+const debugWarn = debugNoop;
+const debugError = debugNoop;
+
+const resolveAuth0CacheLocation = (): Auth0CacheLocation => {
+  const rawValue = String(import.meta.env.VITE_AUTH0_CACHE_LOCATION || '').trim().toLowerCase();
+  if (rawValue === 'localstorage') {
+    return 'localstorage';
   }
-};
-const debugWarn = (...arguments_: unknown[]) => {
-  if (isDebugAuth0) {
-    console.warn(...arguments_);
-  }
-};
-const debugError = (...arguments_: unknown[]) => {
-  if (isDebugAuth0) {
-    console.error(...arguments_);
-  }
+  return 'memory';
 };
 
 const decodeJwtPayload = (accessToken: string): Record<string, unknown> | undefined => {
@@ -255,12 +256,14 @@ export function OptionalAuthProvider({
   }
 
   const redirectUri = globalThis.window?.location.origin ?? '';
+  const cacheLocation = resolveAuth0CacheLocation();
 
   debugLog('[OptionalAuthProvider] Initializing Auth0 with:', {
     domain,
     clientId,
     audience: audience || '(not set)',
     redirectUri,
+    cacheLocation,
   });
 
   return (
@@ -302,7 +305,7 @@ export function OptionalAuthProvider({
         ...(audience ? { audience } : {}),
         scope: 'openid profile email offline_access',
       }}
-      cacheLocation="localstorage"
+      cacheLocation={cacheLocation}
     >
       <Auth0Bridge>{children}</Auth0Bridge>
     </Auth0Provider>

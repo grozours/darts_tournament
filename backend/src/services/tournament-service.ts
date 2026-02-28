@@ -87,6 +87,7 @@ export class TournamentService {
   public removeDoubletteMember!: GroupHandlers['removeDoubletteMember'];
   public leaveDoublette!: GroupHandlers['leaveDoublette'];
   public registerDoublette!: GroupHandlers['registerDoublette'];
+  public unregisterDoublette!: GroupHandlers['unregisterDoublette'];
   public deleteDoublette!: GroupHandlers['deleteDoublette'];
   public updateDoublettePassword!: GroupHandlers['updateDoublettePassword'];
 
@@ -98,6 +99,7 @@ export class TournamentService {
   public removeEquipeMember!: GroupHandlers['removeEquipeMember'];
   public leaveEquipe!: GroupHandlers['leaveEquipe'];
   public registerEquipe!: GroupHandlers['registerEquipe'];
+  public unregisterEquipe!: GroupHandlers['unregisterEquipe'];
   public deleteEquipe!: GroupHandlers['deleteEquipe'];
   public updateEquipePassword!: GroupHandlers['updateEquipePassword'];
   public searchGroupPlayers!: GroupHandlers['searchGroupPlayers'];
@@ -329,6 +331,7 @@ export class TournamentService {
     this.removeDoubletteMember = this.wrapMutationWithAutosave(this.removeDoubletteMember, (tournamentId) => tournamentId, 'REMOVE_DOUBLETTE_MEMBER');
     this.leaveDoublette = this.wrapMutationWithAutosave(this.leaveDoublette, (tournamentId) => tournamentId, 'LEAVE_DOUBLETTE');
     this.registerDoublette = this.wrapMutationWithAutosave(this.registerDoublette, (tournamentId) => tournamentId, 'REGISTER_DOUBLETTE');
+    this.unregisterDoublette = this.wrapMutationWithAutosave(this.unregisterDoublette, (tournamentId) => tournamentId, 'UNREGISTER_DOUBLETTE');
     this.deleteDoublette = this.wrapMutationWithAutosave(this.deleteDoublette, (tournamentId) => tournamentId, 'DELETE_DOUBLETTE');
     this.updateDoublettePassword = this.wrapMutationWithAutosave(this.updateDoublettePassword, (tournamentId) => tournamentId, 'UPDATE_DOUBLETTE_PASSWORD');
   }
@@ -341,6 +344,7 @@ export class TournamentService {
     this.removeEquipeMember = this.wrapMutationWithAutosave(this.removeEquipeMember, (tournamentId) => tournamentId, 'REMOVE_EQUIPE_MEMBER');
     this.leaveEquipe = this.wrapMutationWithAutosave(this.leaveEquipe, (tournamentId) => tournamentId, 'LEAVE_EQUIPE');
     this.registerEquipe = this.wrapMutationWithAutosave(this.registerEquipe, (tournamentId) => tournamentId, 'REGISTER_EQUIPE');
+    this.unregisterEquipe = this.wrapMutationWithAutosave(this.unregisterEquipe, (tournamentId) => tournamentId, 'UNREGISTER_EQUIPE');
     this.deleteEquipe = this.wrapMutationWithAutosave(this.deleteEquipe, (tournamentId) => tournamentId, 'DELETE_EQUIPE');
     this.updateEquipePassword = this.wrapMutationWithAutosave(this.updateEquipePassword, (tournamentId) => tournamentId, 'UPDATE_EQUIPE_PASSWORD');
   }

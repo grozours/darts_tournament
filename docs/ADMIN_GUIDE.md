@@ -3,6 +3,10 @@
 ## Goal
 Run a tournament from start to finish.
 
+## Player registrations (single / doublette / team)
+- Illustrated guide: [Join a tournament](JOIN_TOURNAMENT.md)
+- Team management (captain flow and registration): [Register and manage your team](JOIN_TOURNAMENT.md#5-manage-your-team)
+
 ## Tournament steps
 1. Creation: name, format, dates, target count.
 2. Registration: players registered and checked in.

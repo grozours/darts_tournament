@@ -121,8 +121,8 @@ function NotificationsView() {
     try {
       globalThis.window?.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(items));
       globalThis.window?.dispatchEvent(new Event('notifications:updated'));
-    } catch (error) {
-      console.warn('Failed to persist notifications:', error);
+    } catch {
+      void 0;
     }
   }, []);
 
@@ -130,8 +130,8 @@ function NotificationsView() {
     if (!authEnabled) return undefined;
     try {
       return await getAccessTokenSilently();
-    } catch (error) {
-      console.warn('Failed to get access token, proceeding without auth:', error);
+    } catch {
+      void 0;
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -220,8 +220,8 @@ function NotificationsView() {
       const result = await Notification.requestPermission();
       setNotificationPermission(result);
       permissionReference.current = result;
-    } catch (error) {
-      console.warn('Failed to request notification permission:', error);
+    } catch {
+      void 0;
     }
   }, []);
 
@@ -237,8 +237,8 @@ function NotificationsView() {
         if (Array.isArray(parsed)) {
           setNotifications(parsed);
         }
-      } catch (error) {
-        console.warn('Failed to parse stored notifications:', error);
+      } catch {
+        void 0;
       }
     };
 

@@ -95,13 +95,11 @@ const useLiveTournamentLoaders = ({
             continue;
           }
 
-          console.error('Error fetching live view:', error_);
           setError(getUserFacingError(error_));
           return;
         }
       }
     } catch (error_) {
-      console.error('Error fetching live view:', error_);
       setError(getUserFacingError(error_));
     } finally {
       if (showLoader) {
@@ -123,7 +121,6 @@ const useLiveTournamentLoaders = ({
       const views = await fetchViewsForStatuses(statusList, token);
       setLiveViews(views);
     } catch (error_) {
-      console.error('Error fetching live view:', error_);
       setError(getUserFacingError(error_));
     } finally {
       if (showLoader) {

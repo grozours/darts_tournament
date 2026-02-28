@@ -71,6 +71,26 @@ const assertTournamentOpenAndCapacity = async (
   return tournament;
 };
 
+const assertTournamentAllowsUnregistration = async (
+  context: GroupHandlerContext,
+  tournamentId: string
+) => {
+  const tournament = await context.tournamentModel.findById(tournamentId);
+  if (!tournament) {
+    throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+  }
+
+  if (tournament.status === TournamentStatus.LIVE || tournament.status === TournamentStatus.FINISHED) {
+    throw new AppError(
+      'Cannot unregister from tournament that is live or finished',
+      400,
+      'UNREGISTRATION_NOT_ALLOWED'
+    );
+  }
+
+  return tournament;
+};
+
 const ensureFormat = (format: TournamentFormat, expected: TournamentFormat, code: string, message: string) => {
   if (format !== expected) {
     throw new AppError(message, 400, code);
@@ -529,6 +549,53 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     return mapGroupResponse(updated);
   },
 
+  unregisterDoublette: async (tournamentId: string, doubletteId: string) => {
+    context.validateUUID(tournamentId);
+    context.validateUUID(doubletteId);
+
+    const tournament = await assertTournamentAllowsUnregistration(context, tournamentId);
+    ensureFormat(
+      tournament.format,
+      TournamentFormat.DOUBLE,
+      'TOURNAMENT_FORMAT_NOT_DOUBLETTE',
+      'Doublettes are only available for DOUBLE tournaments'
+    );
+
+    const isAdmin = context.isAdminAction();
+    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
+    const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
+    if (!doublette) {
+      throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
+    }
+
+    if (!doublette.captainPlayerId) {
+      throw new AppError('Doublette must have a captain before unregistration', 400, 'DOUBLETTE_CAPTAIN_REQUIRED');
+    }
+
+    if (!isAdmin) {
+      requireCaptainOrAdmin(
+        context,
+        doublette.captainPlayerId,
+        actorPlayer!.id,
+        'DOUBLETTE_CAPTAIN_REQUIRED',
+        'Only the captain can unregister this doublette'
+      );
+    }
+
+    if (!doublette.isRegistered) {
+      throw new AppError('Doublette is not registered', 400, 'DOUBLETTE_NOT_REGISTERED');
+    }
+
+    await context.tournamentModel.markDoubletteUnregistered(doubletteId);
+
+    const updated = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
+    if (!updated) {
+      throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
+    }
+
+    return mapGroupResponse(updated);
+  },
+
   deleteDoublette: async (tournamentId: string, doubletteId: string) => {
     context.validateUUID(tournamentId);
     context.validateUUID(doubletteId);
@@ -891,6 +958,53 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     if (!equipe.isRegistered) {
       await context.tournamentModel.markEquipeRegistered(equipeId);
     }
+
+    const updated = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
+    if (!updated) {
+      throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
+    }
+
+    return mapGroupResponse(updated);
+  },
+
+  unregisterEquipe: async (tournamentId: string, equipeId: string) => {
+    context.validateUUID(tournamentId);
+    context.validateUUID(equipeId);
+
+    const tournament = await assertTournamentAllowsUnregistration(context, tournamentId);
+    ensureFormat(
+      tournament.format,
+      TournamentFormat.TEAM_4_PLAYER,
+      'TOURNAMENT_FORMAT_NOT_EQUIPE',
+      'Equipes are only available for TEAM_4_PLAYER tournaments'
+    );
+
+    const isAdmin = context.isAdminAction();
+    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
+    const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
+    if (!equipe) {
+      throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
+    }
+
+    if (!equipe.captainPlayerId) {
+      throw new AppError('Equipe must have a captain before unregistration', 400, 'EQUIPE_CAPTAIN_REQUIRED');
+    }
+
+    if (!isAdmin) {
+      requireCaptainOrAdmin(
+        context,
+        equipe.captainPlayerId,
+        actorPlayer!.id,
+        'EQUIPE_CAPTAIN_REQUIRED',
+        'Only the captain can unregister this equipe'
+      );
+    }
+
+    if (!equipe.isRegistered) {
+      throw new AppError('Equipe is not registered', 400, 'EQUIPE_NOT_REGISTERED');
+    }
+
+    await context.tournamentModel.markEquipeUnregistered(equipeId);
 
     const updated = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!updated) {

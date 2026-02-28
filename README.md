@@ -199,6 +199,8 @@ VITE_AUTH0_CLIENT_ID=your_client_id
 VITE_AUTH0_CONNECTION_GOOGLE=google-oauth2
 VITE_AUTH0_CONNECTION_FACEBOOK=facebook
 VITE_AUTH0_CONNECTION_INSTAGRAM=instagram
+# Optional: Auth0 token cache location (`memory` is safer, `localstorage` for persistent sessions)
+VITE_AUTH0_CACHE_LOCATION=memory
 ```
 
 Backend Auth0 (optional):

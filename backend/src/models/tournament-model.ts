@@ -71,6 +71,7 @@ export class TournamentModel {
   public removeDoubletteMember!: TournamentModelGroupHandlers['removeDoubletteMember'];
   public updateDoubletteCaptain!: TournamentModelGroupHandlers['updateDoubletteCaptain'];
   public markDoubletteRegistered!: TournamentModelGroupHandlers['markDoubletteRegistered'];
+  public markDoubletteUnregistered!: TournamentModelGroupHandlers['markDoubletteUnregistered'];
   public deleteDoublette!: TournamentModelGroupHandlers['deleteDoublette'];
   public findDoubletteMembershipByPlayer!: TournamentModelGroupHandlers['findDoubletteMembershipByPlayer'];
 
@@ -84,6 +85,7 @@ export class TournamentModel {
   public removeEquipeMember!: TournamentModelGroupHandlers['removeEquipeMember'];
   public updateEquipeCaptain!: TournamentModelGroupHandlers['updateEquipeCaptain'];
   public markEquipeRegistered!: TournamentModelGroupHandlers['markEquipeRegistered'];
+  public markEquipeUnregistered!: TournamentModelGroupHandlers['markEquipeUnregistered'];
   public deleteEquipe!: TournamentModelGroupHandlers['deleteEquipe'];
   public findEquipeMembershipByPlayer!: TournamentModelGroupHandlers['findEquipeMembershipByPlayer'];
   public searchPlayersForGroups!: TournamentModelGroupHandlers['searchPlayersForGroups'];

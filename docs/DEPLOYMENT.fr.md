@@ -101,6 +101,7 @@ VITE_AUTH_ENABLED=true
 VITE_AUTH0_DOMAIN="your-tenant.eu.auth0.com"
 VITE_AUTH0_CLIENT_ID="your_client_id"
 VITE_AUTH0_AUDIENCE="https://api.yourdomain.com"
+VITE_AUTH0_CACHE_LOCATION="memory"
 
 # ===== Connexions OAuth =====
 VITE_AUTH0_CONNECTION_GOOGLE="google-oauth2"
@@ -116,6 +117,7 @@ VITE_API_URL="https://api.yourdomain.com"
 - Utiliser `.env.example` comme template
 - Renouveler les secrets en production
 - Utiliser des configs spécifiques par environnement
+- Conserver `VITE_AUTH0_CACHE_LOCATION=memory` sauf besoin explicite de session persistante navigateur
 
 ---
 

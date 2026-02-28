@@ -82,8 +82,8 @@ function addEmailToAccessToken(user, context, callback) {
 ### Option C: Test with Auth0 API
 
 ```bash
-# Get your token from browser DevTools → Application → Local Storage → @@auth0spajs@@
-# Then decode it:
+# Get your token from browser DevTools → Network → request to /api/auth/me
+# Copy Authorization: Bearer <TOKEN>, then decode it:
 echo "YOUR_TOKEN" | cut -d. -f2 | base64 -d | jq .
 ```
 

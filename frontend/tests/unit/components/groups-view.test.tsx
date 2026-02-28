@@ -23,6 +23,8 @@ const leaveDoublette = vi.fn();
 const leaveEquipe = vi.fn();
 const registerDoublette = vi.fn();
 const registerEquipe = vi.fn();
+const unregisterDoublette = vi.fn();
+const unregisterEquipe = vi.fn();
 const updateDoublette = vi.fn();
 const updateEquipe = vi.fn();
 const updateDoublettePassword = vi.fn();
@@ -59,6 +61,8 @@ vi.mock('../../../src/services/tournament-service', () => ({
   leaveEquipe: (...args: unknown[]) => leaveEquipe(...args),
   registerDoublette: (...args: unknown[]) => registerDoublette(...args),
   registerEquipe: (...args: unknown[]) => registerEquipe(...args),
+  unregisterDoublette: (...args: unknown[]) => unregisterDoublette(...args),
+  unregisterEquipe: (...args: unknown[]) => unregisterEquipe(...args),
   updateDoublette: (...args: unknown[]) => updateDoublette(...args),
   updateEquipe: (...args: unknown[]) => updateEquipe(...args),
   updateDoublettePassword: (...args: unknown[]) => updateDoublettePassword(...args),
@@ -90,6 +94,8 @@ describe('GroupsView', () => {
     leaveEquipe.mockResolvedValue({ deleted: false });
     registerDoublette.mockResolvedValue({});
     registerEquipe.mockResolvedValue({});
+    unregisterDoublette.mockResolvedValue({});
+    unregisterEquipe.mockResolvedValue({});
     updateDoublette.mockResolvedValue({});
     updateEquipe.mockResolvedValue({});
     updateDoublettePassword.mockResolvedValue(undefined);
@@ -396,7 +402,7 @@ describe('GroupsView', () => {
       expect(updateDoublettePassword).toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByText('groups.registerGroup'));
+    fireEvent.click(screen.getByText('groups.registerDoublette'));
     await waitFor(() => {
       expect(registerDoublette).toHaveBeenCalled();
     });
@@ -530,6 +536,63 @@ describe('GroupsView', () => {
 
     await waitFor(() => {
       expect(addDoubletteMember).toHaveBeenCalledWith('t1', 'd-registered', { playerId: 'p3' }, 'token-1');
+    });
+  });
+
+  it('allows admin to unregister a registered doublette', async () => {
+    adminState.isAdmin = true;
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-registered',
+        name: 'Registered Duo',
+        captainPlayerId: 'p-captain',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p-member', firstName: 'Mem', lastName: 'Ber', email: 'mem@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Registered Duo');
+
+    fireEvent.click(screen.getByText('tournaments.unregister'));
+
+    await waitFor(() => {
+      expect(unregisterDoublette).toHaveBeenCalledWith('t1', 'd-registered', 'token-1');
+    });
+  });
+
+  it('allows admin to unregister a registered equipe', async () => {
+    adminState.isAdmin = true;
+    globalThis.history.pushState({}, '', '/?view=equipes&tournamentId=t1');
+    fetchEquipes.mockResolvedValue([
+      {
+        id: 'e-registered',
+        name: 'Registered Team',
+        captainPlayerId: 'p-captain',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 4,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p2', firstName: 'A', lastName: 'B', email: 'a@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p3', firstName: 'C', lastName: 'D', email: 'c@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p4', firstName: 'E', lastName: 'F', email: 'e@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="equipes" />);
+    await screen.findByText('Registered Team');
+
+    fireEvent.click(screen.getByText('tournaments.unregister'));
+
+    await waitFor(() => {
+      expect(unregisterEquipe).toHaveBeenCalledWith('t1', 'e-registered', 'token-1');
     });
   });
 

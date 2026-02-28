@@ -66,7 +66,6 @@ const useTargetsViewStartMatch = ({
         return next;
       });
     } catch (error_) {
-      console.error('Error starting match from queue:', error_);
       setError(error_ instanceof Error ? error_.message : t('targets.error'));
       await loadTargets({ silent: true });
     } finally {

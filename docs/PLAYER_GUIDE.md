@@ -3,6 +3,10 @@
 ## Goal
 Follow your matches live and receive target calls.
 
+## Registration (single / doublette / team)
+- Illustrated guide: [Join a tournament](JOIN_TOURNAMENT.md)
+- Team management (player/captain): [Register and manage your team](JOIN_TOURNAMENT.md#5-manage-your-team)
+
 ## Get started
 - Open the app.
 - Go to `Notifications` and sign in.

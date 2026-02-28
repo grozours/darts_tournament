@@ -320,7 +320,6 @@ const usePlayerRegistrationMutations = ({
       setPlayerForm(emptyPlayerForm);
       await fetchPlayers(editingTournament.id);
     } catch (error_) {
-      console.error('Error registering player:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedRegisterPlayer'));
     } finally {
       setIsRegisteringPlayer(false);
@@ -343,7 +342,6 @@ const usePlayerRegistrationMutations = ({
       await fetchPlayers(editingTournament.id);
       cancelEditPlayer();
     } catch (error_) {
-      console.error('Error updating player:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdatePlayer'));
     } finally {
       setIsRegisteringPlayer(false);
@@ -359,7 +357,6 @@ const usePlayerRegistrationMutations = ({
       await removeTournamentPlayer(editingTournament.id, playerId, token);
       await fetchPlayers(editingTournament.id);
     } catch (error_) {
-      console.error('Error removing player:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedRemovePlayer'));
     }
   }, [editingTournament, fetchPlayers, getSafeAccessToken, setPlayersError, t]);
@@ -407,7 +404,6 @@ const usePlayerCheckInMutations = ({
       await fetchPlayers(editingTournament.id);
       await refreshTournamentDetails?.(editingTournament.id);
     } catch (error_) {
-      console.error('Error updating check-in:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdateCheckIn'));
     } finally {
       setCheckingInPlayerId(undefined);
@@ -428,7 +424,6 @@ const usePlayerCheckInMutations = ({
       await fetchPlayers(editingTournament.id);
       await refreshTournamentDetails?.(editingTournament.id);
     } catch (error_) {
-      console.error('Error confirming all players:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {
       setIsConfirmingAll(false);
@@ -469,7 +464,6 @@ const usePlayerAutoFillMutation = ({
       });
       await fetchPlayers(editingTournament.id);
     } catch (error_) {
-      console.error('Error auto-filling players:', error_);
       setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedAutoFillPlayers'));
     } finally {
       setIsAutoFillingPlayers(false);

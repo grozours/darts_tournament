@@ -23,12 +23,15 @@ describe('TournamentCard', () => {
     onEdit: vi.fn(),
     onDelete: vi.fn(),
     onRegister: vi.fn(),
+    onRegisterGroup: vi.fn(),
+    onUnregisterGroup: vi.fn(),
     onUnregister: vi.fn(),
     onOpenRegistration: vi.fn(),
     onOpenSignature: vi.fn(),
     onAutoFillPlayers: vi.fn(),
     onConfirmAllPlayers: vi.fn(),
     userRegistrations: new Set<string>(),
+    userGroupStatus: undefined,
   };
 
   it('renders admin draft actions and triggers callbacks', () => {
@@ -193,7 +196,7 @@ describe('TournamentCard', () => {
     expect(screen.getAllByText('groups.equipes').length).toBeGreaterThan(0);
   });
 
-  it('uses generic register label for DOUBLE and TEAM card registration links', () => {
+  it('shows create-own-group links for DOUBLE and TEAM when user has no group', () => {
     const { rerender } = render(
       <TournamentCard
         {...baseProperties}
@@ -201,7 +204,7 @@ describe('TournamentCard', () => {
       />
     );
 
-    const doubleRegisterLink = screen.getByRole('link', { name: 'tournaments.register' });
+    const doubleRegisterLink = screen.getByRole('link', { name: 'tournaments.createOwnDoublette' });
     expect(doubleRegisterLink).toHaveAttribute(
       'href',
       '/?view=doublettes&tournamentId=t1'
@@ -215,11 +218,57 @@ describe('TournamentCard', () => {
       />
     );
 
-    const teamRegisterLink = screen.getByRole('link', { name: 'tournaments.register' });
+    const teamRegisterLink = screen.getByRole('link', { name: 'tournaments.createOwnEquipe' });
     expect(teamRegisterLink).toHaveAttribute(
       'href',
       '/?view=equipes&tournamentId=t1'
     );
     expect(teamRegisterLink.className).toContain('border-emerald-500/60');
+  });
+
+  it('renders admin unregister action for registered DOUBLE group', () => {
+    const onUnregisterGroup = vi.fn();
+
+    render(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'DOUBLE' } as never}
+        isAdmin
+        onUnregisterGroup={onUnregisterGroup}
+        userGroupStatus={{
+          groupId: 'd1',
+          hasGroup: true,
+          isGroupCaptain: false,
+          isGroupComplete: true,
+          isGroupRegistered: true,
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByText('tournaments.unregister'));
+    expect(onUnregisterGroup).toHaveBeenCalledWith('t1');
+  });
+
+  it('renders admin unregister action for registered TEAM group', () => {
+    const onUnregisterGroup = vi.fn();
+
+    render(
+      <TournamentCard
+        {...baseProperties}
+        tournament={{ ...baseTournament, format: 'TEAM_4_PLAYER' } as never}
+        isAdmin
+        onUnregisterGroup={onUnregisterGroup}
+        userGroupStatus={{
+          groupId: 'e1',
+          hasGroup: true,
+          isGroupCaptain: false,
+          isGroupComplete: true,
+          isGroupRegistered: true,
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByText('tournaments.unregister'));
+    expect(onUnregisterGroup).toHaveBeenCalledWith('t1');
   });
 });

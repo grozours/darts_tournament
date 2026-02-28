@@ -429,11 +429,7 @@ describe('LiveTournamentView', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('logs ETA debug details when etaDebug flag is enabled', () => {
-    const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => undefined);
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => undefined);
-    const groupEndSpy = vi.spyOn(console, 'groupEnd').mockImplementation(() => undefined);
+  it('renders normally when etaDebug flag is enabled', () => {
     globalThis.window?.history.pushState({}, '', '/?etaDebug=1');
 
     render(
@@ -455,15 +451,7 @@ describe('LiveTournamentView', () => {
       />
     );
 
-    expect(groupSpy).toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalled();
-    expect(tableSpy).toHaveBeenCalled();
-    expect(groupEndSpy).toHaveBeenCalled();
-
-    groupSpy.mockRestore();
-    logSpy.mockRestore();
-    tableSpy.mockRestore();
-    groupEndSpy.mockRestore();
+    expect(screen.getByText('common.refresh')).toBeInTheDocument();
     globalThis.window?.history.pushState({}, '', '/');
   });
 

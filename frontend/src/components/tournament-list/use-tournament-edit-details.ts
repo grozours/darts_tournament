@@ -38,8 +38,8 @@ const useTournamentEditDetails = ({
       }
       const data = await response.json();
       setEditingTournament((current) => (current ? { ...current, ...data } : data));
-    } catch (error_) {
-      console.error('Error fetching tournament details:', error_);
+    } catch {
+      void 0;
     }
   }, [getSafeAccessToken, setEditingTournament]);
 

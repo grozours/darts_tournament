@@ -68,16 +68,12 @@ function TournamentList() { // NOSONAR
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled || !isAuthenticated) {
-      console.log('[TournamentList] Auth not enabled or not authenticated, skipping token');
       return undefined;
     }
     try {
-      console.log('[TournamentList] Attempting to get access token...');
       const token = await getAccessTokenSilently();
-      console.log('[TournamentList] Got access token successfully');
       return token;
-    } catch (error_) {
-      console.warn('[TournamentList] Failed to get access token, proceeding without auth:', error_);
+    } catch {
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently, isAuthenticated]);
@@ -117,7 +113,6 @@ function TournamentList() { // NOSONAR
       globalThis.window?.location.assign('/?status=OPEN');
       await fetchTournaments();
     } catch (error_) {
-      console.error('[TournamentList] Failed to open registration:', error_);
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedOpenRegistration'));
     } finally {
       setOpeningRegistrationId(undefined);
@@ -131,7 +126,6 @@ function TournamentList() { // NOSONAR
       globalThis.window?.location.assign('/?status=SIGNATURE');
       await fetchTournaments();
     } catch (error_) {
-      console.error('[TournamentList] Failed to open signature:', error_);
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedMoveToSignature'));
     } finally {
       setOpeningSignatureId(undefined);
@@ -154,7 +148,6 @@ function TournamentList() { // NOSONAR
       });
       await fetchTournaments();
     } catch (error_) {
-      console.error('[TournamentList] Failed to auto-fill players:', error_);
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedAutoFillPlayers'));
     } finally {
       setAutoFillingTournamentId(undefined);
@@ -177,7 +170,6 @@ function TournamentList() { // NOSONAR
       });
       await fetchTournaments();
     } catch (error_) {
-      console.error('[TournamentList] Failed to confirm all players:', error_);
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {
       setConfirmingTournamentId(undefined);
@@ -218,8 +210,8 @@ function TournamentList() { // NOSONAR
       }
       const data = await response.json();
       setEditingTournament((current) => (current ? { ...current, ...data } : data));
-    } catch (error_) {
-      console.error('Error fetching tournament details:', error_);
+    } catch {
+      void 0;
     }
   }, [getSafeAccessToken, setEditingTournament]);
   const {
@@ -474,12 +466,16 @@ function TournamentList() { // NOSONAR
   });
   const {
     userRegistrations,
+    userGroupStatuses,
     registeringTournamentId,
     handleRegisterSelf,
+    handleRegisterGroup,
+    handleUnregisterGroup,
     handleUnregisterSelf,
   } = useTournamentListRegistrations({
     t,
     tournaments: visibleTournaments,
+    isAdmin,
     isAuthenticated: effectiveIsAuthenticated,
     user: effectiveUser,
     getSafeAccessToken,
@@ -567,10 +563,13 @@ function TournamentList() { // NOSONAR
           isAuthenticated={effectiveIsAuthenticated}
           t={t}
           userRegistrations={userRegistrations}
+          userGroupStatuses={userGroupStatuses}
           registeringTournamentId={registeringTournamentId ?? undefined}
           onEdit={openEdit}
           onDelete={deleteTournament}
           onRegister={handleRegisterSelf}
+          onRegisterGroup={handleRegisterGroup}
+          onUnregisterGroup={handleUnregisterGroup}
           onUnregister={handleUnregisterSelf}
           onOpenRegistration={openRegistrationFromCard}
           onOpenSignature={openSignatureFromCard}

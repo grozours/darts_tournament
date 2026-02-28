@@ -25,6 +25,7 @@ describe('TournamentListGroups', () => {
     isAuthenticated: true,
     t: translate,
     userRegistrations: new Set<string>(),
+    userGroupStatuses: {},
     onOpenRegistration: vi.fn(),
     onOpenSignature: vi.fn(),
     onAutoFillPlayers: vi.fn(),
@@ -32,6 +33,8 @@ describe('TournamentListGroups', () => {
     onEdit: vi.fn(),
     onDelete: vi.fn(),
     onRegister: vi.fn(),
+    onRegisterGroup: vi.fn(),
+    onUnregisterGroup: vi.fn(),
     onUnregister: vi.fn(),
   };
 

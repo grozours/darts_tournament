@@ -21,6 +21,8 @@ import {
   registerDoublette,
   registerEquipe,
   registerTournamentPlayer,
+  unregisterDoublette,
+  unregisterEquipe,
   searchGroupPlayers,
   type TournamentGroupEntity,
   updateDoublette,
@@ -100,6 +102,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const requiredMembers = requiredMembersByMode[mode];
 
   const title = mode === 'doublettes' ? t('groups.doublettes') : t('groups.equipes');
+  const registerLabel = mode === 'doublettes' ? t('groups.registerDoublette') : t('groups.registerEquipe');
 
   const getToken = useCallback(async () => {
     if (!enabled || !isAuthenticated) {
@@ -242,6 +245,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
           const canManageGroup = isAdmin || (isMember && isCaptain);
           const canJoin = effectiveIsAuthenticated && !isMember && !group.isRegistered && group.memberCount < requiredMembers;
           const canRegister = isCaptain && !group.isRegistered && group.memberCount === requiredMembers;
+          const canUnregister = group.isRegistered && (isAdmin || isCaptain);
           const canLeave = isMember && !group.isRegistered;
           const canDelete = isAdmin || (canManageGroup && !group.isRegistered);
           const canChangePassword = canManageGroup && !group.isRegistered;
@@ -311,7 +315,19 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       }}
                       className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                     >
-                      {t('groups.registerGroup')}
+                      {registerLabel}
+                    </button>
+                  )}
+                  {canUnregister && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        void handleUnregister(group.id, group.tournamentId);
+                      }}
+                      className="rounded-full border border-amber-500/60 px-3 py-1 text-xs font-semibold text-amber-200"
+                    >
+                      {t('tournaments.unregister')}
                     </button>
                   )}
                   {canLeave && (
@@ -865,6 +881,18 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
       );
     });
   }, [executeByMode, runAction]);
+
+  const handleUnregister = useCallback(async (groupId: string, tournamentId: string) => {
+    if (!globalThis.window?.confirm(t('tournaments.unregisterConfirm'))) {
+      return;
+    }
+    await runAction(async () => {
+      await executeByMode(
+        async (token) => await unregisterDoublette(tournamentId, groupId, token),
+        async (token) => await unregisterEquipe(tournamentId, groupId, token)
+      );
+    });
+  }, [executeByMode, runAction, t]);
 
   const handleChangePassword = useCallback(async (groupId: string, tournamentId: string, password: string) => {
     const normalizedPassword = password.trim();

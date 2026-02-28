@@ -60,7 +60,6 @@ const useTargetsViewCompleteMatch = ({
       await completeMatch(matchTournament.tournamentId, match.id, scores, token);
       await loadTargets({ silent: true });
     } catch (error_) {
-      console.error('Error completing match:', error_);
       setError(error_ instanceof Error ? error_.message : t('targets.error'));
       await loadTargets({ silent: true });
     } finally {

@@ -953,43 +953,12 @@ const LiveTournamentViewHeader = ({
   const activeTargetCount = getActiveTargetCount(view, schedulableTargetCount);
   const remainingEstimate = getRemainingEstimatedMinutes(view, activeTargetCount);
   const remainingEstimatedMinutes = remainingEstimate.totalMinutes;
-  const etaDebugEnabled = (() => {
-    if (globalThis.window === undefined) {
-      return false;
-    }
-    const searchParams = new URLSearchParams(globalThis.window.location.search);
-    return searchParams.get('etaDebug') === '1' || globalThis.window.localStorage.getItem('liveEtaDebug') === '1';
-  })();
   const estimatedEndAt = getEstimatedEndAt(
     startAt,
     nowTimestamp,
     remainingEstimatedMinutes,
     activeTargetCount
   );
-
-  useEffect(() => {
-    if (!etaDebugEnabled) {
-      return;
-    }
-
-    console.groupCollapsed(`ETA debug ${view.id}`);
-    console.log({
-      now: new Date(nowTimestamp).toISOString(),
-      activeTargetCount,
-      remainingEstimatedMinutes,
-      estimatedEndAt: estimatedEndAt?.toISOString(),
-    });
-    console.table(remainingEstimate.breakdown);
-    console.groupEnd();
-  }, [
-    activeTargetCount,
-    etaDebugEnabled,
-    estimatedEndAt,
-    nowTimestamp,
-    remainingEstimate.breakdown,
-    remainingEstimatedMinutes,
-    view.id,
-  ]);
 
   useEffect(() => {
     if (!estimatedEndAt || remainingEstimatedMinutes <= 0) {
@@ -1264,8 +1233,7 @@ const LiveTournamentView = ({
         if (!isCancelled) {
           setGroupNameByPlayerId(nextMap);
         }
-      } catch (error_) {
-        console.error('[LiveTournamentView] Failed to load group labels:', error_);
+      } catch {
         if (!isCancelled) {
           setGroupNameByPlayerId(new Map());
         }

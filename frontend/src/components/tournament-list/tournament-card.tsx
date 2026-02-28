@@ -1,4 +1,4 @@
-import type { Tournament, Translator } from './types';
+import type { Tournament, Translator, UserTournamentGroupStatus } from './types';
 
 export type TournamentCardProperties = {
   tournament: Tournament;
@@ -11,6 +11,8 @@ export type TournamentCardProperties = {
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
   onRegister: (tournamentId: string) => void;
+  onRegisterGroup: (tournamentId: string) => void;
+  onUnregisterGroup: (tournamentId: string) => void;
   onUnregister: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
@@ -25,6 +27,7 @@ export type TournamentCardProperties = {
   autoFillingTournamentId?: string | undefined;
   confirmingTournamentId?: string | undefined;
   userRegistrations: Set<string>;
+  userGroupStatus: UserTournamentGroupStatus | undefined;
 };
 
 type TournamentAdminActionProperties = {
@@ -49,12 +52,118 @@ type TournamentAdminActionProperties = {
 type TournamentRegistrationActionProperties = {
   tournamentFormat: string;
   tournamentId: string;
+  isAdmin: boolean;
   showRegistrationActions: boolean;
   isRegistered: boolean;
+  userGroupStatus: UserTournamentGroupStatus | undefined;
   registeringTournamentId?: string | undefined;
   onRegister: (tournamentId: string) => void;
+  onRegisterGroup: (tournamentId: string) => void;
+  onUnregisterGroup: (tournamentId: string) => void;
   onUnregister: (tournamentId: string) => void;
   t: Translator;
+};
+
+const isGroupFormat = (format: string): format is 'DOUBLE' | 'TEAM_4_PLAYER' => (
+  format === 'DOUBLE' || format === 'TEAM_4_PLAYER'
+);
+
+const getGroupViewHref = (format: 'DOUBLE' | 'TEAM_4_PLAYER', tournamentId: string): string => (
+  format === 'DOUBLE'
+    ? `/?view=doublettes&tournamentId=${tournamentId}`
+    : `/?view=equipes&tournamentId=${tournamentId}`
+);
+
+const getGroupCreateLabelKey = (format: 'DOUBLE' | 'TEAM_4_PLAYER'): string => (
+  format === 'DOUBLE' ? 'tournaments.createOwnDoublette' : 'tournaments.createOwnEquipe'
+);
+
+const getGroupRegisterLabel = ({
+  tournamentFormat,
+  registeringTournamentId,
+  tournamentId,
+  isGroupRegistered,
+  t,
+}: {
+  tournamentFormat: 'DOUBLE' | 'TEAM_4_PLAYER';
+  registeringTournamentId: string | undefined;
+  tournamentId: string;
+  isGroupRegistered: boolean;
+  t: Translator;
+}): string => {
+  if (registeringTournamentId === tournamentId) {
+    return t('common.loading');
+  }
+  if (isGroupRegistered) {
+    return t('tournaments.registered');
+  }
+  return tournamentFormat === 'DOUBLE' ? t('groups.registerDoublette') : t('groups.registerEquipe');
+};
+
+const GroupRegistrationAction = ({
+  tournamentFormat,
+  tournamentId,
+  isAdmin,
+  userGroupStatus,
+  registeringTournamentId,
+  onRegisterGroup,
+  onUnregisterGroup,
+  t,
+}: {
+  tournamentFormat: 'DOUBLE' | 'TEAM_4_PLAYER';
+  tournamentId: string;
+  isAdmin: boolean;
+  userGroupStatus: UserTournamentGroupStatus | undefined;
+  registeringTournamentId: string | undefined;
+  onRegisterGroup: (tournamentId: string) => void;
+  onUnregisterGroup: (tournamentId: string) => void;
+  t: Translator;
+}) => {
+  if (!userGroupStatus?.hasGroup) {
+    return (
+      <a
+        href={getGroupViewHref(tournamentFormat, tournamentId)}
+        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:w-auto"
+      >
+        {t(getGroupCreateLabelKey(tournamentFormat))}
+      </a>
+    );
+  }
+
+  const disabled =
+    registeringTournamentId === tournamentId
+    || !userGroupStatus.isGroupComplete
+    || userGroupStatus.isGroupRegistered;
+
+  if (userGroupStatus.isGroupRegistered && (userGroupStatus.isGroupCaptain || isAdmin)) {
+    return (
+      <button
+        onClick={() => onUnregisterGroup(tournamentId)}
+        disabled={registeringTournamentId === tournamentId}
+        className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        {registeringTournamentId === tournamentId
+          ? t('common.loading')
+          : t('tournaments.unregister')}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onRegisterGroup(tournamentId)}
+      disabled={disabled}
+      className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+    >
+      {getGroupRegisterLabel({
+        tournamentFormat,
+        registeringTournamentId,
+        tournamentId,
+        isGroupRegistered: userGroupStatus.isGroupRegistered,
+        t,
+      })}
+    </button>
+  );
 };
 
 const TournamentAdminActions = ({
@@ -138,10 +247,14 @@ const TournamentAdminActions = ({
 const TournamentRegistrationActions = ({
   tournamentFormat,
   tournamentId,
+  isAdmin,
   showRegistrationActions,
   isRegistered,
+  userGroupStatus,
   registeringTournamentId,
   onRegister,
+  onRegisterGroup,
+  onUnregisterGroup,
   onUnregister,
   t,
 }: TournamentRegistrationActionProperties) => {
@@ -149,25 +262,18 @@ const TournamentRegistrationActions = ({
     return null;
   }
 
-  if (tournamentFormat === 'DOUBLE') {
+  if (isGroupFormat(tournamentFormat)) {
     return (
-      <a
-        href={`/?view=doublettes&tournamentId=${tournamentId}`}
-        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:w-auto"
-      >
-        {t('tournaments.register')}
-      </a>
-    );
-  }
-
-  if (tournamentFormat === 'TEAM_4_PLAYER') {
-    return (
-      <a
-        href={`/?view=equipes&tournamentId=${tournamentId}`}
-        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:w-auto"
-      >
-        {t('tournaments.register')}
-      </a>
+      <GroupRegistrationAction
+        tournamentFormat={tournamentFormat}
+        tournamentId={tournamentId}
+        isAdmin={isAdmin}
+        userGroupStatus={userGroupStatus}
+        registeringTournamentId={registeringTournamentId}
+        onRegisterGroup={onRegisterGroup}
+        onUnregisterGroup={onUnregisterGroup}
+        t={t}
+      />
     );
   }
 
@@ -209,6 +315,8 @@ const TournamentCard = ({
   onEdit,
   onDelete,
   onRegister,
+  onRegisterGroup,
+  onUnregisterGroup,
   onUnregister,
   onOpenRegistration,
   onOpenSignature,
@@ -223,6 +331,7 @@ const TournamentCard = ({
   autoFillingTournamentId,
   confirmingTournamentId,
   userRegistrations,
+  userGroupStatus,
 }: TournamentCardProperties) => {
   const isLive = normalizedStatus === 'LIVE';
   const isFinished = normalizedStatus === 'FINISHED';
@@ -342,10 +451,14 @@ const TournamentCard = ({
         <TournamentRegistrationActions
           tournamentFormat={tournament.format}
           tournamentId={tournamentId}
+            isAdmin={isAdmin}
           registeringTournamentId={registeringTournamentId}
           showRegistrationActions={showRegistrationActions}
           isRegistered={isRegistered}
+          userGroupStatus={userGroupStatus}
           onRegister={onRegister}
+          onRegisterGroup={onRegisterGroup}
+            onUnregisterGroup={onUnregisterGroup}
           onUnregister={onUnregister}
           t={t}
         />

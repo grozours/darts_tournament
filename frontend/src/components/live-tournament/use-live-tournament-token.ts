@@ -31,7 +31,6 @@ const useLiveTournamentToken = ({
           await wait(400);
           continue;
         }
-        console.warn('Failed to get access token, proceeding without auth:', error);
         return undefined;
       }
     }

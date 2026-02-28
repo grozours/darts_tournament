@@ -53,7 +53,6 @@ const useLiveTournamentMatchUpdate = ({
         clearMatchTargetSelection(matchKey);
       }
     } catch (error) {
-      console.error('Error updating match status:', error);
       setError(error instanceof Error ? error.message : 'Failed to update match status');
     } finally {
       setUpdatingMatchId(undefined);
@@ -81,7 +80,6 @@ const useLiveTournamentMatchUpdate = ({
       setUpdatingMatchId(undefined);
       await reloadLiveViews({ showLoader: false });
     } catch (error_) {
-      console.error('Error completing match:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to complete match');
     } finally {
       setUpdatingMatchId(undefined);
@@ -110,7 +108,6 @@ const useLiveTournamentMatchUpdate = ({
       await reloadLiveViews({ showLoader: false });
       onSavedMatchScores();
     } catch (error_) {
-      console.error('Error updating match scores:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to update match scores');
     } finally {
       setUpdatingMatchId(undefined);

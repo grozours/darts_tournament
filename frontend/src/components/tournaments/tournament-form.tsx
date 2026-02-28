@@ -323,7 +323,6 @@ export default function TournamentForm({
       resetForm();
       onSubmit(result);
     } catch (error) {
-      console.error('Failed to create tournament', error);
       const errorMessage = error instanceof Error ? error.message : t('tournamentForm.errors.failedCreate');
       setErrors((previous) => ({ ...previous, submit: errorMessage }));
     } finally {

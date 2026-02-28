@@ -3,6 +3,10 @@
 ## Objectif
 Suivre ses matchs en direct et recevoir les appels vers une cible.
 
+## Inscription simple / doublette / équipe
+- Guide illustre: [Rejoindre un tournoi](JOIN_TOURNAMENT.fr.md)
+- Gestion d'équipe (joueur/capitaine): [S'inscrire et gérer son équipe](JOIN_TOURNAMENT.fr.md#5-gerer-ton-equipe)
+
 ## Demarrer
 - Ouvrir l'application.
 - Aller sur la page `Notifications` et se connecter.

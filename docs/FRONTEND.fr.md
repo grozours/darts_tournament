@@ -542,12 +542,15 @@ VITE_AUTH_ENABLED=true
 VITE_AUTH0_DOMAIN=your-tenant.eu.auth0.com
 VITE_AUTH0_CLIENT_ID=your_client_id
 VITE_AUTH0_AUDIENCE=https://api.yourdomain.com
+VITE_AUTH0_CACHE_LOCATION=memory
 
 # Optionnel : override des connexions
 VITE_AUTH0_CONNECTION_GOOGLE=google-oauth2
 VITE_AUTH0_CONNECTION_FACEBOOK=facebook
 VITE_AUTH0_CONNECTION_INSTAGRAM=instagram
 ```
+
+`VITE_AUTH0_CACHE_LOCATION` accepte `memory` (recommandé) ou `localstorage`.
 
 **Note :** Toutes les variables doivent commencer par `VITE_` pour être exposées au client.
 

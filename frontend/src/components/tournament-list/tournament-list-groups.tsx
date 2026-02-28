@@ -1,5 +1,10 @@
 import TournamentCard from './tournament-card';
-import type { Tournament, TournamentListGroup, Translator } from './types';
+import type {
+  Tournament,
+  TournamentListGroup,
+  Translator,
+  UserTournamentGroupStatus,
+} from './types';
 
 type TournamentListGroupsProperties = {
   groupedTournaments: TournamentListGroup[];
@@ -8,6 +13,7 @@ type TournamentListGroupsProperties = {
   isAuthenticated: boolean;
   t: Translator;
   userRegistrations: Set<string>;
+  userGroupStatuses: Record<string, UserTournamentGroupStatus>;
   hideOpenSignatureAction?: boolean;
   showOpenAutoFillAction?: boolean;
   showSignatureAutoConfirmAction?: boolean;
@@ -23,6 +29,8 @@ type TournamentListGroupsProperties = {
   onEdit: (tournament: Tournament) => void;
   onDelete: (tournamentId: string) => void;
   onRegister: (tournamentId: string) => void;
+  onRegisterGroup: (tournamentId: string) => void;
+  onUnregisterGroup: (tournamentId: string) => void;
   onUnregister: (tournamentId: string) => void;
 };
 
@@ -33,6 +41,7 @@ const TournamentListGroups = ({
   isAuthenticated,
   t,
   userRegistrations,
+  userGroupStatuses,
   hideOpenSignatureAction = false,
   showOpenAutoFillAction = false,
   showSignatureAutoConfirmAction = false,
@@ -44,6 +53,8 @@ const TournamentListGroups = ({
   onEdit,
   onDelete,
   onRegister,
+  onRegisterGroup,
+  onUnregisterGroup,
   onUnregister,
   onOpenRegistration,
   onOpenSignature,
@@ -86,6 +97,8 @@ const TournamentListGroups = ({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onRegister={onRegister}
+                  onRegisterGroup={onRegisterGroup}
+                  onUnregisterGroup={onUnregisterGroup}
                   onUnregister={onUnregister}
                   onOpenRegistration={onOpenRegistration}
                   onOpenSignature={onOpenSignature}
@@ -100,6 +113,7 @@ const TournamentListGroups = ({
                   autoFillingTournamentId={autoFillingTournamentId}
                   confirmingTournamentId={confirmingTournamentId}
                   userRegistrations={userRegistrations}
+                  userGroupStatus={userGroupStatuses[tournament.id]}
                 />
               );
             })}

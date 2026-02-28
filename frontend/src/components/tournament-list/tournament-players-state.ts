@@ -116,7 +116,6 @@ const usePlayersFetch = ({
     const data = await fetchTournamentPlayers(tournamentId, token);
     setPlayers(data);
   } catch (error_) {
-    console.error('Error fetching players:', error_);
     setPlayersError(t('edit.error.failedLoadPlayers'));
   } finally {
     setPlayersLoading(false);

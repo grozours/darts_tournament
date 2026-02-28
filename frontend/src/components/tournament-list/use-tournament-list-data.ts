@@ -31,18 +31,13 @@ const useTournamentListData = (
 
     try {
       const token = await getSafeAccessToken();
-      console.log('[TournamentList] Fetching tournaments, token:', token ? 'present' : 'none');
       const response = await fetch('/api/tournaments', token
         ? { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
         : { cache: 'no-store' });
-      console.log('[TournamentList] Response status:', response.status, response.statusText);
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[TournamentList] Response error:', errorText);
         throw new Error(`Failed to fetch tournaments: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
-      console.log('[TournamentList] Received tournaments:', data.tournaments?.length || 0);
       const normalizedTournaments = (data.tournaments || []).map((item: Tournament) => {
         const fallbackLogoUrl = (item as Tournament & { logo_url?: string }).logo_url;
         return {
@@ -54,7 +49,6 @@ const useTournamentListData = (
         setTournaments(normalizedTournaments);
       }
     } catch (error_) {
-      console.error('[TournamentList] Error fetching tournaments:', error_);
       if (requestId === latestFetchRequestId.current) {
         setError(error_ instanceof Error ? error_.message : 'Failed to fetch tournaments');
       }
@@ -80,8 +74,7 @@ const useTournamentListData = (
       } else {
         alert('Failed to delete tournament');
       }
-    } catch (error_) {
-      console.error('Error deleting tournament:', error_);
+    } catch {
       alert('Failed to delete tournament');
     }
   }, [fetchTournaments, getSafeAccessToken]);

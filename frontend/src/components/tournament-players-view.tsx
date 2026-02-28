@@ -52,8 +52,7 @@ function TournamentPlayersView() {
     if (!authEnabled) return undefined;
     try {
       return await getAccessTokenSilently();
-    } catch (error_) {
-      console.warn('[TournamentPlayersView] Failed to get access token:', error_);
+    } catch {
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -77,8 +76,8 @@ function TournamentPlayersView() {
           totalParticipants: data.totalParticipants,
         });
       }
-    } catch (error_) {
-      console.error('[TournamentPlayersView] Error fetching tournament:', error_);
+    } catch {
+      void 0;
     }
   }, [getSafeAccessToken]);
 
@@ -91,7 +90,6 @@ function TournamentPlayersView() {
       const playerList = await fetchTournamentPlayers(id, token);
       setPlayers(playerList);
     } catch (error_) {
-      console.error('[TournamentPlayersView] Error fetching players:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to load players');
     } finally {
       setLoading(false);
@@ -114,7 +112,6 @@ function TournamentPlayersView() {
         setGroups([]);
       }
     } catch (error_) {
-      console.error('[TournamentPlayersView] Error fetching groups:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to load groups');
     } finally {
       setLoading(false);
@@ -142,7 +139,6 @@ function TournamentPlayersView() {
           : entry
       )));
     } catch (error_) {
-      console.error('[TournamentPlayersView] Error confirming presence:', error_);
       alert(error_ instanceof Error ? error_.message : t('players.confirmPresenceFailed'));
     } finally {
       setCheckingInId(undefined);
@@ -172,7 +168,6 @@ function TournamentPlayersView() {
       await removeTournamentPlayer(tournamentId, player.playerId, token);
       setPlayers((current) => current.filter((entry) => entry.playerId !== player.playerId));
     } catch (error_) {
-      console.error('[TournamentPlayersView] Error removing player:', error_);
       alert(error_ instanceof Error ? error_.message : t('players.deleteFailed'));
     } finally {
       setRemovingPlayerId(undefined);

@@ -56,7 +56,6 @@ const useLiveTournamentBracketActions = ({
       await completeBracketRoundWithScores(matchTournamentId, bracket.id, roundNumber, token);
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error completing bracket round:', error);
       setError(error instanceof Error ? error.message : 'Failed to complete bracket round');
     } finally {
       setUpdatingRoundKey(undefined);
@@ -78,7 +77,6 @@ const useLiveTournamentBracketActions = ({
       await resetBracketMatches(matchTournamentId, bracketId, token);
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error resetting bracket matches:', error);
       setError(error instanceof Error ? error.message : 'Failed to reset bracket matches');
     } finally {
       setResettingBracketId(undefined);
@@ -97,7 +95,6 @@ const useLiveTournamentBracketActions = ({
         await populateBracketFromPools(matchTournamentId, bracketId, stage.id, undefined, token);
         await reloadLiveViews({ showLoader: false });
       } catch (error) {
-        console.error('Error populating bracket from pools:', error);
         setError(error instanceof Error ? error.message : 'Failed to populate bracket');
       } finally {
         setPopulatingBracketId(undefined);

@@ -337,6 +337,21 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     }
   },
 
+  markDoubletteUnregistered: async (doubletteId: string) => {
+    try {
+      return await groupPrisma.doublette.update({
+        where: { id: doubletteId },
+        data: {
+          isRegistered: false,
+          registeredAt: null,
+        },
+      });
+    } catch (error) {
+      logModelError('markDoubletteUnregistered', error);
+      throw new AppError('Failed to unregister doublette', 500, 'DOUBLETTE_UNREGISTER_FAILED');
+    }
+  },
+
   deleteDoublette: async (doubletteId: string) => {
     try {
       await groupPrisma.doublette.delete({
@@ -582,6 +597,21 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     } catch (error) {
       logModelError('markEquipeRegistered', error);
       throw new AppError('Failed to register equipe', 500, 'EQUIPE_REGISTER_FAILED');
+    }
+  },
+
+  markEquipeUnregistered: async (equipeId: string) => {
+    try {
+      return await groupPrisma.equipe.update({
+        where: { id: equipeId },
+        data: {
+          isRegistered: false,
+          registeredAt: null,
+        },
+      });
+    } catch (error) {
+      logModelError('markEquipeUnregistered', error);
+      throw new AppError('Failed to unregister equipe', 500, 'EQUIPE_UNREGISTER_FAILED');
     }
   },
 

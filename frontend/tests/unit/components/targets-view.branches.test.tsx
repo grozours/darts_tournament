@@ -5,9 +5,9 @@ import { TournamentFormat } from '@shared/types';
 
 const fetchDoublettesMock = vi.fn();
 const fetchEquipesMock = vi.fn();
-const useTargetsViewDataMock = vi.fn();
-const useTargetsViewDerivedMock = vi.fn();
-const useTargetsViewActionsMock = vi.fn();
+const targetsViewDataMock = vi.fn();
+const targetsViewDerivedMock = vi.fn();
+const targetsViewActionsMock = vi.fn();
 const translate = (key: string) => key;
 
 vi.mock('../../../src/i18n', () => ({
@@ -28,15 +28,15 @@ vi.mock('../../../src/services/tournament-service', () => ({
 }));
 
 vi.mock('../../../src/components/targets-view/use-targets-view-data', () => ({
-  default: (...args: unknown[]) => useTargetsViewDataMock(...args),
+  default: (...args: unknown[]) => targetsViewDataMock(...args),
 }));
 
 vi.mock('../../../src/components/targets-view/use-targets-view-derived', () => ({
-  default: (...args: unknown[]) => useTargetsViewDerivedMock(...args),
+  default: (...args: unknown[]) => targetsViewDerivedMock(...args),
 }));
 
 vi.mock('../../../src/components/targets-view/use-targets-view-actions', () => ({
-  default: (...args: unknown[]) => useTargetsViewActionsMock(...args),
+  default: (...args: unknown[]) => targetsViewActionsMock(...args),
 }));
 
 vi.mock('../../../src/components/targets-view/targets-view-state', () => ({
@@ -87,22 +87,22 @@ describe('TargetsView branches', () => {
     fetchEquipesMock.mockReset();
     fetchDoublettesMock.mockResolvedValue([]);
     fetchEquipesMock.mockResolvedValue([]);
-    useTargetsViewActionsMock.mockReturnValue(buildActionsState());
+    targetsViewActionsMock.mockReturnValue(buildActionsState());
   });
 
   it('renders state view for loading/error/empty derived branches', () => {
-    useTargetsViewDataMock.mockReturnValue(buildDataState({ loading: true }));
-    useTargetsViewDerivedMock.mockReturnValue(buildDerivedState());
+    targetsViewDataMock.mockReturnValue(buildDataState({ loading: true }));
+    targetsViewDerivedMock.mockReturnValue(buildDerivedState());
 
     const { rerender } = render(<TargetsView />);
     expect(screen.getByText('TARGETS_STATE')).toBeInTheDocument();
 
-    useTargetsViewDataMock.mockReturnValue(buildDataState({ error: 'boom' }));
+    targetsViewDataMock.mockReturnValue(buildDataState({ error: 'boom' }));
     rerender(<TargetsView />);
     expect(screen.getByText('TARGETS_STATE')).toBeInTheDocument();
 
-    useTargetsViewDataMock.mockReturnValue(buildDataState());
-    useTargetsViewDerivedMock.mockReturnValue(buildDerivedState({ scopedViews: [] }));
+    targetsViewDataMock.mockReturnValue(buildDataState());
+    targetsViewDerivedMock.mockReturnValue(buildDerivedState({ scopedViews: [] }));
     rerender(<TargetsView />);
     expect(screen.getByText('TARGETS_STATE')).toBeInTheDocument();
   });
@@ -117,11 +117,11 @@ describe('TargetsView branches', () => {
         members: [{ playerId: 'p1' }, { playerId: 'p2' }],
       },
     ]);
-    useTargetsViewDataMock.mockReturnValue(buildDataState({
+    targetsViewDataMock.mockReturnValue(buildDataState({
       getSafeAccessToken,
       liveViews: [{ id: 't1', status: 'LIVE', format: TournamentFormat.DOUBLE }],
     }));
-    useTargetsViewDerivedMock.mockReturnValue(buildDerivedState({
+    targetsViewDerivedMock.mockReturnValue(buildDerivedState({
       scopedViews: [{ id: 't1' }],
       sharedTargets: [],
     }));
@@ -138,15 +138,14 @@ describe('TargetsView branches', () => {
   it('loads TEAM group labels and handles service failures', async () => {
     globalThis.history.pushState({}, '', '/?tournamentId=t2');
     const getSafeAccessToken = vi.fn(async () => 'token');
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     fetchEquipesMock.mockRejectedValueOnce(new Error('groups failed'));
 
-    useTargetsViewDataMock.mockReturnValue(buildDataState({
+    targetsViewDataMock.mockReturnValue(buildDataState({
       getSafeAccessToken,
       liveViews: [{ id: 't2', status: 'LIVE', format: TournamentFormat.TEAM_4_PLAYER }],
     }));
-    useTargetsViewDerivedMock.mockReturnValue(buildDerivedState({
+    targetsViewDerivedMock.mockReturnValue(buildDerivedState({
       scopedViews: [{ id: 't2' }],
       sharedTargets: [],
     }));
@@ -156,6 +155,5 @@ describe('TargetsView branches', () => {
     await waitFor(() => {
       expect(fetchEquipesMock).toHaveBeenCalledWith('t2', 'token');
     });
-    expect(consoleSpy).toHaveBeenCalled();
   });
 });

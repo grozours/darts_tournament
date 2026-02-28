@@ -3,6 +3,10 @@
 ## Objectif
 Piloter le tournoi du debut a la fin.
 
+## Inscriptions joueurs (simple / doublette / équipe)
+- Guide illustre: [Rejoindre un tournoi](JOIN_TOURNAMENT.fr.md)
+- Gestion d'équipe (suivi capitaine et inscription): [S'inscrire et gérer son équipe](JOIN_TOURNAMENT.fr.md#5-gerer-ton-equipe)
+
 ## Etapes d'un tournoi
 1. Creation : nom, format, dates, nombre de cibles.
 2. Inscriptions : joueurs enregistres et pointage.

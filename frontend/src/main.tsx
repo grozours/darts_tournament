@@ -27,22 +27,6 @@ const root = createRoot(rootElement);
 const auth0Domain = getEnvironmentValue('VITE_AUTH0_DOMAIN');
 const auth0ClientId = getEnvironmentValue('VITE_AUTH0_CLIENT_ID');
 const auth0Audience = getEnvironmentValue('VITE_AUTH0_AUDIENCE');
-const isDebugAuth0 = import.meta.env.VITE_DEBUG_AUTH0 === 'true';
-
-if (isDebugAuth0) {
-  console.log('[main.tsx] 🚀 Starting application with Auth0 config:', {
-    domain: auth0Domain || '(not set)',
-    clientId: auth0ClientId ? `${auth0ClientId.slice(0, 8)}...` : '(not set)',
-    audience: auth0Audience || '(not set)',
-    hasAll: !!(auth0Domain && auth0ClientId && auth0Audience),
-  });
-
-  if (!auth0Audience) {
-    console.warn('[main.tsx] ⚠️ VITE_AUTH0_AUDIENCE is not set!');
-    console.warn('[main.tsx] ⚠️ Access tokens will NOT contain email claim!');
-    console.warn('[main.tsx] ⚠️ Admin authentication will fail!');
-  }
-}
 
 root.render(
   <StrictMode>

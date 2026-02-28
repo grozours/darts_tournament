@@ -163,7 +163,6 @@ const useBracketLoaders = ({
       setIsAddingBracket(false);
       setIsBracketRoundsAuto(true);
     } catch (error_) {
-      console.error('Error fetching brackets:', error_);
       setBracketsError(error_ instanceof Error ? error_.message : t('edit.error.failedLoadBrackets'));
     }
   }, [getSafeAccessToken, setBrackets, setBracketsError, setIsAddingBracket, setIsBracketRoundsAuto, t]);
@@ -178,7 +177,6 @@ const useBracketLoaders = ({
       const data = await fetchTournamentTargets(tournamentId, token);
       setTargets(data);
     } catch (error_) {
-      console.error('Error fetching targets:', error_);
       setTargetsError(error_ instanceof Error ? error_.message : t('edit.error.failedLoadTargets'));
     }
   }, [authEnabled, getSafeAccessToken, setTargets, setTargetsError, t]);

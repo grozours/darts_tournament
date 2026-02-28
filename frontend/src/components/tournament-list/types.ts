@@ -50,6 +50,14 @@ export type TournamentListGroup = {
   items: Tournament[];
 };
 
+export type UserTournamentGroupStatus = {
+  groupId: string | undefined;
+  hasGroup: boolean;
+  isGroupCaptain: boolean;
+  isGroupComplete: boolean;
+  isGroupRegistered: boolean;
+};
+
 export type PoolStageAssignmentsState = Record<string, string[]>;
 
 export type PlayerFormState = CreatePlayerPayload;

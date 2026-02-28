@@ -39,7 +39,9 @@ const stripMatchTarget = (
   if (match.targetId) {
     releasedTargetIds.add(match.targetId);
   }
-  const { targetId: _targetId, target: _target, ...matchWithoutTarget } = match;
+  const matchWithoutTarget = Object.fromEntries(
+    Object.entries(match).filter(([key]) => key !== 'targetId' && key !== 'target')
+  ) as Omit<LiveViewMatch, 'targetId' | 'target'>;
   return {
     ...matchWithoutTarget,
     status,
@@ -130,7 +132,9 @@ const updateTargetsOptimistically = (
 
   return targets.map((target) => {
     if (releasedTargetIds.has(target.id) || target.currentMatchId === matchId) {
-      const { currentMatchId: _currentMatchId, ...targetWithoutCurrentMatch } = target;
+      const targetWithoutCurrentMatch = Object.fromEntries(
+        Object.entries(target).filter(([key]) => key !== 'currentMatchId')
+      ) as Omit<typeof target, 'currentMatchId'>;
       return {
         ...targetWithoutCurrentMatch,
         status: 'AVAILABLE',
@@ -220,7 +224,6 @@ const useTargetsViewActions = ({
       await updateMatchStatus(matchTournament.tournamentId, match.id, 'SCHEDULED', undefined, token);
       await loadTargets({ silent: true });
     } catch (error_) {
-      console.error('Error cancelling match:', error_);
       setError(error_ instanceof Error ? error_.message : t('targets.error'));
       await loadTargets({ silent: true });
     } finally {

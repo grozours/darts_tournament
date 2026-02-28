@@ -68,7 +68,6 @@ const useLiveTournamentMatchActions = ({
       await resetPoolMatches(tournamentId, stageId, poolId, token);
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error resetting pool matches:', error);
       setError(error instanceof Error ? error.message : 'Failed to reset pool matches');
     } finally {
       setResettingPoolId(undefined);

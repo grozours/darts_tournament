@@ -31,7 +31,7 @@ describe('NotificationsView branches', () => {
 
     globalThis.window.localStorage.clear();
 
-    const notificationMock = vi.fn() as any;
+    const notificationMock = vi.fn() as unknown as typeof Notification;
     notificationMock.permission = 'default';
     notificationMock.requestPermission = vi.fn(async () => 'granted');
     globalThis.Notification = notificationMock as unknown as typeof Notification;
@@ -146,10 +146,9 @@ describe('NotificationsView branches', () => {
   });
 
   it('handles invalid stored notifications JSON and permission request failures', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     globalThis.window.localStorage.setItem('notifications:match-started', '{broken-json');
 
-    const notificationMock = vi.fn() as any;
+    const notificationMock = vi.fn() as unknown as typeof Notification;
     notificationMock.permission = 'default';
     notificationMock.requestPermission = vi.fn(async () => {
       throw new Error('permission failed');
@@ -172,7 +171,7 @@ describe('NotificationsView branches', () => {
     fireEvent.click(screen.getByRole('button', { name: 'notifications.permissionAction' }));
 
     await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalled();
+      expect(notificationMock.requestPermission).toHaveBeenCalled();
     });
   });
 });

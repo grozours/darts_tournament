@@ -33,7 +33,6 @@ const useLiveTournamentPlayerIds = ({
       const matched = players.find((player) => (player.email ?? '').toLowerCase() === userEmail);
       return matched ? ([viewId, matched.playerId] as const) : undefined;
     } catch (error) {
-      console.warn(`[LiveTournament] Failed to load players for ${viewId}:`, error);
       return;
     }
   }, [userEmail]);

@@ -35,7 +35,6 @@ const useTargetsViewData = ({
     try {
       return await getAccessTokenSilently();
     } catch (error_) {
-      console.warn('Failed to get access token, proceeding without auth:', error_);
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -61,7 +60,6 @@ const useTargetsViewData = ({
       const views = await fetchLiveViews(token);
       setLiveViews(views);
     } catch (error_) {
-      console.error('Error fetching targets view:', error_);
       if (!isSilent) {
         setError(error_ instanceof Error ? error_.message : t('targets.error'));
       }

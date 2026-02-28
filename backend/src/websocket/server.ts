@@ -1,6 +1,8 @@
 import { Server as SocketServer, Socket } from 'socket.io';
+import type { Request, Response } from 'express';
 import { redis } from '../config/redis';
 import { config } from '../config/environment';
+import { requireAuth } from '../middleware/auth';
 import logger from '../utils/logger';
 
 type PlayerSummary = {
@@ -89,14 +91,89 @@ export interface WebSocketEvents {
   'disconnect': (reason: string) => void;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: string): boolean => UUID_PATTERN.test(value);
+
+const toHeaderValue = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value) && typeof value[0] === 'string') {
+    return value[0];
+  }
+  return undefined;
+};
+
+const resolveHandshakeAuthorization = (socket: Socket): string | undefined => {
+  const tokenCandidate = socket.handshake.auth?.token;
+  if (typeof tokenCandidate === 'string' && tokenCandidate.trim()) {
+    const trimmedToken = tokenCandidate.trim();
+    return trimmedToken.startsWith('Bearer ') ? trimmedToken : `Bearer ${trimmedToken}`;
+  }
+
+  const headerAuthorization = toHeaderValue(socket.handshake.headers.authorization);
+  if (headerAuthorization?.trim()) {
+    return headerAuthorization.trim();
+  }
+
+  return undefined;
+};
+
+const authenticateSocket = async (socket: Socket): Promise<boolean> => {
+  if (!config.auth.enabled) {
+    return true;
+  }
+
+  const authorizationHeader = resolveHandshakeAuthorization(socket);
+
+  const request = {
+    headers: {
+      ...socket.handshake.headers,
+      ...(authorizationHeader ? { authorization: authorizationHeader } : {}),
+    },
+    query: socket.handshake.query,
+    correlationId: undefined,
+  } as unknown as Request;
+
+  const response = {
+    status: () => response,
+    json: () => response,
+    setHeader: () => response,
+    removeHeader: () => response,
+  } as unknown as Response;
+
+  const isAuthenticated = await new Promise<boolean>((resolve) => {
+    requireAuth(request, response, (error?: unknown) => {
+      if (error) {
+        resolve(false);
+        return;
+      }
+      resolve(Boolean(request.auth?.payload));
+    });
+  });
+
+  if (isAuthenticated) {
+    socket.data.authPayload = request.auth?.payload;
+  }
+
+  return isAuthenticated;
+};
+
 const handleSocketConnection = (socket: Socket): void => {
   logger.debug('WebSocket client connected', {
     metadata: { socketId: socket.id },
   });
 
   socket.on('join-tournament', async (tournamentId: string) => {
-    if (!tournamentId || typeof tournamentId !== 'string') {
+    if (!tournamentId || typeof tournamentId !== 'string' || !isUuid(tournamentId)) {
       socket.emit('error', { message: 'Invalid tournament ID', code: 'INVALID_TOURNAMENT_ID' });
+      return;
+    }
+
+    const authenticated = await authenticateSocket(socket);
+    if (!authenticated) {
+      socket.emit('error', { message: 'Authentication required', code: 'UNAUTHORIZED' });
       return;
     }
 

@@ -65,7 +65,6 @@ function RegistrationPlayers() {
     try {
       return await getAccessTokenSilently();
     } catch (error_) {
-      console.warn('Failed to get access token, proceeding without auth:', error_);
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -123,7 +122,6 @@ function RegistrationPlayers() {
       setDoublettesByTournament(Object.fromEntries(doubletteEntries));
       setEquipesByTournament(Object.fromEntries(equipeEntries));
     } catch (error_) {
-      console.error('Error fetching registration players:', error_);
       setError(error_ instanceof Error ? error_.message : 'Failed to load registration players');
     } finally {
       setLoading(false);

@@ -29,6 +29,7 @@ type TournamentServiceLike = {
   removeDoubletteMember: (tournamentId: string, doubletteId: string, playerId: string) => Promise<unknown>;
   leaveDoublette: (tournamentId: string, doubletteId: string) => Promise<unknown>;
   registerDoublette: (tournamentId: string, doubletteId: string) => Promise<unknown>;
+  unregisterDoublette: (tournamentId: string, doubletteId: string) => Promise<unknown>;
   deleteDoublette: (tournamentId: string, doubletteId: string) => Promise<void>;
   updateDoublettePassword: (tournamentId: string, doubletteId: string, payload: { password: string }) => Promise<void>;
   listEquipes: (tournamentId: string, search?: string) => Promise<unknown[]>;
@@ -42,6 +43,7 @@ type TournamentServiceLike = {
   removeEquipeMember: (tournamentId: string, equipeId: string, playerId: string) => Promise<unknown>;
   leaveEquipe: (tournamentId: string, equipeId: string) => Promise<unknown>;
   registerEquipe: (tournamentId: string, equipeId: string) => Promise<unknown>;
+  unregisterEquipe: (tournamentId: string, equipeId: string) => Promise<unknown>;
   deleteEquipe: (tournamentId: string, equipeId: string) => Promise<void>;
   updateEquipePassword: (tournamentId: string, equipeId: string, payload: { password: string }) => Promise<void>;
   searchGroupPlayers: (tournamentId: string, query: string) => Promise<unknown[]>;
@@ -427,6 +429,16 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     }
   },
 
+  unregisterDoublette: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, doubletteId } = request.params as { id: string; doubletteId: string };
+      const doublette = await context.getTournamentService(request).unregisterDoublette(id, doubletteId);
+      response.json(doublette);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
   deleteDoublette: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id, doubletteId } = request.params as { id: string; doubletteId: string };
@@ -530,6 +542,16 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     try {
       const { id, equipeId } = request.params as { id: string; equipeId: string };
       const equipe = await context.getTournamentService(request).registerEquipe(id, equipeId);
+      response.json(equipe);
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  unregisterEquipe: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id, equipeId } = request.params as { id: string; equipeId: string };
+      const equipe = await context.getTournamentService(request).unregisterEquipe(id, equipeId);
       response.json(equipe);
     } catch (error) {
       context.handleError(response, error);

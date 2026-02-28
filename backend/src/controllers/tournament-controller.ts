@@ -47,6 +47,7 @@ export class TournamentController {
   public removeDoubletteMember!: (request: Request, response: Response) => Promise<void>;
   public leaveDoublette!: (request: Request, response: Response) => Promise<void>;
   public registerDoublette!: (request: Request, response: Response) => Promise<void>;
+  public unregisterDoublette!: (request: Request, response: Response) => Promise<void>;
   public deleteDoublette!: (request: Request, response: Response) => Promise<void>;
   public updateDoublettePassword!: (request: Request, response: Response) => Promise<void>;
   public listEquipes!: (request: Request, response: Response) => Promise<void>;
@@ -57,6 +58,7 @@ export class TournamentController {
   public removeEquipeMember!: (request: Request, response: Response) => Promise<void>;
   public leaveEquipe!: (request: Request, response: Response) => Promise<void>;
   public registerEquipe!: (request: Request, response: Response) => Promise<void>;
+  public unregisterEquipe!: (request: Request, response: Response) => Promise<void>;
   public deleteEquipe!: (request: Request, response: Response) => Promise<void>;
   public updateEquipePassword!: (request: Request, response: Response) => Promise<void>;
   public searchGroupPlayers!: (request: Request, response: Response) => Promise<void>;

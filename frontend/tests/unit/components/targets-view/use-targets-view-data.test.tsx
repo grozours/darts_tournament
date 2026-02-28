@@ -43,7 +43,6 @@ describe('useTargetsViewData', () => {
   });
 
   it('filters LIVE tournaments and fetches aggregate views with auth fallback', async () => {
-    const warningSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const getAccessTokenSilently = vi.fn(async () => {
       throw new Error('no token');
     });
@@ -64,11 +63,9 @@ describe('useTargetsViewData', () => {
     });
 
     expect(fetchLiveTournamentSummaryMock).toHaveBeenCalledWith(['LIVE'], undefined);
-    expect(warningSpy).toHaveBeenCalled();
   });
 
   it('throws on aggregate fetch failures and exposes setters', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const getAccessTokenSilently = vi.fn(async () => 'token');
     fetchLiveTournamentSummaryMock.mockRejectedValue(new Error('Failed to fetch live tournaments'));
 
@@ -88,6 +85,5 @@ describe('useTargetsViewData', () => {
 
     expect(result.current.error).toBe('manual-error');
     expect(result.current.liveViews).toEqual([{ id: 'manual' }]);
-    expect(errorSpy).toHaveBeenCalled();
   });
 });

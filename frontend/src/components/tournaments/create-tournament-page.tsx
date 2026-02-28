@@ -165,7 +165,6 @@ export default function CreateTournamentPage() {
         globalThis.window.location.href = '/?status=DRAFT';
       }
     } catch (error) {
-      console.error('Error creating tournament preset:', error);
       setPresetErrors({ submit: t('createTournament.errors.failed') });
     } finally {
       setPresetSubmitting(false);

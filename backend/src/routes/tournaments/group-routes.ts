@@ -56,6 +56,13 @@ export const registerTournamentGroupRoutes = (
     tournamentController.registerDoublette
   );
 
+  router.post(
+    '/:id/doublettes/:doubletteId/unregister',
+    requireAuth,
+    validate(doubletteRouteSchema),
+    tournamentController.unregisterDoublette
+  );
+
   router.patch(
     '/:id/doublettes/:doubletteId',
     requireAuth,
@@ -124,6 +131,13 @@ export const registerTournamentGroupRoutes = (
     requireAuth,
     validate(equipeRouteSchema),
     tournamentController.registerEquipe
+  );
+
+  router.post(
+    '/:id/equipes/:equipeId/unregister',
+    requireAuth,
+    validate(equipeRouteSchema),
+    tournamentController.unregisterEquipe
   );
 
   router.patch(

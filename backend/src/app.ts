@@ -9,7 +9,13 @@ import { config } from './config/environment';
 import { database } from './config/database';
 import { redis } from './config/redis';
 import { errorHandler } from './middleware/error-handler';
-import { securityMiddleware } from './middleware/security';
+import {
+  apiRateLimit,
+  authRateLimit,
+  cspMiddleware,
+  sanitizeMiddleware,
+  securityMiddleware,
+} from './middleware/security';
 import { validationMiddleware } from './middleware/validation';
 import { correlationIdMiddleware } from './middleware/correlation-id';
 import { optionalAuth } from './middleware/auth';
@@ -51,8 +57,10 @@ class App {
     );
 
     // Security middleware per constitution
+    this.app.disable('x-powered-by');
     this.app.use(helmet());
     this.app.use(securityMiddleware);
+    this.app.use(cspMiddleware);
 
     // CORS configuration
     this.app.use(
@@ -66,6 +74,7 @@ class App {
     // Body parsing middleware
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true }));
+    this.app.use(sanitizeMiddleware);
 
     // Serve static files (uploads)
     const uploadsDirectory = path.resolve(process.cwd(), config.upload.directory);
@@ -137,6 +146,8 @@ class App {
     });
 
     // API routes will be added here
+    this.app.use('/api', apiRateLimit);
+    this.app.use('/api/auth', authRateLimit);
     this.app.use('/api/tournaments', authMiddleware, tournamentRoutes);
     this.app.use('/api/auth', authMiddleware, authRoutes);
     

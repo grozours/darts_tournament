@@ -82,7 +82,6 @@ function TargetsView() {
           setGroupNameByPlayerIdByTournament(nextMap);
         }
       } catch (error_) {
-        console.error('[TargetsView] Failed to load group labels:', error_);
         if (!isCancelled) {
           setGroupNameByPlayerIdByTournament(new Map());
         }

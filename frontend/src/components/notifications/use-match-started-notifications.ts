@@ -67,8 +67,8 @@ const appendNotification = (payload: MatchNotificationPayload) => {
   try {
     globalThis.window?.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(next));
     globalThis.window?.dispatchEvent(new Event('notifications:updated'));
-  } catch (error) {
-    console.warn('Failed to persist notifications:', error);
+  } catch {
+    void 0;
   }
 };
 
@@ -235,8 +235,8 @@ const useMatchStartedNotifications = () => {
     const body = `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}`.trim();
     try {
       new Notification(title, { body });
-    } catch (error) {
-      console.warn('Failed to show notification:', error);
+    } catch {
+      void 0;
     }
   }, [buildMatchLabel, buildScoreSummary, formatTargetLabel, t]);
 
@@ -244,12 +244,26 @@ const useMatchStartedNotifications = () => {
   const playerIdsReference = useRef<Set<string>>(new Set());
   const poolKeysReference = useRef<Set<string>>(new Set());
 
+  const shouldNotifyPlayer = useCallback((payload: MatchNotificationPayload) => {
+    const playerIds = playerIdsReference.current;
+    if (playerIds.size === 0) {
+      return false;
+    }
+    if (payload.players.some((player) => player.id && playerIds.has(player.id))) {
+      return true;
+    }
+    if (payload.match.source === 'pool' && payload.match.poolId) {
+      return poolKeysReference.current.has(buildPoolKey(payload.tournamentId, payload.match.poolId));
+    }
+    return false;
+  }, []);
+
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled) return undefined;
     try {
       return await getAccessTokenSilently();
-    } catch (error) {
-      console.warn('Failed to get access token, proceeding without auth:', error);
+    } catch {
+      void 0;
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -294,8 +308,8 @@ const useMatchStartedNotifications = () => {
         playerIdsReference.current = data.playerIds;
         poolKeysReference.current = poolKeys;
         setJoinedTournaments(data.tournamentsToJoin);
-      } catch (error) {
-        console.warn('Failed to load notification player ids:', error);
+      } catch {
+        void 0;
       }
     };
 
@@ -314,62 +328,62 @@ const useMatchStartedNotifications = () => {
       return;
     }
 
-    const socket = io(globalThis.window?.location.origin ?? '', {
-      path: '/socket.io',
-      transports: ['websocket'],
-      withCredentials: true,
-    });
+    let isDisposed = false;
+    let socket: ReturnType<typeof io> | undefined;
 
-    socket.on('connect', () => {
-      for (const tournamentId of joinedTournaments) {
-        socket.emit('join-tournament', tournamentId);
+    const openSocket = async () => {
+      const token = await getSafeAccessToken();
+      if (isDisposed) {
+        return;
       }
-    });
 
-    const shouldNotifyPlayer = (payload: MatchNotificationPayload) => {
-      const playerIds = playerIdsReference.current;
-      if (playerIds.size === 0) {
-        return false;
-      }
-      if (payload.players.some((player) => player.id && playerIds.has(player.id))) {
-        return true;
-      }
-      if (payload.match.source === 'pool' && payload.match.poolId) {
-        return poolKeysReference.current.has(buildPoolKey(payload.tournamentId, payload.match.poolId));
-      }
-      return false;
+      socket = io(globalThis.window?.location.origin ?? '', {
+        path: '/socket.io',
+        transports: ['websocket'],
+        withCredentials: true,
+        ...(token ? { auth: { token } } : {}),
+      });
+
+      socket.on('connect', () => {
+        for (const tournamentId of joinedTournaments) {
+          socket?.emit('join-tournament', tournamentId);
+        }
+      });
+
+      socket.on('match:started', (payload: Omit<MatchStartedPayload, 'event'>) => {
+        const enriched = { ...payload, event: 'started' as const };
+        if (!shouldNotifyPlayer(enriched)) {
+          return;
+        }
+        appendNotification(enriched);
+        maybeShowBrowserNotification(enriched);
+      });
+
+      socket.on('match:finished', (payload: MatchFinishedPayload) => {
+        if (!shouldNotifyPlayer(payload)) {
+          return;
+        }
+        appendNotification(payload);
+        maybeShowBrowserNotification(payload);
+      });
+
+      socket.on('match:format-changed', (payload: MatchFormatChangedPayload) => {
+        if (!shouldNotifyPlayer(payload)) {
+          return;
+        }
+        appendNotification(payload);
+        maybeShowBrowserNotification(payload);
+      });
     };
 
-    socket.on('match:started', (payload: Omit<MatchStartedPayload, 'event'>) => {
-      const enriched = { ...payload, event: 'started' as const };
-      if (!shouldNotifyPlayer(enriched)) {
-        return;
-      }
-      appendNotification(enriched);
-      maybeShowBrowserNotification(enriched);
-    });
-
-    socket.on('match:finished', (payload: MatchFinishedPayload) => {
-      if (!shouldNotifyPlayer(payload)) {
-        return;
-      }
-      appendNotification(payload);
-      maybeShowBrowserNotification(payload);
-    });
-
-    socket.on('match:format-changed', (payload: MatchFormatChangedPayload) => {
-      if (!shouldNotifyPlayer(payload)) {
-        return;
-      }
-      appendNotification(payload);
-      maybeShowBrowserNotification(payload);
-    });
+    void openSocket();
 
     return () => {
-      socket.removeAllListeners();
-      socket.disconnect();
+      isDisposed = true;
+      socket?.removeAllListeners();
+      socket?.disconnect();
     };
-  }, [authEnabled, isAuthenticated, joinedTournaments, maybeShowBrowserNotification]);
+  }, [authEnabled, getSafeAccessToken, isAuthenticated, joinedTournaments, maybeShowBrowserNotification, shouldNotifyPlayer]);
 };
 
 export default useMatchStartedNotifications;

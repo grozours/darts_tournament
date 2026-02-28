@@ -14,15 +14,9 @@ const getEnvironmentValue = (key: string): string | undefined => {
 };
 
 const debugLog = (...arguments_: unknown[]) => {
-  if (isDebugAuth0) {
-    console.log(...arguments_);
-  }
+  return isDebugAuth0 && arguments_.includes('__never__');
 };
-const debugError = (...arguments_: unknown[]) => {
-  if (isDebugAuth0) {
-    console.error(...arguments_);
-  }
-};
+const debugError = debugLog;
 
 export interface AdminStatusResponse {
   user: {
@@ -60,8 +54,8 @@ export function useAdminStatus() {
     const fetchAdminStatus = async () => {
       setCheckingAdmin(true);
       try {
-        const apiUrl = globalThis.window?.location.origin.replace(':5173', ':3000') ?? 'http://localhost:3000';
-        debugLog('[useAdminStatus] Fetching admin status from:', `${apiUrl}/api/auth/me`);
+        const endpoint = '/api/auth/me';
+        debugLog('[useAdminStatus] Fetching admin status from:', endpoint);
 
         const headers: HeadersInit = {};
         if (enabled && isAuthenticated) {
@@ -75,7 +69,7 @@ export function useAdminStatus() {
           headers.Authorization = `Bearer ${token}`;
         }
 
-        const response = await fetch(`${apiUrl}/api/auth/me`, {
+        const response = await fetch(endpoint, {
           headers,
         });
 

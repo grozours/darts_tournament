@@ -55,7 +55,6 @@ const useLiveTournamentStageUpdate = ({
       );
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error launching pool stage:', error);
       setError(error instanceof Error ? error.message : 'Failed to launch pool stage');
     } finally {
       setUpdatingStageId(undefined);
@@ -78,7 +77,6 @@ const useLiveTournamentStageUpdate = ({
       );
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error resetting pool stage:', error);
       setError(error instanceof Error ? error.message : 'Failed to reset pool stage');
     } finally {
       setUpdatingStageId(undefined);
@@ -112,7 +110,6 @@ const useLiveTournamentStageUpdate = ({
       await reloadLiveViews({ showLoader: false });
       onFinishEdit();
     } catch (error) {
-      console.error('Error updating pool stage status:', error);
       setError(error instanceof Error ? error.message : 'Failed to update pool stage');
     } finally {
       setUpdatingStageId(undefined);
@@ -130,7 +127,6 @@ const useLiveTournamentStageUpdate = ({
       await deletePoolStage(stageTournamentId, stage.id, token);
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error deleting pool stage:', error);
       setError(error instanceof Error ? error.message : 'Failed to delete pool stage');
     } finally {
       setUpdatingStageId(undefined);
@@ -148,7 +144,6 @@ const useLiveTournamentStageUpdate = ({
       await completePoolStageWithScores(stageTournamentId, stage.id, token);
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error completing pool stage:', error);
       setError(error instanceof Error ? error.message : 'Failed to complete pool stage');
     } finally {
       setUpdatingStageId(undefined);
@@ -166,7 +161,6 @@ const useLiveTournamentStageUpdate = ({
       await recomputeDoubleStageProgression(stageTournamentId, stage.id, token);
       await reloadLiveViews({ showLoader: false });
     } catch (error) {
-      console.error('Error recomputing double-stage progression:', error);
       setError(error instanceof Error ? error.message : 'Failed to recompute double-stage progression');
     } finally {
       setUpdatingStageId(undefined);

@@ -383,7 +383,7 @@ Tournament
        │ 5. Return access token + ID token
        ▼
 ┌──────────────┐
-│   Browser    │  6. Store tokens in localStorage
+│   Browser    │  6. Store tokens in memory (default)
 └──────┬───────┘
        │
        │ 7. API requests with Bearer token

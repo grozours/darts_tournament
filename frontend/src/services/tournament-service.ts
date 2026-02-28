@@ -1139,6 +1139,23 @@ export async function registerDoublette(
   return response.json();
 }
 
+export async function unregisterDoublette(
+  tournamentId: string,
+  doubletteId: string,
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}/unregister`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to unregister doublette');
+  }
+
+  return response.json();
+}
+
 export async function deleteDoublette(
   tournamentId: string,
   doubletteId: string,
@@ -1332,6 +1349,23 @@ export async function registerEquipe(
 
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to register equipe');
+  }
+
+  return response.json();
+}
+
+export async function unregisterEquipe(
+  tournamentId: string,
+  equipeId: string,
+  token?: string
+): Promise<TournamentGroupEntity> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}/unregister`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to unregister equipe');
   }
 
   return response.json();

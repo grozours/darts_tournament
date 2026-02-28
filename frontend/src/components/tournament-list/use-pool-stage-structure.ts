@@ -154,7 +154,6 @@ const usePoolStageLoaders = ({
         : 1;
       setNewPoolStage((current) => ({ ...current, stageNumber: nextStageNumber }));
     } catch (error_) {
-      console.error('Error fetching pool stages:', error_);
       setPoolStagesError(error_ instanceof Error ? error_.message : t('edit.error.failedLoadPoolStages'));
     }
   }, [getSafeAccessToken, setNewPoolStage, setPoolStages, setPoolStagesError, t]);

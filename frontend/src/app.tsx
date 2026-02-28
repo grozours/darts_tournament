@@ -13,6 +13,7 @@ import TournamentPresetsView from './components/tournament-presets-view';
 import MatchFormatsView from './components/match-formats-view';
 import DoublettesView from './components/doublettes-view';
 import EquipesView from './components/equipes-view';
+import DocsView from './components/docs-view';
 import { fetchLiveTournamentSummary, fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
@@ -166,6 +167,9 @@ const resolveMainContent = (
     case 'account': {
       return <AccountView />;
     }
+    case 'doc': {
+      return <DocsView />;
+    }
     default: {
       if (normalizedStatus === 'live') {
         return <LiveTournament />;
@@ -177,7 +181,7 @@ const resolveMainContent = (
 
 function App() {
   const { lang, setLanguage, t } = useI18n();
-  const { isAuthenticated } = useOptionalAuth();
+  const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
   const { isAdmin } = useAdminStatus();
 
   useMatchStartedNotifications();
@@ -239,8 +243,8 @@ function App() {
         return;
       }
       setScreenRotationItems(items);
-    } catch (error) {
-      console.warn('Failed to resolve screen rotation views:', error);
+    } catch {
+      void 0;
     } finally {
       setScreenRotationReady(true);
     }
@@ -271,27 +275,49 @@ function App() {
       return undefined;
     }
 
-    const socket = io(globalThis.window?.location.origin ?? '', {
-      path: '/socket.io',
-      transports: ['websocket'],
-      withCredentials: true,
-    });
+    let isDisposed = false;
+    let socket: ReturnType<typeof io> | undefined;
 
-    socket.on('connect', () => {
-      socket.emit('join-tournament', tournamentId);
-    });
-
-    socket.on('match:finished', (payload: { match?: { source?: string } }) => {
-      if (payload?.match?.source === 'bracket') {
-        void resolveScreenViews();
+    const openSocket = async () => {
+      let token: string | undefined;
+      if (authEnabled && isAuthenticated) {
+        try {
+          token = await getAccessTokenSilently();
+        } catch {
+          token = undefined;
+        }
       }
-    });
+
+      if (isDisposed) {
+        return;
+      }
+
+      socket = io(globalThis.window?.location.origin ?? '', {
+        path: '/socket.io',
+        transports: ['websocket'],
+        withCredentials: true,
+        ...(token ? { auth: { token } } : {}),
+      });
+
+      socket.on('connect', () => {
+        socket?.emit('join-tournament', tournamentId);
+      });
+
+      socket.on('match:finished', (payload: { match?: { source?: string } }) => {
+        if (payload?.match?.source === 'bracket') {
+          void resolveScreenViews();
+        }
+      });
+    };
+
+    void openSocket();
 
     return () => {
-      socket.removeAllListeners();
-      socket.disconnect();
+      isDisposed = true;
+      socket?.removeAllListeners();
+      socket?.disconnect();
     };
-  }, [screenMode, tournamentId, resolveScreenViews]);
+  }, [authEnabled, getAccessTokenSilently, isAuthenticated, screenMode, tournamentId, resolveScreenViews]);
 
   useEffect(() => {
     if (!screenMode) {
