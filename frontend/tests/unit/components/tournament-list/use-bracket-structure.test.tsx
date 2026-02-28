@@ -116,4 +116,82 @@ describe('useBracketStructure', () => {
     });
     expect(deleteBracket).toHaveBeenCalledWith('t1', 'b1', 'token');
   });
+
+  it('computes loser bracket rounds and preserves manual rounds edits', () => {
+    const { result } = build({
+      poolStages: [{ stageNumber: 2, poolCount: 4, playersPerPool: 4, advanceCount: 2, losersAdvanceToBracket: true }],
+    });
+
+    expect(result.current.getDefaultBracketRounds('Losers bracket', BracketType.SINGLE_ELIMINATION)).toBe(3);
+
+    act(() => {
+      result.current.startAddBracket();
+      result.current.handleNewBracketRoundsChange(4);
+    });
+
+    act(() => {
+      result.current.handleNewBracketNameChange('Changed after manual rounds');
+      result.current.handleNewBracketTypeChange(BracketType.DOUBLE_ELIMINATION);
+    });
+
+    expect(result.current.newBracket.totalRounds).toBe(4);
+
+    act(() => {
+      result.current.handleNewBracketRoundMatchFormatChange(2, undefined);
+      result.current.cancelAddBracket();
+      result.current.resetBracketState();
+    });
+
+    expect(result.current.newBracket.roundMatchFormats['2']).toBe('BO5');
+    expect(result.current.isAddingBracket).toBe(false);
+  });
+
+  it('handles loaders and mutations error fallbacks', async () => {
+    fetchBrackets.mockRejectedValueOnce({ unexpected: true });
+    fetchTournamentTargets.mockRejectedValueOnce({ unexpected: true });
+    updateBracket.mockRejectedValueOnce({ unexpected: true });
+    updateBracketTargets.mockRejectedValueOnce({ unexpected: true });
+
+    const { result } = build();
+
+    await act(async () => {
+      await result.current.loadBrackets('t1');
+      await result.current.loadTargets('t1');
+      await result.current.saveBracket({
+        id: 'b1',
+        tournamentId: 't1',
+        name: 'Main',
+        bracketType: 'SINGLE_ELIMINATION',
+        totalRounds: 2,
+        status: 'NOT_STARTED',
+      });
+      await result.current.saveBracketTargets({
+        id: 'b1',
+        tournamentId: 't1',
+        name: 'Main',
+        bracketType: 'SINGLE_ELIMINATION',
+        totalRounds: 2,
+        status: 'NOT_STARTED',
+      });
+    });
+
+    expect(result.current.bracketsError).toBe('edit.error.failedUpdateBracketTargets');
+    expect(result.current.targetsError).toBe('edit.error.failedLoadTargets');
+  });
+
+  it('uses defaults when pool stages are missing and skips auth target loading without token', async () => {
+    fetchTournamentTargets.mockResolvedValue([{ id: 'target-1', targetNumber: 1 }]);
+    const { result } = build({
+      poolStages: [],
+      getSafeAccessToken: vi.fn(async () => undefined),
+    });
+
+    expect(result.current.getDefaultBracketRounds('Main', BracketType.SINGLE_ELIMINATION)).toBe(3);
+
+    await act(async () => {
+      await result.current.loadTargets('t1');
+    });
+
+    expect(fetchTournamentTargets).not.toHaveBeenCalled();
+  });
 });

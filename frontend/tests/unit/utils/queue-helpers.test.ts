@@ -230,4 +230,111 @@ describe('queue-helpers interleaving', () => {
     const globalQueue = buildGlobalMatchQueue([viewOne], groupedByTournament);
     expect(globalQueue[0]?.players).toEqual(['Equipe X', 'Equipe X']);
   });
+
+  it('orders pool queues with parallel in-progress stage groups', () => {
+    const view: LiveViewData = {
+      id: 't-4',
+      name: 'Parallel Cup',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 's1',
+          stageNumber: 1,
+          status: 'IN_PROGRESS',
+          inParallelWith: ['stage:2'],
+          name: 'Stage 1',
+          pools: [
+            {
+              id: 'p1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              matches: [{ id: 'm1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' }],
+            },
+          ],
+        },
+        {
+          id: 's2',
+          stageNumber: 2,
+          status: 'IN_PROGRESS',
+          inParallelWith: [' stage:1 '],
+          name: 'Stage 2',
+          pools: [
+            {
+              id: 'p2',
+              poolNumber: 2,
+              name: 'Pool 2',
+              matches: [{ id: 'm2', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' }],
+            },
+          ],
+        },
+      ],
+      brackets: [],
+    };
+
+    const queue = buildMatchQueue(view);
+    expect(queue.map((item) => item.matchId)).toEqual(['m1', 'm2']);
+  });
+
+  it('skips bracket queue when source pool stage is not completed', () => {
+    const view: LiveViewData = {
+      id: 't-5',
+      name: 'Blocked Bracket Cup',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 'stage-source',
+          stageNumber: 1,
+          status: 'IN_PROGRESS',
+          name: 'Stage Source',
+          rankingDestinations: [{ position: 1, destinationType: 'BRACKET', bracketId: 'b-1' }],
+          pools: [],
+        },
+      ],
+      brackets: [
+        {
+          id: 'b-1',
+          name: 'Main',
+          targetIds: ['target-a'],
+          matches: [{ id: 'bm1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' }],
+        },
+      ],
+    };
+
+    expect(buildMatchQueue(view).some((item) => item.source === 'bracket')).toBe(false);
+
+    view.poolStages![0]!.status = 'COMPLETED';
+    const queueAfterCompletion = buildMatchQueue(view);
+    const bracketItem = queueAfterCompletion.find((item) => item.source === 'bracket');
+    expect(bracketItem?.matchId).toBe('bm1');
+    expect(bracketItem?.bracketTargetIds).toEqual(['target-a']);
+    expect(bracketItem?.isBracketFinal).toBe(true);
+  });
+
+  it('filters out completed cancelled and in-progress bracket matches', () => {
+    const view: LiveViewData = {
+      id: 't-6',
+      name: 'Bracket Status Filter Cup',
+      status: 'LIVE',
+      poolStages: [],
+      brackets: [
+        {
+          id: 'b-2',
+          name: 'Main',
+          bracketTargets: [{ targetId: 'tb-1' }],
+          matches: [
+            { id: 'keep', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' },
+            { id: 'done', matchNumber: 2, roundNumber: 1, status: 'COMPLETED' },
+            { id: 'cancel', matchNumber: 3, roundNumber: 1, status: 'CANCELLED' },
+            { id: 'running', matchNumber: 4, roundNumber: 1, status: 'IN_PROGRESS' },
+          ],
+        },
+      ],
+    };
+
+    const queue = buildMatchQueue(view);
+    const bracketItems = queue.filter((item) => item.source === 'bracket');
+    expect(bracketItems).toHaveLength(1);
+    expect(bracketItems[0]?.matchId).toBe('keep');
+    expect(bracketItems[0]?.bracketTargetIds).toEqual(['tb-1']);
+  });
 });

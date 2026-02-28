@@ -13,6 +13,7 @@ import {
   fetchOrphanPlayers,
   fetchPoolStagePools,
   fetchTournamentLiveView,
+  fetchLiveTournamentSummary,
   fetchTournamentPresets,
   fetchMatchFormatPresets,
   fetchPoolStages,
@@ -262,6 +263,49 @@ describe('tournament-service live view', () => {
       text: async () => 'Live view failed',
     });
     await expect(fetchTournamentLiveView('t-1')).rejects.toThrow('Live view failed');
+  });
+
+  it('fetches live summary with status normalization and default fallback', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ tournaments: [{ id: 'live-1' }] }),
+    });
+
+    await expect(fetchLiveTournamentSummary([' live ', 'LIVE', 'open', ''])).resolves.toEqual([{ id: 'live-1' }]);
+
+    const firstUrl = mockFetch.mock.calls[0]?.[0] as string;
+    expect(firstUrl).toContain('/api/tournaments/live-summary?statuses=LIVE%2COPEN');
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ tournaments: [{ id: 'live-2' }] }),
+    });
+    await expect(fetchLiveTournamentSummary([], 'tok-1')).resolves.toEqual([{ id: 'live-2' }]);
+
+    const secondUrl = mockFetch.mock.calls[1]?.[0] as string;
+    const secondRequest = mockFetch.mock.calls[1]?.[1] as RequestInit;
+    expect(secondUrl).toBe('/api/tournaments/live-summary');
+    expect(secondRequest.headers).toEqual({ Authorization: 'Bearer tok-1' });
+  });
+
+  it('returns empty array when live summary payload has no tournaments and surfaces API text error', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ somethingElse: true }),
+    });
+    await expect(fetchLiveTournamentSummary()).resolves.toEqual([]);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: { get: () => 'text/plain' },
+      text: async () => 'summary down',
+      json: async () => ({ message: 'unused' }),
+    });
+    await expect(fetchLiveTournamentSummary(['LIVE'])).rejects.toMatchObject({
+      message: 'summary down',
+      status: 500,
+    });
   });
 });
 
