@@ -47,6 +47,7 @@ jobs:
         run: npm --prefix frontend exec -- playwright install
 
       - name: Run Playwright smoke tests (Chromium)
+        timeout-minutes: 15
         run: npm --prefix frontend exec -- playwright test -c ./playwright.config.ts --project=chromium
         env:
           DATABASE_URL: ${{ secrets.PLAYWRIGHT_DATABASE_URL }}
@@ -102,6 +103,7 @@ jobs:
         run: npm --prefix frontend exec -- playwright install
 
       - name: Run Playwright full suite (all projects)
+        timeout-minutes: 25
         run: npm --prefix frontend exec -- playwright test -c ./playwright.config.ts
         env:
           DATABASE_URL: ${{ secrets.PLAYWRIGHT_DATABASE_URL }}

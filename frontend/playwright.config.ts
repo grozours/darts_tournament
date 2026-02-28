@@ -44,9 +44,12 @@ export default defineConfig({
 	testDir: '../tests/e2e',
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
+	globalTimeout: process.env.CI ? 28 * 60 * 1000 : undefined,
 	retries: process.env.CI ? 2 : 0,
 	workers: process.env.CI ? 1 : undefined,
-	reporter: 'html',
+	reporter: process.env.CI
+		? [['line'], ['html', { open: 'never' }]]
+		: 'html',
 	use: {
 		baseURL: `http://localhost:${PLAYWRIGHT_FRONTEND_PORT}`,
 		trace: 'on-first-retry',
