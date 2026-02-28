@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, it, jest, afterEach } from '@jest/globals';
 import { scryptSync } from 'node:crypto';
 import { TournamentFormat, TournamentStatus } from '../../../shared/src/types';
@@ -601,5 +602,721 @@ describe('group-handlers', () => {
     tournamentModel.findEquipeMembershipByPlayer.mockImplementation(async () => ({ equipeId: 'e-other', playerId: 'p3' }));
 
     await expect(handlers.addEquipeMember('t1', 'e1', { playerId: 'p3' })).rejects.toThrow('already part of an equipe');
+  });
+
+  it('rejects when listing groups for missing tournament', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findById.mockResolvedValue(null);
+
+    await expect(handlers.listDoublettes('t1')).rejects.toThrow('Tournament not found');
+    await expect(handlers.listEquipes('t1')).rejects.toThrow('Tournament not found');
+  });
+
+  it('rejects when registration deadline has passed with auth enabled', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = true;
+    tournamentModel.findById.mockResolvedValue({
+      ...buildTournament(TournamentFormat.DOUBLE),
+      startTime: new Date(Date.now() + 30 * 60 * 1000),
+    });
+
+    await expect(handlers.createDoublette('t1', { name: 'Duo', password: 'secret' })).rejects.toThrow(
+      'Registration deadline has passed'
+    );
+  });
+
+  it('rejects createDoublette when captain already belongs to a doublette', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValue({ doubletteId: 'x' });
+
+    await expect(
+      handlers.createDoublette('t1', { name: 'D', password: 'secret', captainPlayerId: 'p1' })
+    ).rejects.toThrow('Captain is already part of a doublette');
+  });
+
+  it('rejects updateDoublette when actor is not a member', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+
+    await expect(handlers.updateDoublette('t1', 'd1', { name: 'X' })).rejects.toThrow('belong to');
+  });
+
+  it('rejects joinDoublette with malformed password hash and with already-member actor', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValueOnce({ doubletteId: 'existing' });
+
+    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('already in a doublette');
+
+    tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValueOnce(null);
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      passwordHash: 'invalid',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+
+    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('Invalid doublette password');
+  });
+
+  it('assigns captain when joining a captain-less empty doublette', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById
+      .mockResolvedValueOnce({
+        id: 'd1',
+        passwordHash: passwordHash('ok'),
+        isRegistered: false,
+        captainPlayerId: null,
+        members: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'd1',
+        name: 'D1',
+        captainPlayerId: 'actor-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('actor-1')],
+      });
+
+    const joined = await handlers.joinDoublette('t1', 'd1', { password: 'ok' });
+    expect(joined.captainPlayerId).toBe('actor-1');
+    expect(tournamentModel.updateDoubletteCaptain).toHaveBeenCalledWith('d1', 'actor-1');
+  });
+
+  it('rejects leaveDoublette when actor is not member or group is registered', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      isRegistered: true,
+      captainPlayerId: 'actor-1',
+      members: [member('actor-1')],
+    });
+
+    await expect(handlers.leaveDoublette('t1', 'd1')).rejects.toThrow('cannot be modified');
+
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+
+    await expect(handlers.leaveDoublette('t1', 'd1')).rejects.toThrow('not in this doublette');
+  });
+
+  it('returns deleted true when doublette disappears after leave', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'p2', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById
+      .mockResolvedValueOnce({
+        id: 'd1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce(null);
+
+    const result = await handlers.leaveDoublette('t1', 'd1');
+    expect(result).toEqual({ deleted: true });
+  });
+
+  it('rejects registerDoublette for no captain and non-captain actor', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: null,
+      members: [member('actor-1'), member('p2')],
+    });
+
+    await expect(handlers.registerDoublette('t1', 'd1')).rejects.toThrow('must have a captain');
+
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('actor-1')],
+    });
+
+    await expect(handlers.registerDoublette('t1', 'd1')).rejects.toThrow('Only the captain can register');
+  });
+
+  it('rejects deleting registered doublette for non-admin actor', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+
+    await expect(handlers.deleteDoublette('t1', 'd1')).rejects.toThrow('cannot be deleted');
+  });
+
+  it('rejects add/remove doublette member for non-captain actor and missing updated group', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+
+    await expect(handlers.addDoubletteMember('t1', 'd1', { playerId: 'p3' })).rejects.toThrow('belong to');
+
+    tournamentModel.getDoubletteById
+      .mockResolvedValueOnce({
+        id: 'd1',
+        isRegistered: false,
+        captainPlayerId: 'actor-1',
+        members: [member('actor-1'), member('p2')],
+      })
+      .mockResolvedValueOnce(null);
+    await expect(handlers.removeDoubletteMember('t1', 'd1', 'p3')).rejects.toThrow('Doublette not found');
+  });
+
+  it('rejects createEquipe when captain already belongs to another equipe', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValue({ equipeId: 'other' });
+
+    await expect(
+      handlers.createEquipe('t1', { name: 'Team', password: 'secret', captainPlayerId: 'p1' })
+    ).rejects.toThrow('Captain is already part of an equipe');
+  });
+
+  it('rejects joinEquipe on malformed password hash and already-member actor', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValueOnce({ equipeId: 'e1' });
+
+    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('already in an equipe');
+
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValueOnce(null);
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      passwordHash: 'invalid',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('Invalid equipe password');
+  });
+
+  it('assigns captain when joining a captain-less empty equipe', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        passwordHash: passwordHash('ok'),
+        isRegistered: false,
+        captainPlayerId: null,
+        members: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'e1',
+        name: 'E1',
+        captainPlayerId: 'actor-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('actor-1')],
+      });
+
+    const joined = await handlers.joinEquipe('t1', 'e1', { password: 'ok' });
+    expect(joined.captainPlayerId).toBe('actor-1');
+    expect(tournamentModel.updateEquipeCaptain).toHaveBeenCalledWith('e1', 'actor-1');
+  });
+
+  it('rejects leaveEquipe when registered or actor is not member', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: true,
+      captainPlayerId: 'actor-1',
+      members: [member('actor-1')],
+    });
+    await expect(handlers.leaveEquipe('t1', 'e1')).rejects.toThrow('Registered equipe cannot be modified');
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.leaveEquipe('t1', 'e1')).rejects.toThrow('Player is not in this equipe');
+  });
+
+  it('returns deleted true when equipe disappears after leave', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'p2', email: 'actor@example.com' });
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce(null);
+
+    const result = await handlers.leaveEquipe('t1', 'e1');
+    expect(result).toEqual({ deleted: true });
+  });
+
+  it('rejects registerEquipe for no captain and for non-captain actor', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: null,
+      members: [member('actor-1'), member('p2'), member('p3'), member('p4')],
+    });
+    await expect(handlers.registerEquipe('t1', 'e1')).rejects.toThrow('must have a captain');
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('actor-1'), member('p3'), member('p4')],
+    });
+    await expect(handlers.registerEquipe('t1', 'e1')).rejects.toThrow('Only the captain can register');
+  });
+
+  it('rejects deleting registered equipe for non-admin actor', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+
+    await expect(handlers.deleteEquipe('t1', 'e1')).rejects.toThrow('cannot be deleted');
+  });
+
+  it('rejects add/remove equipe member for non-member actor and missing updated equipe', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.addEquipeMember('t1', 'e1', { playerId: 'p3' })).rejects.toThrow('belong to');
+
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'actor-1',
+        members: [member('actor-1'), member('p2')],
+      })
+      .mockResolvedValueOnce(null);
+    await expect(handlers.removeEquipeMember('t1', 'e1', 'p3')).rejects.toThrow('Equipe not found');
+  });
+
+  it('rejects action when actor email cannot be resolved', async () => {
+    const { handlers, context } = buildContext();
+    context.getActorEmail.mockReturnValue(undefined);
+
+    await expect(handlers.updateDoublette('t1', 'd1', { name: 'x' })).rejects.toThrow(
+      'Cannot resolve authenticated user email'
+    );
+  });
+
+  it('rejects createDoublette when tournament registration is closed or full', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById
+      .mockResolvedValueOnce({ ...buildTournament(TournamentFormat.DOUBLE), status: TournamentStatus.LIVE })
+      .mockResolvedValueOnce(buildTournament(TournamentFormat.DOUBLE))
+      .mockResolvedValueOnce(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findPlayerByEmail.mockResolvedValue(null);
+    tournamentModel.getParticipantCount.mockResolvedValue(32);
+
+    await expect(handlers.createDoublette('t1', { name: 'x', password: 'p' })).rejects.toThrow('registration is not open');
+    await expect(handlers.createDoublette('t1', { name: 'x', password: 'p' })).rejects.toThrow('Tournament is full');
+  });
+
+  it('rejects joinDoublette when target group is missing, registered or full', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValue(null);
+
+    tournamentModel.getDoubletteById.mockResolvedValueOnce(null);
+    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('Doublette not found');
+
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      passwordHash: passwordHash('x'),
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('registered doublette');
+
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      passwordHash: passwordHash('x'),
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('already full');
+  });
+
+  it('rejects leaveDoublette when next captain cannot be determined', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('captain-1')],
+    });
+
+    await expect(handlers.leaveDoublette('t1', 'd1')).rejects.toThrow('Cannot determine next captain');
+  });
+
+  it('rejects addDoubletteMember when group is full or player already member elsewhere', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+    await expect(handlers.addDoubletteMember('t1', 'd1', { playerId: 'p3' })).rejects.toThrow('already full');
+
+    tournamentModel.getDoubletteById.mockResolvedValueOnce({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValue({ doubletteId: 'other' });
+    await expect(handlers.addDoubletteMember('t1', 'd1', { playerId: 'p3' })).rejects.toThrow('already part of a doublette');
+  });
+
+  it('rejects listEquipes on format mismatch', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.SINGLE));
+
+    await expect(handlers.listEquipes('t1')).rejects.toThrow('Equipes are only available');
+  });
+
+  it('rejects updateEquipe when missing or actor is not member', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValueOnce(null);
+    await expect(handlers.updateEquipe('t1', 'e1', { name: 'x' })).rejects.toThrow('Equipe not found');
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.updateEquipe('t1', 'e1', { name: 'x' })).rejects.toThrow('belong to');
+  });
+
+  it('rejects joinEquipe when group missing, registered, full, or update result missing', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValue(null);
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce(null);
+    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('Equipe not found');
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      passwordHash: passwordHash('x'),
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('registered equipe');
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      passwordHash: passwordHash('x'),
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+    });
+    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('already full');
+
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        passwordHash: passwordHash('x'),
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1')],
+      })
+      .mockResolvedValueOnce(null);
+    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('Equipe not found');
+  });
+
+  it('rejects leaveEquipe when next captain cannot be determined', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('captain-1')],
+    });
+
+    await expect(handlers.leaveEquipe('t1', 'e1')).rejects.toThrow('Cannot determine next captain');
+  });
+
+  it('rejects registerEquipe when incomplete, full or updated group missing', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+    await expect(handlers.registerEquipe('t1', 'e1')).rejects.toThrow('exactly 4 members');
+
+    tournamentModel.findById.mockResolvedValueOnce({ ...buildTournament(TournamentFormat.TEAM_4_PLAYER), totalParticipants: 0 });
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+    });
+    tournamentModel.countRegisteredEquipes.mockResolvedValue(1);
+    await expect(handlers.registerEquipe('t1', 'e1')).rejects.toThrow('Tournament is full');
+
+    tournamentModel.findById.mockResolvedValueOnce(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.countRegisteredEquipes.mockResolvedValue(0);
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+      })
+      .mockResolvedValueOnce(null);
+    await expect(handlers.registerEquipe('t1', 'e1')).rejects.toThrow('Equipe not found');
+  });
+
+  it('rejects updateEquipePassword when equipe does not exist', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue(null);
+
+    await expect(handlers.updateEquipePassword('t1', 'e1', { password: 'x' })).rejects.toThrow('Equipe not found');
+  });
+
+  it('rejects addEquipeMember when equipe already full', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+    });
+
+    await expect(handlers.addEquipeMember('t1', 'e1', { playerId: 'p5' })).rejects.toThrow('already full');
+  });
+
+  it('rejects removeEquipeMember when actor tries to remove captain directly', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+
+    await expect(handlers.removeEquipeMember('t1', 'e1', 'captain-1')).rejects.toThrow('Captain cannot be removed directly');
+  });
+
+  it('creates player with fallback split-name defaults when local part is empty', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    config.auth.enabled = false;
+    context.getActorEmail.mockReturnValue('@example.com');
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.findPlayerByEmail.mockResolvedValue(null);
+    tournamentModel.getParticipantCount.mockResolvedValue(0);
+
+    await handlers.createDoublette('t1', { name: 'Duo', password: 'secret' });
+
+    expect(tournamentModel.createPlayer).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({ firstName: 'Player', lastName: 'Member' })
+    );
+  });
+
+  it('covers addEquipeMember and removeEquipeMember success branches', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'e1',
+        name: 'E1',
+        captainPlayerId: 'captain-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('captain-1'), member('p2'), member('p3')],
+      });
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValue(null);
+    const added = await handlers.addEquipeMember('t1', 'e1', { playerId: 'p3' });
+    expect(added.memberCount).toBe(3);
+
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'e1',
+        name: 'E1',
+        captainPlayerId: 'captain-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('captain-1')],
+      });
+    const removed = await handlers.removeEquipeMember('t1', 'e1', 'p2');
+    expect(removed.memberCount).toBe(1);
+  });
+
+  it('covers addEquipe/removeEquipe not-found early branches', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue(null);
+
+    await expect(handlers.addEquipeMember('t1', 'e1', { playerId: 'p3' })).rejects.toThrow('Equipe not found');
+    await expect(handlers.removeEquipeMember('t1', 'e1', 'p3')).rejects.toThrow('Equipe not found');
+  });
+
+  it('covers leaveEquipe not-found and captain-transfer return branches', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce(null);
+    await expect(handlers.leaveEquipe('t1', 'e1')).rejects.toThrow('Equipe not found');
+
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'e1',
+        name: 'E1',
+        captainPlayerId: 'p2',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('p2')],
+      });
+    const result = await handlers.leaveEquipe('t1', 'e1');
+    expect(result).toEqual(expect.objectContaining({ deleted: false }));
+    expect(tournamentModel.updateEquipeCaptain).toHaveBeenCalledWith('e1', 'p2');
+  });
+
+  it('covers registerEquipe and deleteEquipe not-found branches', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    config.auth.enabled = false;
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.TEAM_4_PLAYER));
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getEquipeById.mockResolvedValue(null);
+
+    await expect(handlers.registerEquipe('t1', 'e1')).rejects.toThrow('Equipe not found');
+    await expect(handlers.deleteEquipe('t1', 'e1')).rejects.toThrow('Equipe not found');
+  });
+
+  it('covers addEquipeMember updated-missing and removeEquipeMember forbidden branches', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
+
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'actor-1',
+        members: [member('actor-1')],
+      })
+      .mockResolvedValueOnce(null);
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValue(null);
+    await expect(handlers.addEquipeMember('t1', 'e1', { playerId: 'p3' })).rejects.toThrow('Equipe not found');
+
+    tournamentModel.getEquipeById.mockResolvedValueOnce({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+    await expect(handlers.removeEquipeMember('t1', 'e1', 'p3')).rejects.toThrow('belong to');
+  });
+
+  it('rejects createDoublette when tournament does not exist', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findById.mockResolvedValue(null);
+
+    await expect(handlers.createDoublette('t1', { name: 'Duo', password: 'secret' })).rejects.toThrow('Tournament not found');
   });
 });

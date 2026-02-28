@@ -14,7 +14,7 @@ AUTO_DOCKER_PRUNE=${AUTO_DOCKER_PRUNE:-false}
 PRUNE_VOLUMES=${PRUNE_VOLUMES:-false}
 BUILD_ID=${BUILD_ID:-local}
 FORCE_BUILD=${FORCE_BUILD:-true}
-DEV_SERVICES=(postgres_test redis_test sonarqube)
+DEV_SERVICES=(postgres_test redis_test sonarqube sonar_init)
 STATUS_RETRY_COUNT=${STATUS_RETRY_COUNT:-20}
 STATUS_RETRY_DELAY=${STATUS_RETRY_DELAY:-2}
 
@@ -199,7 +199,20 @@ check_status() {
 stop_services() {
     print_status "Stopping services..."
     cd "$PROJECT_ROOT" || return 1
-    if ! "${COMPOSE_CMD[@]}" down; then
+    local default_down_ok=true
+    local dev_down_ok=true
+
+    if ! "${COMPOSE_CMD[@]}" down --remove-orphans; then
+        default_down_ok=false
+    fi
+
+    if ! "${COMPOSE_CMD[@]}" --profile dev down --remove-orphans; then
+        dev_down_ok=false
+    fi
+
+    stop_dev_services
+
+    if [[ "$default_down_ok" != "true" && "$dev_down_ok" != "true" ]]; then
         print_error "Failed to stop services"
         return 1
     fi

@@ -26,7 +26,7 @@ const resolvedDatabaseUrl = normalizePostgresUrlPassword(process.env.DATABASE_UR
 const backendWebServerEnv = {
 	...process.env,
 	NODE_ENV: process.env.NODE_ENV ?? 'test',
-	PORT: process.env.PORT ?? String(PLAYWRIGHT_BACKEND_PORT),
+	PORT: String(PLAYWRIGHT_BACKEND_PORT),
 	DATABASE_URL: resolvedDatabaseUrl,
 	REDIS_HOST: process.env.REDIS_HOST ?? 'localhost',
 	REDIS_PORT: process.env.REDIS_PORT ?? '6379',
