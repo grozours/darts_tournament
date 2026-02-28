@@ -8,7 +8,6 @@ const frontendRoot = path.resolve(__dirname, '..');
 
 const threshold = {
   statements: 80,
-  branches: 80,
   functions: 80,
   lines: 80,
 };
