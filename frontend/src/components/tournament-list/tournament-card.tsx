@@ -1,4 +1,6 @@
+import { useCallback, useRef } from 'react';
 import type { Tournament, Translator, UserTournamentGroupStatus } from './types';
+import { QRCodeSVG } from 'qrcode.react';
 
 export type TournamentCardProperties = {
   tournament: Tournament;
@@ -358,6 +360,7 @@ const TournamentCard = ({
   userRegistrations,
   userGroupStatus,
 }: TournamentCardProperties) => {
+  const qrCodeReference = useRef<SVGSVGElement | null>(null);
   const isLive = normalizedStatus === 'LIVE';
   const isFinished = normalizedStatus === 'FINISHED';
   const isRegistered = userRegistrations.has(tournament.id);
@@ -377,6 +380,53 @@ const TournamentCard = ({
   }
   const poolStagesUrl = `/?view=pool-stages&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
   const bracketsUrl = `/?view=brackets&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
+  const liveViewPath = `/?view=live&tournamentId=${encodeURIComponent(tournamentId)}`;
+  const liveViewUrl = globalThis.window?.location
+    ? `${globalThis.window.location.origin}${liveViewPath}`
+    : liveViewPath;
+
+  const handleQrOpen = useCallback((event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const svgElement = qrCodeReference.current;
+    if (!svgElement) {
+      return;
+    }
+
+    event.preventDefault();
+    const svgForExport = svgElement.cloneNode(true) as SVGSVGElement;
+    if (!svgForExport.getAttribute('xmlns')) {
+      svgForExport.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    if (!svgForExport.getAttribute('xmlns:xlink')) {
+      svgForExport.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    }
+
+    const baseWidth = Number(svgForExport.getAttribute('width'));
+    const baseHeight = Number(svgForExport.getAttribute('height'));
+    if (Number.isFinite(baseWidth) && baseWidth > 0) {
+      svgForExport.setAttribute('width', String(Math.round(baseWidth * 5)));
+    }
+    if (Number.isFinite(baseHeight) && baseHeight > 0) {
+      svgForExport.setAttribute('height', String(Math.round(baseHeight * 5)));
+    }
+
+    const serializer = new XMLSerializer();
+    const serializedSvg = `<?xml version="1.0" encoding="UTF-8"?>\n${serializer.serializeToString(svgForExport)}`;
+    const blob = new Blob([serializedSvg], { type: 'image/svg+xml;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const openedWindow = globalThis.window?.open(blobUrl, '_blank', 'noopener,noreferrer');
+    if (!openedWindow) {
+      URL.revokeObjectURL(blobUrl);
+      return;
+    }
+
+    globalThis.window?.setTimeout(() => {
+      URL.revokeObjectURL(blobUrl);
+    }, 60_000);
+  }, [isAdmin]);
 
   return (
   <div
@@ -406,9 +456,20 @@ const TournamentCard = ({
           <p className="mt-1 break-all text-xs text-slate-500">ID: {tournamentId}</p>
         </div>
       </div>
-      <span className="w-fit rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
-        {statusLabel}
-      </span>
+      <div className="flex flex-col items-end gap-2">
+        <span className="w-fit rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200">
+          {statusLabel}
+        </span>
+        <a
+          href={liveViewPath}
+          aria-label={`Live QR ${tournament.name}`}
+          title={liveViewUrl}
+          onClick={handleQrOpen}
+          className="rounded-lg border border-slate-700/70 bg-white p-1.5"
+        >
+          <QRCodeSVG ref={qrCodeReference} value={liveViewUrl} size={52} level="M" />
+        </a>
+      </div>
     </div>
 
     <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
@@ -447,7 +508,7 @@ const TournamentCard = ({
         </a>
         {normalizedStatus === 'LIVE' && (
           <a
-            href={`/?view=live&tournamentId=${tournament.id}`}
+            href={liveViewPath}
             className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:border-emerald-300 sm:w-auto"
           >
             {t('tournaments.viewLive')}

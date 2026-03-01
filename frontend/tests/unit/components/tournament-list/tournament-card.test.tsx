@@ -95,6 +95,35 @@ describe('TournamentCard', () => {
     expect(screen.queryByText('tournaments.registered')).not.toBeInTheDocument();
   });
 
+  it('renders a mini live QR link with tournamentId in URL', () => {
+    render(<TournamentCard {...baseProperties} />);
+
+    const qrLink = screen.getByRole('link', { name: 'Live QR Cup' });
+    expect(qrLink).toHaveAttribute('href', '/?view=live&tournamentId=t1');
+    expect(qrLink).toHaveAttribute('title', expect.stringContaining('/?view=live&tournamentId=t1'));
+  });
+
+  it('opens QR SVG in new tab for admin click', () => {
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:qr-test-url');
+    const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => null);
+
+    render(<TournamentCard {...baseProperties} isAdmin />);
+
+    const qrLink = screen.getByRole('link', { name: 'Live QR Cup' });
+    fireEvent.click(qrLink);
+
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledWith(
+      'blob:qr-test-url',
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    createObjectURLSpy.mockRestore();
+    openSpy.mockRestore();
+  });
+
   it('renders auto-fill action for OPEN admin tournaments', () => {
     const onAutoFillPlayers = vi.fn();
 

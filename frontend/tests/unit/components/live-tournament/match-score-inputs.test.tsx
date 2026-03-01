@@ -35,4 +35,41 @@ describe('MatchScoreInputs', () => {
     fireEvent.change(inputs[1], { target: { value: '2' } });
     expect(onScoreChange).toHaveBeenCalledWith('t1:m1', 'p2', '2');
   });
+
+  it('uses optional participant label formatter', () => {
+    render(
+      <MatchScoreInputs
+        matchTournamentId="t1"
+        match={match}
+        matchScores={{}}
+        getMatchKey={() => 't1:m1'}
+        onScoreChange={vi.fn()}
+        getParticipantLabel={(player) => `LABEL:${player?.firstName ?? 'NA'}`}
+      />
+    );
+
+    expect(screen.getByText('LABEL:Ava')).toBeInTheDocument();
+    expect(screen.getByText('LABEL:Bo')).toBeInTheDocument();
+  });
+
+  it('handles players without id using empty key', () => {
+    const onScoreChange = vi.fn();
+    render(
+      <MatchScoreInputs
+        matchTournamentId="t1"
+        match={{
+          ...match,
+          playerMatches: [{ playerPosition: 1, player: { firstName: 'No', lastName: 'Id' } }],
+        }}
+        matchScores={{ 't1:m1': { '': '4' } }}
+        getMatchKey={() => 't1:m1'}
+        onScoreChange={onScoreChange}
+      />
+    );
+
+    const input = screen.getByRole('spinbutton');
+    expect(input.value).toBe('4');
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(onScoreChange).toHaveBeenCalledWith('t1:m1', '', '5');
+  });
 });

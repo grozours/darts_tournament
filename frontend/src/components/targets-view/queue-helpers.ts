@@ -103,6 +103,11 @@ const isFinalMatchStatus = (status: string) => (
   status === 'COMPLETED' || status === 'CANCELLED' || status === 'IN_PROGRESS'
 );
 
+const isPhaseNotStarted = (status: string | undefined) => {
+  const normalized = (status ?? '').trim().toUpperCase();
+  return normalized === 'NOT_STARTED' || normalized === 'EDITION';
+};
+
 const shouldQueueMatch = (
   match: LiveViewMatch,
   ignoreBlocking: boolean | undefined,
@@ -242,6 +247,9 @@ const buildQueueItems = ({
 }: BuildQueueItemsProperties) => {
   const items: MatchQueueItem[] = [];
   for (const stage of view.poolStages ?? []) {
+    if (isPhaseNotStarted(stage.status)) {
+      continue;
+    }
     if (!stage.pools) continue;
     items.push(...collectPoolItemsForStage(
       view,
@@ -350,6 +358,10 @@ const buildBracketQueueItems = (
 ): MatchQueueItem[] => {
   const bracketItems: MatchQueueItem[] = [];
   for (const bracket of view.brackets ?? []) {
+    const bracketStatus = (bracket as { status?: string }).status;
+    if (isPhaseNotStarted(bracketStatus)) {
+      continue;
+    }
     if (!isBracketReadyFromPools(view, bracket.id)) {
       continue;
     }

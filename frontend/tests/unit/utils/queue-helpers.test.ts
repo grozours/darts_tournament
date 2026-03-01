@@ -189,6 +189,61 @@ describe('queue-helpers interleaving', () => {
     expect(globalQueue[1]?.tournamentId).toBe('t-2');
   });
 
+  it('marks pool matches blocked when concurrency limit is reached', () => {
+    const view: LiveViewData = {
+      id: 't-7',
+      name: 'Concurrency Cup',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 's1',
+          stageNumber: 1,
+          status: 'IN_PROGRESS',
+          name: 'Stage 1',
+          pools: [
+            {
+              id: 'p1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              assignments: [
+                { player: { id: 'a' } },
+                { player: { id: 'b' } },
+              ],
+              matches: [
+                { id: 'ip1', matchNumber: 1, roundNumber: 1, status: 'IN_PROGRESS' },
+                { id: 'sch1', matchNumber: 2, roundNumber: 1, status: 'SCHEDULED' },
+              ],
+            },
+          ],
+        },
+      ],
+      brackets: [],
+    };
+
+    const scheduledItem = buildMatchQueue(view).find((item) => item.matchId === 'sch1');
+    expect(scheduledItem?.blocked).toBe(true);
+  });
+
+  it('includes bracket target ids from bracketTargets fallback', () => {
+    const view: LiveViewData = {
+      id: 't-8',
+      name: 'Bracket Targets Cup',
+      status: 'LIVE',
+      poolStages: [],
+      brackets: [
+        {
+          id: 'b1',
+          name: 'Main',
+          bracketTargets: [{ targetId: 'tg-1' }, { targetId: 'tg-2' }],
+          matches: [{ id: 'bm1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' }],
+        },
+      ],
+    };
+
+    const bracketItem = buildMatchQueue(view).find((item) => item.source === 'bracket');
+    expect(bracketItem?.bracketTargetIds).toEqual(['tg-1', 'tg-2']);
+  });
+
   it('uses grouped participant labels map by tournament in global queue', () => {
     const viewOne: LiveViewData = {
       id: 't-1',
@@ -336,5 +391,89 @@ describe('queue-helpers interleaving', () => {
     expect(bracketItems).toHaveLength(1);
     expect(bracketItems[0]?.matchId).toBe('keep');
     expect(bracketItems[0]?.bracketTargetIds).toEqual(['tb-1']);
+  });
+
+  it('does not queue pool matches when stage is not started', () => {
+    const view: LiveViewData = {
+      id: 't-9',
+      name: 'Not Started Stage Cup',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 'stage-1',
+          stageNumber: 1,
+          status: 'NOT_STARTED',
+          name: 'Stage 1',
+          pools: [
+            {
+              id: 'pool-1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              matches: [
+                { id: 'm-1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' },
+              ],
+            },
+          ],
+        },
+      ],
+      brackets: [],
+    };
+
+    expect(buildMatchQueue(view)).toHaveLength(0);
+  });
+
+  it('does not queue bracket matches when bracket is not started', () => {
+    const view: LiveViewData = {
+      id: 't-10',
+      name: 'Not Started Bracket Cup',
+      status: 'LIVE',
+      poolStages: [],
+      brackets: [
+        {
+          id: 'b-1',
+          name: 'Main',
+          status: 'NOT_STARTED',
+          matches: [
+            { id: 'bm-1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' },
+          ],
+        },
+      ],
+    };
+
+    expect(buildMatchQueue(view)).toHaveLength(0);
+  });
+
+  it('does not queue matches when phase is in EDITION status', () => {
+    const view: LiveViewData = {
+      id: 't-11',
+      name: 'Edition Stage Cup',
+      status: 'LIVE',
+      poolStages: [
+        {
+          id: 'stage-1',
+          stageNumber: 1,
+          status: 'EDITION',
+          name: 'Stage 1',
+          pools: [
+            {
+              id: 'pool-1',
+              poolNumber: 1,
+              name: 'Pool 1',
+              matches: [{ id: 'm-1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' }],
+            },
+          ],
+        },
+      ],
+      brackets: [
+        {
+          id: 'b-1',
+          name: 'Main',
+          status: 'EDITION',
+          matches: [{ id: 'bm-1', matchNumber: 1, roundNumber: 1, status: 'SCHEDULED' }],
+        },
+      ],
+    };
+
+    expect(buildMatchQueue(view)).toHaveLength(0);
   });
 });

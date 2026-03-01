@@ -142,6 +142,34 @@ export interface PoolAssignmentPayload {
   seedNumber?: number;
 }
 
+export interface TournamentSnapshotSummary {
+  snapshotId: string;
+  tournamentId: string;
+  savedAt: string;
+  action: string;
+  actorId?: string;
+  actorEmail?: string;
+  trigger: 'admin' | 'system';
+}
+
+export interface TournamentSnapshot {
+  schemaVersion: 1;
+  snapshotId: string;
+  tournamentId: string;
+  savedAt: string;
+  action: string;
+  actorId?: string;
+  actorEmail?: string;
+  trigger: 'admin' | 'system';
+  data: unknown;
+}
+
+export interface TournamentSnapshotsResponse {
+  tournamentId: string;
+  total: number;
+  snapshots: TournamentSnapshotSummary[];
+}
+
 const buildAuthRequestOptions = (token?: string): RequestInit => (
   token ? { headers: { Authorization: `Bearer ${token}` } } : {}
 );
@@ -199,6 +227,62 @@ const buildApiError = async (response: Response, fallbackMessage: string): Promi
   error.status = response.status;
   return error;
 };
+
+export async function fetchTournamentSnapshot(
+  tournamentId: string,
+  token?: string
+): Promise<TournamentSnapshot> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/snapshot`, buildAuthRequestOptions(token));
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch tournament snapshot');
+  }
+  return response.json() as Promise<TournamentSnapshot>;
+}
+
+export async function fetchTournamentSnapshots(
+  tournamentId: string,
+  token?: string
+): Promise<TournamentSnapshotsResponse> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/snapshots`, buildAuthRequestOptions(token));
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to fetch tournament snapshots');
+  }
+  return response.json() as Promise<TournamentSnapshotsResponse>;
+}
+
+export async function restoreTournamentSnapshotById(
+  tournamentId: string,
+  snapshotId: string,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/snapshots/${snapshotId}/restore`, {
+    method: 'POST',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to restore tournament snapshot');
+  }
+}
+
+export async function restoreTournamentSnapshot(
+  tournamentId: string,
+  payload: TournamentSnapshot,
+  token?: string
+): Promise<void> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/snapshot/restore`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(response, 'Failed to restore imported tournament snapshot');
+  }
+}
 
 export async function createTournament(
   payload: CreateTournamentPayload,

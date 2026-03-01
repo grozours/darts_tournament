@@ -31,12 +31,16 @@ type MatchHandlers = ReturnType<typeof createMatchHandlers>;
 type StatusHandlers = ReturnType<typeof createStatusHandlers>;
 type GroupHandlers = ReturnType<typeof createGroupHandlers>;
 
+const extractTournamentId = <TArguments extends [string, ...unknown[]]>(...arguments_: TArguments): string =>
+  arguments_[0];
+
 export class TournamentService {
   private readonly tournamentModel: TournamentModel;
   private readonly logger: TournamentLogger;
   private readonly actorId?: string;
   private readonly actorEmail?: string;
   private readonly isAdminActionContext: boolean;
+  private readonly recomputeDoubleStageProgressionReference?: (tournamentId: string, stageId: string) => Promise<void>;
 
   public createTournament!: TournamentCoreHandlers['createTournament'];
   public getTournamentById!: TournamentCoreHandlers['getTournamentById'];
@@ -126,30 +130,9 @@ export class TournamentService {
     if (actorContext.actorEmail) {
       this.actorEmail = actorContext.actorEmail;
     }
-    const loggerProxy = {
-      accessError: (...arguments_: Parameters<TournamentLogger['accessError']>) =>
-        this.logger.accessError(...arguments_),
-      validationError: (...arguments_: Parameters<TournamentLogger['validationError']>) =>
-        this.logger.validationError(...arguments_),
-      tournamentCreated: (...arguments_: Parameters<TournamentLogger['tournamentCreated']>) =>
-        this.logger.tournamentCreated(...arguments_),
-      tournamentUpdated: (...arguments_: Parameters<TournamentLogger['tournamentUpdated']>) =>
-        this.logger.tournamentUpdated(...arguments_),
-      tournamentDeleted: (...arguments_: Parameters<TournamentLogger['tournamentDeleted']>) =>
-        this.logger.tournamentDeleted(...arguments_),
-      tournamentStatusChanged: (...arguments_: Parameters<TournamentLogger['tournamentStatusChanged']>) =>
-        this.logger.tournamentStatusChanged(...arguments_),
-      playerRegistered: (...arguments_: Parameters<TournamentLogger['playerRegistered']>) =>
-        this.logger.playerRegistered(...arguments_),
-      playerUnregistered: (...arguments_: Parameters<TournamentLogger['playerUnregistered']>) =>
-        this.logger.playerUnregistered(...arguments_),
-      logoUploaded: (...arguments_: Parameters<TournamentLogger['logoUploaded']>) =>
-        this.logger.logoUploaded(...arguments_),
-      logoDeleted: (...arguments_: Parameters<TournamentLogger['logoDeleted']>) =>
-        this.logger.logoDeleted(...arguments_),
-      error: (...arguments_: Parameters<TournamentLogger['error']>) =>
-        this.logger.error(...arguments_),
-    } as TournamentLogger;
+    const loggerProxy: TournamentLogger = new Proxy(this.logger, {
+      get: (_target, property, receiver) => Reflect.get(this.logger, property, receiver),
+    });
 
     const statusHandlers = createStatusHandlers({
       tournamentModel: this.tournamentModel,
@@ -163,38 +146,31 @@ export class TournamentService {
         const matchHandlers = createMatchHandlers({
       tournamentModel: this.tournamentModel,
       validateUUID: this.validateUUID.bind(this),
-      transitionTournamentStatus: (tournamentId, status) =>
-        this.transitionTournamentStatus(tournamentId, status),
-      getCachedTournamentLiveView: (tournamentId) => liveComputationCache.getOrLoadLiveView(
-        tournamentId,
-        () => this.tournamentModel.findLiveView(tournamentId),
-        config.performance.liveEndpointCacheTtlSeconds * 1000
-      ),
-          recomputeDoubleStageProgression: async (tournamentId, stageId) => {
-            await recomputeReference.current?.(tournamentId, stageId);
-          },
+          transitionTournamentStatus: this.delegateTransitionTournamentStatus.bind(this),
+        getCachedTournamentLiveView: this.getCachedTournamentLiveView.bind(this),
+        recomputeDoubleStageProgression: this.delegateRecomputeDoubleStageProgression.bind(this),
     });
     const playerHandlers = createPlayerHandlers({
       tournamentModel: this.tournamentModel,
       logger: loggerProxy,
       validateUUID: this.validateUUID.bind(this),
-      transitionTournamentStatus: (tournamentId, status) =>
-        this.transitionTournamentStatus(tournamentId, status),
-      isAdminAction: () => this.isAdminActionContext,
+      transitionTournamentStatus: this.delegateTransitionTournamentStatus.bind(this),
+      isAdminAction: this.isAdminAction.bind(this),
     });
     const groupHandlers = createGroupHandlers({
       tournamentModel: this.tournamentModel,
       logger: loggerProxy,
       validateUUID: this.validateUUID.bind(this),
-      getActorEmail: () => this.actorEmail,
-      isAdminAction: () => this.isAdminActionContext,
+      getActorEmail: this.getActorEmailForAction.bind(this),
+      isAdminAction: this.isAdminAction.bind(this),
     });
     const poolStageHandlers = createPoolStageHandlers({
       tournamentModel: this.tournamentModel,
       validateUUID: this.validateUUID.bind(this),
       completeMatchWithRandomScores: matchHandlers.completeMatchWithRandomScores,
     });
-        recomputeReference.current = poolStageHandlers.recomputeDoubleStageProgression;
+      recomputeReference.current = poolStageHandlers.recomputeDoubleStageProgression;
+      this.recomputeDoubleStageProgressionReference = poolStageHandlers.recomputeDoubleStageProgression;
     const bracketHandlers = createBracketHandlers({
       tournamentModel: this.tournamentModel,
       validateUUID: this.validateUUID.bind(this),
@@ -204,8 +180,8 @@ export class TournamentService {
       tournamentModel: this.tournamentModel,
       logger: loggerProxy,
       validateUUID: this.validateUUID.bind(this),
-      registerPlayer: (tournamentId, playerId) => this.registerPlayer(tournamentId, playerId),
-      canViewDraftLive: () => actorContext.isAdminRequest,
+      registerPlayer: this.delegateRegisterPlayer.bind(this),
+      canViewDraftLive: this.canViewDraftLive.bind(this),
       liveViewCacheTtlMs: config.performance.liveEndpointCacheTtlSeconds * 1000,
     });
 
@@ -236,28 +212,28 @@ export class TournamentService {
 
   private initializeTournamentAutosaveHooks(): void {
     this.createTournament = this.wrapCreateWithAutosave(this.createTournament, 'CREATE_TOURNAMENT');
-    this.updateTournament = this.wrapMutationWithAutosave(this.updateTournament, (tournamentId) => tournamentId, 'UPDATE_TOURNAMENT');
-    this.uploadTournamentLogo = this.wrapMutationWithAutosave(this.uploadTournamentLogo, (tournamentId) => tournamentId, 'UPLOAD_TOURNAMENT_LOGO');
-    this.transitionTournamentStatus = this.wrapMutationWithAutosave(this.transitionTournamentStatus, (tournamentId) => tournamentId, 'TRANSITION_TOURNAMENT_STATUS');
-    this.openTournamentRegistration = this.wrapMutationWithAutosave(this.openTournamentRegistration, (tournamentId) => tournamentId, 'OPEN_TOURNAMENT_REGISTRATION');
-    this.startTournament = this.wrapMutationWithAutosave(this.startTournament, (tournamentId) => tournamentId, 'START_TOURNAMENT');
-    this.completeTournament = this.wrapMutationWithAutosave(this.completeTournament, (tournamentId) => tournamentId, 'COMPLETE_TOURNAMENT');
+    this.updateTournament = this.wrapMutationWithAutosave(this.updateTournament, extractTournamentId, 'UPDATE_TOURNAMENT');
+    this.uploadTournamentLogo = this.wrapMutationWithAutosave(this.uploadTournamentLogo, extractTournamentId, 'UPLOAD_TOURNAMENT_LOGO');
+    this.transitionTournamentStatus = this.wrapMutationWithAutosave(this.transitionTournamentStatus, extractTournamentId, 'TRANSITION_TOURNAMENT_STATUS');
+    this.openTournamentRegistration = this.wrapMutationWithAutosave(this.openTournamentRegistration, extractTournamentId, 'OPEN_TOURNAMENT_REGISTRATION');
+    this.startTournament = this.wrapMutationWithAutosave(this.startTournament, extractTournamentId, 'START_TOURNAMENT');
+    this.completeTournament = this.wrapMutationWithAutosave(this.completeTournament, extractTournamentId, 'COMPLETE_TOURNAMENT');
   }
 
   private initializeMatchAutosaveHooks(): void {
     this.updateMatchStatus = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(
       this.updateMatchStatus,
-      (tournamentId) => tournamentId,
+      extractTournamentId,
       'UPDATE_MATCH_STATUS'
     );
     this.completeMatch = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(
       this.completeMatch,
-      (tournamentId) => tournamentId,
+      extractTournamentId,
       'COMPLETE_MATCH'
     );
     this.saveMatchScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(
       this.saveMatchScores,
-      (tournamentId) => tournamentId,
+      extractTournamentId,
       'SAVE_MATCH_SCORES'
     );
   }
@@ -307,57 +283,95 @@ export class TournamentService {
   }
 
   private initializeBracketAutosaveHooks(): void {
-    this.createBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.createBracket, (tournamentId) => tournamentId, 'CREATE_BRACKET');
-    this.updateBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updateBracket, (tournamentId) => tournamentId, 'UPDATE_BRACKET');
-    this.deleteBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.deleteBracket, (tournamentId) => tournamentId, 'DELETE_BRACKET');
-    this.updateBracketTargets = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updateBracketTargets, (tournamentId) => tournamentId, 'UPDATE_BRACKET_TARGETS');
-    this.completeBracketRoundWithRandomScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.completeBracketRoundWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_BRACKET_ROUND');
-    this.resetBracketMatches = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.resetBracketMatches, (tournamentId) => tournamentId, 'RESET_BRACKET_MATCHES');
+    this.createBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.createBracket, extractTournamentId, 'CREATE_BRACKET');
+    this.updateBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updateBracket, extractTournamentId, 'UPDATE_BRACKET');
+    this.deleteBracket = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.deleteBracket, extractTournamentId, 'DELETE_BRACKET');
+    this.updateBracketTargets = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updateBracketTargets, extractTournamentId, 'UPDATE_BRACKET_TARGETS');
+    this.completeBracketRoundWithRandomScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.completeBracketRoundWithRandomScores, extractTournamentId, 'COMPLETE_BRACKET_ROUND');
+    this.resetBracketMatches = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.resetBracketMatches, extractTournamentId, 'RESET_BRACKET_MATCHES');
   }
 
   private initializePlayerAutosaveHooks(): void {
-    this.registerPlayer = this.wrapMutationWithAutosave(this.registerPlayer, (tournamentId) => tournamentId, 'REGISTER_PLAYER');
-    this.registerPlayerDetails = this.wrapMutationWithAutosave(this.registerPlayerDetails, (tournamentId) => tournamentId, 'REGISTER_PLAYER_DETAILS');
-    this.unregisterPlayer = this.wrapMutationWithAutosave(this.unregisterPlayer, (tournamentId) => tournamentId, 'UNREGISTER_PLAYER');
-    this.updateTournamentPlayer = this.wrapMutationWithAutosave(this.updateTournamentPlayer, (tournamentId) => tournamentId, 'UPDATE_TOURNAMENT_PLAYER');
-    this.updateTournamentPlayerCheckIn = this.wrapMutationWithAutosave(this.updateTournamentPlayerCheckIn, (tournamentId) => tournamentId, 'UPDATE_PLAYER_CHECKIN');
+    this.registerPlayer = this.wrapMutationWithAutosave(this.registerPlayer, extractTournamentId, 'REGISTER_PLAYER');
+    this.registerPlayerDetails = this.wrapMutationWithAutosave(this.registerPlayerDetails, extractTournamentId, 'REGISTER_PLAYER_DETAILS');
+    this.unregisterPlayer = this.wrapMutationWithAutosave(this.unregisterPlayer, extractTournamentId, 'UNREGISTER_PLAYER');
+    this.updateTournamentPlayer = this.wrapMutationWithAutosave(this.updateTournamentPlayer, extractTournamentId, 'UPDATE_TOURNAMENT_PLAYER');
+    this.updateTournamentPlayerCheckIn = this.wrapMutationWithAutosave(this.updateTournamentPlayerCheckIn, extractTournamentId, 'UPDATE_PLAYER_CHECKIN');
   }
 
   private initializeDoubletteAutosaveHooks(): void {
-    this.createDoublette = this.wrapMutationWithAutosave(this.createDoublette, (tournamentId) => tournamentId, 'CREATE_DOUBLETTE');
-    this.updateDoublette = this.wrapMutationWithAutosave(this.updateDoublette, (tournamentId) => tournamentId, 'UPDATE_DOUBLETTE');
-    this.joinDoublette = this.wrapMutationWithAutosave(this.joinDoublette, (tournamentId) => tournamentId, 'JOIN_DOUBLETTE');
-    this.addDoubletteMember = this.wrapMutationWithAutosave(this.addDoubletteMember, (tournamentId) => tournamentId, 'ADD_DOUBLETTE_MEMBER');
-    this.removeDoubletteMember = this.wrapMutationWithAutosave(this.removeDoubletteMember, (tournamentId) => tournamentId, 'REMOVE_DOUBLETTE_MEMBER');
-    this.leaveDoublette = this.wrapMutationWithAutosave(this.leaveDoublette, (tournamentId) => tournamentId, 'LEAVE_DOUBLETTE');
-    this.registerDoublette = this.wrapMutationWithAutosave(this.registerDoublette, (tournamentId) => tournamentId, 'REGISTER_DOUBLETTE');
-    this.unregisterDoublette = this.wrapMutationWithAutosave(this.unregisterDoublette, (tournamentId) => tournamentId, 'UNREGISTER_DOUBLETTE');
-    this.deleteDoublette = this.wrapMutationWithAutosave(this.deleteDoublette, (tournamentId) => tournamentId, 'DELETE_DOUBLETTE');
-    this.updateDoublettePassword = this.wrapMutationWithAutosave(this.updateDoublettePassword, (tournamentId) => tournamentId, 'UPDATE_DOUBLETTE_PASSWORD');
+    this.createDoublette = this.wrapMutationWithAutosave(this.createDoublette, extractTournamentId, 'CREATE_DOUBLETTE');
+    this.updateDoublette = this.wrapMutationWithAutosave(this.updateDoublette, extractTournamentId, 'UPDATE_DOUBLETTE');
+    this.joinDoublette = this.wrapMutationWithAutosave(this.joinDoublette, extractTournamentId, 'JOIN_DOUBLETTE');
+    this.addDoubletteMember = this.wrapMutationWithAutosave(this.addDoubletteMember, extractTournamentId, 'ADD_DOUBLETTE_MEMBER');
+    this.removeDoubletteMember = this.wrapMutationWithAutosave(this.removeDoubletteMember, extractTournamentId, 'REMOVE_DOUBLETTE_MEMBER');
+    this.leaveDoublette = this.wrapMutationWithAutosave(this.leaveDoublette, extractTournamentId, 'LEAVE_DOUBLETTE');
+    this.registerDoublette = this.wrapMutationWithAutosave(this.registerDoublette, extractTournamentId, 'REGISTER_DOUBLETTE');
+    this.unregisterDoublette = this.wrapMutationWithAutosave(this.unregisterDoublette, extractTournamentId, 'UNREGISTER_DOUBLETTE');
+    this.deleteDoublette = this.wrapMutationWithAutosave(this.deleteDoublette, extractTournamentId, 'DELETE_DOUBLETTE');
+    this.updateDoublettePassword = this.wrapMutationWithAutosave(this.updateDoublettePassword, extractTournamentId, 'UPDATE_DOUBLETTE_PASSWORD');
   }
 
   private initializeEquipeAutosaveHooks(): void {
-    this.createEquipe = this.wrapMutationWithAutosave(this.createEquipe, (tournamentId) => tournamentId, 'CREATE_EQUIPE');
-    this.updateEquipe = this.wrapMutationWithAutosave(this.updateEquipe, (tournamentId) => tournamentId, 'UPDATE_EQUIPE');
-    this.joinEquipe = this.wrapMutationWithAutosave(this.joinEquipe, (tournamentId) => tournamentId, 'JOIN_EQUIPE');
-    this.addEquipeMember = this.wrapMutationWithAutosave(this.addEquipeMember, (tournamentId) => tournamentId, 'ADD_EQUIPE_MEMBER');
-    this.removeEquipeMember = this.wrapMutationWithAutosave(this.removeEquipeMember, (tournamentId) => tournamentId, 'REMOVE_EQUIPE_MEMBER');
-    this.leaveEquipe = this.wrapMutationWithAutosave(this.leaveEquipe, (tournamentId) => tournamentId, 'LEAVE_EQUIPE');
-    this.registerEquipe = this.wrapMutationWithAutosave(this.registerEquipe, (tournamentId) => tournamentId, 'REGISTER_EQUIPE');
-    this.unregisterEquipe = this.wrapMutationWithAutosave(this.unregisterEquipe, (tournamentId) => tournamentId, 'UNREGISTER_EQUIPE');
-    this.deleteEquipe = this.wrapMutationWithAutosave(this.deleteEquipe, (tournamentId) => tournamentId, 'DELETE_EQUIPE');
-    this.updateEquipePassword = this.wrapMutationWithAutosave(this.updateEquipePassword, (tournamentId) => tournamentId, 'UPDATE_EQUIPE_PASSWORD');
+    this.createEquipe = this.wrapMutationWithAutosave(this.createEquipe, extractTournamentId, 'CREATE_EQUIPE');
+    this.updateEquipe = this.wrapMutationWithAutosave(this.updateEquipe, extractTournamentId, 'UPDATE_EQUIPE');
+    this.joinEquipe = this.wrapMutationWithAutosave(this.joinEquipe, extractTournamentId, 'JOIN_EQUIPE');
+    this.addEquipeMember = this.wrapMutationWithAutosave(this.addEquipeMember, extractTournamentId, 'ADD_EQUIPE_MEMBER');
+    this.removeEquipeMember = this.wrapMutationWithAutosave(this.removeEquipeMember, extractTournamentId, 'REMOVE_EQUIPE_MEMBER');
+    this.leaveEquipe = this.wrapMutationWithAutosave(this.leaveEquipe, extractTournamentId, 'LEAVE_EQUIPE');
+    this.registerEquipe = this.wrapMutationWithAutosave(this.registerEquipe, extractTournamentId, 'REGISTER_EQUIPE');
+    this.unregisterEquipe = this.wrapMutationWithAutosave(this.unregisterEquipe, extractTournamentId, 'UNREGISTER_EQUIPE');
+    this.deleteEquipe = this.wrapMutationWithAutosave(this.deleteEquipe, extractTournamentId, 'DELETE_EQUIPE');
+    this.updateEquipePassword = this.wrapMutationWithAutosave(this.updateEquipePassword, extractTournamentId, 'UPDATE_EQUIPE_PASSWORD');
   }
 
   private initializePoolStageAutosaveHooks(): void {
-    this.createPoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.createPoolStage, (tournamentId) => tournamentId, 'CREATE_POOL_STAGE');
-    this.updatePoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updatePoolStage, (tournamentId) => tournamentId, 'UPDATE_POOL_STAGE');
-    this.recomputeDoubleStageProgression = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.recomputeDoubleStageProgression, (tournamentId) => tournamentId, 'RECOMPUTE_DOUBLE_STAGE');
-    this.completePoolStageWithRandomScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.completePoolStageWithRandomScores, (tournamentId) => tournamentId, 'COMPLETE_POOL_STAGE');
-    this.populateBracketFromPools = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.populateBracketFromPools, (tournamentId) => tournamentId, 'POPULATE_BRACKET_FROM_POOLS');
-    this.deletePoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.deletePoolStage, (tournamentId) => tournamentId, 'DELETE_POOL_STAGE');
-    this.resetPoolMatches = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.resetPoolMatches, (tournamentId) => tournamentId, 'RESET_POOL_MATCHES');
-    this.updatePoolAssignments = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updatePoolAssignments, (tournamentId) => tournamentId, 'UPDATE_POOL_ASSIGNMENTS');
+    this.createPoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.createPoolStage, extractTournamentId, 'CREATE_POOL_STAGE');
+    this.updatePoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updatePoolStage, extractTournamentId, 'UPDATE_POOL_STAGE');
+    this.recomputeDoubleStageProgression = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.recomputeDoubleStageProgression, extractTournamentId, 'RECOMPUTE_DOUBLE_STAGE');
+    this.completePoolStageWithRandomScores = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.completePoolStageWithRandomScores, extractTournamentId, 'COMPLETE_POOL_STAGE');
+    this.populateBracketFromPools = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.populateBracketFromPools, extractTournamentId, 'POPULATE_BRACKET_FROM_POOLS');
+    this.deletePoolStage = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.deletePoolStage, extractTournamentId, 'DELETE_POOL_STAGE');
+    this.resetPoolMatches = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.resetPoolMatches, extractTournamentId, 'RESET_POOL_MATCHES');
+    this.updatePoolAssignments = this.wrapMutationWithAutosaveAndLiveCacheInvalidation(this.updatePoolAssignments, extractTournamentId, 'UPDATE_POOL_ASSIGNMENTS');
+  }
+
+  private async getCachedTournamentLiveView(tournamentId: string) {
+    return liveComputationCache.getOrLoadLiveView(
+      tournamentId,
+      () => this.tournamentModel.findLiveView(tournamentId),
+      config.performance.liveEndpointCacheTtlSeconds * 1000
+    );
+  }
+
+  private isAdminAction(): boolean {
+    return this.isAdminActionContext;
+  }
+
+  private getActorEmailForAction(): string | undefined {
+    return this.actorEmail;
+  }
+
+  private canViewDraftLive(): boolean {
+    return this.isAdminActionContext;
+  }
+
+  private async delegateRecomputeDoubleStageProgression(tournamentId: string, stageId: string): Promise<void> {
+    await (this.recomputeDoubleStageProgressionReference?.(tournamentId, stageId));
+  }
+
+  private delegateTransitionTournamentStatus(
+    tournamentId: Parameters<StatusHandlers['transitionTournamentStatus']>[0],
+    status: Parameters<StatusHandlers['transitionTournamentStatus']>[1]
+  ): ReturnType<StatusHandlers['transitionTournamentStatus']> {
+    return this.transitionTournamentStatus(tournamentId, status);
+  }
+
+  private delegateRegisterPlayer(
+    tournamentId: Parameters<PlayerHandlers['registerPlayer']>[0],
+    playerId: Parameters<PlayerHandlers['registerPlayer']>[1]
+  ): ReturnType<PlayerHandlers['registerPlayer']> {
+    return this.registerPlayer(tournamentId, playerId);
   }
 
   private resolveActorContext(request?: Request): {

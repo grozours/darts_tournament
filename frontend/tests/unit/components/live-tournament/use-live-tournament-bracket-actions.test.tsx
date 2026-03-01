@@ -95,4 +95,35 @@ describe('useLiveTournamentBracketActions', () => {
     expect(result.current.activeBracketByTournament).toEqual({ t1: 'b1' });
     expect(populateBracketFromPools).not.toHaveBeenCalled();
   });
+
+  it('uses fallback error messages for non-Error failures', async () => {
+    completeBracketRoundWithScores.mockRejectedValueOnce('x');
+    resetBracketMatches.mockRejectedValueOnce('y');
+    populateBracketFromPools.mockRejectedValueOnce('z');
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+
+    const setError = vi.fn();
+    const { result } = renderHook(() => useLiveTournamentBracketActions({
+      t: (key: string) => key,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      reloadLiveViews: vi.fn(async () => undefined),
+      setError,
+    }));
+
+    await act(async () => {
+      await result.current.handleCompleteBracketRound('t1', {
+        id: 'b1',
+        name: 'Bracket',
+        status: 'IN_PROGRESS',
+        bracketType: 'SINGLE_ELIMINATION',
+        matches: [{ id: 'm1', status: 'SCHEDULED', roundNumber: 1, matchNumber: 1 }],
+      } as never);
+      await result.current.handleResetBracketMatches('t1', 'b1');
+      await result.current.handlePopulateBracketFromPools('t1', 'b1', { id: 's1' } as never);
+    });
+
+    expect(setError).toHaveBeenCalledWith('Failed to complete bracket round');
+    expect(setError).toHaveBeenCalledWith('Failed to reset bracket matches');
+    expect(setError).toHaveBeenCalledWith('Failed to populate bracket');
+  });
 });

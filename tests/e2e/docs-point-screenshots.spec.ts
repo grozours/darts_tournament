@@ -4,6 +4,9 @@ type UiLanguage = 'fr' | 'en' | 'es' | 'de' | 'it' | 'pt' | 'nl';
 
 const screenshotsDirectory = '../docs/assets/screenshots';
 const languages: UiLanguage[] = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'];
+const shouldCaptureDocsScreenshots = process.env.UPDATE_DOC_SCREENSHOTS === 'true';
+
+test.skip(!shouldCaptureDocsScreenshots, 'Set UPDATE_DOC_SCREENSHOTS=true to refresh docs screenshots.');
 
 const tournaments = [
   {

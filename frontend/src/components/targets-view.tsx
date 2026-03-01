@@ -59,32 +59,35 @@ function TargetsView() {
         return;
       }
 
-      try {
-        const token = await getSafeAccessToken();
-        const nextMap = new Map<string, Map<string, string>>();
+      const token = await getSafeAccessToken();
+      const settledResults = await Promise.allSettled(groupedViews.map(async (view) => {
+        const groups = view.format === TournamentFormat.DOUBLE
+          ? await fetchDoublettes(view.id, token)
+          : await fetchEquipes(view.id, token);
 
-        await Promise.all(groupedViews.map(async (view) => {
-          const groups = view.format === TournamentFormat.DOUBLE
-            ? await fetchDoublettes(view.id, token)
-            : await fetchEquipes(view.id, token);
-
-          const byPlayerId = new Map<string, string>();
-          for (const group of groups) {
-            for (const member of group.members) {
-              byPlayerId.set(member.playerId, group.name);
-            }
+        const byPlayerId = new Map<string, string>();
+        for (const group of groups) {
+          for (const member of group.members) {
+            byPlayerId.set(member.playerId, group.name);
           }
-
-          nextMap.set(view.id, byPlayerId);
-        }));
-
-        if (!isCancelled) {
-          setGroupNameByPlayerIdByTournament(nextMap);
         }
-      } catch (error_) {
-        if (!isCancelled) {
-          setGroupNameByPlayerIdByTournament(new Map());
+
+        return {
+          viewId: view.id,
+          byPlayerId,
+        };
+      }));
+
+      const nextMap = new Map<string, Map<string, string>>();
+      for (const result of settledResults) {
+        if (result.status !== 'fulfilled') {
+          continue;
         }
+        nextMap.set(result.value.viewId, result.value.byPlayerId);
+      }
+
+      if (!isCancelled) {
+        setGroupNameByPlayerIdByTournament(nextMap);
       }
     };
 

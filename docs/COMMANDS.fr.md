@@ -101,7 +101,7 @@ Scripts utilitaires pour CI, lint, tests et seed. Lancer depuis la racine du pro
 | Script | Description |
 |--------|-------------|
 | `scripts/autofill_players.sh` | Remplit des joueurs de démo et active un tournoi |
-| `scripts/ci_full.sh` | Lance lint, tests, e2e et Sonar si token dispo |
+| `scripts/ci_full.sh` | Lance lint, tests, e2e et Sonar si token dispo (screenshots docs désactivés par défaut) |
 | `scripts/lint_all.sh` | Lint + typecheck frontend et backend |
 | `scripts/lint_backend.sh` | Lint + typecheck backend (+ Sonar) |
 | `scripts/lint_frontend.sh` | Lint + typecheck frontend (+ Sonar) |
@@ -644,12 +644,18 @@ Le dossier `scripts/` contient des scripts utiles :
 # Lancer les checks complets (lint, tests, build)
 ./scripts/ci_full.sh
 
+# Activer explicitement la régénération des screenshots docs
+CI_UPDATE_DOC_SCREENSHOTS=true ./scripts/ci_full.sh
+
 # Ce que ça fait :
 # 1. Lint backend & frontend
 # 2. Tests avec couverture
 # 3. Builds
 # 4. Rapport succès/échec
 ```
+
+Par défaut, `ci_full.sh` ne régénère pas les screenshots de documentation.
+Définir `CI_UPDATE_DOC_SCREENSHOTS=true` pour forcer la mise à jour quand nécessaire.
 
 ### Scripts individuels
 

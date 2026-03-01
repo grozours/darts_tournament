@@ -10,8 +10,16 @@ type AppHeaderProperties = {
 };
 
 type DevAutologinMode = 'anonymous' | 'player' | 'admin';
+type HeaderTournamentSummary = { format?: string; status?: string };
 
 const NOTIFICATIONS_STORAGE_KEY = 'notifications:match-started';
+const REGISTRATION_MENU_ALLOWED_STATUSES = new Set(['OPEN', 'SIGNATURE', 'LIVE', 'FINISHED']);
+
+const isDoubleTournamentFormat = (format?: string) => (format ?? '').toUpperCase() === 'DOUBLE';
+const isTeamTournamentFormat = (format?: string) => {
+  const normalizedFormat = (format ?? '').toUpperCase();
+  return normalizedFormat === 'TEAM_4_PLAYER' || normalizedFormat === 'TEAM';
+};
 
 const readUnreadCount = () => {
   try {
@@ -54,6 +62,8 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
   const [devAutologinMode, setDevAutologinMode] = useState<DevAutologinMode>('anonymous');
   const [devAutologinReady, setDevAutologinReady] = useState(false);
   const [devAutologinUpdating, setDevAutologinUpdating] = useState(false);
+  const [showDoublettesLink, setShowDoublettesLink] = useState(false);
+  const [showEquipesLink, setShowEquipesLink] = useState(false);
   const hostname = globalThis.window?.location.hostname;
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
   const currentLanguage = languageOrder.includes(lang as (typeof languageOrder)[number])
@@ -124,6 +134,44 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
       globalThis.window.removeEventListener('storage', handleStorage);
       globalThis.window.removeEventListener('notifications:updated', updateUnreadCount);
       globalThis.document?.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRegistrationFormats = async () => {
+      try {
+        const response = await fetch('/api/tournaments?limit=100');
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json() as { tournaments?: HeaderTournamentSummary[] };
+        const tournaments = Array.isArray(payload.tournaments) ? payload.tournaments : [];
+        const tournamentsInAllowedStatuses = tournaments.filter((tournament) =>
+          REGISTRATION_MENU_ALLOWED_STATUSES.has((tournament.status ?? '').toUpperCase())
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setShowDoublettesLink(tournamentsInAllowedStatuses.some((tournament) => isDoubleTournamentFormat(tournament.format)));
+        setShowEquipesLink(tournamentsInAllowedStatuses.some((tournament) => isTeamTournamentFormat(tournament.format)));
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+        setShowDoublettesLink(false);
+        setShowEquipesLink(false);
+      }
+    };
+
+    void loadRegistrationFormats();
+
+    return () => {
+      isMounted = false;
     };
   }, []);
 
@@ -229,14 +277,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
                   >
                     Match formats
                   </a>
-                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=DRAFT">
-                    {t('nav.drafts')}
-                  </a>
-                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=OPEN">
-                    {t('nav.open')}
-                  </a>
-                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=SIGNATURE">
-                    {t('nav.signature')}
+                  <a
+                    className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
+                    href="/?view=tournament-snapshots"
+                  >
+                    Sauvegardes
                   </a>
                 </div>
               </div>
@@ -262,12 +307,16 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
                     {t('nav.players')}
                   </a>
                 )}
-                <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=doublettes">
-                  {t('groups.doublettes')}
-                </a>
-                <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=equipes">
-                  {t('groups.equipes')}
-                </a>
+                {showDoublettesLink && (
+                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=doublettes">
+                    {t('groups.doublettes')}
+                  </a>
+                )}
+                {showEquipesLink && (
+                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=equipes">
+                    {t('groups.equipes')}
+                  </a>
+                )}
               </div>
             </div>
           </div>

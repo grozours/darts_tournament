@@ -1,0 +1,16 @@
+Backlog couverture branches (snapshot 2026-03-01)
+
+Frontend - Top 10 plus faibles (branches):
+- frontend/src/components/live-tournament/bracket-matches.tsx : 60.32% (76/126)
+- frontend/src/components/live-tournament/live-tournament-view.tsx : 60.38% (192/318)
+- frontend/src/components/targets-view/queue-helpers.ts : 60.96% (89/146)
+- frontend/src/components/live-tournament/brackets-section.tsx : 61.19% (82/134)
+- frontend/src/components/tournament-list/use-tournament-edit-actions.ts : 61.54% (32/52)
+- frontend/src/components/tournament-list/use-bracket-structure.ts : 63.64% (42/66)
+- frontend/src/components/live-tournament/use-live-tournament-pool-stage-assignments.ts : 64.29% (9/14)
+- frontend/src/components/targets-view/match-maps.ts : 64.41% (38/59)
+- frontend/src/components/live-tournament/queue-utilities.ts : 64.86% (48/74)
+- frontend/src/components/live-tournament/pool-stages-section.tsx : 65.12% (56/86)
+
+Backend - Top actuel (branches):
+- backend/src/services/tournament-service.ts : 96.55% (28/29)

@@ -14,6 +14,7 @@ import MatchFormatsView from './components/match-formats-view';
 import DoublettesView from './components/doublettes-view';
 import EquipesView from './components/equipes-view';
 import DocsView from './components/docs-view';
+import TournamentSnapshotsView from './components/tournament-snapshots-view';
 import { fetchLiveTournamentSummary, fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
@@ -166,6 +167,9 @@ const resolveMainContent = (
     }
     case 'match-formats': {
       return <MatchFormatsView />;
+    }
+    case 'tournament-snapshots': {
+      return renderAdminOnly(isAdmin, t, <TournamentSnapshotsView />);
     }
     case 'doublettes': {
       return <DoublettesView />;

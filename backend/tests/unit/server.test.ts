@@ -89,4 +89,22 @@ describe('server entrypoint', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
+
+  it('handles unhandled rejections with non-error reasons', async () => {
+    const startMock = jest.fn().mockResolvedValue(undefined);
+
+    jest.doMock('../../src/app', () => ({
+      __esModule: true,
+      default: jest.fn().mockImplementation(() => ({ start: startMock })),
+    }));
+
+    await jest.isolateModulesAsync(async () => {
+      await import('../../src/server');
+    });
+
+    const handler = handlers.get('unhandledRejection');
+    handler?.('plain-reason', Promise.resolve());
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
 });

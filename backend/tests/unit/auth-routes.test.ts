@@ -93,6 +93,7 @@ describe('auth routes', () => {
   });
 
   it('returns current local dev autologin mode', async () => {
+    getActiveDevelopmentAutologinModeMock.mockReturnValueOnce(undefined);
     const { default: router } = await import('../../src/routes/auth');
     const app = express();
     app.use(express.json());
@@ -104,7 +105,7 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      mode: 'admin',
+      mode: 'anonymous',
       availableModes: ['anonymous', 'player', 'admin'],
     });
   });
@@ -125,5 +126,41 @@ describe('auth routes', () => {
     expect(response.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringContaining('dev-autologin-mode=player')])
     );
+  });
+
+  it('returns 400 for invalid dev autologin mode', async () => {
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json());
+    app.use('/api/auth', router);
+
+    const response = await request(app)
+      .post('/api/auth/dev-autologin')
+      .set('Host', 'localhost:3000')
+      .send({ mode: 'invalid-mode' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Bad Request');
+  });
+
+  it('returns 404 for non-local or auth-disabled dev autologin endpoints', async () => {
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json());
+    app.use('/api/auth', router);
+
+    const nonLocal = await request(app)
+      .get('/api/auth/dev-autologin')
+      .set('Host', 'example.com');
+    expect(nonLocal.status).toBe(404);
+
+    config.auth.enabled = false;
+    const disabled = await request(app)
+      .post('/api/auth/dev-autologin')
+      .set('Host', 'localhost:3000')
+      .send({ mode: 'player' });
+    expect(disabled.status).toBe(404);
+
+    config.auth.enabled = true;
   });
 });

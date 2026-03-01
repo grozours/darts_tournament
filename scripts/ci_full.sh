@@ -16,6 +16,13 @@ echo "[ci] Running frontend coverage tests..."
 npm --prefix "${ROOT_DIR}/frontend" run test:coverage
 
 echo "[ci] Running end-to-end tests..."
+if [[ "${CI_UPDATE_DOC_SCREENSHOTS:-false}" == "true" ]]; then
+	export UPDATE_DOC_SCREENSHOTS=true
+	echo "[ci] Documentation screenshots update enabled (CI_UPDATE_DOC_SCREENSHOTS=true)."
+else
+	export UPDATE_DOC_SCREENSHOTS=false
+	echo "[ci] Documentation screenshots update disabled by default."
+fi
 bash "${ROOT_DIR}/scripts/run_playwright_tests.sh"
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then

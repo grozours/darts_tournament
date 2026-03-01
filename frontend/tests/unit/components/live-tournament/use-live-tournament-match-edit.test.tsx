@@ -40,4 +40,28 @@ describe('useLiveTournamentMatchEdit', () => {
 
     expect(result.current.editingMatchId).toBeUndefined();
   });
+
+  it('handles matches without player ids and defaults score to 0', () => {
+    const setMatchScoresForMatch = vi.fn();
+    const { result } = renderHook(() => useLiveTournamentMatchEdit({
+      getMatchKey: (tournamentId, matchId) => `${tournamentId}:${matchId}`,
+      setMatchScoresForMatch,
+    }));
+
+    act(() => {
+      result.current.handleEditMatch('t1', {
+        id: 'm2',
+        matchNumber: 2,
+        roundNumber: 1,
+        status: 'SCHEDULED',
+        playerMatches: [
+          { playerPosition: 1, player: undefined },
+          { playerPosition: 2, player: { firstName: 'X', lastName: 'Y' }, scoreTotal: undefined, legsWon: undefined },
+        ],
+      } as never);
+    });
+
+    expect(setMatchScoresForMatch).toHaveBeenCalledWith('t1:m2', {});
+    expect(result.current.editingMatchId).toBe('t1:m2');
+  });
 });

@@ -112,30 +112,10 @@ const splitStepLines = (text: string) => text
   .map((line) => line.trim())
   .filter((line) => line.length > 0);
 
-const formatGuideStepAsYamlLike = (stepText: string, index: number) => {
+const formatGuideStepDescriptionLines = (stepText: string) => {
   const lines = splitStepLines(stepText);
-  const firstLine = lines[0] ?? '';
-  const withoutIndex = firstLine.replace(/^\d+\.\s*/, '').trim();
-
-  const separatorIndex = withoutIndex.indexOf(':');
-  const hasTitle = separatorIndex > 0;
-  const parsedTitle = hasTitle ? withoutIndex.slice(0, separatorIndex).trim() : '';
-  const firstDescriptionChunk = hasTitle
-    ? withoutIndex.slice(separatorIndex + 1).trim()
-    : withoutIndex;
-
-  const descriptionLines = [firstDescriptionChunk, ...lines.slice(1)].filter((line) => line.length > 0);
-
-  const headerLine = parsedTitle
-    ? `${index + 1} : ${parsedTitle}`
-    : `${index + 1}`;
-
-  const yamlLines: string[] = [headerLine];
-  for (const line of descriptionLines) {
-    yamlLines.push(`    ${line}`);
-  }
-
-  return yamlLines.join('\n');
+  const firstLine = (lines[0] ?? '').replace(/^\d+\.\s*/, '').trim();
+  return [firstLine, ...lines.slice(1)].filter((line) => line.length > 0);
 };
 
 const docsContent: Record<'fr' | 'en', {
@@ -394,16 +374,20 @@ function DocsView({ accountType = 'anonymous' }: DocsViewProperties) {
             const anchorId = buildGuideStepAnchorId(accountType, index);
             return (
             <li id={anchorId} key={step.text} className="scroll-mt-28 rounded-xl border border-slate-800/70 bg-slate-900/30 p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <pre className="flex-1 overflow-x-auto whitespace-pre-wrap rounded-lg border border-slate-800/70 bg-slate-950/40 p-3 font-mono text-xs leading-relaxed text-slate-200">
-                  {formatGuideStepAsYamlLike(step.text, index)}
-                </pre>
-                <a
-                  href={step.accessLink.href}
-                  className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-cyan-300 hover:bg-slate-800"
-                >
-                  {step.accessLink.label}
-                </a>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-950/40" data-testid="doc-step-description-card">
+                <div className="px-3 pt-3">
+                  <a
+                    href={step.accessLink.href}
+                    className="inline-flex text-sm font-medium text-cyan-300 hover:underline"
+                  >
+                    {`${index + 1} : ${step.accessLink.label}`}
+                  </a>
+                </div>
+                <div className="space-y-2 px-3 pb-3 pt-2 font-mono text-xs leading-relaxed text-slate-200">
+                  {formatGuideStepDescriptionLines(step.text).map((line) => (
+                    <p key={`${anchorId}-${line}`}>{line}</p>
+                  ))}
+                </div>
               </div>
               <figure className="mt-3 overflow-hidden rounded-lg border border-slate-800/70 bg-slate-900/40">
                 <img

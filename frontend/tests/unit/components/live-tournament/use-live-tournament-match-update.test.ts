@@ -76,6 +76,67 @@ describe('useLiveTournamentMatchUpdate', () => {
     expect(clearMatchTargetSelection).not.toHaveBeenCalled();
   });
 
+  it('clears target selection for completed status', async () => {
+    const { result } = renderHook(() => useLiveTournamentMatchUpdate({
+      getSafeAccessToken,
+      reloadLiveViews,
+      setError,
+      getMatchKey: () => 'k',
+      matchScores: {},
+      clearMatchTargetSelection,
+      onSavedMatchScores,
+    }));
+
+    await act(async () => {
+      await result.current.handleMatchStatusUpdate('t1', 'm1', 'COMPLETED');
+    });
+
+    expect(clearMatchTargetSelection).toHaveBeenCalledWith('k');
+  });
+
+  it('clears target selection for cancelled and scheduled statuses', async () => {
+    const { result } = renderHook(() => useLiveTournamentMatchUpdate({
+      getSafeAccessToken,
+      reloadLiveViews,
+      setError,
+      getMatchKey: () => 'k2',
+      matchScores: {},
+      clearMatchTargetSelection,
+      onSavedMatchScores,
+    }));
+
+    await act(async () => {
+      await result.current.handleMatchStatusUpdate('t1', 'm1', 'CANCELLED');
+      await result.current.handleMatchStatusUpdate('t1', 'm1', 'SCHEDULED');
+    });
+
+    expect(clearMatchTargetSelection).toHaveBeenCalledWith('k2');
+  });
+
+  it('uses explicit and fallback messages when status update fails', async () => {
+    updateMatchStatusMock
+      .mockRejectedValueOnce(new Error('status failed'))
+      .mockRejectedValueOnce('not-error');
+
+    const { result } = renderHook(() => useLiveTournamentMatchUpdate({
+      getSafeAccessToken,
+      reloadLiveViews,
+      setError,
+      getMatchKey: () => 'k3',
+      matchScores: {},
+      clearMatchTargetSelection,
+      onSavedMatchScores,
+    }));
+
+    await act(async () => {
+      await result.current.handleMatchStatusUpdate('t1', 'm1', 'IN_PROGRESS');
+      await result.current.handleMatchStatusUpdate('t1', 'm1', 'IN_PROGRESS');
+    });
+
+    expect(setError).toHaveBeenCalledWith('status failed');
+    expect(setError).toHaveBeenCalledWith('Failed to update match status');
+  });
+
   it('aborts complete match when score validation fails', async () => {
     validateMatchScoresMock.mockReturnValue({ scores: undefined, error: 'bad scores' });
 
@@ -126,5 +187,38 @@ describe('useLiveTournamentMatchUpdate', () => {
     expect(saveMatchScoresMock).toHaveBeenCalledWith('t1', 'm1', [{ playerId: 'p1', scoreTotal: 2 }], 'token');
     expect(reloadLiveViews).toHaveBeenCalledWith({ showLoader: false });
     expect(onSavedMatchScores).toHaveBeenCalled();
+  });
+
+  it('uses fallback messages when complete/save fail with non-Error', async () => {
+    validateMatchScoresMock.mockReturnValue({
+      scores: [{ playerId: 'p1', scoreTotal: 2 }],
+      error: undefined,
+    });
+    completeMatchMock.mockRejectedValueOnce('x');
+    saveMatchScoresMock.mockRejectedValueOnce('y');
+
+    const { result } = renderHook(() => useLiveTournamentMatchUpdate({
+      getSafeAccessToken,
+      reloadLiveViews,
+      setError,
+      getMatchKey: () => 'k',
+      matchScores: { k: { p1: '2' } },
+      clearMatchTargetSelection,
+      onSavedMatchScores,
+    }));
+
+    await act(async () => {
+      await result.current.handleCompleteMatch('t1', {
+        id: 'm1',
+        playerMatches: [{ player: { id: 'p1' } }],
+      } as never);
+      await result.current.handleSaveMatchScores('t1', {
+        id: 'm1',
+        playerMatches: [{ player: { id: 'p1' } }],
+      } as never);
+    });
+
+    expect(setError).toHaveBeenCalledWith('Failed to complete match');
+    expect(setError).toHaveBeenCalledWith('Failed to update match scores');
   });
 });

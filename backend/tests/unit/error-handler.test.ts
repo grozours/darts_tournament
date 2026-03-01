@@ -2,6 +2,9 @@ import { z } from 'zod';
 import {
   AppError,
   asyncHandler,
+  createAuthError,
+  createAuthorizationError,
+  createDatabaseError,
   createValidationError,
   errorHandler,
   notFoundHandler,
@@ -128,6 +131,27 @@ describe('error-handler middleware', () => {
     );
   });
 
+  it('handles Prisma not found errors', () => {
+    const request = buildRequest();
+    const response = buildResponse();
+    const error = new Error('Prisma not found');
+
+    (error as unknown as { name?: string; code?: string }).name = 'PrismaClientKnownRequestError';
+    (error as unknown as { code?: string }).code = 'P2025';
+
+    errorHandler(error, request as never, response as never, jest.fn());
+
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Record not found',
+          code: 'P2025',
+        }),
+      })
+    );
+  });
+
   it('handles Multer file size errors', () => {
     const request = buildRequest();
     const response = buildResponse();
@@ -148,11 +172,86 @@ describe('error-handler middleware', () => {
     );
   });
 
+  it('handles Multer file-count and unexpected-field errors', () => {
+    const request = buildRequest();
+    const responseA = buildResponse();
+    const fileCountError = new Error('too many');
+
+    (fileCountError as unknown as { name?: string; code?: string }).name = 'MulterError';
+    (fileCountError as unknown as { code?: string }).code = 'LIMIT_FILE_COUNT';
+
+    errorHandler(fileCountError, request as never, responseA as never, jest.fn());
+    expect(responseA.status).toHaveBeenCalledWith(400);
+    expect(responseA.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Only a single file is allowed',
+        }),
+      })
+    );
+
+    const responseB = buildResponse();
+    const unexpectedFieldError = new Error('unexpected');
+
+    (unexpectedFieldError as unknown as { name?: string; code?: string; field?: string }).name = 'MulterError';
+    (unexpectedFieldError as unknown as { code?: string }).code = 'LIMIT_UNEXPECTED_FILE';
+    (unexpectedFieldError as unknown as { field?: string }).field = 'avatar';
+
+    errorHandler(unexpectedFieldError, request as never, responseB as never, jest.fn());
+    expect(responseB.status).toHaveBeenCalledWith(400);
+    expect(responseB.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Invalid file field. Expected logo',
+        }),
+      })
+    );
+  });
+
+  it('handles explicit HTTP and unauthorized errors', () => {
+    const request = buildRequest();
+    const responseA = buildResponse();
+    const httpError = new Error('Forbidden request') as Error & { statusCode?: number; code?: string };
+    httpError.statusCode = 403;
+    httpError.code = 'FORBIDDEN';
+
+    errorHandler(httpError, request as never, responseA as never, jest.fn());
+    expect(responseA.status).toHaveBeenCalledWith(403);
+    expect(responseA.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Forbidden request',
+          code: 'FORBIDDEN',
+        }),
+      })
+    );
+
+    const responseB = buildResponse();
+    const authError = new Error('not authorized') as Error & { name: string; code?: string };
+    authError.name = 'UnauthorizedError';
+
+    errorHandler(authError, request as never, responseB as never, jest.fn());
+    expect(responseB.status).toHaveBeenCalledWith(401);
+    expect(responseB.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'UNAUTHORIZED',
+        }),
+      })
+    );
+  });
+
   it('creates validation errors with field metadata', () => {
     const error = createValidationError('Missing field', 'name');
 
     expect(error).toBeInstanceOf(AppError);
     expect((error as AppError & { field?: string }).field).toBe('name');
+  });
+
+  it('creates database/auth/authz helper errors', () => {
+    expect(createDatabaseError().code).toBe('DATABASE_ERROR');
+    expect(createAuthError().statusCode).toBe(401);
+    expect(createAuthorizationError().statusCode).toBe(403);
   });
 
   it('forwards async handler errors', async () => {

@@ -557,6 +557,21 @@ describe('TargetsGridCard', () => {
     expect(screen.getByRole('button', { name: 'live.startMatch' })).toBeEnabled();
   });
 
+  it('disables start when selected match is no longer available in queue', () => {
+    const properties = buildBaseProperties();
+
+    render(
+      <TargetsGridCard
+        {...({
+          ...properties,
+          matchSelectionByTarget: { '1': 'missing-match' },
+        } as unknown as TargetsGridCardProperties)}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'live.startMatch' })).toBeDisabled();
+  });
+
   it('does not show running-match label when target is free', () => {
     const properties = buildBaseProperties();
 

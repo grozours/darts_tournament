@@ -54,9 +54,6 @@ require_any_link() {
 }
 
 echo "[nav-check] Verifying top menu links in app header/entry files..."
-require_link "href=\"/?status=DRAFT\"" "Drafts"
-require_link "href=\"/?status=OPEN\"" "Open"
-require_link "href=\"/?status=SIGNATURE\"" "Signature"
 require_any_link "Live" "href=\"/?status=LIVE\"" "href=\"/?status=live\"" "href=\"https://darts.bzhtech.eu/?status=live\""
 require_link "href=\"/?view=pool-stages\"" "Pool stages running"
 require_link "href=\"/?view=brackets\"" "Brackets running"

@@ -88,4 +88,23 @@ describe('useLiveTournamentMatchActions', () => {
 
     expect(setError).toHaveBeenCalledWith('reset failed');
   });
+
+  it('uses fallback error when reset throws non-Error value', async () => {
+    const setError = vi.fn();
+    resetPoolMatches.mockRejectedValue('oops');
+
+    const { result } = renderHook(() => useLiveTournamentMatchActions({
+      getSafeAccessToken: vi.fn(async () => undefined),
+      reloadLiveViews: vi.fn(async () => undefined),
+      setError,
+      clearMatchTargetSelection: vi.fn(),
+      getMatchKey: (tournamentId, matchId) => `${tournamentId}:${matchId}`,
+    }));
+
+    await act(async () => {
+      await result.current.handleResetPoolMatches('t1', 's1', 'p1');
+    });
+
+    expect(setError).toHaveBeenCalledWith('Failed to reset pool matches');
+  });
 });

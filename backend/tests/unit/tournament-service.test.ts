@@ -12,10 +12,23 @@ import {
 import { TournamentModel } from '../../src/models/tournament-model';
 import { getWebSocketService } from '../../src/websocket/server';
 import { config } from '../../src/config/environment';
+import { redis } from '../../src/config/redis';
+import { liveComputationCache } from '../../src/services/live-computation-cache';
+
+const isAdminMock = jest.fn();
+const saveTournamentSnapshotMock = jest.fn();
+const deleteTournamentSnapshotMock = jest.fn();
 
 jest.mock('../../src/models/tournament-model');
 jest.mock('../../src/websocket/server', () => ({
   getWebSocketService: jest.fn(),
+}));
+jest.mock('../../src/middleware/auth', () => ({
+  isAdmin: (...arguments_: unknown[]) => isAdminMock(...arguments_),
+}));
+jest.mock('../../src/services/tournament-service/autosave', () => ({
+  saveTournamentSnapshot: (...arguments_: unknown[]) => saveTournamentSnapshotMock(...arguments_),
+  deleteTournamentSnapshot: (...arguments_: unknown[]) => deleteTournamentSnapshotMock(...arguments_),
 }));
 
 type MockTournamentModel = {
@@ -102,6 +115,12 @@ describe('TournamentService core logic', () => {
   beforeEach(() => {
     authEnabledOriginal = config.auth.enabled;
     config.auth.enabled = false;
+    isAdminMock.mockReset();
+    isAdminMock.mockReturnValue(false);
+    saveTournamentSnapshotMock.mockReset();
+    saveTournamentSnapshotMock.mockResolvedValue(undefined);
+    deleteTournamentSnapshotMock.mockReset();
+    deleteTournamentSnapshotMock.mockResolvedValue(undefined);
     mockModel = {
       create: jest.fn(),
       update: jest.fn(),
@@ -220,6 +239,290 @@ describe('TournamentService core logic', () => {
     expect(mockModel.create).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Spring Invitational' })
     );
+  });
+
+  it('persists autosave with admin actor context and custom email claim', async () => {
+    const { start, end } = buildFutureTimes(2);
+    isAdminMock.mockReturnValue(true);
+
+    const request = {
+      user: { id: 'admin-user' },
+      auth: { payload: { 'https://darts-tournament.app/email': 'admin@example.com' } },
+    };
+
+    const service = new TournamentService({} as never, request as never);
+
+    mockModel.create.mockResolvedValue({
+      id: 't-admin',
+      name: 'Admin Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start,
+      endTime: end,
+      totalParticipants: 8,
+      targetCount: 2,
+      status: TournamentStatus.DRAFT,
+    });
+
+    await service.createTournament({
+      name: 'Admin Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      totalParticipants: 8,
+      targetCount: 2,
+    });
+
+    expect(saveTournamentSnapshotMock).toHaveBeenCalledWith(
+      mockModel,
+      't-admin',
+      expect.objectContaining({
+        action: 'CREATE_TOURNAMENT',
+        trigger: 'admin',
+        actorId: 'admin-user',
+        actorEmail: 'admin@example.com',
+      })
+    );
+  });
+
+  it('uses system trigger and swallows autosave persistence errors', async () => {
+    const { start, end } = buildFutureTimes(2);
+    const service = new TournamentService({} as never);
+    const logger = (service as unknown as { logger: { error: jest.Mock } }).logger;
+    const loggerErrorSpy = jest.spyOn(logger, 'error');
+
+    saveTournamentSnapshotMock.mockRejectedValueOnce(new Error('snapshot failed'));
+    mockModel.create.mockResolvedValue({
+      id: 't-system',
+      name: 'System Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start,
+      endTime: end,
+      totalParticipants: 8,
+      targetCount: 2,
+      status: TournamentStatus.DRAFT,
+    });
+
+    await expect(service.createTournament({
+      name: 'System Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      totalParticipants: 8,
+      targetCount: 2,
+    })).resolves.toEqual(expect.objectContaining({ id: 't-system' }));
+
+    expect(saveTournamentSnapshotMock).toHaveBeenCalledWith(
+      mockModel,
+      't-system',
+      expect.objectContaining({
+        action: 'CREATE_TOURNAMENT',
+        trigger: 'system',
+      })
+    );
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      'Failed to persist tournament autosave snapshot',
+      't-system',
+      expect.any(Error)
+    );
+    loggerErrorSpy.mockRestore();
+  });
+
+  it('extracts actor email from fallback namespace claim', async () => {
+    const { start, end } = buildFutureTimes(2);
+    isAdminMock.mockReturnValue(true);
+    const service = new TournamentService({} as never, {
+      user: { id: 'admin-user' },
+      auth: { payload: { 'https://your-domain.com/email': 'legacy@example.com' } },
+    } as never);
+
+    mockModel.create.mockResolvedValue({
+      id: 't-legacy',
+      name: 'Legacy Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start,
+      endTime: end,
+      totalParticipants: 8,
+      targetCount: 2,
+      status: TournamentStatus.DRAFT,
+    });
+
+    await service.createTournament({
+      name: 'Legacy Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      totalParticipants: 8,
+      targetCount: 2,
+    });
+
+    expect(saveTournamentSnapshotMock).toHaveBeenCalledWith(
+      mockModel,
+      't-legacy',
+      expect.objectContaining({ actorEmail: 'legacy@example.com', trigger: 'admin' })
+    );
+  });
+
+  it('omits actor email when auth payload email is empty', async () => {
+    const { start, end } = buildFutureTimes(2);
+    isAdminMock.mockReturnValue(true);
+    const service = new TournamentService({} as never, {
+      user: { id: 'admin-user' },
+      auth: { payload: { email: '' } },
+    } as never);
+
+    mockModel.create.mockResolvedValue({
+      id: 't-empty-email',
+      name: 'No Mail Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start,
+      endTime: end,
+      totalParticipants: 8,
+      targetCount: 2,
+      status: TournamentStatus.DRAFT,
+    });
+
+    await service.createTournament({
+      name: 'No Mail Cup',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      totalParticipants: 8,
+      targetCount: 2,
+    });
+
+    expect(saveTournamentSnapshotMock).toHaveBeenCalledWith(
+      mockModel,
+      't-empty-email',
+      expect.not.objectContaining({ actorEmail: expect.anything() })
+    );
+  });
+
+  it('deletes tournament and cleans up autosave snapshot', async () => {
+    const service = new TournamentService({} as never);
+    const tournamentId = '00000000-0000-4000-8000-000000000333';
+    mockModel.findById.mockResolvedValue({ id: tournamentId, name: 'Delete Me' });
+    mockModel.delete.mockResolvedValue(true);
+
+    await expect(service.deleteTournament(tournamentId)).resolves.toBe(true);
+
+    expect(mockModel.delete).toHaveBeenCalledWith(tournamentId);
+    expect(deleteTournamentSnapshotMock).toHaveBeenCalledWith(tournamentId);
+  });
+
+  it('swallows autosave snapshot deletion errors and logs cleanup failures', async () => {
+    const service = new TournamentService({} as never);
+    const logger = (service as unknown as { logger: { error: jest.Mock } }).logger;
+    const loggerErrorSpy = jest.spyOn(logger, 'error');
+    const tournamentId = '00000000-0000-4000-8000-000000009999';
+
+    deleteTournamentSnapshotMock.mockRejectedValueOnce(new Error('cleanup failed'));
+
+    await expect((service as unknown as {
+      deleteTournamentSnapshotSafe: (id: string) => Promise<void>;
+    }).deleteTournamentSnapshotSafe(tournamentId)).resolves.toBeUndefined();
+
+    expect(deleteTournamentSnapshotMock).toHaveBeenCalledWith(tournamentId);
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      'Failed to delete tournament autosave snapshot',
+      tournamentId,
+      expect.any(Error)
+    );
+    loggerErrorSpy.mockRestore();
+  });
+
+  it('covers private delegates and actor helpers', async () => {
+    isAdminMock.mockReturnValue(true);
+    const service = new TournamentService({} as never, {
+      user: { id: 'admin-user' },
+      auth: { payload: { email: 'root@example.com' } },
+    } as never);
+
+    mockModel.findLiveView.mockResolvedValue({ id: 'live-1' });
+
+    expect((service as unknown as { isAdminAction: () => boolean }).isAdminAction()).toBe(true);
+    expect((service as unknown as { getActorEmailForAction: () => string | undefined }).getActorEmailForAction())
+      .toBe('root@example.com');
+    expect((service as unknown as { canViewDraftLive: () => boolean }).canViewDraftLive()).toBe(true);
+
+    const transitionSpy = jest.fn().mockResolvedValue({ id: 't1' });
+    (service as unknown as { transitionTournamentStatus: jest.Mock }).transitionTournamentStatus = transitionSpy;
+    await (service as unknown as {
+      delegateTransitionTournamentStatus: (tournamentId: string, status: TournamentStatus) => Promise<unknown>;
+    }).delegateTransitionTournamentStatus('t1', TournamentStatus.OPEN);
+    expect(transitionSpy).toHaveBeenCalledWith('t1', TournamentStatus.OPEN);
+
+    const registerSpy = jest.fn().mockResolvedValue(undefined);
+    (service as unknown as { registerPlayer: jest.Mock }).registerPlayer = registerSpy;
+    await (service as unknown as {
+      delegateRegisterPlayer: (tournamentId: string, playerId: string) => Promise<void>;
+    }).delegateRegisterPlayer('t1', 'p1');
+    expect(registerSpy).toHaveBeenCalledWith('t1', 'p1');
+
+    const recomputeRef = jest.fn().mockResolvedValue(undefined);
+    (service as unknown as {
+      recomputeDoubleStageProgressionReference?: (tournamentId: string, stageId: string) => Promise<void>;
+    }).recomputeDoubleStageProgressionReference = recomputeRef;
+    await (service as unknown as {
+      delegateRecomputeDoubleStageProgression: (tournamentId: string, stageId: string) => Promise<void>;
+    }).delegateRecomputeDoubleStageProgression(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000102'
+    );
+    expect(recomputeRef).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000102'
+    );
+
+    liveComputationCache.invalidateTournament('live-1');
+    await (service as unknown as {
+      getCachedTournamentLiveView: (tournamentId: string) => Promise<unknown>;
+    }).getCachedTournamentLiveView('live-1');
+    expect(mockModel.findLiveView).toHaveBeenCalledWith('live-1');
+  });
+
+  it('invalidates redis live/list caches when env is not test and logs redis errors', async () => {
+    const service = new TournamentService({} as never);
+    const invalidateSpy = jest.spyOn(liveComputationCache, 'invalidateTournament').mockImplementation(() => undefined);
+    const loggerError = jest.fn();
+    (service as unknown as { logger: { error: jest.Mock } }).logger = { error: loggerError } as never;
+
+    const originalEnv = config.env;
+    const keys = jest.fn()
+      .mockResolvedValueOnce(['tournaments:live-summary:one'])
+      .mockResolvedValueOnce(['tournaments:list:one']);
+    const del = jest.fn().mockResolvedValue(4);
+    const getClientSpy = jest.spyOn(redis, 'getClient').mockReturnValue({ keys, del } as never);
+
+    (config as { env: string }).env = 'development';
+    await (service as unknown as {
+      invalidateLiveCachesForTournament: (tournamentId: string) => Promise<void>;
+    }).invalidateLiveCachesForTournament('tour-1');
+
+    expect(invalidateSpy).toHaveBeenCalledWith('tour-1');
+    expect(del).toHaveBeenCalledWith(expect.arrayContaining([
+      'tournaments:live:tour-1:admin',
+      'tournaments:live:tour-1:public',
+      'tournaments:live-summary:one',
+      'tournaments:list:one',
+    ]));
+
+    keys.mockRejectedValueOnce(new Error('redis down'));
+    await (service as unknown as {
+      invalidateLiveCachesForTournament: (tournamentId: string) => Promise<void>;
+    }).invalidateLiveCachesForTournament('tour-2');
+    expect(loggerError).toHaveBeenCalledWith('Failed to invalidate live caches', 'tour-2', expect.any(Error));
+
+    (config as { env: string }).env = originalEnv;
+    invalidateSpy.mockRestore();
+    getClientSpy.mockRestore();
   });
 
   it('rejects tournaments with invalid date ranges', async () => {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
@@ -154,5 +154,28 @@ describe('tournament autosave', () => {
     await autosave.deleteTournamentSnapshot('t-3');
 
     await expect(readFile(path.join(temporaryDir, 't-3.json'), 'utf8')).rejects.toThrow();
+  });
+
+  it('retains only the 10 most recent snapshots in history', async () => {
+    const autosave = await loadAutosaveModule(temporaryDir);
+    const tournamentModel = {
+      findLiveView: jest.fn().mockImplementation(async () => ({ id: 't-retention', status: 'OPEN' })),
+    } as unknown as Parameters<typeof autosave.saveTournamentSnapshot>[0];
+
+    for (let index = 0; index < 12; index += 1) {
+      await autosave.saveTournamentSnapshot(tournamentModel, 't-retention', {
+        action: `ACTION_${index}`,
+        trigger: 'admin',
+      });
+    }
+
+    const snapshots = await autosave.listTournamentSnapshots('t-retention');
+    expect(snapshots).toHaveLength(10);
+    expect(snapshots.every((snapshot) => snapshot.tournamentId === 't-retention')).toBe(true);
+
+    const historyDirectory = path.join(temporaryDir, 't-retention', 'history');
+    const historyEntries = await readdir(historyDirectory);
+    const jsonHistoryEntries = historyEntries.filter((entry) => entry.endsWith('.json'));
+    expect(jsonHistoryEntries).toHaveLength(10);
   });
 });

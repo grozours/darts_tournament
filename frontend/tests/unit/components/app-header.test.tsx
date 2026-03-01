@@ -2,12 +2,52 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import AppHeader from '../../../src/components/app-header';
 
+type HeaderTournamentMock = { format?: string; status?: string };
+
+const resolveRequestUrl = (input: RequestInfo | URL) => {
+  if (typeof input === 'string') {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+};
+
 describe('AppHeader', () => {
   const t = (key: string) => key;
+  let fetchMock: ReturnType<typeof vi.spyOn>;
+
+  const mockHeaderFetch = (tournaments: HeaderTournamentMock[] = []) => {
+    fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = resolveRequestUrl(input);
+
+      if (url.includes('/api/tournaments?limit=100')) {
+        return {
+          ok: true,
+          json: async () => ({ tournaments }),
+        } as Response;
+      }
+
+      if (url.includes('/api/auth/dev-autologin')) {
+        return {
+          ok: true,
+          json: async () => ({ mode: 'anonymous' }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+  };
 
   beforeEach(() => {
     globalThis.localStorage.clear();
     globalThis.history.pushState({}, '', '/');
+    fetchMock?.mockRestore();
+    mockHeaderFetch([
+      { format: 'DOUBLE', status: 'OPEN' },
+      { format: 'TEAM_4_PLAYER', status: 'LIVE' },
+    ]);
   });
 
   it('shows admin manage links and notification badge', () => {
@@ -81,10 +121,23 @@ describe('AppHeader', () => {
   });
 
   it('shows only selected dev autologin mode until dropdown opens', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({ mode: 'admin' }),
-    } as Response);
+    fetchMock.mockRestore();
+    fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = resolveRequestUrl(input);
+      if (url.includes('/api/tournaments?limit=100')) {
+        return {
+          ok: true,
+          json: async () => ({ tournaments: [{ format: 'DOUBLE', status: 'OPEN' }] }),
+        } as Response;
+      }
+      if (url.includes('/api/auth/dev-autologin')) {
+        return {
+          ok: true,
+          json: async () => ({ mode: 'admin' }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
 
     render(
       <AppHeader
@@ -111,5 +164,29 @@ describe('AppHeader', () => {
     expect(screen.getByRole('button', { name: 'account.devAutologinAdmin' })).toBeInTheDocument();
 
     fetchMock.mockRestore();
+  });
+
+  it('shows doublettes/equipes links only when matching formats exist in OPEN,SIGNATURE,LIVE,FINISHED', async () => {
+    fetchMock.mockRestore();
+    mockHeaderFetch([
+      { format: 'DOUBLE', status: 'FINISHED' },
+      { format: 'TEAM_4_PLAYER', status: 'DRAFT' },
+      { format: 'SINGLE', status: 'OPEN' },
+    ]);
+
+    render(
+      <AppHeader
+        t={t}
+        isAdmin={false}
+        isAuthenticated={false}
+        lang="fr"
+        setLanguage={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('link', { name: 'groups.equipes' })).not.toBeInTheDocument();
   });
 });

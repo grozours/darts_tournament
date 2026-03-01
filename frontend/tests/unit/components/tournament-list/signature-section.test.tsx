@@ -67,4 +67,23 @@ describe('SignatureSection', () => {
     expect(screen.getByText('error')).toBeInTheDocument();
     expect(screen.getByText('edit.noPlayersRegistered')).toBeInTheDocument();
   });
+
+  it('shows confirming progress label and disables confirm-all while running', () => {
+    render(
+      <SignatureSection
+        t={t}
+        players={[{ playerId: 'p1', name: 'Player One', checkedIn: false }] as never}
+        playersLoading={false}
+        checkingInPlayerId="p1"
+        isConfirmingAll
+        confirmAllProgress={{ current: 3, total: 8 }}
+        onConfirmAllPlayers={vi.fn()}
+        onFetchPlayers={vi.fn()}
+        onTogglePlayerCheckIn={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('edit.confirming (3/8)')).toBeDisabled();
+    expect(screen.getByText('edit.saving')).toBeDisabled();
+  });
 });

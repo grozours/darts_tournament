@@ -653,12 +653,18 @@ The `scripts/` directory contains useful CI/CD scripts:
 # Run complete CI checks (lint, test, build)
 ./scripts/ci_full.sh
 
+# Opt-in: regenerate documentation screenshots during E2E
+CI_UPDATE_DOC_SCREENSHOTS=true ./scripts/ci_full.sh
+
 # What it does:
 # 1. Lints backend and frontend
 # 2. Runs all tests with coverage
 # 3. Builds both projects
 # 4. Reports success/failure
 ```
+
+By default, `ci_full.sh` prevents documentation screenshot regeneration.
+Set `CI_UPDATE_DOC_SCREENSHOTS=true` to enable docs screenshot refresh when needed.
 
 ### Individual Scripts
 

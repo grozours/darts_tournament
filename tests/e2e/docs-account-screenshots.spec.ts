@@ -3,6 +3,9 @@ import { test, expect, type Page } from '@playwright/test';
 const screenshotsDirectory = '../docs/assets/screenshots';
 const languages = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'] as const;
 const accountTypes = ['anonymous', 'player', 'admin'] as const;
+const shouldCaptureDocsScreenshots = process.env.UPDATE_DOC_SCREENSHOTS === 'true';
+
+test.skip(!shouldCaptureDocsScreenshots, 'Set UPDATE_DOC_SCREENSHOTS=true to refresh docs screenshots.');
 
 const installAnonymousAuthMock = async (page: Page) => {
   await page.route('**/api/auth/me', async (route) => {

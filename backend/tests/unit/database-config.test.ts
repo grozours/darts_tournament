@@ -12,9 +12,27 @@ jest.mock('pg', () => ({
 
 describe('database config', () => {
   beforeEach(() => {
+    jest.resetModules();
     poolOn.mockReset();
     poolConnect.mockReset();
     poolEnd.mockReset();
+  });
+
+  it('registers pool error handler and logs idle client errors', async () => {
+    const loggerModule = await import('../../src/utils/logger');
+    const loggerErrorSpy = jest.spyOn(loggerModule.default, 'error').mockImplementation(
+      (() => loggerModule.default) as never
+    );
+    await import('../../src/config/database');
+
+    const callback = poolOn.mock.calls.find(([event]) => event === 'error')?.[1] as ((error: Error) => void) | undefined;
+    callback?.(new Error('idle fail'));
+
+    expect(poolOn).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Unexpected database error on idle client', expect.objectContaining({
+      metadata: expect.objectContaining({ errorMessage: 'idle fail' }),
+    }));
+    loggerErrorSpy.mockRestore();
   });
 
   it('connects and releases clients', async () => {
@@ -27,6 +45,14 @@ describe('database config', () => {
 
     expect(poolConnect).toHaveBeenCalled();
     expect(release).toHaveBeenCalled();
+  });
+
+  it('throws when connect fails', async () => {
+    poolConnect.mockRejectedValue(new Error('boom'));
+
+    const { database } = await import('../../src/config/database');
+
+    await expect(database.connect()).rejects.toThrow('boom');
   });
 
   it('disconnects pools', async () => {
@@ -54,5 +80,16 @@ describe('database config', () => {
     const { database } = await import('../../src/config/database');
 
     await expect(database.healthCheck()).resolves.toBe(false);
+  });
+
+  it('returns false when health query row count is not one', async () => {
+    const release = jest.fn();
+    const query = jest.fn().mockResolvedValue({ rowCount: 0 });
+    poolConnect.mockResolvedValue({ release, query });
+
+    const { database } = await import('../../src/config/database');
+
+    await expect(database.healthCheck()).resolves.toBe(false);
+    expect(release).toHaveBeenCalled();
   });
 });

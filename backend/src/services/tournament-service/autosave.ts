@@ -36,6 +36,7 @@ const snapshotDirectory = path.resolve(
   process.cwd(),
   process.env.TOURNAMENT_SNAPSHOT_DIR ?? path.join(config.upload.directory, 'tournament-snapshots')
 );
+const DEFAULT_SNAPSHOT_RETENTION_LIMIT = 10;
 
 const getLatestSnapshotPath = (tournamentId: string): string =>
   path.join(snapshotDirectory, `${tournamentId}.json`);
@@ -45,6 +46,14 @@ const getTournamentSnapshotHistoryDirectory = (tournamentId: string): string =>
 
 const getSnapshotHistoryPath = (tournamentId: string, snapshotId: string): string =>
   path.join(getTournamentSnapshotHistoryDirectory(tournamentId), `${snapshotId}.json`);
+
+const getSnapshotRetentionLimit = () => {
+  const parsedLimit = Number(process.env.TOURNAMENT_SNAPSHOT_RETENTION ?? DEFAULT_SNAPSHOT_RETENTION_LIMIT);
+  if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
+    return DEFAULT_SNAPSHOT_RETENTION_LIMIT;
+  }
+  return parsedLimit;
+};
 
 const sanitizeToken = (value: string): string =>
   value
@@ -112,6 +121,59 @@ const normalizeSnapshotPayload = (
   };
 };
 
+const readSnapshotSummariesForRetention = async (
+  tournamentId: string
+): Promise<Array<{ snapshotId: string; savedAt: string; filePath: string }>> => {
+  const historyDirectory = getTournamentSnapshotHistoryDirectory(tournamentId);
+  const entries = await fs.readdir(historyDirectory, { withFileTypes: true });
+  const snapshots = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .map(async (entry) => {
+        try {
+          const filePath = path.join(historyDirectory, entry.name);
+          const fileContent = await fs.readFile(filePath, 'utf8');
+          const parsed = normalizeSnapshotPayload(JSON.parse(fileContent) as unknown, tournamentId);
+          if (!parsed) {
+            return undefined;
+          }
+          return {
+            snapshotId: parsed.snapshotId,
+            savedAt: parsed.savedAt,
+            filePath,
+          };
+        } catch {
+          return undefined;
+        }
+      })
+  );
+
+  return snapshots
+    .filter((snapshot): snapshot is { snapshotId: string; savedAt: string; filePath: string } => snapshot !== undefined)
+    .sort((first, second) => {
+      const timeCompare = second.savedAt.localeCompare(first.savedAt);
+      if (timeCompare !== 0) {
+        return timeCompare;
+      }
+      return second.snapshotId.localeCompare(first.snapshotId);
+    });
+};
+
+const enforceSnapshotHistoryRetention = async (tournamentId: string): Promise<void> => {
+  try {
+    const snapshots = await readSnapshotSummariesForRetention(tournamentId);
+    const retentionLimit = getSnapshotRetentionLimit();
+    if (snapshots.length <= retentionLimit) {
+      return;
+    }
+
+    const snapshotsToDelete = snapshots.slice(retentionLimit);
+    await Promise.all(snapshotsToDelete.map((snapshot) => fs.rm(snapshot.filePath, { force: true })));
+  } catch {
+    // Ignore retention cleanup failures to avoid blocking main snapshot operations.
+  }
+};
+
 export const saveTournamentSnapshot = async (
   tournamentModel: TournamentModel,
   tournamentId: string,
@@ -149,6 +211,7 @@ export const saveTournamentSnapshot = async (
       'utf8'
     ),
   ]);
+  await enforceSnapshotHistoryRetention(tournamentId);
 };
 
 export const deleteTournamentSnapshot = async (tournamentId: string): Promise<void> => {
@@ -198,7 +261,8 @@ export const listTournamentSnapshots = async (
 
     return snapshots
       .filter((snapshot): snapshot is TournamentSnapshotSummary => snapshot !== undefined)
-      .sort((first, second) => second.savedAt.localeCompare(first.savedAt));
+      .sort((first, second) => second.savedAt.localeCompare(first.savedAt))
+      .slice(0, getSnapshotRetentionLimit());
   } catch {
     return [];
   }
@@ -242,6 +306,7 @@ export const restoreTournamentSnapshot = async (
       'utf8'
     ),
   ]);
+  await enforceSnapshotHistoryRetention(tournamentId);
 };
 
 export const restoreTournamentSnapshotById = async (

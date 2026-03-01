@@ -17,7 +17,7 @@ type LiveParticipant = {
   lastName?: string;
 };
 
-const formatScheduledMatchTime = (value: string | undefined) => {
+export const formatScheduledMatchTime = (value: string | undefined) => {
   if (!value) {
     return undefined;
   }
@@ -34,7 +34,7 @@ const formatScheduledMatchTime = (value: string | undefined) => {
 const FALLBACK_MATCH_DURATION_MINUTES = 12;
 const NON_REMAINING_STAGE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
 
-const getEstimatedMatchDurationMinutes = (matchFormatKey: string | undefined): number => {
+export const getEstimatedMatchDurationMinutes = (matchFormatKey: string | undefined): number => {
   if (!matchFormatKey) {
     return FALLBACK_MATCH_DURATION_MINUTES;
   }
@@ -42,7 +42,7 @@ const getEstimatedMatchDurationMinutes = (matchFormatKey: string | undefined): n
   return preset?.durationMinutes ?? FALLBACK_MATCH_DURATION_MINUTES;
 };
 
-const isRemainingStage = (status: string | undefined) => (
+export const isRemainingStage = (status: string | undefined) => (
   !NON_REMAINING_STAGE_STATUSES.has((status ?? '').toUpperCase())
 );
 
@@ -90,7 +90,7 @@ const getPoolPlayerIdsForConcurrency = (pool: LiveViewPool) => {
   );
 };
 
-const getPoolMaxConcurrentMatches = (pool: LiveViewPool, fallbackPlayerCount?: number) => {
+export const getPoolMaxConcurrentMatches = (pool: LiveViewPool, fallbackPlayerCount?: number) => {
   const detectedPlayerCount = getPoolPlayerIdsForConcurrency(pool).size;
   const playerCount = detectedPlayerCount > 0
     ? detectedPlayerCount
@@ -101,7 +101,7 @@ const getPoolMaxConcurrentMatches = (pool: LiveViewPool, fallbackPlayerCount?: n
   return Math.max(1, Math.floor(playerCount / 2));
 };
 
-const findEarliestAvailabilityIndex = (availability: number[]) => {
+export const findEarliestAvailabilityIndex = (availability: number[]) => {
   let earliestIndex = 0;
   let earliestValue = availability[0] ?? Number.POSITIVE_INFINITY;
 
@@ -116,7 +116,7 @@ const findEarliestAvailabilityIndex = (availability: number[]) => {
   return earliestIndex;
 };
 
-const getBestTargetAndPoolSlot = (
+export const getBestTargetAndPoolSlot = (
   targetAvailability: number[],
   poolAvailability: number[],
   matchReadyTimestamp: number
@@ -164,7 +164,7 @@ type OptimisticCandidate = {
   finishTimestamp: number;
 };
 
-const buildOptimisticPoolQueues = (
+export const buildOptimisticPoolQueues = (
   pools: LiveViewPool[],
   stagePlayersPerPool?: number
 ): OptimisticPoolQueue[] => pools.map((pool) => {
@@ -202,7 +202,7 @@ const buildPoolIdByMatchId = (pools: LiveViewPool[]) => {
   return poolIdByMatchId;
 };
 
-const buildPoolAvailabilityByPoolId = (poolQueues: OptimisticPoolQueue[], nowTimestamp: number) => {
+export const buildPoolAvailabilityByPoolId = (poolQueues: OptimisticPoolQueue[], nowTimestamp: number) => {
   const poolAvailabilityByPoolId = new Map<string, number[]>();
   for (const queue of poolQueues) {
     poolAvailabilityByPoolId.set(
@@ -213,7 +213,7 @@ const buildPoolAvailabilityByPoolId = (poolQueues: OptimisticPoolQueue[], nowTim
   return poolAvailabilityByPoolId;
 };
 
-const findBestOptimisticCandidate = (
+export const findBestOptimisticCandidate = (
   poolQueues: OptimisticPoolQueue[],
   targetAvailability: number[],
   poolAvailabilityByPoolId: Map<string, number[]>,
@@ -314,18 +314,7 @@ export const computeOptimisticStartTimes = ({
   resolveDurationMinutes: (match: LiveViewMatch) => number;
 }) => {
   const poolQueues = pools.map((pool) => {
-    const baseQueue = buildOptimisticPoolQueues([pool], stagePlayersPerPool)[0];
-    if (!baseQueue) {
-      return {
-        poolId: pool.id,
-        poolNumber: pool.poolNumber,
-        progress: 0,
-        maxConcurrentMatches: 1,
-        usesFallbackConcurrency: false,
-        queuedMatches: [],
-      };
-    }
-    return baseQueue;
+    return buildOptimisticPoolQueues([pool], stagePlayersPerPool)[0] as OptimisticPoolQueue;
   });
   const shouldPrioritizeLeastProgressedPools = prioritizeLeastProgressedPools
     || poolQueues.every((queue) => queue.usesFallbackConcurrency);
@@ -358,9 +347,6 @@ export const computeOptimisticStartTimes = ({
   for (let index = 0; index < freeTargetCount; index += 1) {
     targetAvailability.push(nowTimestamp);
   }
-  if (targetAvailability.length === 0) {
-    targetAvailability.push(nowTimestamp);
-  }
 
   const optimisticById = new Map<string, string>();
   const finishTimestampByMatchId = new Map<string, number>();
@@ -384,20 +370,21 @@ export const computeOptimisticStartTimes = ({
       break;
     }
 
-    const [nextMatch] = bestCandidate.queue.queuedMatches.splice(bestCandidate.matchIndex, 1);
+    const safeCandidate = bestCandidate;
+    const [nextMatch] = safeCandidate.queue.queuedMatches.splice(safeCandidate.matchIndex, 1);
     if (!nextMatch) {
       continue;
     }
 
-    optimisticById.set(nextMatch.id, formatHourMinute(new Date(bestCandidate.startTimestamp)));
-  finishTimestampByMatchId.set(nextMatch.id, bestCandidate.finishTimestamp);
+    optimisticById.set(nextMatch.id, formatHourMinute(new Date(safeCandidate.startTimestamp)));
+    finishTimestampByMatchId.set(nextMatch.id, safeCandidate.finishTimestamp);
 
-    targetAvailability[bestCandidate.bestTargetIndex] = bestCandidate.finishTimestamp;
-    const poolAvailability = poolAvailabilityByPoolId.get(bestCandidate.queue.poolId) ?? [nowTimestamp];
-    poolAvailability[bestCandidate.bestPoolSlotIndex] = bestCandidate.finishTimestamp;
-    poolAvailabilityByPoolId.set(bestCandidate.queue.poolId, poolAvailability);
-    setPlayersAvailabilityForMatch(nextMatch, playerAvailabilityById, bestCandidate.finishTimestamp);
-    bestCandidate.queue.progress += 1;
+    targetAvailability[safeCandidate.bestTargetIndex] = safeCandidate.finishTimestamp;
+    const poolAvailability = poolAvailabilityByPoolId.get(safeCandidate.queue.poolId) ?? [nowTimestamp];
+    poolAvailability[safeCandidate.bestPoolSlotIndex] = safeCandidate.finishTimestamp;
+    poolAvailabilityByPoolId.set(safeCandidate.queue.poolId, poolAvailability);
+    setPlayersAvailabilityForMatch(nextMatch, playerAvailabilityById, safeCandidate.finishTimestamp);
+    safeCandidate.queue.progress += 1;
   }
 
   const latestFinishTimestamp = targetAvailability.reduce(
@@ -425,7 +412,7 @@ const formatDurationClock = (durationMinutes: number) => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
-const toValidDate = (value: string | undefined) => {
+export const toValidDate = (value: string | undefined) => {
   if (!value) {
     return undefined;
   }
@@ -444,7 +431,7 @@ const isSameCalendarDate = (leftDate: Date, rightDate: Date) => (
   && leftDate.getDate() === rightDate.getDate()
 );
 
-const getOptimisticScheduleBaseDateTime = (
+export const getOptimisticScheduleBaseDateTime = (
   tournamentStartTime: string | undefined,
   estimatedStartOffsetMinutes: number
 ) => {

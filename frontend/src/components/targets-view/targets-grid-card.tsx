@@ -87,7 +87,11 @@ const TargetsGridCard = ({
     }
     return !hasDedicatedBracket;
   });
-  const canStart = !isInUse && selectedMatchId.length > 0 && startingMatchId !== selectedMatchId;
+  const hasSelectedMatchInQueue = queueItemsForTarget.some((item) => item.matchId === selectedMatchId);
+  const canStart = !isInUse
+    && selectedMatchId.length > 0
+    && hasSelectedMatchInQueue
+    && startingMatchId !== selectedMatchId;
   const activeMatchTooltip = getMatchFormatTooltip(activeMatch?.matchFormatKey);
 
   return (
