@@ -293,6 +293,7 @@ useEffect(() => {
 
 ---
 
+<a id="flux-d-authentification"></a>
 ## Flux d’authentification
 
 ### Authentification optionnelle
@@ -360,6 +361,7 @@ export const useAdminStatus = () => {
 
 ---
 
+<a id="gestion-de-l-état"></a>
 ## Gestion de l’état
 
 ### 1. État local (useState)

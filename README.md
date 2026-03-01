@@ -91,6 +91,7 @@ A full-stack application for managing darts tournaments with support for single 
 - **Tournament History**: Permanent storage of completed tournaments
 - **Statistics**: Tournament and player statistics tracking
 
+<a id="-tech-stack"></a>
 ## 🛠 Tech Stack
 
 | Layer | Technology | Version | Purpose |
@@ -127,6 +128,7 @@ A full-stack application for managing darts tournaments with support for single 
 | | Prettier | 3.x | Code formatting |
 | | SonarQube | LTS | Code quality analysis |
 
+<a id="-quick-start"></a>
 ## 🚀 Quick Start
 
 ### Prerequisites

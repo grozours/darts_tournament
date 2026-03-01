@@ -350,6 +350,7 @@ Tournament
 
 ---
 
+<a id="authentication--authorization"></a>
 ## Authentication & Authorization
 
 ### Auth0 Integration

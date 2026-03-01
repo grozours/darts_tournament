@@ -48,6 +48,7 @@ Ce guide couvre le déploiement du Gestionnaire de Tournois de Fléchettes en en
 
 ---
 
+<a id="configuration-de-l-environnement"></a>
 ## Configuration de l’environnement
 
 ### Variables d’environnement backend (`backend/.env`)
@@ -178,6 +179,7 @@ Note : le docker-compose de développement monte des volumes nommés pour conser
 
 ---
 
+<a id="déploiement-production"></a>
 ## Déploiement en production
 
 ### 1. Préparer le serveur
@@ -699,6 +701,7 @@ crontab -e
 
 ---
 
+<a id="monitoring--maintenance"></a>
 ## Monitoring & maintenance
 
 ### Monitoring applicatif

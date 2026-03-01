@@ -6,6 +6,19 @@ Run a tournament from start to finish.
 ## Player registrations (single / doublette / team)
 - Illustrated guide: [Join a tournament](JOIN_TOURNAMENT.md)
 - Team management (captain flow and registration): [Register and manage your team](JOIN_TOURNAMENT.md#5-manage-your-team)
+- Full visual walkthrough (all UI languages): [Application walkthrough](APP_WALKTHROUGH.md)
+
+## Quick business scenarios (visual)
+- Dedicated view: [Application walkthrough — quick scenarios](APP_WALKTHROUGH.md#business-scenarios)
+- Create and configure a tournament: [visual steps](APP_WALKTHROUGH.md#business-scenarios)
+- Run pool stages and tie-break `+1`: [visual steps](APP_WALKTHROUGH.md#business-scenarios)
+- Run brackets and rounds progression: [visual steps](APP_WALKTHROUGH.md#business-scenarios)
+- Operate targets (start, score, complete, cancel): [visual steps](APP_WALKTHROUGH.md#business-scenarios)
+
+## Quick access (profiles)
+- Admin: [Business scenarios](APP_WALKTHROUGH.md#business-scenarios)
+- Player: [Player scenarios](APP_WALKTHROUGH.md#player-scenarios)
+- Anonymous: [Anonymous scenarios](APP_WALKTHROUGH.md#anonymous-scenarios)
 
 ## Tournament steps
 1. Creation: name, format, dates, target count.

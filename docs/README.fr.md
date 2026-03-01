@@ -8,6 +8,7 @@ Bienvenue dans la documentation du Gestionnaire de Tournois de Fléchettes. Cet 
 
 ---
 
+<a id="installation"></a>
 ## 🚀 Démarrage rapide
 
 **Nouveau sur le projet ?** Commencez ici :
@@ -29,6 +30,13 @@ Bienvenue dans la documentation du Gestionnaire de Tournois de Fléchettes. Cet 
 
 ### Docs
 - [docs/ADMIN_GUIDE.fr.md](./ADMIN_GUIDE.fr.md)
+- [docs/APP_WALKTHROUGH.md](./APP_WALKTHROUGH.md)
+- [docs/APP_WALKTHROUGH.fr.md](./APP_WALKTHROUGH.fr.md)
+- [docs/APP_WALKTHROUGH.es.md](./APP_WALKTHROUGH.es.md)
+- [docs/APP_WALKTHROUGH.de.md](./APP_WALKTHROUGH.de.md)
+- [docs/APP_WALKTHROUGH.it.md](./APP_WALKTHROUGH.it.md)
+- [docs/APP_WALKTHROUGH.pt.md](./APP_WALKTHROUGH.pt.md)
+- [docs/APP_WALKTHROUGH.nl.md](./APP_WALKTHROUGH.nl.md)
 - [docs/PLAYER_GUIDE.fr.md](./PLAYER_GUIDE.fr.md)
 - [docs/COMMANDS.md](./COMMANDS.md)
 - [docs/COMMANDS.fr.md](./COMMANDS.fr.md)
@@ -74,6 +82,7 @@ Bienvenue dans la documentation du Gestionnaire de Tournois de Fléchettes. Cet 
 | **[Architecture](./ARCHITECTURE.fr.md)** | Design système, patterns, flux de données | Comprendre le fonctionnement, décisions d’architecture |
 | **[Documentation API](./API.fr.md)** | Référence REST complète | Intégration backend, endpoints |
 | **[Guide Frontend](./FRONTEND.fr.md)** | Architecture React et composants | Développer l’UI, patterns frontend |
+| **[Parcours application](./APP_WALKTHROUGH.fr.md)** | Parcours visuels par rôle (anonyme/joueur/admin) avec captures | Expliquer le fonctionnement métier aux utilisateurs |
 | **[Tests](./TESTING.fr.md)** | Stratégie et exemples | Écrire des tests, objectifs de couverture |
 | **[Référence des commandes](./COMMANDS.fr.md)** | Toutes les commandes | Tâches quotidiennes, dépannage |
 
@@ -90,6 +99,11 @@ Bienvenue dans la documentation du Gestionnaire de Tournois de Fléchettes. Cet 
 ## 🎯 Par tâche
 
 ### Je veux...
+
+#### Parcours anonyme (rapide)
+- **Comprendre l’app sans compte** → [Parcours application : anonyme](./APP_WALKTHROUGH.fr.md#scenarios-anonyme)
+- **Voir les tournois publics** → [Captures des vues publiques](./APP_WALKTHROUGH.fr.md#scenarios-anonyme)
+- **Consulter les inscrits puis se connecter** → [Scénarios anonymes](./APP_WALKTHROUGH.fr.md#scenarios-anonyme)
 
 #### Démarrer
 - **Installer le projet en local** → [Démarrage rapide](../README.fr.md#-démarrage-rapide)

@@ -751,6 +751,7 @@ Authorization: Bearer ADMIN_TOKEN
 
 ---
 
+<a id="validation--errors"></a>
 ## Validation & Errors
 
 ### Error Response Format

@@ -90,7 +90,7 @@ echo "YOUR_TOKEN" | cut -d. -f2 | base64 -d | jq .
 Doit afficher :
 ```json
 {
-  "email": "tangi.curet@gmail.com",
+  "email": "admin@example.com",
   "email_verified": true,
   ...
 }
@@ -106,7 +106,7 @@ docker logs darts_tournament-backend-1 --tail 50 | grep "Admin Check"
 
 Doit afficher :
 ```
-[Admin Check] { userEmail: 'tangi.curet@gmail.com', isAdmin: true, configuredAdmins: ['tangi.curet@gmail.com', ...] }
+[Admin Check] { userEmail: 'admin@example.com', isAdmin: true, configuredAdmins: ['admin@example.com', ...] }
 ```
 
 ### Tester l’endpoint admin
@@ -121,7 +121,7 @@ Doit retourner :
 {
   "user": {
     "id": "google-oauth2|...",
-    "email": "tangi.curet@gmail.com",
+    "email": "admin@example.com",
     ...
   },
   "isAdmin": true
@@ -155,7 +155,7 @@ Doit retourner :
 **Cause** : email ne correspond pas aux admins configurés
 
 **Solution :**
-1. Vérifier `backend/.env` : `AUTH_ADMIN_EMAILS=tangi.curet@gmail.com`
+1. Vérifier `backend/.env` : `AUTH_ADMIN_EMAILS=admin@example.com`
 2. Vérifier l’orthographe (insensible à la casse)
 3. Redémarrer le backend : `docker-compose restart backend`
 4. Vérifier l’email dans la vue Account

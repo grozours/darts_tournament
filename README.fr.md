@@ -89,6 +89,7 @@ Une application full-stack pour gérer des tournois de fléchettes avec prise en
 - **Historique des tournois** : stockage permanent
 - **Statistiques** : suivi des stats tournoi et joueur
 
+<a id="-stack-technique"></a>
 ## 🛠 Stack technique
 
 | Couche | Technologie | Version | Rôle |
@@ -125,6 +126,7 @@ Une application full-stack pour gérer des tournois de fléchettes avec prise en
 | | Prettier | 3.x | Formatage |
 | | SonarQube | LTS | Qualité de code |
 
+<a id="-démarrage-rapide"></a>
 ## 🚀 Démarrage rapide
 
 ### Prérequis

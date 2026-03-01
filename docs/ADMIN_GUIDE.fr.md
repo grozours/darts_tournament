@@ -6,6 +6,19 @@ Piloter le tournoi du debut a la fin.
 ## Inscriptions joueurs (simple / doublette / équipe)
 - Guide illustre: [Rejoindre un tournoi](JOIN_TOURNAMENT.fr.md)
 - Gestion d'équipe (suivi capitaine et inscription): [S'inscrire et gérer son équipe](JOIN_TOURNAMENT.fr.md#5-gerer-ton-equipe)
+- Parcours visuel complet (toutes langues UI): [Parcours application](APP_WALKTHROUGH.fr.md)
+
+## Scénarios métier rapides (visuel)
+- Vue dédiée: [Parcours application — scénarios métier](APP_WALKTHROUGH.fr.md#scenarios-metier)
+- Créer et configurer un tournoi: [captures dédiées](APP_WALKTHROUGH.fr.md#scenarios-metier)
+- Piloter les poules et le départage `+1`: [captures dédiées](APP_WALKTHROUGH.fr.md#scenarios-metier)
+- Piloter les arbres (progression des tours): [captures dédiées](APP_WALKTHROUGH.fr.md#scenarios-metier)
+- Exploiter les cibles (lancer, score, terminer, annuler): [captures dédiées](APP_WALKTHROUGH.fr.md#scenarios-metier)
+
+## Accès rapide (profils)
+- Admin: [Scénarios métier](APP_WALKTHROUGH.fr.md#scenarios-metier)
+- Joueur: [Scénarios joueur](APP_WALKTHROUGH.fr.md#scenarios-joueur)
+- Anonyme: [Scénarios anonyme](APP_WALKTHROUGH.fr.md#scenarios-anonyme)
 
 ## Etapes d'un tournoi
 1. Creation : nom, format, dates, nombre de cibles.

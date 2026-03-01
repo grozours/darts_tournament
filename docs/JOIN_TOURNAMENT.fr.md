@@ -80,6 +80,7 @@ Ce guide montre les parcours d'inscription:
 
 ---
 
+<a id="5-gerer-ton-equipe"></a>
 ## 5) Gérer ton équipe
 
 ### Joueur (capitaine)

@@ -8,6 +8,7 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 
 ---
 
+<a id="installation"></a>
 ## 🚀 Quick Start
 
 **New to the project?** Start here:
@@ -29,6 +30,13 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 
 ### Docs
 - [docs/ADMIN_GUIDE.fr.md](./ADMIN_GUIDE.fr.md)
+- [docs/APP_WALKTHROUGH.md](./APP_WALKTHROUGH.md)
+- [docs/APP_WALKTHROUGH.fr.md](./APP_WALKTHROUGH.fr.md)
+- [docs/APP_WALKTHROUGH.es.md](./APP_WALKTHROUGH.es.md)
+- [docs/APP_WALKTHROUGH.de.md](./APP_WALKTHROUGH.de.md)
+- [docs/APP_WALKTHROUGH.it.md](./APP_WALKTHROUGH.it.md)
+- [docs/APP_WALKTHROUGH.pt.md](./APP_WALKTHROUGH.pt.md)
+- [docs/APP_WALKTHROUGH.nl.md](./APP_WALKTHROUGH.nl.md)
 - [docs/PLAYER_GUIDE.md](./PLAYER_GUIDE.md)
 - [docs/PLAYER_GUIDE.fr.md](./PLAYER_GUIDE.fr.md)
 - [docs/COMMANDS.md](./COMMANDS.md)
@@ -75,6 +83,7 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 | **[Architecture](./ARCHITECTURE.md)** | System design, patterns, and data flow | Understanding how the system works, making architectural decisions |
 | **[API Documentation](./API.md)** | Complete REST API reference | Integrating with the backend, understanding endpoints |
 | **[Frontend Guide](./FRONTEND.md)** | React architecture and components | Building UI features, understanding frontend patterns |
+| **[App Walkthrough](./APP_WALKTHROUGH.md)** | Visual user journeys by role (anonymous/player/admin) with screenshots | Explaining how the app works to end users |
 | **[Testing](./TESTING.md)** | Testing strategy and examples | Writing tests, understanding coverage goals |
 | **[Commands Reference](./COMMANDS.md)** | All available commands | Daily development tasks, troubleshooting |
 
@@ -91,6 +100,11 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 ## 🎯 By Task
 
 ### I want to...
+
+#### Anonymous flow (quick)
+- **Understand the app without an account** → [Application walkthrough: anonymous](./APP_WALKTHROUGH.md#anonymous-scenarios)
+- **Browse public tournaments** → [Public views screenshots](./APP_WALKTHROUGH.md#anonymous-scenarios)
+- **Review registered participants then sign in** → [Anonymous scenarios](./APP_WALKTHROUGH.md#anonymous-scenarios)
 
 #### Get Started
 - **Install the project locally** → [README Quick Start](../README.md#-quick-start)

@@ -1,0 +1,46 @@
+name: Docs Links Manual Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: "Fail workflow if broken links are found"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  docs-links:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify markdown links in docs
+        env:
+          STRICT_MODE: ${{ github.event.inputs.strict }}
+        run: |
+          set +e
+          bash ./scripts/verify_docs_links.sh
+          status=$?
+
+          if [ "${STRICT_MODE}" = "true" ]; then
+            exit ${status}
+          fi
+
+          if [ ${status} -ne 0 ]; then
+            echo "::warning::Broken markdown links detected, but strict mode is disabled."
+          fi
+
+          exit 0

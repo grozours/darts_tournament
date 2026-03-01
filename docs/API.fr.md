@@ -750,6 +750,7 @@ Authorization: Bearer ADMIN_TOKEN
 
 ---
 
+<a id="validation--erreurs"></a>
 ## Validation & erreurs
 
 ### Format de réponse d’erreur

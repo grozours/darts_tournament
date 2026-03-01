@@ -59,7 +59,11 @@ playwright-report/
 *.temp
 .cache/
 
+# python venv
+.venv/
+
 backend/.tmp-seed
+backend/frontend/
 
 # IDE (uncomment if you don't want to share IDE settings)
 # .vscode/

@@ -123,8 +123,17 @@ const resolveMainContent = (
   view: string | undefined,
   normalizedStatus: string | undefined,
   isAdmin: boolean,
+  isAuthenticated: boolean,
+  docsAccountTypeOverride: 'anonymous' | 'player' | 'admin' | undefined,
   t: (key: string) => string
 ): JSX.Element => {
+  let docsAccountType: 'anonymous' | 'player' | 'admin' = 'anonymous';
+  if (isAdmin) {
+    docsAccountType = 'admin';
+  } else if (isAuthenticated) {
+    docsAccountType = 'player';
+  }
+
   switch (view) {
     case 'players': {
       return renderAdminOnly(isAdmin, t, <PlayersView />);
@@ -168,7 +177,7 @@ const resolveMainContent = (
       return <AccountView />;
     }
     case 'doc': {
-      return <DocsView />;
+      return <DocsView accountType={docsAccountTypeOverride ?? docsAccountType} />;
     }
     default: {
       if (normalizedStatus === 'live') {
@@ -182,7 +191,7 @@ const resolveMainContent = (
 function App() {
   const { lang, setLanguage, t } = useI18n();
   const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
-  const { isAdmin } = useAdminStatus();
+  const { isAdmin, adminUser } = useAdminStatus();
 
   useMatchStartedNotifications();
 
@@ -226,6 +235,10 @@ function App() {
 
   const parameters = new URLSearchParams(locationSearch);
   const view = parameters.get('view') ?? undefined;
+  const docsProfileParam = parameters.get('docProfile') ?? undefined;
+  const docsAccountTypeOverride = docsProfileParam === 'admin' || docsProfileParam === 'player' || docsProfileParam === 'anonymous'
+    ? docsProfileParam
+    : undefined;
   const status = parameters.get('status') ?? undefined;
   const tournamentId = parameters.get('tournamentId') ?? undefined;
   const stageId = parameters.get('stageId') ?? undefined;
@@ -235,13 +248,22 @@ function App() {
   const normalizedStatus = status?.toLowerCase();
   const headerIsAdmin = screenMode ? false : isAdmin;
   const headerIsAuthenticated = screenMode ? false : isAuthenticated;
+  const docsHasSession = isAuthenticated || Boolean(adminUser?.id);
+  const docsIsAuthenticated = screenMode ? false : docsHasSession;
   const debugEnabled = parameters.get('debug') === '1';
   const buildId = import.meta.env.VITE_BUILD_ID
     || import.meta.env.VITE_COMMIT_SHA
     || import.meta.env.VITE_APP_VERSION
     || 'local';
 
-  const mainContent = resolveMainContent(view, normalizedStatus, isAdmin, t);
+  const mainContent = resolveMainContent(
+    view,
+    normalizedStatus,
+    headerIsAdmin,
+    docsIsAuthenticated,
+    docsAccountTypeOverride,
+    t
+  );
 
   const [screenRotationItems, setScreenRotationItems] = useState<ScreenRotationItem[]>([
     { view: 'pool-stages', ...(tournamentId ? { tournamentId } : {}) },
