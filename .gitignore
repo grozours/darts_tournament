@@ -49,6 +49,8 @@ Thumbs.db
 
 # Coverage reports
 coverage/
+frontend/coverage*
+backend/coverage*
 
 # Test outputs
 test-results/
