@@ -86,6 +86,20 @@ const formatPresetSegmentDescription = (
   return exact ?? formatSegmentDescription(segment);
 };
 
+export const getMatchFormatTooltipFromSegments = (
+  matchFormatKey: string,
+  segments: Array<{ game: string; targetCount: number }>
+): string => {
+  const segmentLines = segments
+    .map((segment, index) => `- ${formatPresetSegmentDescription(matchFormatKey, index, segment)}`)
+    .join('\n');
+
+  return [
+    `key: ${matchFormatKey}`,
+    segmentLines,
+  ].join('\n');
+};
+
 export const getMatchFormatTooltip = (matchFormatKey?: string): string => {
   if (!matchFormatKey) {
     return '';
@@ -94,14 +108,7 @@ export const getMatchFormatTooltip = (matchFormatKey?: string): string => {
   if (!preset) {
     return matchFormatKey;
   }
-  const segmentLines = preset.segments
-    .map((segment, index) => `- ${formatPresetSegmentDescription(preset.key, index, segment)}`)
-    .join('\n');
-
-  return [
-    `key: ${preset.key}`,
-    segmentLines,
-  ].join('\n');
+  return getMatchFormatTooltipFromSegments(preset.key, preset.segments);
 };
 
 const buildNotificationPlayers = (

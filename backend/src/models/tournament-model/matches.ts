@@ -4,6 +4,17 @@ import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError } from './helpers';
 
 export const createTournamentModelMatches = (prisma: PrismaClient) => ({
+  getMatchFormatPresetByKey: async (key: string) => {
+    try {
+      return await prisma.matchFormatPreset.findUnique({
+        where: { key },
+      });
+    } catch (error) {
+      logModelError('getMatchFormatPresetByKey', error);
+      throw new AppError('Failed to fetch match format preset', 500, 'MATCH_FORMAT_PRESET_FETCH_FAILED');
+    }
+  },
+
   getMatchById: async (matchId: string) => {
     try {
       return await prisma.match.findUnique({

@@ -24,6 +24,13 @@ type TournamentPlayersResponse = {
   }>;
 };
 
+type TournamentGroupResponse = {
+  members?: Array<{
+    playerId?: string;
+    email?: string;
+  }>;
+};
+
 type PoolStageSummary = {
   id: string;
 };
@@ -164,6 +171,69 @@ const fetchPlayerIdsForEmail = async (
   return { playerIds, tournamentsToJoin };
 };
 
+const fetchTournamentGroups = async (
+  tournamentId: string,
+  path: 'doublettes' | 'equipes',
+  token: string
+) => {
+  const response = await fetch(`/api/tournaments/${tournamentId}/${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    return [] as TournamentGroupResponse[];
+  }
+
+  const payload = await response.json();
+  return Array.isArray(payload) ? (payload as TournamentGroupResponse[]) : [];
+};
+
+const getGroupMembers = (group: TournamentGroupResponse) => (
+  Array.isArray(group.members) ? group.members : []
+);
+
+const isMemberMatchingEmail = (
+  member: { playerId?: string; email?: string },
+  email: string
+) => (member.email ?? '').toLowerCase() === email;
+
+const collectGroupMemberIdsIfUserPresent = (
+  group: TournamentGroupResponse,
+  email: string,
+  collector: Set<string>
+) => {
+  const members = getGroupMembers(group);
+  if (!members.some((member) => isMemberMatchingEmail(member, email))) {
+    return;
+  }
+
+  for (const member of members) {
+    if (member.playerId) {
+      collector.add(member.playerId);
+    }
+  }
+};
+
+const fetchTeammatePlayerIdsForEmail = async (
+  token: string,
+  tournaments: TournamentSummary[],
+  email: string
+) => {
+  const teammatePlayerIds = new Set<string>();
+
+  for (const tournament of tournaments) {
+    const [doublettes, equipes] = await Promise.all([
+      fetchTournamentGroups(tournament.id, 'doublettes', token),
+      fetchTournamentGroups(tournament.id, 'equipes', token),
+    ]);
+
+    for (const group of [...doublettes, ...equipes]) {
+      collectGroupMemberIdsIfUserPresent(group, email, teammatePlayerIds);
+    }
+  }
+
+  return teammatePlayerIds;
+};
+
 const useMatchStartedNotifications = () => {
   const { t } = useI18n();
   const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
@@ -287,6 +357,10 @@ const useMatchStartedNotifications = () => {
         }
         const tournaments = await fetchLiveTournaments(token);
         const data = await fetchPlayerIdsForEmail(token, tournaments, email);
+        const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email);
+        for (const teammatePlayerId of teammatePlayerIds) {
+          data.playerIds.add(teammatePlayerId);
+        }
         const poolKeys = new Set<string>();
         for (const tournament of tournaments) {
           const stages = await fetchPoolStagesForTournament(tournament.id, token);

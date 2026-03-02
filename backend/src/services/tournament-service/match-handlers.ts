@@ -15,7 +15,7 @@ import {
 import type { Tournament } from '../../../../shared/src/types';
 import { nextPowerOfTwo } from './number-helpers';
 import { getBracketRoundMatchFormatKey } from './match-format-presets';
-import { getMatchFormatTooltip } from './match-format-change-notifications';
+import { getMatchFormatTooltip, getMatchFormatTooltipFromSegments } from './match-format-change-notifications';
 import { normalizeMatchScores, resolveWinnerAndResultScores } from './match-score-policy';
 import { assertValidMatchTransition, ensureTargetForMatchStart } from './target-lifecycle';
 
@@ -37,6 +37,29 @@ export type MatchHandlerContext = {
 
 const randomIntInclusive = (min: number, max: number): number =>
   randomInt(min, max + 1);
+
+const normalizeMatchFormatSegments = (value: unknown): Array<{ game: string; targetCount: number }> | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const segments: Array<{ game: string; targetCount: number }> = [];
+  for (const segment of value) {
+    if (!segment || typeof segment !== 'object') {
+      return undefined;
+    }
+
+    const game = (segment as { game?: unknown }).game;
+    const targetCount = (segment as { targetCount?: unknown }).targetCount;
+    if (typeof game !== 'string' || typeof targetCount !== 'number' || !Number.isFinite(targetCount)) {
+      return undefined;
+    }
+
+    segments.push({ game, targetCount });
+  }
+
+  return segments;
+};
 
 export const createMatchHandlers = (context: MatchHandlerContext) => {
   const {
@@ -388,28 +411,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     return timestamps;
   };
 
-  const emitMatchStartedNotification = async (tournament: Tournament, matchId: string): Promise<void> => {
-    const webSocketService = getWebSocketService();
-    if (!webSocketService) {
-      return;
-    }
+  type MatchDetailsForNotification = NonNullable<Awaited<ReturnType<TournamentModel['getMatchDetailsForNotification']>>>;
+  type StartedNotificationPlayerMatchRow = NonNullable<MatchDetailsForNotification['playerMatches']>[number];
 
-    const matchDetails = await tournamentModel.getMatchDetailsForNotification(matchId);
-    if (!matchDetails) {
-      return;
-    }
-
-    type PlayerMatchRow = {
-      playerId?: string | null;
-      player?: {
-        id?: string;
-        firstName?: string;
-        lastName?: string;
-        surname?: string | null;
-        teamName?: string | null;
-      };
-    };
-    const players = (matchDetails.playerMatches ?? []).map((pm: PlayerMatchRow) => {
+  const buildStartedNotificationPlayers = (matchDetails: MatchDetailsForNotification) => (
+    (matchDetails.playerMatches ?? []).map((pm: StartedNotificationPlayerMatchRow) => {
       const summary: { id?: string; firstName?: string; lastName?: string; surname?: string; teamName?: string } = {};
       const playerId = pm.player?.id ?? pm.playerId ?? undefined;
       if (playerId !== undefined) {
@@ -428,9 +434,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
         summary.teamName = pm.player.teamName;
       }
       return summary;
-    });
+    })
+  );
 
-    const matchPayload = matchDetails.pool
+  const buildStartedNotificationMatchPayload = (matchDetails: MatchDetailsForNotification) => (
+    matchDetails.pool
       ? {
           source: 'pool' as const,
           matchNumber: matchDetails.matchNumber,
@@ -445,9 +453,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
           roundNumber: matchDetails.roundNumber,
           // eslint-disable-next-line unicorn/no-null
           bracketName: matchDetails.bracket?.name ?? null,
-        };
+        }
+  );
 
-    const target = matchDetails.target
+  const buildStartedNotificationTarget = (matchDetails: MatchDetailsForNotification) => (
+    matchDetails.target
       ? {
           id: matchDetails.target.id,
           targetNumber: matchDetails.target.targetNumber,
@@ -455,10 +465,57 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
           // eslint-disable-next-line unicorn/no-null
           name: matchDetails.target.name ?? null,
         }
-      : undefined;
+      : undefined
+  );
 
-    const matchFormatKey = typeof matchDetails.matchFormatKey === 'string' && matchDetails.matchFormatKey.trim()
+  const resolveEffectiveMatchFormatKey = (matchDetails: MatchDetailsForNotification): string | undefined => {
+    const matchLevelFormatKey = typeof matchDetails.matchFormatKey === 'string' && matchDetails.matchFormatKey.trim()
       ? matchDetails.matchFormatKey
+      : undefined;
+    const poolStageFormatKey = typeof matchDetails.pool?.poolStage?.matchFormatKey === 'string'
+      && matchDetails.pool.poolStage.matchFormatKey.trim()
+      ? matchDetails.pool.poolStage.matchFormatKey
+      : undefined;
+    const bracketRoundFormatKey = getBracketRoundMatchFormatKey(
+      matchDetails.bracket?.roundMatchFormats,
+      matchDetails.roundNumber
+    );
+
+    return matchLevelFormatKey ?? poolStageFormatKey ?? bracketRoundFormatKey;
+  };
+
+  const resolveMatchFormatTooltipForStartedNotification = async (
+    matchFormatKey: string
+  ): Promise<string | undefined> => {
+    const staticTooltip = getMatchFormatTooltip(matchFormatKey);
+    if (staticTooltip === matchFormatKey) {
+      const preset = await tournamentModel.getMatchFormatPresetByKey(matchFormatKey);
+      const segments = normalizeMatchFormatSegments(preset?.segments);
+      return segments
+        ? getMatchFormatTooltipFromSegments(matchFormatKey, segments)
+        : staticTooltip;
+    }
+
+    return staticTooltip;
+  };
+
+  const emitMatchStartedNotification = async (tournament: Tournament, matchId: string): Promise<void> => {
+    const webSocketService = getWebSocketService();
+    if (!webSocketService) {
+      return;
+    }
+
+    const matchDetails = await tournamentModel.getMatchDetailsForNotification(matchId);
+    if (!matchDetails) {
+      return;
+    }
+
+    const players = buildStartedNotificationPlayers(matchDetails);
+    const matchPayload = buildStartedNotificationMatchPayload(matchDetails);
+    const target = buildStartedNotificationTarget(matchDetails);
+    const matchFormatKey = resolveEffectiveMatchFormatKey(matchDetails);
+    const matchFormatTooltip = matchFormatKey
+      ? await resolveMatchFormatTooltipForStartedNotification(matchFormatKey)
       : undefined;
 
     await webSocketService.emitMatchStarted({
@@ -469,7 +526,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       ...(matchFormatKey
         ? {
             matchFormatKey,
-            matchFormatTooltip: getMatchFormatTooltip(matchFormatKey),
+            ...(matchFormatTooltip ? { matchFormatTooltip } : {}),
           }
         : {}),
       ...(target ? { target } : {}),

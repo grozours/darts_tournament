@@ -168,6 +168,24 @@ const resolveRequestHeader = (headers: Record<string, unknown>, headerName: stri
   return undefined;
 };
 
+const toErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
+    return String(error);
+  }
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized ?? 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+};
+
 const authenticateSocket = async (socket: Socket): Promise<boolean> => {
   if (!config.auth.enabled) {
     return true;
@@ -222,7 +240,7 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
     try {
       requireAuth(request, response, (error?: unknown) => {
         if (error) {
-          authFailureReason = error instanceof Error ? error.message : String(error);
+          authFailureReason = toErrorMessage(error);
           resolve(false);
           return;
         }
@@ -232,7 +250,7 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
       logger.warn('Socket authentication failed before completion', {
         metadata: {
           socketId: socket.id,
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: toErrorMessage(error),
         },
       });
       resolve(false);

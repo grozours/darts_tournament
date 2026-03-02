@@ -143,6 +143,7 @@ export class TournamentModel {
   public setBracketTargets!: TournamentModelBracketHandlers['setBracketTargets'];
 
   public getMatchById!: TournamentModelMatchHandlers['getMatchById'];
+  public getMatchFormatPresetByKey!: TournamentModelMatchHandlers['getMatchFormatPresetByKey'];
   public getTargetById!: TournamentModelMatchHandlers['getTargetById'];
   public getMatchPoolStageId!: TournamentModelMatchHandlers['getMatchPoolStageId'];
   public updateMatchStatus!: TournamentModelMatchHandlers['updateMatchStatus'];
