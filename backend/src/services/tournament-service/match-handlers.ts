@@ -4,6 +4,7 @@ import type { TournamentModel } from '../../models/tournament-model';
 import type { TournamentLiveView } from '../../models/tournament-model/helpers';
 import { AppError } from '../../middleware/error-handler';
 import { getWebSocketService } from '../../websocket/server';
+import logger from '../../utils/logger';
 import {
   BracketStatus,
   MatchStatus,
@@ -148,7 +149,8 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     tournamentId: string,
     matchId: string,
     status: MatchStatus,
-    targetId?: string
+    targetId?: string,
+    options?: { notifyCancelled?: boolean }
   ): Promise<void> => {
     validateUUID(tournamentId);
     validateUUID(matchId);
@@ -189,6 +191,15 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
 
     if (status === MatchStatus.SCHEDULED) {
       await resetMatchToScheduled(matchId, match, now);
+      if (options?.notifyCancelled) {
+        logger.info('Match cancellation notification emitted via notifyCancelled flag', {
+          metadata: {
+            tournamentId,
+            matchId,
+          },
+        });
+        await emitMatchFinishedNotification(tournamentId, matchId, MatchStatus.CANCELLED, now);
+      }
       return;
     }
 

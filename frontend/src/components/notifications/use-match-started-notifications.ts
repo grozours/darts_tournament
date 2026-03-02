@@ -314,6 +314,7 @@ const useMatchStartedNotifications = () => {
   const [joinedTournaments, setJoinedTournaments] = useState<string[]>([]);
   const playerIdsReference = useRef<Set<string>>(new Set());
   const poolKeysReference = useRef<Set<string>>(new Set());
+  const joinedTournamentsReference = useRef<Set<string>>(new Set());
 
   const shouldNotifyPlayer = useCallback((payload: MatchNotificationPayload) => {
     const playerIds = playerIdsReference.current;
@@ -321,6 +322,13 @@ const useMatchStartedNotifications = () => {
       return false;
     }
     if (payload.players.some((player) => player.id && playerIds.has(player.id))) {
+      return true;
+    }
+    if (
+      payload.event === 'cancelled'
+      && !payload.players.some((player) => Boolean(player.id))
+      && joinedTournamentsReference.current.has(payload.tournamentId)
+    ) {
       return true;
     }
     if (payload.match.source === 'pool' && payload.match.poolId) {
@@ -382,6 +390,7 @@ const useMatchStartedNotifications = () => {
         }
         playerIdsReference.current = data.playerIds;
         poolKeysReference.current = poolKeys;
+        joinedTournamentsReference.current = new Set(data.tournamentsToJoin);
         setJoinedTournaments(data.tournamentsToJoin);
       } catch {
         void 0;

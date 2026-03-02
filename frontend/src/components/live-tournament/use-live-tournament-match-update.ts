@@ -19,7 +19,8 @@ type LiveTournamentMatchUpdateResult = {
     matchTournamentId: string,
     matchId: string,
     status: string,
-    targetId?: string
+    targetId?: string,
+    options?: { notifyCancelled?: boolean }
   ) => Promise<void>;
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
   handleSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
@@ -40,14 +41,15 @@ const useLiveTournamentMatchUpdate = ({
     matchTournamentId: string,
     matchId: string,
     status: string,
-    targetId?: string
+    targetId?: string,
+    options?: { notifyCancelled?: boolean }
   ) => {
     const matchKey = getMatchKey(matchTournamentId, matchId);
     setUpdatingMatchId(matchKey);
     setError(undefined);
     try {
       const token = await getSafeAccessToken();
-      await updateMatchStatus(matchTournamentId, matchId, status, targetId, token);
+      await updateMatchStatus(matchTournamentId, matchId, status, targetId, token, options);
       await reloadLiveViews({ showLoader: false });
       if (status === 'IN_PROGRESS' || status === 'COMPLETED' || status === 'CANCELLED' || status === 'SCHEDULED') {
         clearMatchTargetSelection(matchKey);

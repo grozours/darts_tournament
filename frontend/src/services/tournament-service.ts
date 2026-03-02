@@ -702,7 +702,8 @@ export async function updateMatchStatus(
   matchId: string,
   status: string,
   targetId?: string,
-  token?: string
+  token?: string,
+  options?: { notifyCancelled?: boolean }
 ): Promise<void> {
   const response = await fetch(`/api/tournaments/${tournamentId}/matches/${matchId}/status`, {
     method: 'PATCH',
@@ -710,7 +711,11 @@ export async function updateMatchStatus(
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ status, ...(targetId ? { targetId } : {}) }),
+    body: JSON.stringify({
+      status,
+      ...(targetId ? { targetId } : {}),
+      ...(options?.notifyCancelled ? { notifyCancelled: true } : {}),
+    }),
   });
 
   if (!response.ok) {

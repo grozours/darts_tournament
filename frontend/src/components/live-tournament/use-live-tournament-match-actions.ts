@@ -22,7 +22,8 @@ type LiveTournamentMatchActionsResult = {
     matchTournamentId: string,
     matchId: string,
     status: string,
-    targetId?: string
+    targetId?: string,
+    options?: { notifyCancelled?: boolean }
   ) => Promise<void>;
   handleResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => Promise<void>;
   handleScoreChange: (matchKey: string, playerId: string, value: string) => void;

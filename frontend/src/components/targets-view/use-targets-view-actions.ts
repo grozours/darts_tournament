@@ -221,7 +221,14 @@ const useTargetsViewActions = ({
     try {
       const token = await getSafeAccessToken();
       applyOptimisticMatchStatus(matchTournament.tournamentId, match.id, 'SCHEDULED');
-      await updateMatchStatus(matchTournament.tournamentId, match.id, 'SCHEDULED', undefined, token);
+      await updateMatchStatus(
+        matchTournament.tournamentId,
+        match.id,
+        'SCHEDULED',
+        undefined,
+        token,
+        { notifyCancelled: true }
+      );
       await loadTargets({ silent: true });
     } catch (error_) {
       setError(error_ instanceof Error ? error_.message : t('targets.error'));

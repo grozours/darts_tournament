@@ -23,6 +23,7 @@ export const registerTournamentMatchRoutes = (
           errorMap: () => ({ message: 'Invalid match status' }),
         }),
         targetId: z.string().uuid('Invalid target ID').optional(),
+        notifyCancelled: z.boolean().optional(),
       }),
     }),
     tournamentController.updateMatchStatus

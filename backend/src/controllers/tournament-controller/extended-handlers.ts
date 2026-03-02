@@ -99,7 +99,8 @@ type TournamentServiceLike = {
     tournamentId: string,
     matchId: string,
     status: MatchStatus,
-    targetId?: string
+    targetId?: string,
+    options?: { notifyCancelled?: boolean }
   ) => Promise<void>;
   completeMatch: (
     tournamentId: string,
@@ -707,12 +708,17 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
   updateMatchStatus: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id, matchId } = request.params as { id: string; matchId: string };
-      const { status, targetId } = request.body as { status: string; targetId?: string };
+      const { status, targetId, notifyCancelled } = request.body as {
+        status: string;
+        targetId?: string;
+        notifyCancelled?: boolean;
+      };
       await context.getTournamentService(request).updateMatchStatus(
         id,
         matchId,
         status as MatchStatus,
-        targetId
+        targetId,
+        notifyCancelled === undefined ? undefined : { notifyCancelled }
       );
       response.status(204).send();
     } catch (error) {

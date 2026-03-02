@@ -244,7 +244,7 @@ function LiveTournament() {
     handleMatchStatusUpdate(matchTournamentId, matchId, 'IN_PROGRESS', targetId);
   };
   const handleCancelMatch = (matchTournamentId: string, match: LiveViewMatch) => {
-    handleMatchStatusUpdate(matchTournamentId, match.id, 'SCHEDULED');
+    handleMatchStatusUpdate(matchTournamentId, match.id, 'SCHEDULED', undefined, { notifyCancelled: true });
   };
   const handleRefresh = () => {
     void reloadLiveViews();
