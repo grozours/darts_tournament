@@ -169,7 +169,13 @@ describe('tournament-controller extended handlers', () => {
 
     await controller.updateMatchStatus(request as never, response as never);
 
-    expect(mockService.updateMatchStatus).toHaveBeenCalledWith(TOURNAMENT_ID, MATCH_ID, MatchStatus.IN_PROGRESS, 'target-1');
+    expect(mockService.updateMatchStatus).toHaveBeenCalledWith(
+      TOURNAMENT_ID,
+      MATCH_ID,
+      MatchStatus.IN_PROGRESS,
+      'target-1',
+      undefined
+    );
     expect(response.status).toHaveBeenCalledWith(204);
   });
 

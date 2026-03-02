@@ -30,6 +30,7 @@ import {
 } from './view-utilities';
 import { getHasLoserBracket } from './target-utilities';
 import { getMatchFormatPresets } from '../../utils/match-format-presets';
+import { buildPoolStageParallelGroups } from '../queue/pool-stage-parallel-groups';
 
 type PoolStats = {
   poolStageCount: number;
@@ -395,78 +396,9 @@ const getRemainingPoolStagesOrdered = (poolStages: LiveViewPoolStage[] | undefin
       return leftOrder - rightOrder;
     });
 
-const getStageParallelReferences = (stage: LiveViewPoolStage) => (
-  new Set(
-    (stage.inParallelWith ?? [])
-      .map((reference) => reference.trim())
-      .filter((reference) => /^stage:\d+$/i.test(reference))
-      .map((reference) => Number(reference.split(':')[1]))
-      .filter((stageNumber) => Number.isInteger(stageNumber) && stageNumber > 0)
-  )
-);
-
-const areStagesParallelLinked = (firstStage: LiveViewPoolStage, secondStage: LiveViewPoolStage) => {
-  const firstRefs = getStageParallelReferences(firstStage);
-  const secondRefs = getStageParallelReferences(secondStage);
-  return firstRefs.has(secondStage.stageNumber) || secondRefs.has(firstStage.stageNumber);
-};
-
 const hasPoolStageParallelConfiguration = (stages: LiveViewPoolStage[]) => (
   stages.some((stage) => (stage.inParallelWith?.length ?? 0) > 0)
 );
-
-const collectParallelStageGroup = (
-  startStage: LiveViewPoolStage,
-  orderedStages: LiveViewPoolStage[],
-  visitedStageIds: Set<string>
-) => {
-  const group: LiveViewPoolStage[] = [];
-  const stack = [startStage];
-  visitedStageIds.add(startStage.id);
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) {
-      continue;
-    }
-    group.push(current);
-
-    for (const candidate of orderedStages) {
-      if (visitedStageIds.has(candidate.id)) {
-        continue;
-      }
-      if (areStagesParallelLinked(current, candidate)) {
-        visitedStageIds.add(candidate.id);
-        stack.push(candidate);
-      }
-    }
-  }
-
-  return group.toSorted((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
-};
-
-const sortPoolStageGroups = (groups: LiveViewPoolStage[][]) => groups.toSorted((firstGroup, secondGroup) => {
-  const firstOrder = firstGroup[0]?.stageNumber ?? Number.MAX_SAFE_INTEGER;
-  const secondOrder = secondGroup[0]?.stageNumber ?? Number.MAX_SAFE_INTEGER;
-  return firstOrder - secondOrder;
-});
-
-const buildPoolStageParallelGroups = (stages: LiveViewPoolStage[]) => {
-  const orderedStages = [...stages]
-    .sort((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
-  const visitedStageIds = new Set<string>();
-  const groups: LiveViewPoolStage[][] = [];
-
-  for (const stage of orderedStages) {
-    if (visitedStageIds.has(stage.id)) {
-      continue;
-    }
-
-    groups.push(collectParallelStageGroup(stage, orderedStages, visitedStageIds));
-  }
-
-  return sortPoolStageGroups(groups);
-};
 
 const getBracketDedicatedTargetCount = (bracket: LiveViewBracket) => {
   const bracketTargetsCount = bracket.bracketTargets?.length ?? 0;

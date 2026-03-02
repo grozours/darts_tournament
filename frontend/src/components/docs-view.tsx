@@ -118,6 +118,248 @@ const formatGuideStepDescriptionLines = (stepText: string) => {
   return [firstLine, ...lines.slice(1)].filter((line) => line.length > 0);
 };
 
+const createGuideStep = (
+  text: string,
+  screenshotKey: GuideStep['screenshotKey'],
+  screenshotAlt: string,
+  accessLinkLabel: string,
+  accessLinkHref: string
+): GuideStep => ({
+  text,
+  screenshotKey,
+  screenshotAlt,
+  accessLink: {
+    label: accessLinkLabel,
+    href: accessLinkHref,
+  },
+});
+
+const createGuideContent = (
+  label: string,
+  title: string,
+  steps: GuideStep[]
+): GuideContent => ({
+  label,
+  title,
+  steps,
+});
+
+type GuideStepDefinition = [
+  text: string,
+  screenshotKey: GuideStep['screenshotKey'],
+  screenshotAlt: string,
+  accessLinkLabel: string,
+  accessLinkHref: string,
+];
+
+const buildGuideSteps = (definitions: GuideStepDefinition[]): GuideStep[] => definitions.map(([
+  text,
+  screenshotKey,
+  screenshotAlt,
+  accessLinkLabel,
+  accessLinkHref,
+]) => createGuideStep(text, screenshotKey, screenshotAlt, accessLinkLabel, accessLinkHref));
+
+const frAnonymousSteps = buildGuideSteps([
+  [
+    '1. Consulte les tournois disponibles pour comprendre les formats et statuts.\nUtilise aussi les vues Live, Poules, Arbres et Cibles pour voir le déroulé global de la compétition.',
+    'doc-anonyme-vues',
+    'Accès aux différentes vues publiques (tournois, live, poules, arbres, cibles)',
+    'Tournois',
+    '/?status=OPEN',
+  ],
+  [
+    '2. Ouvre les détails d’un tournoi pour consulter les inscrits.\nCette étape permet de vérifier le niveau de participation avant de te connecter.',
+    'doc-anonyme-inscrits',
+    'Exemple de consultation des inscrits sur un tournoi',
+    'Inscriptions individuelles',
+    '/?view=registration-players',
+  ],
+  [
+    '3. Pour t’inscrire, commence par te connecter.\nChoisis ensuite le mode d’authentification disponible (Google, Facebook, Discord, etc.) pour finaliser ton accès.',
+    'doc-anonyme-connexion',
+    'Étape de connexion avec les différents modes d’authentification',
+    'Se connecter',
+    '/?view=account',
+  ],
+]);
+
+const enAnonymousSteps = buildGuideSteps([
+  [
+    '1. Browse available tournaments to understand active formats and statuses.\nYou can also use Live, Pool, Brackets and Targets views for a global competition overview.',
+    'doc-anonyme-vues',
+    'Anonymous documentation view',
+    'Open tournaments',
+    '/?status=OPEN',
+  ],
+  [
+    '2. Open tournament details to review currently registered participants.\nThis helps you evaluate participation before signing in.',
+    'doc-anonyme-inscrits',
+    'Open tournaments list example',
+    'Singles registration',
+    '/?view=registration-players',
+  ],
+  [
+    '3. Sign in before registering.\nUse the available authentication provider (Google, Facebook, Discord, etc.) to complete access.',
+    'doc-anonyme-connexion',
+    'Sign-in step to complete registration',
+    'Sign in',
+    '/?view=account',
+  ],
+]);
+
+const frPlayerSteps = buildGuideSteps([
+  [
+    '1. Identifie le format du tournoi avant de t’inscrire : simple, doublette ou équipe.\nLe parcours d’inscription n’est pas le même selon ce choix.',
+    'doc-joueur-simple',
+    'Inscription joueur en format simple',
+    'Inscriptions individuelles',
+    '/?view=registration-players',
+  ],
+  [
+    '2. En doublette/équipe, le capitaine crée le groupe et définit le mot de passe.\nLes coéquipiers utilisent ce mot de passe pour rejoindre le bon groupe, ce qui évite les erreurs d’affectation.',
+    'doc-joueur-doublette',
+    'Exemple de rôle capitaine et mot de passe en doublette/équipe',
+    'Doublettes',
+    '/?view=doublettes',
+  ],
+  [
+    '3. Valide le groupe uniquement lorsqu’il est complet : doublette=2, équipe=4.\nVérifie les profils présents puis confirme l’inscription pour passer le groupe en statut prêt.',
+    'doc-joueur-validation',
+    'Validation d’une doublette/équipe complète',
+    'Équipes',
+    '/?view=equipes',
+  ],
+]);
+
+const enPlayerSteps = buildGuideSteps([
+  [
+    '1. Start by selecting the tournament format: singles, doublette, or team.\nEach format has its own registration workflow.',
+    'doc-joueur-simple',
+    'Player documentation view',
+    'Singles registration',
+    '/?view=registration-players',
+  ],
+  [
+    '2. In doublette/team mode, the captain creates the group and defines the password.\nTeammates use that password to join the exact group and avoid assignment errors.',
+    'doc-joueur-doublette',
+    'Doublette join example',
+    'Doublettes',
+    '/?view=doublettes',
+  ],
+  [
+    '3. Validate the group only when complete: doublette=2, team=4.\nCheck members and confirm registration to mark the group ready for competition.',
+    'doc-joueur-validation',
+    'Team tournament follow-up example',
+    'Teams',
+    '/?view=equipes',
+  ],
+]);
+
+const frAdminSteps = buildGuideSteps([
+  [
+    '1. Utilise le menu Admin pour créer le tournoi et préparer sa configuration.\nTu définis ici les paramètres structurants avant ouverture des inscriptions.',
+    'doc-admin-creation',
+    'Vue documentation admin',
+    'Créer un tournoi',
+    '/?view=create-tournament',
+  ],
+  [
+    '2. Vue Poules : sélectionne une poule pour suivre ses matchs, son classement et son avancement.\nLes boutons des cartes servent à lancer la phase, terminer automatiquement une phase, réinitialiser ou éditer la structure en fonction du besoin terrain.',
+    'doc-admin-poules',
+    'Vue admin des poules avec cartes et actions de pilotage',
+    'Poules',
+    '/?view=pool-stages',
+  ],
+  [
+    '3. Vue Arbres : pilote la progression des tableaux à élimination.\nUtilise les actions pour compléter un tour, remettre un arbre à zéro si nécessaire, et contrôler le rythme de passage entre les tours.',
+    'doc-admin-arbres',
+    'Vue admin des arbres avec actions de gestion de tour',
+    'Arbres',
+    '/?view=brackets',
+  ],
+  [
+    '4. Leaderboard des poules : le “+1” correspond à un bonus métier de départage.\nIl apparaît quand deux participants sont à égalité et que le résultat de leur confrontation directe donne un vainqueur à privilégier pour la qualification.',
+    'doc-admin-leaderboard',
+    'Classement de poule avec bonus de départage +1',
+    'Classement poules',
+    '/?view=pool-stages',
+  ],
+  [
+    '5. Préréglages tournoi : définis une structure réutilisable (phases de poules, arbres, règles de qualification).\nLe preset encode le parcours métier des participants et évite de reconfigurer chaque tournoi manuellement.',
+    'doc-admin-presets',
+    'Éditeur de préréglages de tournoi avec structure poules et arbres',
+    'Préréglages tournoi',
+    '/?view=tournament-preset-editor',
+  ],
+  [
+    '6. Formats de match : définis les segments (501, cricket, etc.) et la durée cible d’un match.\nCes formats garantissent une cohérence sportive entre poules et arbres et servent de référence aux arbitres.',
+    'doc-admin-formats',
+    'Gestion des formats de match et de leurs segments',
+    'Formats de match',
+    '/?view=match-formats',
+  ],
+  [
+    '7. Vue Cibles : affecte un match à une cible, lance le match, saisis/ajuste le score, puis termine ou annule si incident.\nCette vue est le poste opérationnel pour fluidifier l’appel des joueurs et la remontée des résultats en temps réel.',
+    'doc-admin-cibles',
+    'Vue cibles avec démarrage, saisie de score, clôture et annulation de match',
+    'Cibles',
+    '/?view=targets',
+  ],
+]);
+
+const enAdminSteps = buildGuideSteps([
+  [
+    '1. Use Admin menu to create the tournament and configure key settings.\nThis is the operational setup phase before registration opens.',
+    'doc-admin-creation',
+    'Admin documentation view',
+    'Create tournament',
+    '/?view=create-tournament',
+  ],
+  [
+    '2. Pool view: select a pool to monitor matches, standings, and operational progress.\nCard actions are used to launch a stage, auto-complete a stage, reset, or edit structure depending on field constraints.',
+    'doc-admin-poules',
+    'Admin pools view with card-level controls',
+    'Pools',
+    '/?view=pool-stages',
+  ],
+  [
+    '3. Bracket view: drive elimination progression round by round.\nUse controls to complete a round, reset a bracket when needed, and keep transition timing under control.',
+    'doc-admin-arbres',
+    'Admin brackets view with round management actions',
+    'Brackets',
+    '/?view=brackets',
+  ],
+  [
+    '4. Pool leaderboard: “+1” is a business tie-break bonus.\nIt appears when two participants are tied and direct head-to-head result determines who should be prioritized for qualification.',
+    'doc-admin-leaderboard',
+    'Pool leaderboard with +1 tie-break bonus',
+    'Pool standings',
+    '/?view=pool-stages',
+  ],
+  [
+    '5. Tournament presets: define reusable competition structures (pool stages, brackets, qualification routing).\nA preset captures your standard operational flow and avoids rebuilding setup each event.',
+    'doc-admin-presets',
+    'Tournament preset editor with pools and brackets routing',
+    'Tournament presets',
+    '/?view=tournament-preset-editor',
+  ],
+  [
+    '6. Match formats: define segments (501, cricket, etc.) and target match duration.\nThese formats enforce sporting consistency across pools and brackets and provide a common referee baseline.',
+    'doc-admin-formats',
+    'Match format management and segment configuration',
+    'Match formats',
+    '/?view=match-formats',
+  ],
+  [
+    '7. Targets view: assign a match to a target, start it, update scores, then complete or cancel in case of incident.\nThis is the operational console for smooth player calling and real-time result updates.',
+    'doc-admin-cibles',
+    'Targets operations view with start, scoring, complete, and cancel actions',
+    'Targets',
+    '/?view=targets',
+  ],
+]);
+
 const docsContent: Record<'fr' | 'en', {
   title: string;
   subtitle: string;
@@ -127,204 +369,42 @@ const docsContent: Record<'fr' | 'en', {
     title: 'Documentation rapide',
     subtitle: 'Explications simples selon ton type de compte.',
     guides: {
-      anonymous: {
-        label: 'Documentation anonyme',
-        title: 'Découvrir les tournois sans compte',
-        steps: [
-          {
-            text: '1. Consulte les tournois disponibles pour comprendre les formats et statuts.\nUtilise aussi les vues Live, Poules, Arbres et Cibles pour voir le déroulé global de la compétition.',
-            screenshotKey: 'doc-anonyme-vues',
-            screenshotAlt: 'Accès aux différentes vues publiques (tournois, live, poules, arbres, cibles)',
-            accessLink: { label: 'Tournois', href: '/?status=OPEN' },
-          },
-          {
-            text: '2. Ouvre les détails d’un tournoi pour consulter les inscrits.\nCette étape permet de vérifier le niveau de participation avant de te connecter.',
-            screenshotKey: 'doc-anonyme-inscrits',
-            screenshotAlt: 'Exemple de consultation des inscrits sur un tournoi',
-            accessLink: { label: 'Inscriptions individuelles', href: '/?view=registration-players' },
-          },
-          {
-            text: '3. Pour t’inscrire, commence par te connecter.\nChoisis ensuite le mode d’authentification disponible (Google, Facebook, Discord, etc.) pour finaliser ton accès.',
-            screenshotKey: 'doc-anonyme-connexion',
-            screenshotAlt: 'Étape de connexion avec les différents modes d’authentification',
-            accessLink: { label: 'Se connecter', href: '/?view=account' },
-          },
-        ],
-      },
-      player: {
-        label: 'Documentation joueur',
-        title: 'S’inscrire en joueur et gérer son groupe',
-        steps: [
-          {
-            text: '1. Identifie le format du tournoi avant de t’inscrire : simple, doublette ou équipe.\nLe parcours d’inscription n’est pas le même selon ce choix.',
-            screenshotKey: 'doc-joueur-simple',
-            screenshotAlt: 'Inscription joueur en format simple',
-            accessLink: { label: 'Inscriptions individuelles', href: '/?view=registration-players' },
-          },
-          {
-            text: '2. En doublette/équipe, le capitaine crée le groupe et définit le mot de passe.\nLes coéquipiers utilisent ce mot de passe pour rejoindre le bon groupe, ce qui évite les erreurs d’affectation.',
-            screenshotKey: 'doc-joueur-doublette',
-            screenshotAlt: 'Exemple de rôle capitaine et mot de passe en doublette/équipe',
-            accessLink: { label: 'Doublettes', href: '/?view=doublettes' },
-          },
-          {
-            text: '3. Valide le groupe uniquement lorsqu’il est complet : doublette=2, équipe=4.\nVérifie les profils présents puis confirme l’inscription pour passer le groupe en statut prêt.',
-            screenshotKey: 'doc-joueur-validation',
-            screenshotAlt: 'Validation d’une doublette/équipe complète',
-            accessLink: { label: 'Équipes', href: '/?view=equipes' },
-          },
-        ],
-      },
-      admin: {
-        label: 'Documentation admin',
-        title: 'Piloter le tournoi en mode opérationnel',
-        steps: [
-          {
-            text: '1. Utilise le menu Admin pour créer le tournoi et préparer sa configuration.\nTu définis ici les paramètres structurants avant ouverture des inscriptions.',
-            screenshotKey: 'doc-admin-creation',
-            screenshotAlt: 'Vue documentation admin',
-            accessLink: { label: 'Créer un tournoi', href: '/?view=create-tournament' },
-          },
-          {
-            text: '2. Vue Poules : sélectionne une poule pour suivre ses matchs, son classement et son avancement.\nLes boutons des cartes servent à lancer la phase, terminer automatiquement une phase, réinitialiser ou éditer la structure en fonction du besoin terrain.',
-            screenshotKey: 'doc-admin-poules',
-            screenshotAlt: 'Vue admin des poules avec cartes et actions de pilotage',
-            accessLink: { label: 'Poules', href: '/?view=pool-stages' },
-          },
-          {
-            text: '3. Vue Arbres : pilote la progression des tableaux à élimination.\nUtilise les actions pour compléter un tour, remettre un arbre à zéro si nécessaire, et contrôler le rythme de passage entre les tours.',
-            screenshotKey: 'doc-admin-arbres',
-            screenshotAlt: 'Vue admin des arbres avec actions de gestion de tour',
-            accessLink: { label: 'Arbres', href: '/?view=brackets' },
-          },
-          {
-            text: '4. Leaderboard des poules : le “+1” correspond à un bonus métier de départage.\nIl apparaît quand deux participants sont à égalité et que le résultat de leur confrontation directe donne un vainqueur à privilégier pour la qualification.',
-            screenshotKey: 'doc-admin-leaderboard',
-            screenshotAlt: 'Classement de poule avec bonus de départage +1',
-            accessLink: { label: 'Classement poules', href: '/?view=pool-stages' },
-          },
-          {
-            text: '5. Préréglages tournoi : définis une structure réutilisable (phases de poules, arbres, règles de qualification).\nLe preset encode le parcours métier des participants et évite de reconfigurer chaque tournoi manuellement.',
-            screenshotKey: 'doc-admin-presets',
-            screenshotAlt: 'Éditeur de préréglages de tournoi avec structure poules et arbres',
-            accessLink: { label: 'Préréglages tournoi', href: '/?view=tournament-preset-editor' },
-          },
-          {
-            text: '6. Formats de match : définis les segments (501, cricket, etc.) et la durée cible d’un match.\nCes formats garantissent une cohérence sportive entre poules et arbres et servent de référence aux arbitres.',
-            screenshotKey: 'doc-admin-formats',
-            screenshotAlt: 'Gestion des formats de match et de leurs segments',
-            accessLink: { label: 'Formats de match', href: '/?view=match-formats' },
-          },
-          {
-            text: '7. Vue Cibles : affecte un match à une cible, lance le match, saisis/ajuste le score, puis termine ou annule si incident.\nCette vue est le poste opérationnel pour fluidifier l’appel des joueurs et la remontée des résultats en temps réel.',
-            screenshotKey: 'doc-admin-cibles',
-            screenshotAlt: 'Vue cibles avec démarrage, saisie de score, clôture et annulation de match',
-            accessLink: { label: 'Cibles', href: '/?view=targets' },
-          },
-        ],
-      },
+      anonymous: createGuideContent(
+        'Documentation anonyme',
+        'Découvrir les tournois sans compte',
+        frAnonymousSteps
+      ),
+      player: createGuideContent(
+        'Documentation joueur',
+        'S’inscrire en joueur et gérer son groupe',
+        frPlayerSteps
+      ),
+      admin: createGuideContent(
+        'Documentation admin',
+        'Piloter le tournoi en mode opérationnel',
+        frAdminSteps
+      ),
     },
   },
   en: {
     title: 'Quick documentation',
     subtitle: 'Very simple guidance based on your account type.',
     guides: {
-      anonymous: {
-        label: 'Anonymous documentation',
-        title: 'Browse and join a tournament',
-        steps: [
-          {
-            text: '1. Browse available tournaments to understand active formats and statuses.\nYou can also use Live, Pool, Brackets and Targets views for a global competition overview.',
-            screenshotKey: 'doc-anonyme-vues',
-            screenshotAlt: 'Anonymous documentation view',
-            accessLink: { label: 'Open tournaments', href: '/?status=OPEN' },
-          },
-          {
-            text: '2. Open tournament details to review currently registered participants.\nThis helps you evaluate participation before signing in.',
-            screenshotKey: 'doc-anonyme-inscrits',
-            screenshotAlt: 'Open tournaments list example',
-            accessLink: { label: 'Singles registration', href: '/?view=registration-players' },
-          },
-          {
-            text: '3. Sign in before registering.\nUse the available authentication provider (Google, Facebook, Discord, etc.) to complete access.',
-            screenshotKey: 'doc-anonyme-connexion',
-            screenshotAlt: 'Sign-in step to complete registration',
-            accessLink: { label: 'Sign in', href: '/?view=account' },
-          },
-        ],
-      },
-      player: {
-        label: 'Player documentation',
-        title: 'Register and follow your matches',
-        steps: [
-          {
-            text: '1. Start by selecting the tournament format: singles, doublette, or team.\nEach format has its own registration workflow.',
-            screenshotKey: 'doc-joueur-simple',
-            screenshotAlt: 'Player documentation view',
-            accessLink: { label: 'Singles registration', href: '/?view=registration-players' },
-          },
-          {
-            text: '2. In doublette/team mode, the captain creates the group and defines the password.\nTeammates use that password to join the exact group and avoid assignment errors.',
-            screenshotKey: 'doc-joueur-doublette',
-            screenshotAlt: 'Doublette join example',
-            accessLink: { label: 'Doublettes', href: '/?view=doublettes' },
-          },
-          {
-            text: '3. Validate the group only when complete: doublette=2, team=4.\nCheck members and confirm registration to mark the group ready for competition.',
-            screenshotKey: 'doc-joueur-validation',
-            screenshotAlt: 'Team tournament follow-up example',
-            accessLink: { label: 'Teams', href: '/?view=equipes' },
-          },
-        ],
-      },
-      admin: {
-        label: 'Admin documentation',
-        title: 'Operate the tournament workflow',
-        steps: [
-          {
-            text: '1. Use Admin menu to create the tournament and configure key settings.\nThis is the operational setup phase before registration opens.',
-            screenshotKey: 'doc-admin-creation',
-            screenshotAlt: 'Admin documentation view',
-            accessLink: { label: 'Create tournament', href: '/?view=create-tournament' },
-          },
-          {
-            text: '2. Pool view: select a pool to monitor matches, standings, and operational progress.\nCard actions are used to launch a stage, auto-complete a stage, reset, or edit structure depending on field constraints.',
-            screenshotKey: 'doc-admin-poules',
-            screenshotAlt: 'Admin pools view with card-level controls',
-            accessLink: { label: 'Pools', href: '/?view=pool-stages' },
-          },
-          {
-            text: '3. Bracket view: drive elimination progression round by round.\nUse controls to complete a round, reset a bracket when needed, and keep transition timing under control.',
-            screenshotKey: 'doc-admin-arbres',
-            screenshotAlt: 'Admin brackets view with round management actions',
-            accessLink: { label: 'Brackets', href: '/?view=brackets' },
-          },
-          {
-            text: '4. Pool leaderboard: “+1” is a business tie-break bonus.\nIt appears when two participants are tied and direct head-to-head result determines who should be prioritized for qualification.',
-            screenshotKey: 'doc-admin-leaderboard',
-            screenshotAlt: 'Pool leaderboard with +1 tie-break bonus',
-            accessLink: { label: 'Pool standings', href: '/?view=pool-stages' },
-          },
-          {
-            text: '5. Tournament presets: define reusable competition structures (pool stages, brackets, qualification routing).\nA preset captures your standard operational flow and avoids rebuilding setup each event.',
-            screenshotKey: 'doc-admin-presets',
-            screenshotAlt: 'Tournament preset editor with pools and brackets routing',
-            accessLink: { label: 'Tournament presets', href: '/?view=tournament-preset-editor' },
-          },
-          {
-            text: '6. Match formats: define segments (501, cricket, etc.) and target match duration.\nThese formats enforce sporting consistency across pools and brackets and provide a common referee baseline.',
-            screenshotKey: 'doc-admin-formats',
-            screenshotAlt: 'Match format management and segment configuration',
-            accessLink: { label: 'Match formats', href: '/?view=match-formats' },
-          },
-          {
-            text: '7. Targets view: assign a match to a target, start it, update scores, then complete or cancel in case of incident.\nThis is the operational console for smooth player calling and real-time result updates.',
-            screenshotKey: 'doc-admin-cibles',
-            screenshotAlt: 'Targets operations view with start, scoring, complete, and cancel actions',
-            accessLink: { label: 'Targets', href: '/?view=targets' },
-          },
-        ],
-      },
+      anonymous: createGuideContent(
+        'Anonymous documentation',
+        'Browse and join a tournament',
+        enAnonymousSteps
+      ),
+      player: createGuideContent(
+        'Player documentation',
+        'Register and follow your matches',
+        enPlayerSteps
+      ),
+      admin: createGuideContent(
+        'Admin documentation',
+        'Operate the tournament workflow',
+        enAdminSteps
+      ),
     },
   },
 };

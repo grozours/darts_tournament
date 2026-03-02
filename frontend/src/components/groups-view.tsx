@@ -59,7 +59,30 @@ const requiredMembersByMode: Record<GroupMode, number> = {
   equipes: 4,
 };
 
-const isValidEmailFormat = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const isValidEmailFormat = (value: string): boolean => {
+  if (value.length === 0 || value.includes(' ')) {
+    return false;
+  }
+
+  const atIndex = value.indexOf('@');
+  if (atIndex <= 0 || value.indexOf('@', atIndex + 1) !== -1) {
+    return false;
+  }
+
+  const localPart = value.slice(0, atIndex);
+  const domainPart = value.slice(atIndex + 1);
+  if (localPart.length === 0 || domainPart.length < 3) {
+    return false;
+  }
+
+  const firstDotIndex = domainPart.indexOf('.');
+  const lastDotIndex = domainPart.lastIndexOf('.');
+  if (firstDotIndex <= 0 || lastDotIndex >= domainPart.length - 1) {
+    return false;
+  }
+
+  return !domainPart.startsWith('.') && !domainPart.endsWith('.') && !domainPart.includes('..');
+};
 
 const GroupsView = ({ mode }: GroupsViewProperties) => {
   const { t } = useI18n();

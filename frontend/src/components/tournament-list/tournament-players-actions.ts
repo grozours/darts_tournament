@@ -35,6 +35,18 @@ type ActionProgress = {
 
 type ProgressCallback = (progress: ActionProgress) => void;
 
+const createTemporaryPassword = (): string => {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const values = crypto.getRandomValues(new Uint8Array(8));
+  let token = '';
+
+  for (const value of values) {
+    token += alphabet[value % alphabet.length];
+  }
+
+  return token;
+};
+
 const getGroupFormatConfig = (format: string) => {
   if (format === TournamentFormat.DOUBLE) {
     return {
@@ -101,7 +113,7 @@ const createAndRegisterGroup = async (parameters: {
     throw new Error('Invalid group composition for auto-fill');
   }
 
-  const password = `auto-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `auto-${Date.now().toString(36)}-${createTemporaryPassword()}`;
 
   if (tournament.format === TournamentFormat.DOUBLE) {
     const created = await createDoublette(

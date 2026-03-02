@@ -103,18 +103,65 @@ const MatchFormatsView = () => {
     void refresh();
   }, []);
 
-  const extractTargetCount = (description: string): number | undefined => {
-    const tableauxPattern = /(\d+)\s*tableaux?/i;
-    const direct = tableauxPattern.exec(description);
-    if (direct?.[1]) {
-      const parsed = Number(direct[1]);
-      return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  const extractIntegers = (value: string): number[] => {
+    const numbers: number[] = [];
+    let current = '';
+
+    for (const character of value) {
+      const code = character.charCodeAt(0);
+      if (code >= 48 && code <= 57) {
+        current += character;
+        continue;
+      }
+
+      if (current.length > 0) {
+        const parsed = Number.parseInt(current, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          numbers.push(parsed);
+        }
+        current = '';
+      }
     }
 
-    const allNumbers = Array.from(description.matchAll(/\d+/g), (match_) => Number(match_[0]))
-      .filter((value) => Number.isInteger(value) && value > 0);
-    const nonGameNumber = allNumbers.find((value) => value !== 501 && value !== 701);
-    return nonGameNumber && nonGameNumber > 0 ? nonGameNumber : undefined;
+    if (current.length > 0) {
+      const parsed = Number.parseInt(current, 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        numbers.push(parsed);
+      }
+    }
+
+    return numbers;
+  };
+
+  const extractTargetCount = (description: string): number | null => {
+    const normalized = description.toLowerCase();
+    const markerIndex = normalized.indexOf('tableau');
+    if (markerIndex > 0) {
+      let digitStart = markerIndex - 1;
+      while (digitStart >= 0) {
+        const code = normalized.charCodeAt(digitStart);
+        if (code >= 48 && code <= 57) {
+          digitStart -= 1;
+          continue;
+        }
+        break;
+      }
+
+      const numberChunk = normalized.slice(digitStart + 1, markerIndex).trim();
+      if (numberChunk.length > 0) {
+        const parsed = Number.parseInt(numberChunk, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+    }
+
+    const parsedValues = extractIntegers(description);
+    if (parsedValues.length === 0) {
+      return null;
+    }
+
+    return Math.max(...parsedValues);
   };
 
   const parseSegmentDescription = (description: string): MatchFormatPresetSegment | undefined => {
@@ -125,9 +172,8 @@ const MatchFormatsView = () => {
 
     const lower = normalized.toLowerCase();
     let game: MatchFormatPresetSegment['game'] | undefined;
-    if (lower.includes('cricket')) {
-      game = 'CRICKET';
-    } else if (lower.includes('701')) {
+
+    if (lower.includes('701')) {
       game = '701_DO';
     } else if (lower.includes('501')) {
       game = '501_DO';

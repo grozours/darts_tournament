@@ -808,7 +808,7 @@ describe('websocket server', () => {
       match: { source: 'pool', matchNumber: 1 },
       players: [],
     });
-    expect((logger as unknown as { debug: jest.Mock }).debug).toHaveBeenCalledWith(
+    expect((logger as unknown as { info: jest.Mock }).info).toHaveBeenCalledWith(
       'Match started event emitted',
       expect.objectContaining({ metadata: expect.objectContaining({ targetNumber: 7 }) })
     );

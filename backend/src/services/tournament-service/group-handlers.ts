@@ -199,6 +199,112 @@ const requireCaptainOrAdmin = (
   requireCaptain(captainPlayerId, actorPlayerId, code, message);
 };
 
+const requireActorCaptainForGroupLifecycle = (
+  context: GroupHandlerContext,
+  isAdmin: boolean,
+  actorPlayerId: string | undefined,
+  captainPlayerId: string | null | undefined,
+  groupKind: 'DOUBLETTE' | 'EQUIPE',
+  action: 'register' | 'unregister'
+) => {
+  if (isAdmin) {
+    return;
+  }
+
+  if (!actorPlayerId) {
+    throw new AppError('Cannot resolve actor player', 403, 'FORBIDDEN');
+  }
+
+  requireCaptainOrAdmin(
+    context,
+    captainPlayerId,
+    actorPlayerId,
+    `${groupKind}_CAPTAIN_REQUIRED`,
+    `Only the captain can ${action} this ${groupKind.toLowerCase()}`
+  );
+};
+
+type GroupWithMembers = {
+  captainPlayerId?: string | null;
+  members: Array<{ player: { id: string } }>;
+};
+
+const ensureActorCanManageGroup = (
+  context: GroupHandlerContext,
+  parameters: {
+    group: GroupWithMembers;
+    actorPlayerId: string;
+    forbiddenCode: string;
+    forbiddenMessage: string;
+    captainCode: string;
+    captainMessage: string;
+  }
+) => {
+  const { group, actorPlayerId, forbiddenCode, forbiddenMessage, captainCode, captainMessage } = parameters;
+  const isMember = group.members.some((member) => member.player.id === actorPlayerId);
+  if (!context.isAdminAction() && !isMember) {
+    throw new AppError(forbiddenMessage, 403, forbiddenCode);
+  }
+
+  requireCaptainOrAdmin(
+    context,
+    group.captainPlayerId,
+    actorPlayerId,
+    captainCode,
+    captainMessage
+  );
+};
+
+const loadGroupForLifecycleAction = async <TGroup extends { captainPlayerId?: string | null }>(
+  context: GroupHandlerContext,
+  parameters: {
+    isAdmin: boolean;
+    tournamentId: string;
+    groupId: string;
+    getGroup: (tournamentId: string, groupId: string) => Promise<TGroup | null>;
+    notFoundMessage: string;
+    notFoundCode: string;
+    captainMissingMessage: string;
+    captainMissingCode: string;
+    groupKind: 'DOUBLETTE' | 'EQUIPE';
+    action: 'register' | 'unregister';
+  }
+): Promise<TGroup> => {
+  const {
+    isAdmin,
+    tournamentId,
+    groupId,
+    getGroup,
+    notFoundMessage,
+    notFoundCode,
+    captainMissingMessage,
+    captainMissingCode,
+    groupKind,
+    action,
+  } = parameters;
+
+  const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
+  const group = await getGroup(tournamentId, groupId);
+  if (!group) {
+    throw new AppError(notFoundMessage, 404, notFoundCode);
+  }
+
+  if (!group.captainPlayerId) {
+    throw new AppError(captainMissingMessage, 400, captainMissingCode);
+  }
+
+  requireActorCaptainForGroupLifecycle(
+    context,
+    isAdmin,
+    actorPlayer?.id,
+    group.captainPlayerId,
+    groupKind,
+    action
+  );
+
+  return group;
+};
+
 const resolveCaptainPlayerId = (
   isAdmin: boolean,
   actorPlayerId: string | undefined,
@@ -388,18 +494,14 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
-    const isMember = doublette.members.some((member) => member.player.id === actorPlayer.id);
-    if (!context.isAdminAction() && !isMember) {
-      throw new AppError('You can only modify a doublette you belong to', 403, 'DOUBLETTE_FORBIDDEN');
-    }
-
-    requireCaptainOrAdmin(
-      context,
-      doublette.captainPlayerId,
-      actorPlayer.id,
-      'DOUBLETTE_CAPTAIN_REQUIRED',
-      'Only the captain can modify this doublette'
-    );
+    ensureActorCanManageGroup(context, {
+      group: doublette,
+      actorPlayerId: actorPlayer.id,
+      forbiddenCode: 'DOUBLETTE_FORBIDDEN',
+      forbiddenMessage: 'You can only modify a doublette you belong to',
+      captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
+      captainMessage: 'Only the captain can modify this doublette',
+    });
 
     const updated = await context.tournamentModel.updateDoublette(doubletteId, {
       ...(payload.name?.trim() ? { name: payload.name.trim() } : {}),
@@ -504,25 +606,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     );
 
     const isAdmin = context.isAdminAction();
-    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
-    const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
-    if (!doublette) {
-      throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
-    }
-
-    if (!doublette.captainPlayerId) {
-      throw new AppError('Doublette must have a captain before registration', 400, 'DOUBLETTE_CAPTAIN_REQUIRED');
-    }
-
-    if (!isAdmin) {
-      requireCaptainOrAdmin(
-        context,
-        doublette.captainPlayerId,
-        actorPlayer!.id,
-        'DOUBLETTE_CAPTAIN_REQUIRED',
-        'Only the captain can register this doublette'
-      );
-    }
+    const doublette = await loadGroupForLifecycleAction(context, {
+      isAdmin,
+      tournamentId,
+      groupId: doubletteId,
+      getGroup: context.tournamentModel.getDoubletteById,
+      notFoundMessage: 'Doublette not found',
+      notFoundCode: 'DOUBLETTE_NOT_FOUND',
+      captainMissingMessage: 'Doublette must have a captain before registration',
+      captainMissingCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
+      groupKind: 'DOUBLETTE',
+      action: 'register',
+    });
 
     if (doublette.members.length !== 2) {
       throw new AppError('Doublette must have exactly 2 members', 400, 'DOUBLETTE_INCOMPLETE');
@@ -562,25 +657,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     );
 
     const isAdmin = context.isAdminAction();
-    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
-    const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
-    if (!doublette) {
-      throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
-    }
-
-    if (!doublette.captainPlayerId) {
-      throw new AppError('Doublette must have a captain before unregistration', 400, 'DOUBLETTE_CAPTAIN_REQUIRED');
-    }
-
-    if (!isAdmin) {
-      requireCaptainOrAdmin(
-        context,
-        doublette.captainPlayerId,
-        actorPlayer!.id,
-        'DOUBLETTE_CAPTAIN_REQUIRED',
-        'Only the captain can unregister this doublette'
-      );
-    }
+    const doublette = await loadGroupForLifecycleAction(context, {
+      isAdmin,
+      tournamentId,
+      groupId: doubletteId,
+      getGroup: context.tournamentModel.getDoubletteById,
+      notFoundMessage: 'Doublette not found',
+      notFoundCode: 'DOUBLETTE_NOT_FOUND',
+      captainMissingMessage: 'Doublette must have a captain before unregistration',
+      captainMissingCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
+      groupKind: 'DOUBLETTE',
+      action: 'unregister',
+    });
 
     if (!doublette.isRegistered) {
       throw new AppError('Doublette is not registered', 400, 'DOUBLETTE_NOT_REGISTERED');
@@ -657,17 +745,14 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
-    const isMember = doublette.members.some((member) => member.player.id === actorPlayer.id);
-    if (!context.isAdminAction() && !isMember) {
-      throw new AppError('You can only modify a doublette you belong to', 403, 'DOUBLETTE_FORBIDDEN');
-    }
-    requireCaptainOrAdmin(
-      context,
-      doublette.captainPlayerId,
-      actorPlayer.id,
-      'DOUBLETTE_CAPTAIN_REQUIRED',
-      'Only the captain can add a member'
-    );
+    ensureActorCanManageGroup(context, {
+      group: doublette,
+      actorPlayerId: actorPlayer.id,
+      forbiddenCode: 'DOUBLETTE_FORBIDDEN',
+      forbiddenMessage: 'You can only modify a doublette you belong to',
+      captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
+      captainMessage: 'Only the captain can add a member',
+    });
 
     if (doublette.members.length >= 2) {
       throw new AppError('Doublette is already full', 400, 'DOUBLETTE_FULL');
@@ -700,17 +785,14 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
-    const isMember = doublette.members.some((member) => member.player.id === actorPlayer.id);
-    if (!context.isAdminAction() && !isMember) {
-      throw new AppError('You can only modify a doublette you belong to', 403, 'DOUBLETTE_FORBIDDEN');
-    }
-    requireCaptainOrAdmin(
-      context,
-      doublette.captainPlayerId,
-      actorPlayer.id,
-      'DOUBLETTE_CAPTAIN_REQUIRED',
-      'Only the captain can remove a member'
-    );
+    ensureActorCanManageGroup(context, {
+      group: doublette,
+      actorPlayerId: actorPlayer.id,
+      forbiddenCode: 'DOUBLETTE_FORBIDDEN',
+      forbiddenMessage: 'You can only modify a doublette you belong to',
+      captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
+      captainMessage: 'Only the captain can remove a member',
+    });
 
     if (playerId === doublette.captainPlayerId) {
       throw new AppError('Captain cannot be removed directly', 400, 'DOUBLETTE_CAPTAIN_REMOVE_FORBIDDEN');
@@ -807,17 +889,14 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
-    const isMember = equipe.members.some((member) => member.player.id === actorPlayer.id);
-    if (!context.isAdminAction() && !isMember) {
-      throw new AppError('You can only modify an equipe you belong to', 403, 'EQUIPE_FORBIDDEN');
-    }
-    requireCaptainOrAdmin(
-      context,
-      equipe.captainPlayerId,
-      actorPlayer.id,
-      'EQUIPE_CAPTAIN_REQUIRED',
-      'Only the captain can modify this equipe'
-    );
+    ensureActorCanManageGroup(context, {
+      group: equipe,
+      actorPlayerId: actorPlayer.id,
+      forbiddenCode: 'EQUIPE_FORBIDDEN',
+      forbiddenMessage: 'You can only modify an equipe you belong to',
+      captainCode: 'EQUIPE_CAPTAIN_REQUIRED',
+      captainMessage: 'Only the captain can modify this equipe',
+    });
 
     const updated = await context.tournamentModel.updateEquipe(equipeId, {
       ...(payload.name?.trim() ? { name: payload.name.trim() } : {}),
@@ -922,25 +1001,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     );
 
     const isAdmin = context.isAdminAction();
-    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
-    const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
-    if (!equipe) {
-      throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
-    }
-
-    if (!equipe.captainPlayerId) {
-      throw new AppError('Equipe must have a captain before registration', 400, 'EQUIPE_CAPTAIN_REQUIRED');
-    }
-
-    if (!isAdmin) {
-      requireCaptainOrAdmin(
-        context,
-        equipe.captainPlayerId,
-        actorPlayer!.id,
-        'EQUIPE_CAPTAIN_REQUIRED',
-        'Only the captain can register this equipe'
-      );
-    }
+    const equipe = await loadGroupForLifecycleAction(context, {
+      isAdmin,
+      tournamentId,
+      groupId: equipeId,
+      getGroup: context.tournamentModel.getEquipeById,
+      notFoundMessage: 'Equipe not found',
+      notFoundCode: 'EQUIPE_NOT_FOUND',
+      captainMissingMessage: 'Equipe must have a captain before registration',
+      captainMissingCode: 'EQUIPE_CAPTAIN_REQUIRED',
+      groupKind: 'EQUIPE',
+      action: 'register',
+    });
 
     if (equipe.members.length !== 4) {
       throw new AppError('Equipe must have exactly 4 members', 400, 'EQUIPE_INCOMPLETE');
@@ -980,25 +1052,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     );
 
     const isAdmin = context.isAdminAction();
-    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
-    const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
-    if (!equipe) {
-      throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
-    }
-
-    if (!equipe.captainPlayerId) {
-      throw new AppError('Equipe must have a captain before unregistration', 400, 'EQUIPE_CAPTAIN_REQUIRED');
-    }
-
-    if (!isAdmin) {
-      requireCaptainOrAdmin(
-        context,
-        equipe.captainPlayerId,
-        actorPlayer!.id,
-        'EQUIPE_CAPTAIN_REQUIRED',
-        'Only the captain can unregister this equipe'
-      );
-    }
+    const equipe = await loadGroupForLifecycleAction(context, {
+      isAdmin,
+      tournamentId,
+      groupId: equipeId,
+      getGroup: context.tournamentModel.getEquipeById,
+      notFoundMessage: 'Equipe not found',
+      notFoundCode: 'EQUIPE_NOT_FOUND',
+      captainMissingMessage: 'Equipe must have a captain before unregistration',
+      captainMissingCode: 'EQUIPE_CAPTAIN_REQUIRED',
+      groupKind: 'EQUIPE',
+      action: 'unregister',
+    });
 
     if (!equipe.isRegistered) {
       throw new AppError('Equipe is not registered', 400, 'EQUIPE_NOT_REGISTERED');
@@ -1075,17 +1140,14 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
-    const isMember = equipe.members.some((member) => member.player.id === actorPlayer.id);
-    if (!context.isAdminAction() && !isMember) {
-      throw new AppError('You can only modify an equipe you belong to', 403, 'EQUIPE_FORBIDDEN');
-    }
-    requireCaptainOrAdmin(
-      context,
-      equipe.captainPlayerId,
-      actorPlayer.id,
-      'EQUIPE_CAPTAIN_REQUIRED',
-      'Only the captain can add a member'
-    );
+    ensureActorCanManageGroup(context, {
+      group: equipe,
+      actorPlayerId: actorPlayer.id,
+      forbiddenCode: 'EQUIPE_FORBIDDEN',
+      forbiddenMessage: 'You can only modify an equipe you belong to',
+      captainCode: 'EQUIPE_CAPTAIN_REQUIRED',
+      captainMessage: 'Only the captain can add a member',
+    });
 
     if (equipe.members.length >= 4) {
       throw new AppError('Equipe is already full', 400, 'EQUIPE_FULL');
@@ -1118,17 +1180,14 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
-    const isMember = equipe.members.some((member) => member.player.id === actorPlayer.id);
-    if (!context.isAdminAction() && !isMember) {
-      throw new AppError('You can only modify an equipe you belong to', 403, 'EQUIPE_FORBIDDEN');
-    }
-    requireCaptainOrAdmin(
-      context,
-      equipe.captainPlayerId,
-      actorPlayer.id,
-      'EQUIPE_CAPTAIN_REQUIRED',
-      'Only the captain can remove a member'
-    );
+    ensureActorCanManageGroup(context, {
+      group: equipe,
+      actorPlayerId: actorPlayer.id,
+      forbiddenCode: 'EQUIPE_FORBIDDEN',
+      forbiddenMessage: 'You can only modify an equipe you belong to',
+      captainCode: 'EQUIPE_CAPTAIN_REQUIRED',
+      captainMessage: 'Only the captain can remove a member',
+    });
 
     if (playerId === equipe.captainPlayerId) {
       throw new AppError('Captain cannot be removed directly', 400, 'EQUIPE_CAPTAIN_REMOVE_FORBIDDEN');

@@ -308,7 +308,7 @@ describe('useMatchStartedNotifications', () => {
     expect(stored).toHaveLength(0);
   });
 
-  it('opens socket without auth payload when token is unavailable at socket opening', async () => {
+  it('does not open socket when token is unavailable at socket opening', async () => {
     authState.getAccessTokenSilently
       .mockResolvedValueOnce('token')
       .mockResolvedValueOnce(undefined as unknown as string);
@@ -316,11 +316,9 @@ describe('useMatchStartedNotifications', () => {
     renderHook(() => useMatchStartedNotifications());
 
     await waitFor(() => {
-      expect(io).toHaveBeenCalledTimes(1);
+      expect(authState.getAccessTokenSilently).toHaveBeenCalledTimes(2);
     });
-
-    const options = io.mock.calls[0]?.[1] as { auth?: unknown } | undefined;
-    expect(options?.auth).toBeUndefined();
+    expect(io).not.toHaveBeenCalled();
   });
 
   it('stores notification when local storage content is malformed JSON shape', async () => {

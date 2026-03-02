@@ -1280,7 +1280,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       if (state.players.length >= playersPerPool) continue;
       const conflicts = countOpponentConflicts(playerId, state.players, opponentMap);
 
-      if (!best || isBetterPoolCandidate(conflicts, state.players.length, best)) {
+      if (!best || isBetterPoolCandidate(conflicts, state.players.length, state.pool.id, best)) {
         best = { state, conflicts };
       }
     }
@@ -1291,7 +1291,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   const isBetterPoolCandidate = (
     conflicts: number,
     size: number,
-    best: { state: { players: string[] }; conflicts: number }
+    poolId: string,
+    best: { state: { pool: { id: string }; players: string[] }; conflicts: number }
   ): boolean => {
     if (conflicts !== best.conflicts) {
       return conflicts < best.conflicts;
@@ -1302,9 +1303,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       return size < bestSize;
     }
 
-    // Safe to use non-cryptographic randomness here: this is a non-security tie-breaker for pool
-    // balancing only and does not affect authorization, payouts, or security-sensitive decisions.
-    return Math.random() < 0.5;
+    return poolId.localeCompare(best.state.pool.id) < 0;
   };
 
   return {

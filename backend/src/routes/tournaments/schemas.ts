@@ -268,21 +268,37 @@ const parseParallelReference = (value: string):
   | { type: 'POOL_STAGE'; stageNumber: number }
   | { type: 'BRACKET'; bracketName: string }
   | undefined => {
-  const stageMatch = /^stage\s*:\s*(\d+)$/i.exec(value);
-  if (stageMatch?.[1]) {
-    const stageNumber = Number(stageMatch[1]);
-    if (Number.isInteger(stageNumber) && stageNumber > 0) {
-      return { type: 'POOL_STAGE', stageNumber };
-    }
+  const trimmed = value.trim();
+  const separatorIndex = trimmed.indexOf(':');
+  if (separatorIndex < 0) {
     return undefined;
   }
 
-  const bracketMatch = /^bracket\s*:\s*(.+)$/i.exec(value);
-  if (bracketMatch?.[1]) {
-    const bracketName = bracketMatch[1].trim();
-    if (bracketName.length > 0) {
-      return { type: 'BRACKET', bracketName };
+  const referenceType = trimmed.slice(0, separatorIndex).trim().toLowerCase();
+  const referenceValue = trimmed.slice(separatorIndex + 1).trim();
+  if (referenceType === 'stage') {
+    if (referenceValue.length === 0) {
+      return undefined;
     }
+
+    let stageNumber = 0;
+    for (const character of referenceValue) {
+      const code = character.charCodeAt(0);
+      if (code < 48 || code > 57) {
+        return undefined;
+      }
+      stageNumber = (stageNumber * 10) + (code - 48);
+    }
+
+    if (stageNumber > 0) {
+      return { type: 'POOL_STAGE', stageNumber };
+    }
+
+    return undefined;
+  }
+
+  if (referenceType === 'bracket' && referenceValue.length > 0) {
+    return { type: 'BRACKET', bracketName: referenceValue };
   }
 
   return undefined;

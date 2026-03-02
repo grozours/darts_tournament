@@ -4,6 +4,7 @@ import type { TournamentSnapshot } from './autosave';
 const toArray = <T>(value: T[] | undefined | null): T[] => value ?? [];
 type DateLike = Date | string;
 type NullableDateLike = DateLike | null;
+type OptionalNullableString = string | null | undefined;
 
 export const restoreTournamentStateFromSnapshot = async (
   prisma: PrismaClient,
@@ -59,7 +60,7 @@ export const restoreTournamentStateFromSnapshot = async (
       where: { id: tournamentId },
       data: {
         name: (data.name as string) ?? 'Tournament',
-        location: (data.location as string | null | undefined) ?? null,
+        location: (data.location as OptionalNullableString) ?? null,
         logoUrl: (data.logoUrl as string | null | undefined) ?? null,
         format: data.format as never,
         durationType: data.durationType as never,

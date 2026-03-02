@@ -72,7 +72,13 @@ type LiveTournamentState = {
   resettingPoolId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   editingMatchId?: string | undefined;
-  handleMatchStatusUpdate: (matchTournamentId: string, matchId: string, status: string, targetId?: string) => Promise<void>;
+  handleMatchStatusUpdate: (
+    matchTournamentId: string,
+    matchId: string,
+    status: string,
+    targetId?: string,
+    options?: { notifyCancelled?: boolean }
+  ) => Promise<void>;
   handleResetPoolMatches: (tournamentId: string, stageId: string, poolId: string) => Promise<void>;
   handleScoreChange: (matchKey: string, playerId: string, value: string) => void;
   handleCompleteMatch: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;

@@ -52,7 +52,7 @@ describe('useLiveTournamentMatchUpdate', () => {
       await result.current.handleMatchStatusUpdate('t1', 'm1', 'IN_PROGRESS', 'target-1');
     });
 
-    expect(updateMatchStatusMock).toHaveBeenCalledWith('t1', 'm1', 'IN_PROGRESS', 'target-1', 'token');
+    expect(updateMatchStatusMock).toHaveBeenCalledWith('t1', 'm1', 'IN_PROGRESS', 'target-1', 'token', undefined);
     expect(reloadLiveViews).toHaveBeenCalledWith({ showLoader: false });
     expect(clearMatchTargetSelection).toHaveBeenCalledWith('t1:m1');
     expect(result.current.updatingMatchId).toBeUndefined();

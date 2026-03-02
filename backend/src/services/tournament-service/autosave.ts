@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { TournamentModel } from '../../models/tournament-model';
 import { config } from '../../config/environment';
 
@@ -67,7 +68,7 @@ const sanitizeToken = (value: string): string =>
 const generateSnapshotId = (action: string): string => {
   const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
   const actionPart = sanitizeToken(action || 'mutation') || 'mutation';
-  const randomPart = Math.random().toString(36).slice(2, 8);
+  const randomPart = randomUUID().replaceAll('-', '').slice(0, 12);
   return `${timestamp}-${actionPart}-${randomPart}`;
 };
 

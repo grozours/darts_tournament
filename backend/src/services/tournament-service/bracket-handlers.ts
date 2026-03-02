@@ -48,7 +48,8 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
     const matches: Array<{ roundNumber: number; matchNumber: number }> = [];
     for (let roundNumber = 1; roundNumber <= totalRounds; roundNumber += 1) {
       const matchesInRound = 2 ** (totalRounds - roundNumber);
-      for (let matchNumber = 1; matchNumber <= matchesInRound; matchNumber += 1) {
+      for (let matchIndex = 0; matchIndex < matchesInRound; matchIndex += 1) {
+        const matchNumber = matchIndex + 1;
         matches.push({ roundNumber, matchNumber });
       }
     }

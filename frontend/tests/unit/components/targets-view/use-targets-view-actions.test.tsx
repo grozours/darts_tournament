@@ -116,7 +116,7 @@ describe('useTargetsViewActions', () => {
       await result.current.handleCancelMatch({ id: 'm1', matchNumber: 1, roundNumber: 1, status: 'IN_PROGRESS' });
     });
 
-    expect(updateMatchStatus).toHaveBeenCalledWith('t1', 'm1', 'SCHEDULED', undefined, 'token');
+    expect(updateMatchStatus).toHaveBeenCalledWith('t1', 'm1', 'SCHEDULED', undefined, 'token', { notifyCancelled: true });
     expect(loadTargets).toHaveBeenCalledWith({ silent: true });
     expect(setError).toHaveBeenCalledWith(undefined);
 

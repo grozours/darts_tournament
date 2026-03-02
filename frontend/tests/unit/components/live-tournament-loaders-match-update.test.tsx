@@ -118,7 +118,7 @@ describe('live tournament match updates', () => {
       await latest?.handleMatchStatusUpdate('t1', 'm1', 'IN_PROGRESS', 'target-1');
     });
 
-    expect(serviceMocks.updateMatchStatus).toHaveBeenCalledWith('t1', 'm1', 'IN_PROGRESS', 'target-1', 'token');
+    expect(serviceMocks.updateMatchStatus).toHaveBeenCalledWith('t1', 'm1', 'IN_PROGRESS', 'target-1', 'token', undefined);
     expect(clearMatchTargetSelection).toHaveBeenCalledWith('t1:m1');
 
     const match: LiveViewMatch = {

@@ -22,11 +22,56 @@ const ensureUploadDirectory = (): void => {
 // Initialize upload directory
 ensureUploadDirectory();
 
+// Multer configuration
+// Enforce a conservative upload limit to guard memory/disk usage even if upstream limits are higher.
+// Keep this limit aligned with any reverse proxy/body parser caps to prevent oversized payloads.
+const maxUploadSize = Math.min(config.upload.maxSize, 5 * 1024 * 1024);
+
+const validateDeclaredContentLength = (request: Request): AppError | undefined => {
+  const transferEncoding = request.headers['transfer-encoding'];
+  if (typeof transferEncoding === 'string' && transferEncoding.trim().length > 0) {
+    return new AppError('Chunked transfer encoding is not allowed for uploads', 411, 'CONTENT_LENGTH_REQUIRED');
+  }
+
+  const rawContentLength = request.headers['content-length'];
+  if (typeof rawContentLength !== 'string' || rawContentLength.trim().length === 0) {
+    return new AppError('Content length header is required for uploads', 411, 'CONTENT_LENGTH_REQUIRED');
+  }
+
+  const trimmedLength = rawContentLength.trim();
+  for (const character of trimmedLength) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 48 || code > 57) {
+      return new AppError('Invalid content length', 400, 'INVALID_CONTENT_LENGTH');
+    }
+  }
+
+  const declaredLength = Number(trimmedLength);
+  if (!Number.isFinite(declaredLength) || declaredLength < 0) {
+    return new AppError('Invalid content length', 400, 'INVALID_CONTENT_LENGTH');
+  }
+
+  if (declaredLength > maxUploadSize) {
+    return new AppError(
+      `File too large. Maximum size is ${Math.round(maxUploadSize / 1024 / 1024)}MB`,
+      400,
+      'FILE_TOO_LARGE'
+    );
+  }
+
+  return undefined;
+};
+
 // Storage configuration per constitution file handling requirements
 const storage: StorageEngine = multer.diskStorage({
-  destination: (_request: Request, _file: Express.Multer.File, callback) => {
+  destination: (request: Request, _file: Express.Multer.File, callback) => {
     // Upload directory is created at startup; keep destination fixed to avoid path traversal.
-    // Content length is enforced via Multer limits to cap payload size before writing.
+    // Enforce declared content length before disk write when available.
+    const contentLengthError = validateDeclaredContentLength(request);
+    if (contentLengthError) {
+      callback(contentLengthError, config.upload.directory);
+      return;
+    }
     // eslint-disable-next-line unicorn/no-null
     callback(null, config.upload.directory);
   },
@@ -67,10 +112,15 @@ const fileFilter = (_request: Request, file: Express.Multer.File, callback: mult
   callback(null, true);
 };
 
-// Multer configuration
-// Enforce a conservative upload limit to guard memory/disk usage even if upstream limits are higher.
-// Keep this limit aligned with any reverse proxy/body parser caps to prevent oversized payloads.
-const maxUploadSize = Math.min(config.upload.maxSize, 5 * 1024 * 1024);
+const guardContentLength = (request: Request, _response: Response, next: NextFunction): void => {
+  const contentLengthError = validateDeclaredContentLength(request);
+  if (!contentLengthError) {
+    next();
+    return;
+  }
+  next(contentLengthError);
+};
+
 const upload = multer({
   storage,
   fileFilter,
@@ -82,14 +132,43 @@ const upload = multer({
 });
 
 // Tournament logo upload middleware
-export const uploadTournamentLogo = upload.single('logo');
+export const uploadTournamentLogo = (request: Request, response: Response, next: NextFunction): void => {
+  guardContentLength(request, response, (guardError) => {
+    if (guardError) {
+      next(guardError);
+      return;
+    }
+    upload.single('logo')(request, response, next);
+  });
+};
 
 // Generic file upload middleware
-export const uploadSingleFile = (fieldName: string) => upload.single(fieldName);
+export const uploadSingleFile = (fieldName: string) => {
+  const uploadMiddleware = upload.single(fieldName);
+  return (request: Request, response: Response, next: NextFunction): void => {
+    guardContentLength(request, response, (guardError) => {
+      if (guardError) {
+        next(guardError);
+        return;
+      }
+      uploadMiddleware(request, response, next);
+    });
+  };
+};
 
 // Multiple file upload middleware (for future use)
-export const uploadMultipleFiles = (fieldName: string, maxCount: number = 5) => 
-  upload.array(fieldName, maxCount);
+export const uploadMultipleFiles = (fieldName: string, maxCount: number = 5) => {
+  const uploadMiddleware = upload.array(fieldName, maxCount);
+  return (request: Request, response: Response, next: NextFunction): void => {
+    guardContentLength(request, response, (guardError) => {
+      if (guardError) {
+        next(guardError);
+        return;
+      }
+      uploadMiddleware(request, response, next);
+    });
+  };
+};
 
 // File validation middleware (additional checks after multer)
 export const validateUploadedFile = (request: Request, _response: Response, next: NextFunction): void => {

@@ -7,16 +7,7 @@ import type {
 import PoolStageCard, { computeOptimisticStartTimes } from './pool-stage-card';
 import SectionEmptyState from './section-empty-state';
 import { getMatchFormatPresets } from '../../utils/match-format-presets';
-
-const getStageParallelReferences = (stage: LiveViewPoolStage) => (
-  new Set(
-    (stage.inParallelWith ?? [])
-      .map((reference) => reference.trim())
-      .filter((reference) => /^stage:\d+$/i.test(reference))
-      .map((reference) => Number(reference.split(':')[1]))
-      .filter((stageNumber) => Number.isInteger(stageNumber) && stageNumber > 0)
-  )
-);
+import { buildPoolStageParallelGroups } from '../queue/pool-stage-parallel-groups';
 
 const isStageCompleted = (status: string | undefined) => (status ?? '').trim().toUpperCase() === 'COMPLETED';
 
@@ -40,62 +31,6 @@ const canManagePoolStageActions = (
   return sourceStages.every((stage) => isStageCompleted(stage.status));
 };
 
-const areStagesParallelLinked = (firstStage: LiveViewPoolStage, secondStage: LiveViewPoolStage) => {
-  const firstRefs = getStageParallelReferences(firstStage);
-  const secondRefs = getStageParallelReferences(secondStage);
-  return firstRefs.has(secondStage.stageNumber) || secondRefs.has(firstStage.stageNumber);
-};
-
-const collectParallelStageGroup = (
-  startStage: LiveViewPoolStage,
-  orderedStages: LiveViewPoolStage[],
-  visitedStageIds: Set<string>
-) => {
-  const group: LiveViewPoolStage[] = [];
-  const stack = [startStage];
-  visitedStageIds.add(startStage.id);
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) {
-      continue;
-    }
-    group.push(current);
-
-    for (const candidate of orderedStages) {
-      if (visitedStageIds.has(candidate.id)) {
-        continue;
-      }
-      if (areStagesParallelLinked(current, candidate)) {
-        visitedStageIds.add(candidate.id);
-        stack.push(candidate);
-      }
-    }
-  }
-
-  return group.toSorted((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
-};
-
-const buildPoolStageParallelGroups = (stages: LiveViewPoolStage[]) => {
-  const orderedStages = [...stages]
-    .sort((leftStage, rightStage) => leftStage.stageNumber - rightStage.stageNumber);
-  const visitedStageIds = new Set<string>();
-  const groups: LiveViewPoolStage[][] = [];
-
-  for (const stage of orderedStages) {
-    if (visitedStageIds.has(stage.id)) {
-      continue;
-    }
-
-    groups.push(collectParallelStageGroup(stage, orderedStages, visitedStageIds));
-  }
-
-  return groups.toSorted((firstGroup, secondGroup) => {
-    const firstOrder = firstGroup[0]?.stageNumber ?? Number.MAX_SAFE_INTEGER;
-    const secondOrder = secondGroup[0]?.stageNumber ?? Number.MAX_SAFE_INTEGER;
-    return firstOrder - secondOrder;
-  });
-};
 
 const toValidDate = (value: string | undefined) => {
   if (!value) {
