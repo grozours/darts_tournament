@@ -234,6 +234,124 @@ const fetchTeammatePlayerIdsForEmail = async (
   return teammatePlayerIds;
 };
 
+const syncJoinedTournamentState = (
+  playerIdsReference: { current: Set<string> },
+  joinedTournamentsReference: { current: Set<string> },
+  setJoinedTournaments: (value: string[]) => void,
+  playerIds: Set<string>,
+  tournamentsToJoin: string[]
+) => {
+  playerIdsReference.current = playerIds;
+  joinedTournamentsReference.current = new Set(tournamentsToJoin);
+  setJoinedTournaments(tournamentsToJoin);
+};
+
+const buildPlayerPoolKeys = async (
+  tournaments: TournamentSummary[],
+  token: string,
+  playerIds: Set<string>
+) => {
+  const poolKeys = new Set<string>();
+  for (const tournament of tournaments) {
+    const stages = await fetchPoolStagesForTournament(tournament.id, token);
+    for (const stage of stages) {
+      const pools = await fetchPoolStagePools(tournament.id, stage.id, token);
+      for (const pool of pools) {
+        const hasPlayer = (pool.assignments || []).some((assignment) => (
+          assignment.playerId && playerIds.has(assignment.playerId)
+        ));
+        if (hasPlayer) {
+          poolKeys.add(buildPoolKey(tournament.id, pool.id));
+        }
+      }
+    }
+  }
+
+  return poolKeys;
+};
+
+const hasTrackedPlayerInPayload = (
+  payload: MatchNotificationPayload,
+  trackedPlayerIds: Set<string>
+) => payload.players.some((player) => player.id !== undefined && trackedPlayerIds.has(player.id));
+
+const isCancelledForJoinedTournamentWithoutPlayerIds = (
+  payload: MatchNotificationPayload,
+  joinedTournamentIds: Set<string>
+) => (
+  payload.event === 'cancelled'
+  && payload.players.every((player) => !player.id)
+  && joinedTournamentIds.has(payload.tournamentId)
+);
+
+const isPoolMatchForTrackedPool = (
+  payload: MatchNotificationPayload,
+  trackedPoolKeys: Set<string>
+) => (
+  payload.match.source === 'pool'
+  && Boolean(payload.match.poolId)
+  && trackedPoolKeys.has(buildPoolKey(payload.tournamentId, payload.match.poolId!))
+);
+
+const canShowBrowserNotifications = () => (
+  'Notification' in globalThis.window
+  && Notification.permission === 'granted'
+);
+
+const buildBrowserNotificationTitle = (
+  payload: MatchNotificationPayload,
+  targetLabel: string,
+  translate: (key: string) => string
+) => {
+  if (payload.event === 'started') {
+    return `${translate('notifications.calledToTarget')} ${targetLabel}`.trim();
+  }
+  if (payload.event === 'completed') {
+    return translate('notifications.matchCompleted');
+  }
+  if (payload.event === 'format_changed') {
+    return translate('notifications.matchFormatChanged');
+  }
+  return translate('notifications.matchCancelled');
+};
+
+const buildBrowserNotificationBody = (
+  payload: MatchNotificationPayload,
+  matchLabel: string,
+  scoreSummary: string | undefined,
+  translate: (key: string) => string
+) => {
+  const formatSuffix = payload.matchFormatKey
+    ? ` · ${translate('notifications.matchFormat')}: ${payload.matchFormatKey}`
+    : '';
+  const formatDetails = payload.matchFormatTooltip ? `\n${payload.matchFormatTooltip}` : '';
+  const scoreSuffix = scoreSummary ? ` · ${translate('live.finalScore')}: ${scoreSummary}` : '';
+  return `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}${formatDetails}`.trim();
+};
+
+type ScoredNotificationPlayer = {
+  player: MatchNotificationPayload['players'][number];
+  score: number;
+};
+
+const extractScoredPlayers = (players: MatchNotificationPayload['players']): ScoredNotificationPlayer[] => (
+  players
+    .map((player) => ({ player, score: typeof player.scoreTotal === 'number' ? player.scoreTotal : null }))
+    .filter((item): item is ScoredNotificationPlayer => item.score !== null)
+);
+
+const selectScorePair = (scoredPlayers: ScoredNotificationPlayer[]) => {
+  const winner = scoredPlayers.find((item) => item.player.isWinner);
+  const sorted = [...scoredPlayers].sort((a, b) => b.score - a.score);
+  const first = winner ?? sorted[0];
+  const second = sorted.find((item) => item !== first) ?? sorted[1];
+  if (!first || !second) {
+    return undefined;
+  }
+
+  return { first, second };
+};
+
 const useMatchStartedNotifications = () => {
   const { t } = useI18n();
   const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
@@ -262,48 +380,28 @@ const useMatchStartedNotifications = () => {
       return undefined;
     }
 
-    const scored = payload.players
-      .map((player) => ({ player, score: typeof player.scoreTotal === 'number' ? player.scoreTotal : null }))
-      .filter((item): item is { player: MatchNotificationPayload['players'][number]; score: number } => item.score !== null);
-
-    if (scored.length < 2) {
+    const scoredPlayers = extractScoredPlayers(payload.players);
+    if (scoredPlayers.length < 2) {
       return undefined;
     }
 
-    const winner = scored.find((item) => item.player.isWinner);
-    const sorted = [...scored].sort((a, b) => b.score - a.score);
-    const first = winner ?? sorted[0];
-    const second = sorted.find((item) => item !== first) ?? sorted[1];
-    if (!first || !second) {
+    const pair = selectScorePair(scoredPlayers);
+    if (!pair) {
       return undefined;
     }
-    return `${first.score} - ${second.score}`;
+
+    return `${pair.first.score} - ${pair.second.score}`;
   }, []);
 
   const maybeShowBrowserNotification = useCallback((payload: MatchNotificationPayload) => {
-    if (!('Notification' in globalThis.window)) {
-      return;
-    }
-    if (Notification.permission !== 'granted') {
+    if (!canShowBrowserNotifications()) {
       return;
     }
     const targetLabel = formatTargetLabel(payload);
     const matchLabel = buildMatchLabel(payload);
     const scoreSummary = buildScoreSummary(payload);
-    let title = t('notifications.matchCancelled');
-    if (payload.event === 'started') {
-      title = `${t('notifications.calledToTarget')} ${targetLabel}`.trim();
-    } else if (payload.event === 'completed') {
-      title = t('notifications.matchCompleted');
-    } else if (payload.event === 'format_changed') {
-      title = t('notifications.matchFormatChanged');
-    }
-    const formatSuffix = payload.matchFormatKey
-      ? ` · ${t('notifications.matchFormat')}: ${payload.matchFormatKey}`
-      : '';
-    const formatDetails = payload.matchFormatTooltip ? `\n${payload.matchFormatTooltip}` : '';
-    const scoreSuffix = scoreSummary ? ` · ${t('live.finalScore')}: ${scoreSummary}` : '';
-    const body = `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}${formatDetails}`.trim();
+    const title = buildBrowserNotificationTitle(payload, targetLabel, t);
+    const body = buildBrowserNotificationBody(payload, matchLabel, scoreSummary, t);
     try {
       new Notification(title, { body });
     } catch {
@@ -317,24 +415,17 @@ const useMatchStartedNotifications = () => {
   const joinedTournamentsReference = useRef<Set<string>>(new Set());
 
   const shouldNotifyPlayer = useCallback((payload: MatchNotificationPayload) => {
-    const playerIds = playerIdsReference.current;
-    if (playerIds.size === 0) {
+    const trackedPlayerIds = playerIdsReference.current;
+    if (trackedPlayerIds.size === 0) {
       return false;
     }
-    if (payload.players.some((player) => player.id && playerIds.has(player.id))) {
+    if (hasTrackedPlayerInPayload(payload, trackedPlayerIds)) {
       return true;
     }
-    if (
-      payload.event === 'cancelled'
-      && !payload.players.some((player) => Boolean(player.id))
-      && joinedTournamentsReference.current.has(payload.tournamentId)
-    ) {
+    if (isCancelledForJoinedTournamentWithoutPlayerIds(payload, joinedTournamentsReference.current)) {
       return true;
     }
-    if (payload.match.source === 'pool' && payload.match.poolId) {
-      return poolKeysReference.current.has(buildPoolKey(payload.tournamentId, payload.match.poolId));
-    }
-    return false;
+    return isPoolMatchForTrackedPool(payload, poolKeysReference.current);
   }, []);
 
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
@@ -365,33 +456,35 @@ const useMatchStartedNotifications = () => {
         }
         const tournaments = await fetchLiveTournaments(token);
         const data = await fetchPlayerIdsForEmail(token, tournaments, email);
-        const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email);
-        for (const teammatePlayerId of teammatePlayerIds) {
-          data.playerIds.add(teammatePlayerId);
-        }
-        const poolKeys = new Set<string>();
-        for (const tournament of tournaments) {
-          const stages = await fetchPoolStagesForTournament(tournament.id, token);
-          for (const stage of stages) {
-            const pools = await fetchPoolStagePools(tournament.id, stage.id, token);
-            for (const pool of pools) {
-              const hasPlayer = (pool.assignments || []).some((assignment) =>
-                assignment.playerId && data.playerIds.has(assignment.playerId)
-              );
-              if (hasPlayer) {
-                poolKeys.add(buildPoolKey(tournament.id, pool.id));
-              }
-            }
-          }
-        }
 
         if (!isMounted) {
           return;
         }
-        playerIdsReference.current = data.playerIds;
+        syncJoinedTournamentState(
+          playerIdsReference,
+          joinedTournamentsReference,
+          setJoinedTournaments,
+          data.playerIds,
+          data.tournamentsToJoin
+        );
+
+        const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email);
+        for (const teammatePlayerId of teammatePlayerIds) {
+          data.playerIds.add(teammatePlayerId);
+        }
+        const poolKeys = await buildPlayerPoolKeys(tournaments, token, data.playerIds);
+
+        if (!isMounted) {
+          return;
+        }
+        syncJoinedTournamentState(
+          playerIdsReference,
+          joinedTournamentsReference,
+          setJoinedTournaments,
+          data.playerIds,
+          data.tournamentsToJoin
+        );
         poolKeysReference.current = poolKeys;
-        joinedTournamentsReference.current = new Set(data.tournamentsToJoin);
-        setJoinedTournaments(data.tournamentsToJoin);
       } catch {
         void 0;
       }

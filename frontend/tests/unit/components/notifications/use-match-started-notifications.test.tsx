@@ -344,7 +344,7 @@ describe('useMatchStartedNotifications', () => {
     expect(stored[0]?.payload?.matchId).toBe('m8');
   });
 
-  it('skips state update when unmounted before pool loading completes', async () => {
+  it('opens socket before pool loading completes and keeps cleanup safe after unmount', async () => {
     let resolvePools: ((value: Response) => void) | undefined;
     vi.mocked(globalThis.fetch).mockImplementation(async (input: RequestInfo | URL) => {
       const url = toUrl(input);
@@ -375,13 +375,15 @@ describe('useMatchStartedNotifications', () => {
 
     await waitFor(() => {
       expect(resolvePools).toBeTypeOf('function');
+      expect(io).toHaveBeenCalledTimes(1);
     });
 
     unmount();
     resolvePools?.({ ok: true, json: async () => ({ pools: [{ id: 'pool-1', assignments: [{ playerId: 'p1' }] }] }) } as Response);
     await Promise.resolve();
 
-    expect(io).not.toHaveBeenCalled();
+    expect(socket.removeAllListeners).toHaveBeenCalled();
+    expect(socket.disconnect).toHaveBeenCalled();
   });
 
   it('aborts socket opening when disposed before token resolution', async () => {

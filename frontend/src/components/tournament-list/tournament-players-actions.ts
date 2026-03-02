@@ -332,12 +332,23 @@ const autoFillTournamentPlayers = async ({
 }): Promise<void> => {
   const groupConfig = getGroupFormatConfig(tournament.format);
   if (groupConfig) {
-    await autoFillGroupTournament({ tournament, players, token, groupConfig, onProgress });
+    await autoFillGroupTournament({
+      tournament,
+      players,
+      token,
+      groupConfig,
+      ...(onProgress ? { onProgress } : {}),
+    });
 
     return;
   }
 
-  await autoFillSingleTournament({ tournament, players, token, onProgress });
+  await autoFillSingleTournament({
+    tournament,
+    players,
+    token,
+    ...(onProgress ? { onProgress } : {}),
+  });
 };
 
 const confirmAllTournamentPlayers = async ({
