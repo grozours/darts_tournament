@@ -3,6 +3,8 @@ export type MatchBasePayload = {
   tournamentId: string;
   tournamentName: string;
   startedAt?: string;
+  matchFormatKey?: string;
+  matchFormatTooltip?: string;
   target?: {
     id: string;
     targetNumber: number;

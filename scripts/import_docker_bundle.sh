@@ -25,6 +25,34 @@ print_error() {
   echo "[ERR]  $1" >&2
 }
 
+wait_for_http_status() {
+  local url="$1"
+  local expected_status="$2"
+  local max_attempts="$3"
+  local delay_seconds="$4"
+
+  local attempt=1
+  while [[ "$attempt" -le "$max_attempts" ]]; do
+    local status
+    status="$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)"
+
+    if [[ "$status" == "$expected_status" ]]; then
+      print_success "HTTP check ready: $url returned $status"
+      return 0
+    fi
+
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      print_info "Waiting for $url (attempt $attempt/$max_attempts, got $status, expected $expected_status)"
+      sleep "$delay_seconds"
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  print_error "HTTP readiness check failed: $url did not return $expected_status after $max_attempts attempts"
+  return 1
+}
+
 usage() {
   cat <<'USAGE'
 Usage: scripts/import_docker_bundle.sh [--bundle <bundle.tar.gz>] --tag <image-tag> [--use-existing-images] [--no-up]
@@ -400,7 +428,30 @@ if [[ "$AUTH_ME_STATUS" == "404" ]]; then
   exit 1
 fi
 
-MATCH_FORMATS_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/tournaments/match-formats || true)"
+if ! wait_for_http_status "http://localhost:3000/health" "200" 30 2; then
+  print_info "Backend logs (last 120 lines):"
+  (
+    cd "$PROJECT_ROOT"
+    IMAGE_TAG="$IMAGE_TAG" docker compose \
+      --env-file "$ROOT_ENV" \
+      -f docker-compose.images.yml \
+      logs --tail=120 backend || true
+  )
+  exit 1
+fi
+
+MATCH_FORMATS_STATUS=""
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  MATCH_FORMATS_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/tournaments/match-formats || true)"
+  if [[ "$MATCH_FORMATS_STATUS" == "200" ]]; then
+    break
+  fi
+  if [[ "$attempt" -lt 10 ]]; then
+    print_info "Waiting for /api/tournaments/match-formats (attempt $attempt/10, got $MATCH_FORMATS_STATUS, expected 200)"
+    sleep 2
+  fi
+done
+
 if [[ "$MATCH_FORMATS_STATUS" != "200" ]]; then
   print_error "Backend route check failed: GET /api/tournaments/match-formats returned $MATCH_FORMATS_STATUS (expected 200)."
   print_info "Backend logs (last 120 lines):"

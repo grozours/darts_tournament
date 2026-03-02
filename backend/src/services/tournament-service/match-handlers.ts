@@ -15,6 +15,7 @@ import {
 import type { Tournament } from '../../../../shared/src/types';
 import { nextPowerOfTwo } from './number-helpers';
 import { getBracketRoundMatchFormatKey } from './match-format-presets';
+import { getMatchFormatTooltip } from './match-format-change-notifications';
 import { normalizeMatchScores, resolveWinnerAndResultScores } from './match-score-policy';
 import { assertValidMatchTransition, ensureTargetForMatchStart } from './target-lifecycle';
 
@@ -456,11 +457,21 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
         }
       : undefined;
 
+    const matchFormatKey = typeof matchDetails.matchFormatKey === 'string' && matchDetails.matchFormatKey.trim()
+      ? matchDetails.matchFormatKey
+      : undefined;
+
     await webSocketService.emitMatchStarted({
       matchId,
       tournamentId: tournament.id,
       tournamentName: tournament.name,
       ...(matchDetails.startedAt ? { startedAt: matchDetails.startedAt.toISOString() } : {}),
+      ...(matchFormatKey
+        ? {
+            matchFormatKey,
+            matchFormatTooltip: getMatchFormatTooltip(matchFormatKey),
+          }
+        : {}),
       ...(target ? { target } : {}),
       match: matchPayload,
       players,

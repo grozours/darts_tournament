@@ -5,6 +5,24 @@ import { useI18n } from '../i18n';
 import type { MatchNotificationPayload, NotificationItem } from './notifications/notifications-types';
 import { NOTIFICATIONS_STORAGE_KEY } from './notifications/notifications-types';
 
+const NOTIFICATION_PERMISSION_REQUESTED_KEY = 'notifications:permission-requested';
+
+const hasRequestedNotificationPermission = (): boolean => {
+  try {
+    return globalThis.window?.localStorage.getItem(NOTIFICATION_PERMISSION_REQUESTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const markNotificationPermissionAsRequested = () => {
+  try {
+    globalThis.window?.localStorage.setItem(NOTIFICATION_PERMISSION_REQUESTED_KEY, '1');
+  } catch {
+    void 0;
+  }
+};
+
 type TournamentSummary = {
   id: string;
   name?: string;
@@ -206,6 +224,8 @@ function NotificationsView() {
   }, [getSafeAccessToken, t, updatePlayerIdsState]);
 
   const requestBrowserNotifications = useCallback(async () => {
+    markNotificationPermissionAsRequested();
+
     if (!('Notification' in globalThis.window)) {
       setNotificationPermission('unsupported');
       permissionReference.current = 'unsupported';
@@ -261,6 +281,39 @@ function NotificationsView() {
     setNotificationPermission(Notification.permission);
     permissionReference.current = Notification.permission;
   }, []);
+
+  useEffect(() => {
+    if (!authEnabled || !isAuthenticated) {
+      return;
+    }
+    if (!('Notification' in globalThis.window)) {
+      return;
+    }
+    if (Notification.permission !== 'default') {
+      return;
+    }
+    if (hasRequestedNotificationPermission()) {
+      return;
+    }
+
+    const windowReference = globalThis.window;
+    const triggerPermissionRequest = () => {
+      void requestBrowserNotifications();
+      windowReference?.removeEventListener('pointerdown', triggerPermissionRequest);
+      windowReference?.removeEventListener('keydown', triggerPermissionRequest);
+      windowReference?.removeEventListener('touchstart', triggerPermissionRequest);
+    };
+
+    windowReference?.addEventListener('pointerdown', triggerPermissionRequest, { once: true });
+    windowReference?.addEventListener('keydown', triggerPermissionRequest, { once: true });
+    windowReference?.addEventListener('touchstart', triggerPermissionRequest, { once: true });
+
+    return () => {
+      windowReference?.removeEventListener('pointerdown', triggerPermissionRequest);
+      windowReference?.removeEventListener('keydown', triggerPermissionRequest);
+      windowReference?.removeEventListener('touchstart', triggerPermissionRequest);
+    };
+  }, [authEnabled, isAuthenticated, requestBrowserNotifications]);
 
   useEffect(() => {
     if (!authEnabled || !isAuthenticated) {
@@ -450,7 +503,7 @@ function NotificationsView() {
                   {title}
                 </div>
                 <div className="mt-2 text-sm text-slate-300">{label}</div>
-                {item.payload.event === 'format_changed' && (
+                {item.payload.matchFormatTooltip && (
                   <div className="mt-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">
                     <div className="text-xs uppercase tracking-widest text-cyan-200">{t('notifications.matchFormat')}</div>
                     <pre className="mt-1 whitespace-pre-line text-xs text-cyan-100">{item.payload.matchFormatTooltip}</pre>

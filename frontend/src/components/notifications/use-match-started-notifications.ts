@@ -228,11 +228,12 @@ const useMatchStartedNotifications = () => {
     } else if (payload.event === 'format_changed') {
       title = t('notifications.matchFormatChanged');
     }
-    const formatSuffix = payload.event === 'format_changed'
+    const formatSuffix = payload.matchFormatKey
       ? ` · ${t('notifications.matchFormat')}: ${payload.matchFormatKey}`
       : '';
+    const formatDetails = payload.matchFormatTooltip ? `\n${payload.matchFormatTooltip}` : '';
     const scoreSuffix = scoreSummary ? ` · ${t('live.finalScore')}: ${scoreSummary}` : '';
-    const body = `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}`.trim();
+    const body = `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}${formatDetails}`.trim();
     try {
       new Notification(title, { body });
     } catch {
@@ -330,6 +331,7 @@ const useMatchStartedNotifications = () => {
 
     let isDisposed = false;
     let socket: ReturnType<typeof io> | undefined;
+    let tokenRetryTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const openSocket = async () => {
       const token = await getSafeAccessToken();
@@ -337,11 +339,20 @@ const useMatchStartedNotifications = () => {
         return;
       }
 
+      if (!token) {
+        tokenRetryTimeout = globalThis.window?.setTimeout(() => {
+          if (!isDisposed) {
+            void openSocket();
+          }
+        }, 4_000);
+        return;
+      }
+
       socket = io(globalThis.window?.location.origin ?? '', {
         path: '/socket.io',
         transports: ['websocket'],
         withCredentials: true,
-        ...(token ? { auth: { token } } : {}),
+        auth: { token },
       });
 
       socket.on('connect', () => {
@@ -380,6 +391,9 @@ const useMatchStartedNotifications = () => {
 
     return () => {
       isDisposed = true;
+      if (tokenRetryTimeout) {
+        globalThis.window?.clearTimeout(tokenRetryTimeout);
+      }
       socket?.removeAllListeners();
       socket?.disconnect();
     };

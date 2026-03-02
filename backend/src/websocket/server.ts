@@ -19,6 +19,8 @@ type MatchStartedPayload = {
   tournamentId: string;
   tournamentName: string;
   startedAt?: string;
+  matchFormatKey?: string;
+  matchFormatTooltip?: string;
   target?: {
     id: string;
     targetNumber: number;
@@ -120,6 +122,52 @@ const resolveHandshakeAuthorization = (socket: Socket): string | undefined => {
   return undefined;
 };
 
+const normalizeMimeType = (value: string): string => {
+  const firstSegment = value.split(';').at(0);
+  return (firstSegment ?? '').trim().toLowerCase();
+};
+
+const matchesMimeType = (contentType: string, expectedType: string): boolean => {
+  const normalizedContentType = normalizeMimeType(contentType);
+  const normalizedExpectedType = expectedType.trim().toLowerCase();
+
+  if (!normalizedExpectedType) {
+    return false;
+  }
+
+  if (normalizedExpectedType === '*/*') {
+    return true;
+  }
+
+  if (normalizedExpectedType === 'json') {
+    return normalizedContentType === 'application/json' || normalizedContentType.endsWith('+json');
+  }
+
+  if (normalizedExpectedType === 'urlencoded') {
+    return normalizedContentType === 'application/x-www-form-urlencoded';
+  }
+
+  if (normalizedExpectedType.endsWith('/*')) {
+    const expectedGroup = normalizedExpectedType.slice(0, normalizedExpectedType.indexOf('/'));
+    return normalizedContentType.startsWith(`${expectedGroup}/`);
+  }
+
+  return normalizedContentType === normalizedExpectedType;
+};
+
+const resolveRequestHeader = (headers: Record<string, unknown>, headerName: string): string | undefined => {
+  const normalizedHeaderName = headerName.toLowerCase();
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== normalizedHeaderName) {
+      continue;
+    }
+    return toHeaderValue(value);
+  }
+
+  return undefined;
+};
+
 const authenticateSocket = async (socket: Socket): Promise<boolean> => {
   if (!config.auth.enabled) {
     return true;
@@ -127,13 +175,39 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
 
   const authorizationHeader = resolveHandshakeAuthorization(socket);
 
+  const requestHeaders: Record<string, unknown> = {
+    ...socket.handshake.headers,
+    ...(authorizationHeader ? { authorization: authorizationHeader } : {}),
+  };
+  const handshakeUrl = typeof socket.handshake.url === 'string' && socket.handshake.url.trim()
+    ? socket.handshake.url
+    : '/socket.io';
+
   const request = {
-    headers: {
-      ...socket.handshake.headers,
-      ...(authorizationHeader ? { authorization: authorizationHeader } : {}),
-    },
+    headers: requestHeaders,
+    method: 'GET',
+    url: handshakeUrl,
+    originalUrl: handshakeUrl,
+    path: handshakeUrl,
     query: socket.handshake.query,
     correlationId: undefined,
+    get: (name: string): string | undefined => resolveRequestHeader(requestHeaders, name),
+    header: (name: string): string | undefined => resolveRequestHeader(requestHeaders, name),
+    is: (type: string | string[]): string | false => {
+      const contentType = resolveRequestHeader(requestHeaders, 'content-type');
+      if (!contentType) {
+        return false;
+      }
+
+      const expectedTypes = Array.isArray(type) ? type : [type];
+      for (const expectedType of expectedTypes) {
+        if (matchesMimeType(contentType, expectedType)) {
+          return expectedType;
+        }
+      }
+
+      return false;
+    },
   } as unknown as Request;
 
   const response = {
@@ -143,43 +217,84 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
     removeHeader: () => response,
   } as unknown as Response;
 
+  let authFailureReason: string | undefined;
   const isAuthenticated = await new Promise<boolean>((resolve) => {
-    requireAuth(request, response, (error?: unknown) => {
-      if (error) {
-        resolve(false);
-        return;
-      }
-      resolve(Boolean(request.auth?.payload));
-    });
+    try {
+      requireAuth(request, response, (error?: unknown) => {
+        if (error) {
+          authFailureReason = error instanceof Error ? error.message : String(error);
+          resolve(false);
+          return;
+        }
+        resolve(Boolean(request.auth?.payload));
+      });
+    } catch (error) {
+      logger.warn('Socket authentication failed before completion', {
+        metadata: {
+          socketId: socket.id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      resolve(false);
+    }
   });
 
   if (isAuthenticated) {
     socket.data.authPayload = request.auth?.payload;
+    socket.data.authFailureReason = undefined;
+  } else {
+    socket.data.authFailureReason = authFailureReason;
   }
 
   return isAuthenticated;
 };
 
 const handleSocketConnection = (socket: Socket): void => {
-  logger.debug('WebSocket client connected', {
+  logger.info('WebSocket client connected', {
     metadata: { socketId: socket.id },
   });
 
   socket.on('join-tournament', async (tournamentId: string) => {
+    logger.info('WebSocket join tournament requested', {
+      metadata: { socketId: socket.id, tournamentId },
+    });
+
     if (!tournamentId || typeof tournamentId !== 'string' || !isUuid(tournamentId)) {
+      logger.warn('WebSocket join tournament rejected: invalid tournament id', {
+        metadata: { socketId: socket.id, tournamentId },
+      });
       socket.emit('error', { message: 'Invalid tournament ID', code: 'INVALID_TOURNAMENT_ID' });
       return;
     }
 
     const authenticated = await authenticateSocket(socket);
     if (!authenticated) {
+      const authorizationHeader = resolveHandshakeAuthorization(socket);
+      const authScheme = authorizationHeader?.split(' ')[0] ?? 'none';
+      const authLength = authorizationHeader ? authorizationHeader.length : 0;
+      const failureReason = typeof socket.data.authFailureReason === 'string'
+        ? socket.data.authFailureReason
+        : 'unknown';
+      logger.warn(
+        `WebSocket join tournament rejected: unauthorized (hasAuthorization=${Boolean(authorizationHeader)} scheme=${authScheme} authLength=${authLength} reason=${failureReason})`,
+        {
+        metadata: {
+          socketId: socket.id,
+          tournamentId,
+          hasAuthorization: Boolean(authorizationHeader),
+          authScheme,
+          authLength,
+          reason: failureReason,
+        },
+        }
+      );
       socket.emit('error', { message: 'Authentication required', code: 'UNAUTHORIZED' });
       return;
     }
 
     try {
       await socket.join(`tournament-${tournamentId}`);
-      logger.debug('WebSocket client joined tournament room', {
+      logger.info('WebSocket client joined tournament room', {
         metadata: { socketId: socket.id, tournamentId },
       });
 
@@ -442,7 +557,7 @@ export class WebSocketService {
     try {
       this.io.to(`tournament-${payload.tournamentId}`).emit('match:started', payload);
 
-      logger.debug('Match started event emitted', {
+      logger.info('Match started event emitted', {
         metadata: {
           matchId: payload.matchId,
           tournamentId: payload.tournamentId,
