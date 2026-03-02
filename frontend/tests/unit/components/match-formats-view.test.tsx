@@ -148,7 +148,7 @@ describe('MatchFormatsView', () => {
         {
           key: 'CRICKET_BO',
           durationMinutes: 30,
-          segments: [{ game: '501_DO', targetCount: 501 }],
+          segments: [{ game: '501_DO', targetCount: 3 }],
         },
         undefined
       );
@@ -237,7 +237,7 @@ describe('MatchFormatsView', () => {
         {
           key: 'MIX',
           durationMinutes: 30,
-          segments: [{ game: '701_DO', targetCount: 701 }],
+          segments: [{ game: '701_DO', targetCount: 2 }],
         },
         undefined
       );
@@ -264,6 +264,72 @@ describe('MatchFormatsView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('Failed to save format')).toBeInTheDocument();
+  });
+
+  it('covers target count parsing edge cases and segment patching across multiple segments', async () => {
+    adminState.isAdmin = true;
+    fetchMatchFormatPresets
+      .mockResolvedValueOnce([
+        {
+          id: 'fmt-edge',
+          key: 'EDGE',
+          durationMinutes: 25,
+          segments: [
+            { game: '501_DO', targetCount: 1 },
+            { game: '701_DO', targetCount: 2 },
+          ],
+          isSystem: false,
+        },
+      ])
+      .mockResolvedValue([]);
+
+    render(<MatchFormatsView />);
+
+    await screen.findByDisplayValue('EDGE');
+    fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+
+    fireEvent.change(screen.getAllByLabelText('Description du segment 1')[0] as HTMLInputElement, { target: { value: '501 DO 12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateMatchFormatPreset).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: '501 DO 12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create format' }));
+
+    await waitFor(() => {
+      expect(createMatchFormatPreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          segments: [{ game: '501_DO', targetCount: 501 }],
+        }),
+        undefined
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: '501 DO - tableau' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create format' }));
+
+    await waitFor(() => {
+      expect(createMatchFormatPreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          segments: [{ game: '501_DO', targetCount: 501 }],
+        }),
+        undefined
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: '501 DO - 0 tableau' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create format' }));
+
+    await waitFor(() => {
+      expect(createMatchFormatPreset).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          segments: [{ game: '501_DO', targetCount: 501 }],
+        }),
+        undefined
+      );
+    });
   });
 
   it('shows delete fallback error when delete fails with non-Error value', async () => {

@@ -789,6 +789,129 @@ describe('websocket server', () => {
     config.auth.enabled = originalAuthEnabled;
   });
 
+  it('covers auth request helpers and error message branches', async () => {
+    const originalAuthEnabled = config.auth.enabled;
+    config.auth.enabled = true;
+
+    const requestChecks: string[] = [];
+    const circularError: { self?: unknown } = {};
+    circularError.self = circularError;
+
+    const failureInputs: unknown[] = [
+      'string-error',
+      42,
+      true,
+      10n,
+      { detail: 'object-error' },
+      circularError,
+      () => 'json-undefined',
+    ];
+
+    requireAuthMock.mockImplementation((request: {
+      headers: Record<string, unknown>;
+      get: (name: string) => string | undefined;
+      header: (name: string) => string | undefined;
+      is: (type: string | string[]) => string | false;
+      auth?: { payload?: unknown };
+    }, response: { status: () => unknown; json: () => unknown; setHeader: () => unknown; removeHeader: () => unknown }, next: (error?: unknown) => void) => {
+      requestChecks.push(String(request.get('content-type')));
+      requestChecks.push(String(request.header('AUTHORIZATION')));
+      requestChecks.push(String(request.get('x-not-found')));
+      requestChecks.push(String(request.is('')));
+      requestChecks.push(String(request.is('*/*')));
+      requestChecks.push(String(request.is('json')));
+      requestChecks.push(String(request.is('urlencoded')));
+      requestChecks.push(String(request.is('application/*')));
+      requestChecks.push(String(request.is('text/plain')));
+      requestChecks.push(String(request.is(['text/plain', 'application/json'])));
+
+      response.status();
+      response.json();
+      response.setHeader();
+      response.removeHeader();
+
+      const nextFailure = failureInputs.shift();
+      if (nextFailure !== undefined) {
+        next(nextFailure);
+        return;
+      }
+
+      throw new Error('auth-throw');
+    });
+
+    const onHandlers: HandlerMap = {};
+    const socketOn = jest.fn();
+    const socket = {
+      id: 'socket-auth-helpers',
+      on: socketOn,
+      join: jest.fn().mockResolvedValue(undefined),
+      emit: jest.fn(),
+      data: {},
+      handshake: {
+        url: '   ',
+        auth: {},
+        headers: {
+          authorization: ['Bearer helper-token'],
+          'Content-Type': 'application/merge-patch+json; charset=utf-8',
+          'X-Custom': 'value',
+        },
+        query: {},
+      },
+    };
+
+    socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
+      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
+      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+    });
+
+    const io = {
+      on: jest.fn((event: string, handler: (socket: unknown) => void) => {
+        onHandlers[event] = handler as never;
+      }),
+      sockets: { sockets: new Map([['socket-auth-helpers', socket]]) },
+      to: jest.fn().mockReturnThis(),
+      emit: jest.fn(),
+    };
+
+    const { setupWebSocketServer } = await import('../../src/websocket/server');
+    setupWebSocketServer(io as never);
+    getHandler(onHandlers, 'connection')(socket as never);
+
+    const joinHandler = getHandler(
+      (socket as unknown as { handlers: Record<string, (...args: unknown[]) => void> }).handlers,
+      'join-tournament'
+    );
+
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      (socket as unknown as { handshake: { url: string } }).handshake.url = attempt === 0 ? '/socket-custom' : '   ';
+      await joinHandler(validTournamentId);
+    }
+
+    (socket as unknown as { handshake: { headers: Record<string, unknown> } }).handshake.headers['Content-Type'] = 'application/json';
+    await joinHandler(validTournamentId);
+
+    delete (socket as unknown as { handshake: { headers: Record<string, unknown> } }).handshake.headers['Content-Type'];
+    await joinHandler(validTournamentId);
+
+    expect(requestChecks).toEqual(expect.arrayContaining([
+      'application/merge-patch+json; charset=utf-8',
+      'Bearer helper-token',
+      'undefined',
+      'false',
+      '*/*',
+      'json',
+      'false',
+      'application/*',
+    ]));
+    expect(socket.emit).toHaveBeenCalledWith('error', {
+      message: 'Authentication required',
+      code: 'UNAUTHORIZED',
+    });
+    expect((logger as unknown as { warn: jest.Mock }).warn).toHaveBeenCalled();
+
+    config.auth.enabled = originalAuthEnabled;
+  });
+
   it('covers remaining websocket emitter branches', async () => {
     const io = {
       to: jest.fn().mockReturnThis(),

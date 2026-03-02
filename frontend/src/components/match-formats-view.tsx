@@ -103,28 +103,29 @@ const MatchFormatsView = () => {
     void refresh();
   }, []);
 
+  const isAsciiDigit = (character: string): boolean => character >= '0' && character <= '9';
+
   const extractIntegers = (value: string): number[] => {
     const numbers: number[] = [];
-    let current = '';
+    let currentDigits = '';
 
     for (const character of value) {
-      const code = character.codePointAt(0) ?? -1;
-      if (code >= 48 && code <= 57) {
-        current += character;
+      if (isAsciiDigit(character)) {
+        currentDigits += character;
         continue;
       }
 
-      if (current.length > 0) {
-        const parsed = Number.parseInt(current, 10);
+      if (currentDigits.length > 0) {
+        const parsed = Number.parseInt(currentDigits, 10);
         if (Number.isFinite(parsed) && parsed > 0) {
           numbers.push(parsed);
         }
-        current = '';
+        currentDigits = '';
       }
     }
 
-    if (current.length > 0) {
-      const parsed = Number.parseInt(current, 10);
+    if (currentDigits.length > 0) {
+      const parsed = Number.parseInt(currentDigits, 10);
       if (Number.isFinite(parsed) && parsed > 0) {
         numbers.push(parsed);
       }
@@ -133,26 +134,38 @@ const MatchFormatsView = () => {
     return numbers;
   };
 
+  const extractTrailingInteger = (value: string): number | null => {
+    let index = value.length - 1;
+
+    while (index >= 0 && value[index] === ' ') {
+      index -= 1;
+    }
+
+    if (index < 0 || !isAsciiDigit(value[index] ?? '')) {
+      return null;
+    }
+
+    let start = index;
+    while (start >= 0 && isAsciiDigit(value[start] ?? '')) {
+      start -= 1;
+    }
+
+    const numberChunk = value.slice(start + 1, index + 1);
+    const parsed = Number.parseInt(numberChunk, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+
+    return parsed;
+  };
+
   const extractTargetCount = (description: string): number | null => {
     const normalized = description.toLowerCase();
     const markerIndex = normalized.indexOf('tableau');
     if (markerIndex > 0) {
-      let digitStart = markerIndex - 1;
-      while (digitStart >= 0) {
-        const code = normalized.codePointAt(digitStart) ?? -1;
-        if (code >= 48 && code <= 57) {
-          digitStart -= 1;
-          continue;
-        }
-        break;
-      }
-
-      const numberChunk = normalized.slice(digitStart + 1, markerIndex).trim();
-      if (numberChunk.length > 0) {
-        const parsed = Number.parseInt(numberChunk, 10);
-        if (Number.isFinite(parsed) && parsed > 0) {
-          return parsed;
-        }
+      const trailingValue = extractTrailingInteger(normalized.slice(0, markerIndex));
+      if (trailingValue !== null) {
+        return trailingValue;
       }
     }
 

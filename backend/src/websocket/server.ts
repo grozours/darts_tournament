@@ -123,8 +123,9 @@ const resolveHandshakeAuthorization = (socket: Socket): string | undefined => {
 };
 
 const normalizeMimeType = (value: string): string => {
-  const firstSegment = value.split(';').at(0);
-  return (firstSegment ?? '').trim().toLowerCase();
+  const delimiterIndex = value.indexOf(';');
+  const firstSegment = delimiterIndex === -1 ? value : value.slice(0, delimiterIndex);
+  return firstSegment.trim().toLowerCase();
 };
 
 const matchesMimeType = (contentType: string, expectedType: string): boolean => {

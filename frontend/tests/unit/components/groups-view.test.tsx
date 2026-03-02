@@ -495,6 +495,67 @@ describe('GroupsView', () => {
     });
   });
 
+  it('blocks quick-create when email is invalid', async () => {
+    adminState.isAdmin = true;
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-admin-invalid-email',
+        name: 'Admin Duo Email',
+        captainPlayerId: 'me',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 1,
+        members: [
+          { playerId: 'me', firstName: 'Me', lastName: 'User', email: 'me@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Admin Duo Email');
+
+    fireEvent.click(screen.getByText('groups.addMember'));
+    fireEvent.change(screen.getByPlaceholderText('edit.firstName'), { target: { value: 'Nina' } });
+    fireEvent.change(screen.getByPlaceholderText('edit.lastName'), { target: { value: 'Ray' } });
+    fireEvent.change(screen.getByPlaceholderText('edit.email'), { target: { value: 'bad email@' } });
+
+    const createAndAddButton = screen.getByText('groups.createAndAddMember');
+    expect(createAndAddButton).toBeDisabled();
+
+    fireEvent.click(createAndAddButton);
+    expect(registerTournamentPlayer).not.toHaveBeenCalled();
+    expect(addDoubletteMember).not.toHaveBeenCalled();
+  });
+
+  it('shows error when quick-created player has no id', async () => {
+    adminState.isAdmin = true;
+    registerTournamentPlayer.mockResolvedValueOnce({});
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-admin-missing-id',
+        name: 'Admin Duo Missing Id',
+        captainPlayerId: 'me',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 1,
+        members: [
+          { playerId: 'me', firstName: 'Me', lastName: 'User', email: 'me@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Admin Duo Missing Id');
+
+    fireEvent.click(screen.getByText('groups.addMember'));
+    fireEvent.change(screen.getByPlaceholderText('edit.firstName'), { target: { value: 'Nina' } });
+    fireEvent.change(screen.getByPlaceholderText('edit.lastName'), { target: { value: 'Ray' } });
+    fireEvent.click(screen.getByText('groups.createAndAddMember'));
+
+    expect(await screen.findByText('Failed to retrieve created player ID')).toBeInTheDocument();
+    expect(addDoubletteMember).not.toHaveBeenCalled();
+  });
+
   it('lets admin manage members from edit action on registered group', async () => {
     adminState.isAdmin = true;
     fetchDoublettes.mockResolvedValue([
@@ -601,6 +662,51 @@ describe('GroupsView', () => {
 
     render(<GroupsView mode="doublettes" />);
     expect(await screen.findByText('boom-load')).toBeInTheDocument();
+  });
+
+  it('validates quick-create email formats for admin member creation', async () => {
+    adminState.isAdmin = true;
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-email-matrix',
+        name: 'Email Matrix Duo',
+        captainPlayerId: 'me',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 1,
+        members: [
+          { playerId: 'me', firstName: 'Me', lastName: 'User', email: 'me@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Email Matrix Duo');
+
+    fireEvent.click(screen.getByText('groups.addMember'));
+    fireEvent.change(screen.getByPlaceholderText('edit.firstName'), { target: { value: 'Nina' } });
+    fireEvent.change(screen.getByPlaceholderText('edit.lastName'), { target: { value: 'Ray' } });
+
+    const emailInput = screen.getByPlaceholderText('edit.email');
+    const createAndAddButton = screen.getByText('groups.createAndAddMember');
+
+    fireEvent.change(emailInput, { target: { value: 'bad email@example.com' } });
+    expect(createAndAddButton).toBeDisabled();
+
+    fireEvent.change(emailInput, { target: { value: 'bad@@example.com' } });
+    expect(createAndAddButton).toBeDisabled();
+
+    fireEvent.change(emailInput, { target: { value: 'bad@example' } });
+    expect(createAndAddButton).toBeDisabled();
+
+    fireEvent.change(emailInput, { target: { value: 'bad@.example.com' } });
+    expect(createAndAddButton).toBeDisabled();
+
+    fireEvent.change(emailInput, { target: { value: 'bad@example..com' } });
+    expect(createAndAddButton).toBeDisabled();
+
+    fireEvent.change(emailInput, { target: { value: 'ok@example.com' } });
+    expect(createAndAddButton).not.toBeDisabled();
   });
 
   it('keeps create button hidden for unauthenticated users', async () => {

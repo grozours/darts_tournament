@@ -281,14 +281,10 @@ const parseParallelReference = (value: string):
       return undefined;
     }
 
-    let stageNumber = 0;
-    for (const character of referenceValue) {
-      const code = character.codePointAt(0) ?? -1;
-      if (code < 48 || code > 57) {
-        return undefined;
-      }
-      stageNumber = (stageNumber * 10) + (code - 48);
+    if (!/^\d+$/.test(referenceValue)) {
+      return undefined;
     }
+    const stageNumber = Number.parseInt(referenceValue, 10);
 
     if (stageNumber > 0) {
       return { type: 'POOL_STAGE', stageNumber };
