@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { TournamentFormat } from '@shared/types';
+import { SkillLevel, TournamentFormat } from '@shared/types';
 import type { CreatePlayerPayload, TournamentPlayer } from '../../services/tournament-service';
 import {
   createDoublette,
@@ -34,6 +34,44 @@ type ActionProgress = {
 };
 
 type ProgressCallback = (progress: ActionProgress) => void;
+
+const SKILL_LEVELS_FOR_AUTOFILL: SkillLevel[] = [
+  SkillLevel.BEGINNER,
+  SkillLevel.INTERMEDIATE,
+  SkillLevel.ADVANCED,
+  SkillLevel.EXPERT,
+];
+
+const SKILL_STARS: Record<SkillLevel, string> = {
+  [SkillLevel.BEGINNER]: '★',
+  [SkillLevel.INTERMEDIATE]: '★★',
+  [SkillLevel.ADVANCED]: '★★★',
+  [SkillLevel.EXPERT]: '★★★★',
+};
+
+const pickRandomAutoFillSkillLevel = (): SkillLevel => {
+  const random = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+  const index = random % SKILL_LEVELS_FOR_AUTOFILL.length;
+  return SKILL_LEVELS_FOR_AUTOFILL[index] ?? SkillLevel.BEGINNER;
+};
+
+const withAutoFillSkillAndSurnameStars = (
+  registration: CreatePlayerPayload
+): CreatePlayerPayload => {
+  const skillLevel = pickRandomAutoFillSkillLevel();
+  const stars = SKILL_STARS[skillLevel];
+  const baseSurname = registration.surname?.trim();
+
+  return {
+    ...registration,
+    skillLevel,
+    surname: baseSurname ? `${baseSurname} ${stars}` : stars,
+  };
+};
+
+const decorateAutoFillRegistrations = (registrations: CreatePlayerPayload[]): CreatePlayerPayload[] => (
+  registrations.map(withAutoFillSkillAndSurnameStars)
+);
 
 const createTemporaryPassword = (): string => {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -171,8 +209,10 @@ const registerAutoPlayers = async (parameters: {
     throw new Error(error);
   }
 
+  const decoratedRegistrations = decorateAutoFillRegistrations(autoRegistrations);
+
   await runWithConcurrency({
-    items: autoRegistrations,
+    items: decoratedRegistrations,
     concurrency: 6,
     worker: async (registration) => {
       await registerTournamentPlayer(tournamentId, registration, token);
@@ -302,19 +342,21 @@ const autoFillSingleTournament = async (parameters: {
     throw new Error(error);
   }
 
-  if (uniqueRegistrations.length > 0) {
-    onProgress?.({ current: 0, total: uniqueRegistrations.length });
+  const decoratedRegistrations = decorateAutoFillRegistrations(uniqueRegistrations);
+
+  if (decoratedRegistrations.length > 0) {
+    onProgress?.({ current: 0, total: decoratedRegistrations.length });
   }
 
   let completed = 0;
 
   await runWithConcurrency({
-    items: uniqueRegistrations,
+    items: decoratedRegistrations,
     concurrency: 6,
     worker: async (registration) => {
       await registerTournamentPlayer(tournament.id, registration, token);
       completed += 1;
-      onProgress?.({ current: completed, total: uniqueRegistrations.length });
+      onProgress?.({ current: completed, total: decoratedRegistrations.length });
     },
   });
 };

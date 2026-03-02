@@ -185,7 +185,22 @@ describe('tournament-players-actions hooks', () => {
     await act(async () => {
       await result.current.autoFillPlayers();
     });
-    expect(registerTournamentPlayer).toHaveBeenCalledWith('t1', { firstName: 'A', lastName: 'B' }, 'token');
+    expect(registerTournamentPlayer).toHaveBeenCalledTimes(1);
+    const [, autoPlayerPayload, playerToken] = registerTournamentPlayer.mock.calls[0] ?? [];
+    expect(playerToken).toBe('token');
+    expect(autoPlayerPayload).toEqual(expect.objectContaining({
+      firstName: 'A',
+      lastName: 'B',
+      skillLevel: expect.stringMatching(/^(BEGINNER|INTERMEDIATE|ADVANCED|EXPERT)$/),
+      surname: expect.stringMatching(/^★{1,4}$/),
+    }));
+    const starsBySkill: Record<string, string> = {
+      BEGINNER: '★',
+      INTERMEDIATE: '★★',
+      ADVANCED: '★★★',
+      EXPERT: '★★★★',
+    };
+    expect(autoPlayerPayload.surname).toBe(starsBySkill[autoPlayerPayload.skillLevel]);
   });
 
   it('autofills DOUBLE tournaments by creating and registering doublettes', async () => {
