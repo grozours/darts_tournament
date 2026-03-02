@@ -141,6 +141,7 @@ type LiveParticipant = {
   id?: string;
   firstName?: string;
   lastName?: string;
+  surname?: string;
 };
 
 const formatDurationClock = (durationMinutes: number) => {
@@ -1187,6 +1188,14 @@ const LiveTournamentView = ({
     if (groupLabel) {
       return groupLabel;
     }
+
+    if (view.format === TournamentFormat.SINGLE) {
+      const surname = (player.surname ?? '').trim();
+      if (surname) {
+        return surname;
+      }
+    }
+
     const fallback = `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim();
     return fallback || 'TBD';
   };

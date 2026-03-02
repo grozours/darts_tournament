@@ -9,6 +9,7 @@ import {
   fetchTournamentPlayers,
   type TournamentGroupEntity,
   updateTournamentPlayerCheckIn,
+  updateTournamentPlayer,
   removeTournamentPlayer,
   type TournamentPlayer,
 } from '../services/tournament-service';
@@ -34,6 +35,16 @@ function TournamentPlayersView() {
   const [error, setError] = useState<string | undefined>();
   const [checkingInId, setCheckingInId] = useState<string | undefined>();
   const [removingPlayerId, setRemovingPlayerId] = useState<string | undefined>();
+  const [editingPlayerId, setEditingPlayerId] = useState<string | undefined>();
+  const [savingPlayerId, setSavingPlayerId] = useState<string | undefined>();
+  const [editingPlayerForm, setEditingPlayerForm] = useState({
+    firstName: '',
+    lastName: '',
+    surname: '',
+    teamName: '',
+    email: '',
+    phone: '',
+  });
   const [expandedContacts, setExpandedContacts] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
   const [confirmationFilter, setConfirmationFilter] = useState<'ALL' | 'CONFIRMED' | 'UNCONFIRMED'>('ALL');
@@ -173,6 +184,93 @@ function TournamentPlayersView() {
       setRemovingPlayerId(undefined);
     }
   }, [getSafeAccessToken, isAdmin, normalizedTournamentStatus, t, tournamentId]);
+
+  const startEditPlayer = useCallback((player: TournamentPlayer) => {
+    if (!isAdmin) {
+      return;
+    }
+
+    setEditingPlayerId(player.playerId);
+    setEditingPlayerForm({
+      firstName: player.firstName ?? '',
+      lastName: player.lastName ?? '',
+      surname: player.surname ?? '',
+      teamName: player.teamName ?? '',
+      email: player.email ?? '',
+      phone: player.phone ?? '',
+    });
+  }, [isAdmin]);
+
+  const cancelEditPlayer = useCallback(() => {
+    setEditingPlayerId(undefined);
+    setEditingPlayerForm({
+      firstName: '',
+      lastName: '',
+      surname: '',
+      teamName: '',
+      email: '',
+      phone: '',
+    });
+  }, []);
+
+  const savePlayerEdit = useCallback(async (player: TournamentPlayer) => {
+    if (!isAdmin || !tournamentId || !player.playerId) {
+      return;
+    }
+
+    const firstName = editingPlayerForm.firstName.trim();
+    const lastName = editingPlayerForm.lastName.trim();
+    if (!firstName || !lastName) {
+      alert('First and last name are required');
+      return;
+    }
+
+    setSavingPlayerId(player.playerId);
+    try {
+      const token = await getSafeAccessToken();
+      if (!token) {
+        throw new Error(t('auth.signInRequired'));
+      }
+
+      const surname = editingPlayerForm.surname.trim();
+      const teamName = editingPlayerForm.teamName.trim();
+      const email = editingPlayerForm.email.trim();
+      const phone = editingPlayerForm.phone.trim();
+
+      await updateTournamentPlayer(
+        tournamentId,
+        player.playerId,
+        {
+          firstName,
+          lastName,
+          ...(surname ? { surname } : {}),
+          ...(teamName ? { teamName } : {}),
+          ...(email ? { email } : {}),
+          ...(phone ? { phone } : {}),
+        },
+        token
+      );
+
+      setPlayers((current) => current.map((entry) => (
+        entry.playerId === player.playerId
+          ? {
+              ...entry,
+              firstName,
+              lastName,
+              ...(surname ? { surname } : {}),
+              ...(teamName ? { teamName } : {}),
+              ...(email ? { email } : {}),
+              ...(phone ? { phone } : {}),
+            }
+          : entry
+      )));
+      cancelEditPlayer();
+    } catch (error_) {
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedUpdatePlayer'));
+    } finally {
+      setSavingPlayerId(undefined);
+    }
+  }, [cancelEditPlayer, editingPlayerForm, getSafeAccessToken, isAdmin, t, tournamentId]);
 
   const toggleContactDetails = useCallback((playerId?: string) => {
     if (!playerId) {
@@ -377,6 +475,7 @@ function TournamentPlayersView() {
           {isSingleTournament && filteredPlayers.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredPlayers.map((player) => {
+                const isEditing = editingPlayerId === player.playerId;
                 let presenceLabel = t('players.confirmPresence');
                 if (player.checkedIn) {
                   presenceLabel = t('players.confirmed');
@@ -392,14 +491,75 @@ function TournamentPlayersView() {
                   >
                     <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-white">
-                        {player.firstName} {player.lastName}
-                      </h3>
-                      {player.surname && (
-                        <p className="text-xs text-slate-500 italic">"{player.surname}"</p>
-                      )}
-                      {player.teamName && (
-                        <p className="text-xs text-cyan-400 mt-1">{player.teamName}</p>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <input
+                            value={editingPlayerForm.firstName}
+                            onChange={(event) => setEditingPlayerForm((current) => ({
+                              ...current,
+                              firstName: event.target.value,
+                            }))}
+                            placeholder={t('edit.firstName')}
+                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                          <input
+                            value={editingPlayerForm.lastName}
+                            onChange={(event) => setEditingPlayerForm((current) => ({
+                              ...current,
+                              lastName: event.target.value,
+                            }))}
+                            placeholder={t('edit.lastName')}
+                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                          <input
+                            value={editingPlayerForm.surname}
+                            onChange={(event) => setEditingPlayerForm((current) => ({
+                              ...current,
+                              surname: event.target.value,
+                            }))}
+                            placeholder={t('edit.surname')}
+                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                          <input
+                            value={editingPlayerForm.teamName}
+                            onChange={(event) => setEditingPlayerForm((current) => ({
+                              ...current,
+                              teamName: event.target.value,
+                            }))}
+                            placeholder={t('edit.teamName')}
+                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                          <input
+                            value={editingPlayerForm.email}
+                            onChange={(event) => setEditingPlayerForm((current) => ({
+                              ...current,
+                              email: event.target.value,
+                            }))}
+                            placeholder={t('edit.email')}
+                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                          <input
+                            value={editingPlayerForm.phone}
+                            onChange={(event) => setEditingPlayerForm((current) => ({
+                              ...current,
+                              phone: event.target.value,
+                            }))}
+                            placeholder={t('edit.phone')}
+                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <h3 className="font-semibold text-white">
+                            {player.firstName} {player.lastName}
+                          </h3>
+                          {player.surname && (
+                            <p className="text-xs text-slate-500 italic">"{player.surname}"</p>
+                          )}
+                          {player.teamName && (
+                            <p className="text-xs text-cyan-400 mt-1">{player.teamName}</p>
+                          )}
+                        </>
                       )}
                     </div>
                     {player.checkedIn && (
@@ -434,23 +594,49 @@ function TournamentPlayersView() {
                   </div>
                     {isAdmin && (
                       <div className="mt-4 space-y-2">
-                        {tournament?.status === 'SIGNATURE' && (
-                          <button
-                            onClick={() => confirmPresence(player)}
-                            disabled={player.checkedIn || checkingInId === player.playerId}
-                            className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {presenceLabel}
-                          </button>
-                        )}
-                        {canDeletePlayers && (
-                          <button
-                            onClick={() => removePlayer(player)}
-                            disabled={removingPlayerId === player.playerId}
-                            className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
-                          </button>
+                        {isEditing ? (
+                          <>
+                            <button
+                              onClick={() => savePlayerEdit(player)}
+                              disabled={savingPlayerId === player.playerId}
+                              className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {savingPlayerId === player.playerId ? t('common.loading') : t('common.save')}
+                            </button>
+                            <button
+                              onClick={cancelEditPlayer}
+                              className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                            >
+                              {t('common.cancel')}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEditPlayer(player)}
+                              className="w-full rounded-full border border-cyan-500/60 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                            >
+                              {t('common.edit')}
+                            </button>
+                            {tournament?.status === 'SIGNATURE' && (
+                              <button
+                                onClick={() => confirmPresence(player)}
+                                disabled={player.checkedIn || checkingInId === player.playerId}
+                                className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {presenceLabel}
+                              </button>
+                            )}
+                            {canDeletePlayers && (
+                              <button
+                                onClick={() => removePlayer(player)}
+                                disabled={removingPlayerId === player.playerId}
+                                className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}

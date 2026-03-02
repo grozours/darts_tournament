@@ -7,11 +7,18 @@ import type {
   LiveViewPoolStage,
 } from '../../../src/components/live-tournament/types';
 
-const makePlayer = (id: string, firstName: string, lastName: string, position: number): LiveViewMatchPlayer => ({
+const makePlayer = (
+  id: string,
+  firstName: string,
+  lastName: string,
+  position: number,
+  surname?: string
+): LiveViewMatchPlayer => ({
   player: {
     id,
     firstName,
     lastName,
+    ...(surname ? { surname } : {}),
   },
   playerPosition: position,
 });
@@ -195,5 +202,48 @@ describe('live tournament queue utilities', () => {
 
     const itemWithTargetNumber = queue.find((item) => item.matchId === 'm6');
     expect(itemWithTargetNumber?.targetNumber).toBe(4);
+  });
+
+  it('uses surnames in queue for single tournaments', () => {
+    const poolStages = [
+      {
+        id: 'stage-single',
+        stageNumber: 1,
+        name: 'Stage Single',
+        status: 'IN_PROGRESS',
+        pools: [
+          {
+            id: 'pool-single',
+            poolNumber: 1,
+            name: 'Pool Single',
+            status: 'IN_PROGRESS',
+            matches: [
+              makeMatch({
+                id: 'sm-1',
+                status: 'SCHEDULED',
+                matchNumber: 1,
+                roundNumber: 1,
+                playerMatches: [
+                  makePlayer('sp1', 'Anna', 'Able', 1, 'Arrow'),
+                  makePlayer('sp2', 'Ben', 'Bale', 2, 'Bolt'),
+                ],
+              }),
+            ],
+          },
+        ],
+      },
+    ] as LiveViewPoolStage[];
+
+    const view = {
+      id: 't-single',
+      name: 'Single Open',
+      status: 'IN_PROGRESS',
+      format: 'SINGLE',
+      brackets: [],
+    } as LiveViewData;
+
+    const queue = buildMatchQueue(view, poolStages);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.players).toEqual(['Arrow', 'Bolt']);
   });
 });

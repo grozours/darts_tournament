@@ -7,6 +7,7 @@ const fetchTournamentPlayersMock = vi.fn();
 const fetchDoublettesMock = vi.fn();
 const fetchEquipesMock = vi.fn();
 const updateTournamentPlayerCheckInMock = vi.fn();
+const updateTournamentPlayerMock = vi.fn();
 const removeTournamentPlayerMock = vi.fn();
 const translate = (key: string) => key;
 
@@ -36,6 +37,7 @@ vi.mock('../../../src/services/tournament-service', () => ({
   fetchDoublettes: (...args: unknown[]) => fetchDoublettesMock(...args),
   fetchEquipes: (...args: unknown[]) => fetchEquipesMock(...args),
   updateTournamentPlayerCheckIn: (...args: unknown[]) => updateTournamentPlayerCheckInMock(...args),
+  updateTournamentPlayer: (...args: unknown[]) => updateTournamentPlayerMock(...args),
   removeTournamentPlayer: (...args: unknown[]) => removeTournamentPlayerMock(...args),
 }));
 
@@ -49,6 +51,7 @@ describe('TournamentPlayersView branches', () => {
     fetchDoublettesMock.mockReset();
     fetchEquipesMock.mockReset();
     updateTournamentPlayerCheckInMock.mockReset();
+    updateTournamentPlayerMock.mockReset();
     removeTournamentPlayerMock.mockReset();
 
     vi.spyOn(globalThis, 'confirm').mockReturnValue(true);

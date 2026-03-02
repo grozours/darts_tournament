@@ -1,3 +1,4 @@
+import { TournamentFormat } from '@shared/types';
 import type {
   LiveViewData,
   LiveViewMatch,
@@ -20,6 +21,24 @@ const orderPoolQueuesByParallelStageGroups = (
 
 const statusWeight = (status: string) => (status === 'IN_PROGRESS' ? 0 : 1);
 
+const getQueuePlayerLabel = (
+  player: { firstName?: string; lastName?: string; surname?: string } | undefined,
+  isSingleTournament: boolean
+) => {
+  if (!player) {
+    return '';
+  }
+
+  if (isSingleTournament) {
+    const surname = (player.surname ?? '').trim();
+    if (surname) {
+      return surname;
+    }
+  }
+
+  return `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim();
+};
+
 const sortPoolMatches = (queue: PoolQueue) => {
   queue.matches = queue.matches.toSorted((a, b) => {
     if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
@@ -30,12 +49,12 @@ const sortPoolMatches = (queue: PoolQueue) => {
   });
 };
 
-
 const buildQueueItems = (
   view: LiveViewData,
   poolStages: LiveViewPoolStage[],
   poolQueues: PoolQueue[],
-  isMatchBlocked: (match: LiveViewMatch) => boolean
+  isMatchBlocked: (match: LiveViewMatch) => boolean,
+  isSingleTournament: boolean
 ) => {
   const shouldQueueMatch = (match: LiveViewMatch) => {
     const isFinalStatus = match.status === 'COMPLETED' || match.status === 'CANCELLED';
@@ -45,7 +64,7 @@ const buildQueueItems = (
 
   const createQueueItem = (stage: LiveViewPoolStage, pool: LiveViewPool, match: LiveViewMatch) => {
     const players = (match.playerMatches ?? [])
-      .map((pm) => (pm.player ? `${pm.player.firstName} ${pm.player.lastName}` : ''))
+      .map((pm) => getQueuePlayerLabel(pm.player, isSingleTournament))
       .filter(Boolean);
     const targetCode = match.target?.targetCode;
     const targetNumber = match.target?.targetNumber;
@@ -122,6 +141,7 @@ const buildBlockedMatcher = (
 };
 
 export const buildMatchQueue = (view: LiveViewData, poolStages: LiveViewPoolStage[]): MatchQueueItem[] => {
+  const isSingleTournament = view.format === TournamentFormat.SINGLE;
   const activePlayerIds = new Set<string>();
   const activePlayerLabels = new Set<string>();
 
@@ -157,7 +177,7 @@ export const buildMatchQueue = (view: LiveViewData, poolStages: LiveViewPoolStag
 
   const isMatchBlocked = buildBlockedMatcher(activePlayerIds, activePlayerLabels);
 
-  const items = buildQueueItems(view, poolStages, poolQueues, isMatchBlocked);
+  const items = buildQueueItems(view, poolStages, poolQueues, isMatchBlocked, isSingleTournament);
   for (const queue of poolQueues) {
     sortPoolMatches(queue);
   }
