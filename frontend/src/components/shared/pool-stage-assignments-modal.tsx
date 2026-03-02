@@ -15,7 +15,7 @@ export type PoolStageAssignmentsModalSharedProperties = {
   poolStagePools: PoolStagePool[];
   poolStagePlayers: TournamentPlayer[];
   poolStageAssignments: Record<string, string[]>;
-  poolStageEditError?: string | undefined;
+  poolStageEditError: string | undefined;
   isSavingAssignments: boolean;
   onClose: () => void;
   onSave: () => void;

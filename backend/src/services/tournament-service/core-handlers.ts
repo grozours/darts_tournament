@@ -119,6 +119,40 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
     }
   };
 
+  const hasConfiguredPoolStages = (tournament: TournamentLiveView) => (
+    (tournament.poolStages || []).some((stage) => {
+      const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
+      return poolCount > 0;
+    })
+  );
+
+  const canViewTournamentLive = (tournament: TournamentLiveView): boolean => {
+    if (tournament.status === TournamentStatus.LIVE || tournament.status === TournamentStatus.FINISHED) {
+      return true;
+    }
+
+    const isViewableOpenTournament =
+      (tournament.status === TournamentStatus.OPEN || tournament.status === TournamentStatus.SIGNATURE)
+      && hasConfiguredPoolStages(tournament);
+    if (isViewableOpenTournament) {
+      return true;
+    }
+
+    return tournament.status === TournamentStatus.DRAFT && (canViewDraftLive?.() ?? false);
+  };
+
+  const normalizeDoubleStageFlag = (tournament: TournamentLiveView) => {
+    if (tournament.format !== TournamentFormat.DOUBLE || tournament.doubleStageEnabled !== false) {
+      return;
+    }
+    const hasDoubleStages = (tournament.poolStages || []).some(
+      (stage) => stage.stageNumber === 2 || stage.stageNumber === 3
+    );
+    if (hasDoubleStages) {
+      tournament.doubleStageEnabled = true;
+    }
+  };
+
   const validateTargetCount = (count: number): void => {
     if (typeof count !== 'number' || !Number.isInteger(count)) {
       throw new AppError('Target count must be a valid number', 400, 'INVALID_TARGET_COUNT');
@@ -543,21 +577,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
       }
 
-      const hasConfiguredPools = (tournament.poolStages || []).some((stage) => {
-        const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
-        return poolCount > 0;
-      });
-      const isViewableOpenTournament =
-        (tournament.status === TournamentStatus.OPEN || tournament.status === TournamentStatus.SIGNATURE)
-        && hasConfiguredPools;
-      const isAdminDraftView = tournament.status === TournamentStatus.DRAFT && (canViewDraftLive?.() ?? false);
-
-      if (
-        tournament.status !== TournamentStatus.LIVE
-        && tournament.status !== TournamentStatus.FINISHED
-        && !isViewableOpenTournament
-        && !isAdminDraftView
-      ) {
+      if (!canViewTournamentLive(tournament)) {
         throw new AppError('Tournament is not live', 400, 'TOURNAMENT_NOT_LIVE');
       }
 
@@ -565,14 +585,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         await reconcileTargetAvailability(tournament);
       }
 
-      if (tournament.format === TournamentFormat.DOUBLE && tournament.doubleStageEnabled === false) {
-        const hasDoubleStages = (tournament.poolStages || []).some(
-          (stage) => stage.stageNumber === 2 || stage.stageNumber === 3
-        );
-        if (hasDoubleStages) {
-          tournament.doubleStageEnabled = true;
-        }
-      }
+      normalizeDoubleStageFlag(tournament);
 
       return tournament;
     },

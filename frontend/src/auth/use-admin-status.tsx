@@ -28,20 +28,27 @@ export interface AdminStatusResponse {
   isAdmin: boolean;
 }
 
+const isScreenModeEnabled = () => {
+  const screenParam = globalThis.window
+    ? new URLSearchParams(globalThis.window.location.search).get('screen')
+    : undefined;
+  return screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
+};
+
 export function useAdminStatus() {
   const { enabled, isAuthenticated, isLoading, getAccessTokenSilently } = useOptionalAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminUser, setAdminUser] = useState<AdminStatusResponse['user'] | undefined>();
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
+  const clearAdminState = () => {
+    setIsAdmin(false);
+    setAdminUser(undefined);
+  };
+
   useEffect(() => {
-    const screenParam = globalThis.window
-      ? new URLSearchParams(globalThis.window.location.search).get('screen')
-      : undefined;
-    const isScreenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
-    if (isScreenMode) {
-      setIsAdmin(false);
-      setAdminUser(undefined);
+    if (isScreenModeEnabled()) {
+      clearAdminState();
       return;
     }
 
@@ -53,8 +60,7 @@ export function useAdminStatus() {
     // When Auth0 is enabled, avoid unauthenticated /api/auth/me calls
     // during bootstrap/transitions to prevent expected 401 noise.
     if (enabled && !isAuthenticated) {
-      setIsAdmin(false);
-      setAdminUser(undefined);
+      clearAdminState();
       setCheckingAdmin(false);
       return;
     }
@@ -91,13 +97,11 @@ export function useAdminStatus() {
         } else {
           const errorText = await response.text();
           debugError('[useAdminStatus] Failed to fetch admin status:', response.status, errorText);
-          setIsAdmin(false);
-          setAdminUser(undefined);
+          clearAdminState();
         }
       } catch (error) {
         debugError('[useAdminStatus] Error fetching admin status:', error);
-        setIsAdmin(false);
-        setAdminUser(undefined);
+        clearAdminState();
       } finally {
         setCheckingAdmin(false);
       }

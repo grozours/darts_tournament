@@ -304,6 +304,68 @@ const parseParallelReference = (value: string):
   return undefined;
 };
 
+type ParsedParallelReference = Exclude<ReturnType<typeof parseParallelReference>, undefined>;
+
+const validateParsedReferenceForStage = (
+  parsed: ParsedParallelReference,
+  stageNumber: number,
+  stageNumbers: Set<number>,
+  bracketNames: Set<string>,
+  context: z.RefinementCtx
+) => {
+  if (parsed.type === 'POOL_STAGE') {
+    if (!stageNumbers.has(parsed.stageNumber)) {
+      addCustomIssue(context, 'stages.inParallelWith contains unknown stage reference');
+    }
+    if (parsed.stageNumber === stageNumber) {
+      addCustomIssue(context, 'stages.inParallelWith cannot reference itself');
+    }
+    return;
+  }
+
+  if (!bracketNames.has(parsed.bracketName)) {
+    addCustomIssue(context, 'stages.inParallelWith contains unknown bracket reference');
+  }
+};
+
+const validateParsedReferenceForBracket = (
+  parsed: ParsedParallelReference,
+  bracketName: string,
+  stageNumbers: Set<number>,
+  bracketNames: Set<string>,
+  context: z.RefinementCtx
+) => {
+  if (parsed.type === 'POOL_STAGE') {
+    if (!stageNumbers.has(parsed.stageNumber)) {
+      addCustomIssue(context, 'brackets.inParallelWith contains unknown stage reference');
+    }
+    return;
+  }
+
+  if (!bracketNames.has(parsed.bracketName)) {
+    addCustomIssue(context, 'brackets.inParallelWith contains unknown bracket reference');
+  }
+  if (parsed.bracketName === bracketName) {
+    addCustomIssue(context, 'brackets.inParallelWith cannot reference itself');
+  }
+};
+
+const validatePresetReferenceList = (
+  references: string[] | undefined,
+  invalidMessage: string,
+  context: z.RefinementCtx,
+  validator: (parsed: ParsedParallelReference) => void
+) => {
+  for (const reference of references ?? []) {
+    const parsed = parseParallelReference(reference);
+    if (!parsed) {
+      addCustomIssue(context, invalidMessage);
+      continue;
+    }
+    validator(parsed);
+  }
+};
+
 const validatePresetParallelReferences = (
   config: PresetTemplateConfigInput,
   context: z.RefinementCtx
@@ -311,73 +373,22 @@ const validatePresetParallelReferences = (
   const stageNumbers = new Set(config.stages.map((_, index) => index + 1));
   const bracketNames = new Set(config.brackets.map((bracket) => bracket.name));
 
-  const validateStageReferenceForStage = (
-    parsed: { type: 'POOL_STAGE'; stageNumber: number } | { type: 'BRACKET'; bracketName: string },
-    stageNumber: number
-  ) => {
-    if (parsed.type === 'POOL_STAGE') {
-      if (!stageNumbers.has(parsed.stageNumber)) {
-        addCustomIssue(context, 'stages.inParallelWith contains unknown stage reference');
-      }
-      if (parsed.stageNumber === stageNumber) {
-        addCustomIssue(context, 'stages.inParallelWith cannot reference itself');
-      }
-      return;
-    }
-
-    if (!bracketNames.has(parsed.bracketName)) {
-      addCustomIssue(context, 'stages.inParallelWith contains unknown bracket reference');
-    }
-  };
-
-  const validateStageReferenceForBracket = (
-    parsed: { type: 'POOL_STAGE'; stageNumber: number } | { type: 'BRACKET'; bracketName: string },
-    bracketName: string
-  ) => {
-    if (parsed.type === 'POOL_STAGE') {
-      if (!stageNumbers.has(parsed.stageNumber)) {
-        addCustomIssue(context, 'brackets.inParallelWith contains unknown stage reference');
-      }
-      return;
-    }
-
-    if (!bracketNames.has(parsed.bracketName)) {
-      addCustomIssue(context, 'brackets.inParallelWith contains unknown bracket reference');
-    }
-    if (parsed.bracketName === bracketName) {
-      addCustomIssue(context, 'brackets.inParallelWith cannot reference itself');
-    }
-  };
-
-  const validateReferenceList = (
-    references: string[] | undefined,
-    invalidMessage: string,
-    validator: (parsed: { type: 'POOL_STAGE'; stageNumber: number } | { type: 'BRACKET'; bracketName: string }) => void
-  ) => {
-    for (const reference of references ?? []) {
-      const parsed = parseParallelReference(reference);
-      if (!parsed) {
-        addCustomIssue(context, invalidMessage);
-        continue;
-      }
-      validator(parsed);
-    }
-  };
-
   for (const [stageIndex, stage] of config.stages.entries()) {
     const stageNumber = stageIndex + 1;
-    validateReferenceList(
+    validatePresetReferenceList(
       stage.inParallelWith,
       'stages.inParallelWith contains invalid reference (use stage:<number> or bracket:<name>)',
-      (parsed) => validateStageReferenceForStage(parsed, stageNumber)
+      context,
+      (parsed) => validateParsedReferenceForStage(parsed, stageNumber, stageNumbers, bracketNames, context)
     );
   }
 
   for (const bracket of config.brackets) {
-    validateReferenceList(
+    validatePresetReferenceList(
       bracket.inParallelWith,
       'brackets.inParallelWith contains invalid reference (use stage:<number> or bracket:<name>)',
-      (parsed) => validateStageReferenceForBracket(parsed, bracket.name)
+      context,
+      (parsed) => validateParsedReferenceForBracket(parsed, bracket.name, stageNumbers, bracketNames, context)
     );
   }
 };

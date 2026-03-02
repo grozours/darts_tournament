@@ -28,27 +28,71 @@ export const isPoolStagesView = (viewMode: LiveViewMode) => viewMode === 'pool-s
 
 export const isBracketsView = (viewMode: LiveViewMode) => viewMode === 'brackets';
 
+const getAllowedPoolStageStatuses = (
+  viewStatus?: LiveViewStatus,
+  screenMode = false
+) => {
+  if (screenMode) {
+    return new Set(['IN_PROGRESS']);
+  }
+  if (viewStatus === 'FINISHED') {
+    return new Set(['COMPLETED']);
+  }
+  return new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'EDITION']);
+};
+
+const hasPoolAssignments = (stage: PoolStageLike) => (
+  (stage.pools || []).some((pool) => (pool.assignments?.length ?? 0) > 0)
+);
+
+const isVisiblePoolStage = (
+  stage: PoolStageLike,
+  allowedStatuses: Set<string>,
+  allowEmptyPools: boolean,
+  screenMode: boolean
+) => {
+  if (!allowedStatuses.has(stage.status ?? '')) {
+    return false;
+  }
+  const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
+  if (poolCount <= 0) {
+    return false;
+  }
+  if (!screenMode && allowEmptyPools) {
+    return true;
+  }
+  return hasPoolAssignments(stage);
+};
+
+const hasBracketMatches = (bracket: BracketLike) => (bracket.matches?.length || 0) > 0;
+
+const getAllowedBracketStatuses = (canViewEdition: boolean) => {
+  const allowedStatuses = new Set(['IN_PROGRESS']);
+  if (canViewEdition) {
+    allowedStatuses.add('NOT_STARTED');
+  }
+  return allowedStatuses;
+};
+
+const getAllowEmptyPoolsForView = (
+  viewId: string,
+  allowEmptyPoolsByViewId?: (viewId: string) => boolean
+) => (allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(viewId) : false);
+
+const getCanViewEditionForView = (
+  viewId: string,
+  canViewEditionByViewId?: (viewId: string) => boolean
+) => (canViewEditionByViewId ? canViewEditionByViewId(viewId) : false);
+
 export const hasActivePoolStages = (
   view: LiveViewLike,
   viewStatus?: LiveViewStatus,
   allowEmptyPools = false,
   screenMode = false
 ) => {
-  let allowedStatuses = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'EDITION']);
-  if (viewStatus === 'FINISHED') {
-    allowedStatuses = new Set(['COMPLETED']);
-  }
-  if (screenMode) {
-    allowedStatuses = new Set(['IN_PROGRESS']);
-  }
+  const allowedStatuses = getAllowedPoolStageStatuses(viewStatus, screenMode);
   return (view.poolStages || []).some(
-    (stage) => {
-      if (!allowedStatuses.has(stage.status ?? '')) return false;
-      const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
-      if (poolCount <= 0) return false;
-      if (!screenMode && allowEmptyPools) return true;
-      return (stage.pools || []).some((pool) => (pool.assignments?.length ?? 0) > 0);
-    }
+    (stage) => isVisiblePoolStage(stage, allowedStatuses, allowEmptyPools, screenMode)
   );
 };
 
@@ -60,23 +104,24 @@ export const hasActiveBrackets = (
 ) => {
   if (screenMode) {
     return (view.brackets || []).some(
-      (bracket) => bracket.status === 'IN_PROGRESS' && (bracket.matches?.length ?? 0) > 0
+      (bracket) => bracket.status === 'IN_PROGRESS' && hasBracketMatches(bracket)
     );
   }
   if (viewStatus === 'FINISHED') {
     return (view.brackets || []).some(
-      (bracket) => bracket.status === 'COMPLETED' && (bracket.matches?.length || 0) > 0
+      (bracket) => bracket.status === 'COMPLETED' && hasBracketMatches(bracket)
     );
   }
-  const allowedStatuses = new Set(['IN_PROGRESS']);
-  if (canViewEdition) {
-    allowedStatuses.add('NOT_STARTED');
-  }
+  const allowedStatuses = getAllowedBracketStatuses(canViewEdition);
   return (view.brackets || []).some(
     (bracket) => {
-      if (!allowedStatuses.has(bracket.status ?? '')) return false;
-      if (canViewEdition) return true;
-      return (bracket.matches?.length || 0) > 0;
+      if (!allowedStatuses.has(bracket.status ?? '')) {
+        return false;
+      }
+      if (canViewEdition) {
+        return true;
+      }
+      return hasBracketMatches(bracket);
     }
   );
 };
@@ -93,7 +138,7 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
     return views.filter((view) => hasActivePoolStages(
       view,
       viewStatus,
-      allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false,
+      getAllowEmptyPoolsForView(view.id, allowEmptyPoolsByViewId),
       screenMode
     ));
   }
@@ -101,14 +146,14 @@ export const getVisibleLiveViews = <T extends LiveViewLike>(
     return views.filter((view) => hasActiveBrackets(
       view,
       viewStatus,
-      canViewEditionByViewId ? canViewEditionByViewId(view.id) : false,
+      getCanViewEditionForView(view.id, canViewEditionByViewId),
       screenMode
     ));
   }
   if (viewMode === 'live') {
     return views.filter((view) => {
-      const allowEmptyPools = allowEmptyPoolsByViewId ? allowEmptyPoolsByViewId(view.id) : false;
-      const canViewEdition = canViewEditionByViewId ? canViewEditionByViewId(view.id) : false;
+      const allowEmptyPools = getAllowEmptyPoolsForView(view.id, allowEmptyPoolsByViewId);
+      const canViewEdition = getCanViewEditionForView(view.id, canViewEditionByViewId);
       return hasActivePoolStages(view, viewStatus, allowEmptyPools, screenMode)
         || hasActiveBrackets(view, viewStatus, canViewEdition, screenMode);
     });

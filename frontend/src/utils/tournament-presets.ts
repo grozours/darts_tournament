@@ -25,8 +25,8 @@ export type TournamentPresetTemplateConfig = {
     stageNumber: number;
     position: number;
     destinationType: 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED';
-    destinationBracketName?: string | undefined;
-    destinationStageNumber?: number | undefined;
+    destinationBracketName?: string;
+    destinationStageNumber?: number;
   }>;
 };
 

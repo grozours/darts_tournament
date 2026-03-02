@@ -4,6 +4,8 @@ set -euo pipefail
 SONAR_HOST_URL=${SONAR_HOST_URL:-http://localhost:9000}
 SONAR_TOKEN=${SONAR_TOKEN:-}
 SONAR_DISABLE_SCM=${SONAR_DISABLE_SCM:-0}
+SONAR_PROJECT_KEY=${SONAR_PROJECT_KEY:-darts-tournament}
+SONAR_SUMMARY_FORMAT=${SONAR_SUMMARY_FORMAT:-text}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SONAR_TOKEN_FILE="$ROOT_DIR/.sonar-token"
 BACKEND_LCOV_ORIGINAL="$ROOT_DIR/backend/coverage/lcov.info"
@@ -100,6 +102,7 @@ if [[ ${#LCOV_REPORT_PATHS[@]} -gt 0 ]]; then
   SONAR_EXTRA_ARGS+=("-Dsonar.javascript.lcov.reportPaths=$(IFS=,; echo "${LCOV_REPORT_PATHS[*]}")")
 fi
 
+set +e
 docker run --rm \
   --network host \
   -w /usr/src \
@@ -107,7 +110,129 @@ docker run --rm \
   -v "$ROOT_DIR:/usr/src" \
   sonarsource/sonar-scanner-cli \
   -Dsonar.login="$SONAR_TOKEN" \
-  -Dsonar.projectKey="darts-tournament" \
+  -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
   -Dsonar.qualitygate.wait=true \
   -Dsonar.qualitygate.timeout=300 \
   "${SONAR_EXTRA_ARGS[@]}"
+SCAN_EXIT_CODE=$?
+set -e
+
+set +e
+SONAR_HOST_URL="$SONAR_HOST_URL" SONAR_TOKEN="$SONAR_TOKEN" SONAR_PROJECT_KEY="$SONAR_PROJECT_KEY" SONAR_SUMMARY_FORMAT="$SONAR_SUMMARY_FORMAT" node - <<'NODE'
+const base = process.env.SONAR_HOST_URL || 'http://localhost:9000';
+const token = process.env.SONAR_TOKEN || '';
+const projectKey = process.env.SONAR_PROJECT_KEY || 'darts-tournament';
+const summaryFormat = (process.env.SONAR_SUMMARY_FORMAT || 'text').toLowerCase();
+
+if (!token) {
+  console.log('[sonar] API summary skipped: missing SONAR_TOKEN');
+  process.exit(0);
+}
+
+const auth = `Basic ${Buffer.from(`${token}:`).toString('base64')}`;
+
+async function api(path) {
+  const response = await fetch(`${base}${path}`, {
+    headers: {
+      Authorization: auth,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${path}`);
+  }
+
+  return response.json();
+}
+
+async function fetchIssueCount(extraQuery = '') {
+  const payload = await api(`/api/issues/search?componentKeys=${encodeURIComponent(projectKey)}&resolved=false&ps=1${extraQuery}`);
+  return Number(payload.total ?? 0);
+}
+
+async function fetchHotspotCount(extraQuery = '') {
+  const payload = await api(`/api/hotspots/search?projectKey=${encodeURIComponent(projectKey)}&ps=1${extraQuery}`);
+  return Number(payload.paging?.total ?? 0);
+}
+
+function measureValue(measures, key) {
+  const found = measures.find((measure) => measure.metric === key);
+  return Number(found?.value ?? found?.period?.value ?? 0);
+}
+
+(async () => {
+  const component = await api(`/api/measures/component?component=${encodeURIComponent(projectKey)}&metricKeys=duplicated_lines,duplicated_blocks,duplicated_lines_density,new_duplicated_lines,new_duplicated_blocks,new_duplicated_lines_density`);
+  const measures = component.component?.measures ?? [];
+
+  const duplicatedLines = measureValue(measures, 'duplicated_lines');
+  const duplicatedBlocks = measureValue(measures, 'duplicated_blocks');
+  const duplicatedDensity = measureValue(measures, 'duplicated_lines_density');
+  const newDuplicatedLines = measureValue(measures, 'new_duplicated_lines');
+  const newDuplicatedBlocks = measureValue(measures, 'new_duplicated_blocks');
+  const newDuplicatedDensity = measureValue(measures, 'new_duplicated_lines_density');
+
+  const [
+    hotspotsTotal,
+    hotspotsToReview,
+    hotspotsReviewed,
+    issuesTotal,
+    codeSmellsTotal,
+  ] = await Promise.all([
+    fetchHotspotCount(),
+    fetchHotspotCount('&status=TO_REVIEW'),
+    fetchHotspotCount('&status=REVIEWED'),
+    fetchIssueCount(),
+    fetchIssueCount('&types=CODE_SMELL'),
+  ]);
+
+  if (summaryFormat === 'json') {
+    console.log(JSON.stringify({
+      projectKey,
+      hotspots: {
+        total: hotspotsTotal,
+        toReview: hotspotsToReview,
+        reviewed: hotspotsReviewed,
+      },
+      duplication: {
+        overall: {
+          density: Number(duplicatedDensity.toFixed(2)),
+          lines: duplicatedLines,
+          blocks: duplicatedBlocks,
+        },
+        newCode: {
+          density: Number(newDuplicatedDensity.toFixed(2)),
+          lines: newDuplicatedLines,
+          blocks: newDuplicatedBlocks,
+        },
+      },
+      issues: {
+        total: issuesTotal,
+      },
+      codeSmells: {
+        total: codeSmellsTotal,
+      },
+    }));
+    return;
+  }
+
+  console.log('SONAR_API_SUMMARY');
+  console.log(`HOTSPOTS total=${hotspotsTotal} to_review=${hotspotsToReview} reviewed=${hotspotsReviewed}`);
+  console.log(`DUPLICATION overall=${duplicatedDensity.toFixed(2)}% lines=${duplicatedLines} blocks=${duplicatedBlocks}`);
+  console.log(`DUPLICATION_NEW ${newDuplicatedDensity.toFixed(2)}% lines=${newDuplicatedLines} blocks=${newDuplicatedBlocks}`);
+  console.log(`ISSUES total=${issuesTotal}`);
+  console.log(`CODE_SMELLS total=${codeSmellsTotal}`);
+})().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.log(`[sonar] API summary failed: ${message}`);
+  process.exit(1);
+});
+NODE
+API_EXIT_CODE=$?
+set -e
+
+if [[ $API_EXIT_CODE -ne 0 ]]; then
+  echo "[sonar] API summary unavailable; scan result preserved." >&2
+fi
+
+exit $SCAN_EXIT_CODE

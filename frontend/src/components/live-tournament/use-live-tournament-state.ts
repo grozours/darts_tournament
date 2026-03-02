@@ -71,7 +71,7 @@ type LiveTournamentState = {
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
-  editingMatchId?: string | undefined;
+  editingMatchId: string | undefined;
   handleMatchStatusUpdate: (
     matchTournamentId: string,
     matchId: string,
@@ -85,11 +85,11 @@ type LiveTournamentState = {
   handleEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   cancelMatchEdit: () => void;
   handleSaveMatchScores: (matchTournamentId: string, match: LiveViewMatch) => Promise<void>;
-  editingStageId?: string | undefined;
+  editingStageId: string | undefined;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
-  updatingStageId?: string | undefined;
+  updatingStageId: string | undefined;
   handleLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleEditStage: (stage: LiveViewPoolStage) => void;
@@ -101,9 +101,9 @@ type LiveTournamentState = {
   handleCompleteStageWithScores: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleRecomputeDoubleStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   cancelEditStage: () => void;
-  updatingRoundKey?: string | undefined;
-  resettingBracketId?: string | undefined;
-  populatingBracketId?: string | undefined;
+  updatingRoundKey: string | undefined;
+  resettingBracketId: string | undefined;
+  populatingBracketId: string | undefined;
   handleCompleteBracketRound: (tournamentId: string, bracket: LiveViewBracket) => Promise<void>;
   handleResetBracketMatches: (tournamentId: string, bracketId: string) => Promise<void>;
   handlePopulateBracketFromPools: (

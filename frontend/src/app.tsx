@@ -110,6 +110,21 @@ const resolveScreenRotationItems = async (tournamentId?: string): Promise<Screen
   return [...items, { view: 'targets' }];
 };
 
+const resolveSocketAccessToken = async (
+  authEnabled: boolean,
+  isAuthenticated: boolean,
+  getAccessTokenSilently: () => Promise<string>
+): Promise<string | undefined> => {
+  if (!authEnabled || !isAuthenticated) {
+    return undefined;
+  }
+  try {
+    return await getAccessTokenSilently();
+  } catch {
+    return undefined;
+  }
+};
+
 const renderAdminOnly = (isAdmin: boolean, t: (key: string) => string, content: JSX.Element) => (
   isAdmin
     ? content
@@ -323,14 +338,7 @@ function App() {
     let socket: ReturnType<typeof io> | undefined;
 
     const openSocket = async () => {
-      let token: string | undefined;
-      if (authEnabled && isAuthenticated) {
-        try {
-          token = await getAccessTokenSilently();
-        } catch {
-          token = undefined;
-        }
-      }
+      const token = await resolveSocketAccessToken(authEnabled, isAuthenticated, getAccessTokenSilently);
 
       if (isDisposed) {
         return;

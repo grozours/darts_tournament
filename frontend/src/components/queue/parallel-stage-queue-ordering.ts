@@ -1,7 +1,7 @@
 import { interleavePools, type PoolQueueBase } from './pool-queue-utilities';
 
 type StageLike = {
-  status?: string | undefined;
+  status?: string;
   pools?: Array<{ id: string }>;
 };
 

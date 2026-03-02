@@ -44,6 +44,53 @@ type TransitionConfig = {
   fallbackError: string;
 };
 
+const applyOptionalIsoTime = (
+  payload: Partial<CreateTournamentPayload>,
+  key: 'startTime' | 'endTime',
+  value: string
+) => {
+  const isoValue = localInputToIso(value);
+  if (isoValue) {
+    payload[key] = isoValue;
+  }
+};
+
+const buildTournamentEditPayload = (editForm: EditFormState): Partial<CreateTournamentPayload> => {
+  const payload: Partial<CreateTournamentPayload> = {
+    name: editForm.name.trim(),
+    ...(editForm.location.trim()
+      ? { location: editForm.location.trim() }
+      : {}),
+    format: editForm.format,
+    durationType: editForm.durationType,
+    totalParticipants: Number(editForm.totalParticipants || 0),
+    targetCount: Number(editForm.targetCount || 0),
+    targetStartNumber: Number(editForm.targetStartNumber || 1),
+    shareTargets: editForm.shareTargets,
+    doubleStageEnabled: editForm.doubleStageEnabled,
+  };
+
+  if (editForm.startTime) {
+    applyOptionalIsoTime(payload, 'startTime', editForm.startTime);
+  }
+  if (editForm.endTime) {
+    applyOptionalIsoTime(payload, 'endTime', editForm.endTime);
+  }
+
+  return payload;
+};
+
+const finalizeEditSave = (
+  isEditPage: boolean,
+  closeEdit: () => void,
+  fetchTournaments: () => void
+) => {
+  if (!isEditPage) {
+    closeEdit();
+  }
+  fetchTournaments();
+};
+
 const useSaveEditAction = ({
   t,
   isEditPage,
@@ -67,37 +114,10 @@ const useSaveEditAction = ({
   setEditError(undefined);
   try {
     const token = await getSafeAccessToken();
-    const payload: Partial<CreateTournamentPayload> = {
-      name: editForm.name.trim(),
-      ...(editForm.location.trim()
-        ? { location: editForm.location.trim() }
-        : {}),
-      format: editForm.format,
-      durationType: editForm.durationType,
-      totalParticipants: Number(editForm.totalParticipants || 0),
-      targetCount: Number(editForm.targetCount || 0),
-      targetStartNumber: Number(editForm.targetStartNumber || 1),
-      shareTargets: editForm.shareTargets,
-      doubleStageEnabled: editForm.doubleStageEnabled,
-    };
-    if (editForm.startTime) {
-      const startTimeIso = localInputToIso(editForm.startTime);
-      if (startTimeIso) {
-        payload.startTime = startTimeIso;
-      }
-    }
-    if (editForm.endTime) {
-      const endTimeIso = localInputToIso(editForm.endTime);
-      if (endTimeIso) {
-        payload.endTime = endTimeIso;
-      }
-    }
+    const payload = buildTournamentEditPayload(editForm);
 
     await updateTournament(editingTournament.id, payload, token);
-    if (!isEditPage) {
-      closeEdit();
-    }
-    fetchTournaments();
+    finalizeEditSave(isEditPage, closeEdit, fetchTournaments);
   } catch (error_) {
     setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedUpdateTournament'));
   } finally {

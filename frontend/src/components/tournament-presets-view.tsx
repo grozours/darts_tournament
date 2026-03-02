@@ -128,6 +128,39 @@ const normalizeRankingDestinationsForPlayersPerPool = (
   return normalized;
 };
 
+const toEliminatedDestination = (position: number): PoolStageRankingDestination => ({
+  position,
+  destinationType: 'ELIMINATED',
+});
+
+const resolveRankingDestinationFromRule = (
+  rule: TournamentPresetTemplateConfig['routingRules'][number],
+  bracketIdByName: Map<string, string>,
+  stageIdByNumber: Map<number, string>
+): PoolStageRankingDestination => {
+  if (rule.destinationType === 'BRACKET') {
+    const bracketId = rule.destinationBracketName
+      ? bracketIdByName.get(rule.destinationBracketName)
+      : undefined;
+    if (!bracketId) {
+      return toEliminatedDestination(rule.position);
+    }
+    return { position: rule.position, destinationType: 'BRACKET', bracketId };
+  }
+
+  if (rule.destinationType === 'POOL_STAGE') {
+    const poolStageId = rule.destinationStageNumber
+      ? stageIdByNumber.get(rule.destinationStageNumber)
+      : undefined;
+    if (!poolStageId) {
+      return toEliminatedDestination(rule.position);
+    }
+    return { position: rule.position, destinationType: 'POOL_STAGE', poolStageId };
+  }
+
+  return toEliminatedDestination(rule.position);
+};
+
 const buildEditorStateFromTemplate = (config: TournamentPresetTemplateConfig): {
   poolStages: PoolStageConfig[];
   brackets: BracketConfig[];
@@ -167,27 +200,7 @@ const buildEditorStateFromTemplate = (config: TournamentPresetTemplateConfig): {
     const routingRules = config.routingRules.filter((rule) => rule.stageNumber === stage.stageNumber);
     const rankingDestinations: PoolStageRankingDestination[] = routingRules
       .toSorted((first, second) => first.position - second.position)
-      .map((rule) => {
-        if (rule.destinationType === 'BRACKET') {
-          const bracketId = rule.destinationBracketName
-            ? bracketIdByName.get(rule.destinationBracketName)
-            : undefined;
-          if (!bracketId) {
-            return { position: rule.position, destinationType: 'ELIMINATED' as const };
-          }
-          return { position: rule.position, destinationType: 'BRACKET' as const, bracketId };
-        }
-        if (rule.destinationType === 'POOL_STAGE') {
-          const poolStageId = rule.destinationStageNumber
-            ? stageIdByNumber.get(rule.destinationStageNumber)
-            : undefined;
-          if (!poolStageId) {
-            return { position: rule.position, destinationType: 'ELIMINATED' as const };
-          }
-          return { position: rule.position, destinationType: 'POOL_STAGE' as const, poolStageId };
-        }
-        return { position: rule.position, destinationType: 'ELIMINATED' as const };
-      });
+      .map((rule) => resolveRankingDestinationFromRule(rule, bracketIdByName, stageIdByNumber));
 
     return {
       ...stage,
