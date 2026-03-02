@@ -2,7 +2,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "backend:check",
+			"label": "backend-local:check",
 			"type": "shell",
 			"command": "npm run typecheck && npm run lint",
 			"isBackground": false,

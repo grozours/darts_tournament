@@ -108,7 +108,7 @@ const MatchFormatsView = () => {
     let current = '';
 
     for (const character of value) {
-      const code = character.charCodeAt(0);
+      const code = character.codePointAt(0) ?? -1;
       if (code >= 48 && code <= 57) {
         current += character;
         continue;
@@ -139,7 +139,7 @@ const MatchFormatsView = () => {
     if (markerIndex > 0) {
       let digitStart = markerIndex - 1;
       while (digitStart >= 0) {
-        const code = normalized.charCodeAt(digitStart);
+        const code = normalized.codePointAt(digitStart) ?? -1;
         if (code >= 48 && code <= 57) {
           digitStart -= 1;
           continue;

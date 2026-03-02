@@ -64,20 +64,18 @@ const isValidEmailFormat = (value: string): boolean => {
     return false;
   }
 
-  const atIndex = value.indexOf('@');
-  if (atIndex <= 0 || value.indexOf('@', atIndex + 1) !== -1) {
+  const [localPart, ...domainParts] = value.split('@');
+  if (!localPart || domainParts.length !== 1) {
     return false;
   }
 
-  const localPart = value.slice(0, atIndex);
-  const domainPart = value.slice(atIndex + 1);
+  const domainPart = domainParts[0] ?? '';
   if (localPart.length === 0 || domainPart.length < 3) {
     return false;
   }
 
-  const firstDotIndex = domainPart.indexOf('.');
-  const lastDotIndex = domainPart.lastIndexOf('.');
-  if (firstDotIndex <= 0 || lastDotIndex >= domainPart.length - 1) {
+  const domainSegments = domainPart.split('.');
+  if (domainSegments.length < 2 || domainSegments.some((segment) => segment.length === 0)) {
     return false;
   }
 

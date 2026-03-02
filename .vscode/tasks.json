@@ -10,44 +10,18 @@
 			"group": "test"
 		},
 		{
-			"label": "backend:check",
+			"label": "sonar:scan",
 			"type": "shell",
-			"command": "npm --prefix backend run typecheck && npm --prefix backend run lint",
+			"command": "./scripts/sonar_scan.sh",
 			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
+			"problemMatcher": []
 		},
 		{
-			"label": "backend:check",
+			"label": "sonar:scan:json",
 			"type": "shell",
-			"command": "npm --prefix backend run typecheck && npm --prefix backend run lint",
+			"command": "SONAR_SUMMARY_FORMAT=json ./scripts/sonar_scan.sh",
 			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "backend:check",
-			"type": "shell",
-			"command": "npm --prefix backend run typecheck && npm --prefix backend run lint",
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "backend:check",
-			"type": "shell",
-			"command": "npm --prefix backend run typecheck && npm --prefix backend run lint",
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "backend:check",
-			"type": "shell",
-			"command": "npm --prefix backend run typecheck && npm --prefix backend run lint",
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
+			"problemMatcher": []
 		},
 		{
 			"label": "post-rebuild:health-check",

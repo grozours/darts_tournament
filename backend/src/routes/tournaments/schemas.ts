@@ -283,7 +283,7 @@ const parseParallelReference = (value: string):
 
     let stageNumber = 0;
     for (const character of referenceValue) {
-      const code = character.charCodeAt(0);
+      const code = character.codePointAt(0) ?? -1;
       if (code < 48 || code > 57) {
         return undefined;
       }
