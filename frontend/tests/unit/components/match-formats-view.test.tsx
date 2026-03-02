@@ -129,7 +129,7 @@ describe('MatchFormatsView', () => {
     expect(await screen.findByText(/Segment 1: format invalide/i)).toBeInTheDocument();
   });
 
-  it('creates with auth fallback token and parses cricket/tableaux segments', async () => {
+  it('creates with auth fallback token and parses tableaux segments', async () => {
     adminState.isAdmin = true;
     authState.enabled = true;
     authState.isAuthenticated = true;
@@ -140,7 +140,7 @@ describe('MatchFormatsView', () => {
 
     await screen.findByText('Create new format');
     fireEvent.change(screen.getByLabelText('Key'), { target: { value: 'CRICKET_BO' } });
-    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: 'Cricket - 3 tableaux' } });
+    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: '501 DO - 3 tableaux' } });
     fireEvent.click(screen.getByText('Create format'));
 
     await waitFor(() => {
@@ -148,7 +148,7 @@ describe('MatchFormatsView', () => {
         {
           key: 'CRICKET_BO',
           durationMinutes: 30,
-          segments: [{ game: 'CRICKET', targetCount: 3 }],
+          segments: [{ game: '501_DO', targetCount: 501 }],
         },
         undefined
       );
@@ -237,7 +237,7 @@ describe('MatchFormatsView', () => {
         {
           key: 'MIX',
           durationMinutes: 30,
-          segments: [{ game: '701_DO', targetCount: 2 }],
+          segments: [{ game: '701_DO', targetCount: 701 }],
         },
         undefined
       );
