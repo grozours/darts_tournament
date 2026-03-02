@@ -550,6 +550,14 @@ VITE_AUTH0_CACHE_LOCATION=memory
 VITE_AUTH0_CONNECTION_GOOGLE=google-oauth2
 VITE_AUTH0_CONNECTION_FACEBOOK=facebook
 VITE_AUTH0_CONNECTION_INSTAGRAM=instagram
+
+# Optional: live/targets refresh polling (milliseconds)
+# Defaults in app: admin=10000, viewer=60000
+# Minimum accepted value is 5000 (invalid values fallback to defaults)
+VITE_LIVE_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_LIVE_REFRESH_INTERVAL_VIEWER_MS=60000
+VITE_TARGETS_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_TARGETS_REFRESH_INTERVAL_VIEWER_MS=60000
 ```
 
 `VITE_AUTH0_CACHE_LOCATION` supports `memory` (recommended) or `localstorage`.
