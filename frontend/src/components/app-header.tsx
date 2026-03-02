@@ -13,7 +13,8 @@ type DevAutologinMode = 'anonymous' | 'player' | 'admin';
 type HeaderTournamentSummary = { format?: string; status?: string };
 
 const NOTIFICATIONS_STORAGE_KEY = 'notifications:match-started';
-const REGISTRATION_MENU_ALLOWED_STATUSES = new Set(['OPEN', 'SIGNATURE', 'LIVE', 'FINISHED']);
+const ADMIN_REGISTRATION_MENU_ALLOWED_STATUSES = new Set(['OPEN', 'SIGNATURE', 'LIVE', 'FINISHED']);
+const VIEWER_REGISTRATION_MENU_ALLOWED_STATUSES = new Set(['OPEN', 'SIGNATURE', 'LIVE']);
 
 const isDoubleTournamentFormat = (format?: string) => (format ?? '').toUpperCase() === 'DOUBLE';
 const isTeamTournamentFormat = (format?: string) => {
@@ -149,8 +150,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
 
         const payload = await response.json() as { tournaments?: HeaderTournamentSummary[] };
         const tournaments = Array.isArray(payload.tournaments) ? payload.tournaments : [];
+        const allowedStatuses = isAdmin
+          ? ADMIN_REGISTRATION_MENU_ALLOWED_STATUSES
+          : VIEWER_REGISTRATION_MENU_ALLOWED_STATUSES;
         const tournamentsInAllowedStatuses = tournaments.filter((tournament) =>
-          REGISTRATION_MENU_ALLOWED_STATUSES.has((tournament.status ?? '').toUpperCase())
+          allowedStatuses.has((tournament.status ?? '').toUpperCase())
         );
 
         if (!isMounted) {
@@ -173,7 +177,7 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isLocalhost) {

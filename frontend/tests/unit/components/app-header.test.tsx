@@ -166,7 +166,7 @@ describe('AppHeader', () => {
     fetchMock.mockRestore();
   });
 
-  it('shows doublettes/equipes links only when matching formats exist in OPEN,SIGNATURE,LIVE,FINISHED', async () => {
+  it('shows doublettes/equipes links for non-admin only when matching formats exist in OPEN,SIGNATURE,LIVE', async () => {
     fetchMock.mockRestore();
     mockHeaderFetch([
       { format: 'DOUBLE', status: 'FINISHED' },
@@ -185,8 +185,27 @@ describe('AppHeader', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'groups.doublettes' })).not.toBeInTheDocument();
     });
     expect(screen.queryByRole('link', { name: 'groups.equipes' })).not.toBeInTheDocument();
+  });
+
+  it('keeps finished tournaments eligible for admin registration format links', async () => {
+    fetchMock.mockRestore();
+    mockHeaderFetch([{ format: 'DOUBLE', status: 'FINISHED' }]);
+
+    render(
+      <AppHeader
+        t={t}
+        isAdmin
+        isAuthenticated={false}
+        lang="fr"
+        setLanguage={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();
+    });
   });
 });
