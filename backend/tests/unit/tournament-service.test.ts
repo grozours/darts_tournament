@@ -497,7 +497,9 @@ describe('TournamentService core logic', () => {
     const originalEnv = config.env;
     const keys = jest.fn()
       .mockResolvedValueOnce(['tournaments:live-summary:one'])
-      .mockResolvedValueOnce(['tournaments:list:one']);
+      .mockResolvedValueOnce(['tournaments:list:one'])
+      .mockResolvedValueOnce(['tournaments:pool-stages:one'])
+      .mockResolvedValueOnce(['tournaments:pool-stage-pools:one']);
     const del = jest.fn().mockResolvedValue(4);
     const getClientSpy = jest.spyOn(redis, 'getClient').mockReturnValue({ keys, del } as never);
 
@@ -512,6 +514,8 @@ describe('TournamentService core logic', () => {
       'tournaments:live:tour-1:public',
       'tournaments:live-summary:one',
       'tournaments:list:one',
+      'tournaments:pool-stages:one',
+      'tournaments:pool-stage-pools:one',
     ]));
 
     keys.mockRejectedValueOnce(new Error('redis down'));

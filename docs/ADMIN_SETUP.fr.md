@@ -273,6 +273,21 @@ AUTH_ADMIN_EMAILS=your-email@gmail.com,another-admin@gmail.com
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:3000/api/auth/me
 ```
 
+### Ajuster le refresh des vues live (optionnel)
+
+Pour réduire la charge de lecture côté comptes anonymes/joueurs tout en gardant un rafraîchissement rapide pour les admins, configure les intervalles de polling dans `frontend/.env` :
+
+```env
+VITE_LIVE_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_LIVE_REFRESH_INTERVAL_VIEWER_MS=60000
+VITE_TARGETS_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_TARGETS_REFRESH_INTERVAL_VIEWER_MS=60000
+```
+
+Notes :
+- `VIEWER` s’applique aux comptes anonymes et joueurs.
+- Valeur minimale acceptée : `5000` ; une valeur invalide revient automatiquement aux défauts.
+
 ## Prochaines étapes
 
 1. Ajouter des composants UI admin-only

@@ -186,7 +186,7 @@ const autoFillGroupTournament = async (parameters: {
   players: TournamentPlayer[];
   token: string | undefined;
   groupConfig: NonNullable<ReturnType<typeof getGroupFormatConfig>>;
-  onProgress?: ProgressCallback | undefined;
+  onProgress?: ProgressCallback;
 }) => {
   const { tournament, players, token, groupConfig, onProgress } = parameters;
 
@@ -277,7 +277,7 @@ const autoFillSingleTournament = async (parameters: {
   tournament: Tournament;
   players: TournamentPlayer[];
   token: string | undefined;
-  onProgress?: ProgressCallback | undefined;
+  onProgress?: ProgressCallback;
 }) => {
   const { tournament, players, token, onProgress } = parameters;
   const totalSlots = tournament.totalParticipants || 0;
@@ -328,7 +328,7 @@ const autoFillTournamentPlayers = async ({
   tournament: Tournament;
   players: TournamentPlayer[];
   token: string | undefined;
-  onProgress?: ProgressCallback | undefined;
+  onProgress?: ProgressCallback;
 }): Promise<void> => {
   const groupConfig = getGroupFormatConfig(tournament.format);
   if (groupConfig) {
@@ -349,7 +349,7 @@ const confirmAllTournamentPlayers = async ({
   tournament: Tournament;
   players: TournamentPlayer[];
   token: string | undefined;
-  onProgress?: ProgressCallback | undefined;
+  onProgress?: ProgressCallback;
 }): Promise<void> => {
   const pendingPlayers = players.filter((player) => !player.checkedIn);
 

@@ -9,6 +9,10 @@ interface ImportMetaEnv {
   readonly VITE_AUTH0_CONNECTION_FACEBOOK?: string;
   readonly VITE_AUTH0_CONNECTION_DISCORD?: string;
   readonly VITE_AUTH0_CONNECTION_INSTAGRAM?: string;
+  readonly VITE_LIVE_REFRESH_INTERVAL_ADMIN_MS?: string;
+  readonly VITE_LIVE_REFRESH_INTERVAL_VIEWER_MS?: string;
+  readonly VITE_TARGETS_REFRESH_INTERVAL_ADMIN_MS?: string;
+  readonly VITE_TARGETS_REFRESH_INTERVAL_VIEWER_MS?: string;
 }
 
 interface ImportMeta {

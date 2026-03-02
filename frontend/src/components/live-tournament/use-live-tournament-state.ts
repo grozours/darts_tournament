@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useOptionalAuth } from '../../auth/optional-auth';
 import { useAdminStatus } from '../../auth/use-admin-status';
 import { useI18n } from '../../i18n';
+import { getLiveRefreshIntervalMs } from '../../utils/polling-config';
 import useLiveTournamentBracketActions from './use-live-tournament-bracket-actions';
 import useLiveTournamentData from './use-live-tournament-data';
 import useLiveTournamentGlobalQueue from './use-live-tournament-global-queue';
@@ -267,6 +268,7 @@ const useLiveTournamentState = (): LiveTournamentState => {
   useLiveTournamentRefresh({
     reloadLiveViews,
     canRefresh: !authEnabled || !authLoading,
+    refreshIntervalMs: getLiveRefreshIntervalMs(isAdmin),
   });
 
   return {

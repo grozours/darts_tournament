@@ -665,6 +665,7 @@ describe('tournament-controller extended handlers', () => {
   });
 
   it('covers remaining extended handlers with success flows', async () => {
+    const transientCredential = `test-${Date.now().toString(36)}`;
     const request = buildRequest({
       params: {
         id: TOURNAMENT_ID,
@@ -680,7 +681,7 @@ describe('tournament-controller extended handlers', () => {
       body: {
         playerId: 'player-1',
         name: 'Name',
-        password: 'secret',
+        password: transientCredential,
         checkedIn: true,
         stageId: STAGE_ID,
         role: 'WINNER',

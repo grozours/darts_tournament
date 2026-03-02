@@ -269,8 +269,10 @@ export class TournamentService {
 
       const summaryKeys = await client.keys('tournaments:live-summary:*');
       const listKeys = await client.keys('tournaments:list:*');
+      const poolStageKeys = await client.keys('tournaments:pool-stages:*');
+      const poolStagePoolsKeys = await client.keys('tournaments:pool-stage-pools:*');
 
-      for (const key of [...summaryKeys, ...listKeys]) {
+      for (const key of [...summaryKeys, ...listKeys, ...poolStageKeys, ...poolStagePoolsKeys]) {
         cacheKeys.add(key);
       }
 

@@ -4,6 +4,7 @@ import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
 import { fetchDoublettes, fetchEquipes } from '../services/tournament-service';
+import { getTargetsRefreshIntervalMs } from '../utils/polling-config';
 import TargetsViewContent from './targets-view/targets-view-content';
 import TargetsViewState from './targets-view/targets-view-state';
 import useTargetsViewActions from './targets-view/use-targets-view-actions';
@@ -35,6 +36,7 @@ function TargetsView() {
     authEnabled,
     getAccessTokenSilently,
     tournamentId,
+    refreshIntervalMs: getTargetsRefreshIntervalMs(isAdmin),
   });
 
   const scopedViews = useMemo(() => {

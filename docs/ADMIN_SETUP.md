@@ -275,6 +275,21 @@ AUTH_ADMIN_EMAILS=your-email@gmail.com,another-admin@gmail.com
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:3000/api/auth/me
 ```
 
+### Live views refresh tuning (optional)
+
+To reduce read load for anonymous/player users while keeping admin updates more reactive, configure frontend polling intervals in `frontend/.env`:
+
+```env
+VITE_LIVE_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_LIVE_REFRESH_INTERVAL_VIEWER_MS=60000
+VITE_TARGETS_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_TARGETS_REFRESH_INTERVAL_VIEWER_MS=60000
+```
+
+Notes:
+- `VIEWER` applies to anonymous and player accounts.
+- Minimum accepted value is `5000`; invalid values automatically fall back to defaults.
+
 ## Next Steps
 
 1. Add admin-only UI components (e.g., admin panel, advanced settings)

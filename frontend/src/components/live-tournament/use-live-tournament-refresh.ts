@@ -3,9 +3,14 @@ import { useEffect } from 'react';
 type UseLiveTournamentRefreshProperties = {
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
   canRefresh: boolean;
+  refreshIntervalMs?: number;
 };
 
-const useLiveTournamentRefresh = ({ reloadLiveViews, canRefresh }: UseLiveTournamentRefreshProperties) => {
+const useLiveTournamentRefresh = ({
+  reloadLiveViews,
+  canRefresh,
+  refreshIntervalMs = 10_000,
+}: UseLiveTournamentRefreshProperties) => {
   useEffect(() => {
     if (!canRefresh) {
       return;
@@ -19,9 +24,9 @@ const useLiveTournamentRefresh = ({ reloadLiveViews, canRefresh }: UseLiveTourna
     }
     const intervalId = globalThis.setInterval(() => {
       void reloadLiveViews({ showLoader: false });
-    }, 10_000);
+    }, refreshIntervalMs);
     return () => globalThis.clearInterval(intervalId);
-  }, [canRefresh, reloadLiveViews]);
+  }, [canRefresh, refreshIntervalMs, reloadLiveViews]);
 
   useEffect(() => {
     if (!canRefresh) {

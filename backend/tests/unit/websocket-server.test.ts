@@ -75,8 +75,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -124,8 +125,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -165,8 +167,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -206,8 +209,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -244,8 +248,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -286,8 +291,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -325,8 +331,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -364,8 +371,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -529,8 +537,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -655,8 +664,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -727,8 +737,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {
@@ -860,8 +871,9 @@ describe('websocket server', () => {
     };
 
     socketOn.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers ??= {};
-      (socket as unknown as { handlers?: Record<string, (...args: unknown[]) => void> }).handlers![event] = handler;
+      const socketHandlers = (Reflect.get(socket, 'handlers') as Record<string, (...args: unknown[]) => void> | undefined) ?? {};
+      socketHandlers[event] = handler;
+      Reflect.set(socket, 'handlers', socketHandlers);
     });
 
     const io = {

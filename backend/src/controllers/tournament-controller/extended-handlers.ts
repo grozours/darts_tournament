@@ -10,6 +10,8 @@ import {
 } from '../../../../shared/src/types';
 import logger from '../../utils/logger';
 import { isAdmin } from '../../middleware/auth';
+import { redis } from '../../config/redis';
+import { config } from '../../config/environment';
 
 type TournamentServiceLike = {
   registerPlayer: (tournamentId: string, playerId: string) => Promise<void>;
@@ -183,6 +185,43 @@ const getSingleQueryParam = (value: unknown): string => {
     return typeof firstValue === 'string' ? firstValue : '';
   }
   return '';
+};
+
+const isLiveEndpointCacheEnabled = (): boolean => config.env !== 'test';
+
+const getCacheScope = (request: Request): 'admin' | 'public' => (isAdmin(request) ? 'admin' : 'public');
+
+const readJsonCache = async <T>(key: string): Promise<T | undefined> => {
+  if (!isLiveEndpointCacheEnabled()) {
+    return undefined;
+  }
+
+  try {
+    const value = await redis.getClient().get(key);
+    if (!value) {
+      return undefined;
+    }
+
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+};
+
+const writeJsonCache = async (key: string, value: unknown): Promise<void> => {
+  if (!isLiveEndpointCacheEnabled()) {
+    return;
+  }
+
+  try {
+    await redis.getClient().setex(
+      key,
+      config.performance.liveEndpointCacheTtlSeconds,
+      JSON.stringify(value)
+    );
+  } catch {
+    return;
+  }
 };
 
 const canUnregisterPlayer = async (
@@ -595,8 +634,29 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
   getPoolStages: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id } = request.params as { id: string };
+      const scope = getCacheScope(request);
+
+      const cacheKey = `tournaments:pool-stages:${id}:${scope}`;
+      const cachedPoolStages = await readJsonCache<{ poolStages: unknown[] }>(cacheKey);
+      if (cachedPoolStages !== undefined) {
+        logger.debug('Pool stages cache hit', {
+          metadata: { tournamentId: id, scope, cacheKey },
+        });
+        response.json(cachedPoolStages);
+        return;
+      }
+
+      logger.debug('Pool stages cache miss', {
+        metadata: { tournamentId: id, scope, cacheKey },
+      });
+
       const poolStages = await context.getTournamentService(request).getPoolStages(id);
-      response.json({ poolStages });
+      const payload = { poolStages };
+      await writeJsonCache(cacheKey, payload);
+      logger.debug('Pool stages cache fill', {
+        metadata: { tournamentId: id, scope, cacheKey },
+      });
+      response.json(payload);
     } catch (error) {
       context.handleError(response, error);
     }
@@ -676,8 +736,29 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
   getPoolStagePools: async (request: Request, response: Response): Promise<void> => {
     try {
       const { id, stageId } = request.params as { id: string; stageId: string };
+      const scope = getCacheScope(request);
+
+      const cacheKey = `tournaments:pool-stage-pools:${id}:${stageId}:${scope}`;
+      const cachedPools = await readJsonCache<{ pools: unknown[] }>(cacheKey);
+      if (cachedPools !== undefined) {
+        logger.debug('Pool stage pools cache hit', {
+          metadata: { tournamentId: id, stageId, scope, cacheKey },
+        });
+        response.json(cachedPools);
+        return;
+      }
+
+      logger.debug('Pool stage pools cache miss', {
+        metadata: { tournamentId: id, stageId, scope, cacheKey },
+      });
+
       const pools = await context.getTournamentService(request).getPoolStagePools(id, stageId);
-      response.json({ pools });
+      const payload = { pools };
+      await writeJsonCache(cacheKey, payload);
+      logger.debug('Pool stage pools cache fill', {
+        metadata: { tournamentId: id, stageId, scope, cacheKey },
+      });
+      response.json(payload);
     } catch (error) {
       context.handleError(response, error);
     }

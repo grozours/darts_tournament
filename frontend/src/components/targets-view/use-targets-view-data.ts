@@ -7,6 +7,7 @@ type UseTargetsViewDataProperties = {
   authEnabled: boolean;
   getAccessTokenSilently: () => Promise<string>;
   tournamentId: string | undefined;
+  refreshIntervalMs?: number;
 };
 
 type TargetsViewDataResult = {
@@ -25,6 +26,7 @@ const useTargetsViewData = ({
   authEnabled,
   getAccessTokenSilently,
   tournamentId,
+  refreshIntervalMs = 10_000,
 }: UseTargetsViewDataProperties): TargetsViewDataResult => {
   const [liveViews, setLiveViews] = useState<LiveViewData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,9 +79,9 @@ const useTargetsViewData = ({
   useEffect(() => {
     const intervalId = globalThis.setInterval(() => {
       void loadTargets({ silent: true });
-    }, 10_000);
+    }, refreshIntervalMs);
     return () => globalThis.clearInterval(intervalId);
-  }, [loadTargets]);
+  }, [loadTargets, refreshIntervalMs]);
 
   return {
     liveViews,

@@ -111,6 +111,14 @@ VITE_AUTH0_CONNECTION_INSTAGRAM="instagram"
 
 # ===== API =====
 VITE_API_URL="https://api.yourdomain.com"
+
+# ===== Refresh polling live/cibles (millisecondes) =====
+# Valeurs par défaut dans l'application : admin=10000, viewer=60000
+# Valeur minimale acceptée : 5000 (sinon retour aux valeurs par défaut)
+VITE_LIVE_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_LIVE_REFRESH_INTERVAL_VIEWER_MS=60000
+VITE_TARGETS_REFRESH_INTERVAL_ADMIN_MS=10000
+VITE_TARGETS_REFRESH_INTERVAL_VIEWER_MS=60000
 ```
 
 **⚠️ Alerte sécurité :**
@@ -743,6 +751,40 @@ sudo nano /etc/logrotate.d/darts_tournament
     sharedscripts
 }
 ```
+
+#### Métriques cache Redis (vues tournoi/classements)
+
+Le backend journalise l’activité cache des endpoints de classement au niveau `debug` :
+- `Pool stages cache hit`
+- `Pool stages cache miss`
+- `Pool stages cache fill`
+- `Pool stage pools cache hit`
+- `Pool stage pools cache miss`
+- `Pool stage pools cache fill`
+
+Chaque log inclut des métadonnées :
+- `tournamentId`
+- `stageId` (pour `pool-stage-pools`)
+- `scope` (`admin` ou `public`)
+- `cacheKey`
+
+Vérifications rapides :
+
+```bash
+# Logs cache récents
+grep -E "Pool stages cache|Pool stage pools cache" /var/www/darts_tournament/backend/logs/*.log | tail -n 200
+
+# Ratio approximatif hit/miss (1000 dernières lignes)
+hits=$(grep -E "Pool stages cache hit|Pool stage pools cache hit" /var/www/darts_tournament/backend/logs/*.log | tail -n 1000 | wc -l)
+miss=$(grep -E "Pool stages cache miss|Pool stage pools cache miss" /var/www/darts_tournament/backend/logs/*.log | tail -n 1000 | wc -l)
+echo "hits=$hits miss=$miss"
+```
+
+Repères d’exploitation :
+- Ratio hit visé : `>70%` sur tournois stables avec plusieurs spectateurs.
+- Si les miss restent élevées, augmenter modérément `liveEndpointCacheTtlSeconds`.
+- Si des données trop anciennes sont remontées, réduire d’abord le TTL avant de toucher à l’invalidation.
+- Suivre séparément les valeurs `admin` et `public`.
 
 ### Maintenance base de données
 
