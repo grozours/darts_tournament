@@ -90,8 +90,8 @@ const fetchAuthEmail = async (token: string) => {
   return (meData?.user?.email as string | undefined)?.toLowerCase();
 };
 
-const fetchLiveTournaments = async (token: string) => {
-  const statuses = ['LIVE', 'SIGNATURE'];
+const fetchTrackedTournaments = async (token: string) => {
+  const statuses = ['OPEN', 'SIGNATURE', 'LIVE'];
   const responses = await Promise.all(statuses.map((status) =>
     fetch(`/api/tournaments?status=${encodeURIComponent(status)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -413,6 +413,9 @@ const useMatchStartedNotifications = () => {
   const playerIdsReference = useRef<Set<string>>(new Set());
   const poolKeysReference = useRef<Set<string>>(new Set());
   const joinedTournamentsReference = useRef<Set<string>>(new Set());
+  const refreshInProgressReference = useRef(false);
+  const refreshQueuedReference = useRef(false);
+  const refreshTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>();
 
   const shouldNotifyPlayer = useCallback((payload: MatchNotificationPayload) => {
     const trackedPlayerIds = playerIdsReference.current;
@@ -438,64 +441,96 @@ const useMatchStartedNotifications = () => {
     }
   }, [authEnabled, getAccessTokenSilently]);
 
-  useEffect(() => {
+  const refreshTrackedState = useCallback(async () => {
     if (!authEnabled || !isAuthenticated) {
       return;
     }
 
-    let isMounted = true;
-    const loadPlayerIds = async () => {
-      try {
-        const token = await getSafeAccessToken();
-        if (!token) {
-          return;
-        }
-        const email = await fetchAuthEmail(token);
-        if (!email) {
-          return;
-        }
-        const tournaments = await fetchLiveTournaments(token);
-        const data = await fetchPlayerIdsForEmail(token, tournaments, email);
+    if (refreshInProgressReference.current) {
+      refreshQueuedReference.current = true;
+      return;
+    }
 
-        if (!isMounted) {
-          return;
-        }
-        syncJoinedTournamentState(
-          playerIdsReference,
-          joinedTournamentsReference,
-          setJoinedTournaments,
-          data.playerIds,
-          data.tournamentsToJoin
-        );
+    refreshInProgressReference.current = true;
 
-        const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email);
-        for (const teammatePlayerId of teammatePlayerIds) {
-          data.playerIds.add(teammatePlayerId);
-        }
-        const poolKeys = await buildPlayerPoolKeys(tournaments, token, data.playerIds);
-
-        if (!isMounted) {
-          return;
-        }
-        syncJoinedTournamentState(
-          playerIdsReference,
-          joinedTournamentsReference,
-          setJoinedTournaments,
-          data.playerIds,
-          data.tournamentsToJoin
-        );
-        poolKeysReference.current = poolKeys;
-      } catch {
-        void 0;
+    try {
+      const token = await getSafeAccessToken();
+      if (!token) {
+        return;
       }
-    };
+      const email = await fetchAuthEmail(token);
+      if (!email) {
+        return;
+      }
+      const tournaments = await fetchTrackedTournaments(token);
+      const data = await fetchPlayerIdsForEmail(token, tournaments, email);
 
-    void loadPlayerIds();
+      syncJoinedTournamentState(
+        playerIdsReference,
+        joinedTournamentsReference,
+        setJoinedTournaments,
+        data.playerIds,
+        data.tournamentsToJoin
+      );
 
-    return () => {
-      isMounted = false;
-    };
+      const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email);
+      for (const teammatePlayerId of teammatePlayerIds) {
+        data.playerIds.add(teammatePlayerId);
+      }
+      const poolKeys = await buildPlayerPoolKeys(tournaments, token, data.playerIds);
+
+      syncJoinedTournamentState(
+        playerIdsReference,
+        joinedTournamentsReference,
+        setJoinedTournaments,
+        data.playerIds,
+        data.tournamentsToJoin
+      );
+      poolKeysReference.current = poolKeys;
+    } catch {
+      void 0;
+    } finally {
+      refreshInProgressReference.current = false;
+      if (refreshQueuedReference.current) {
+        refreshQueuedReference.current = false;
+        void refreshTrackedState();
+      }
+    }
   }, [authEnabled, getSafeAccessToken, isAuthenticated]);
+
+  const scheduleRefreshTrackedState = useCallback((immediate = false) => {
+    if (immediate) {
+      if (refreshTimeoutReference.current) {
+        globalThis.window?.clearTimeout(refreshTimeoutReference.current);
+        refreshTimeoutReference.current = undefined;
+      }
+      void refreshTrackedState();
+      return;
+    }
+
+    if (refreshTimeoutReference.current) {
+      globalThis.window?.clearTimeout(refreshTimeoutReference.current);
+    }
+
+    refreshTimeoutReference.current = globalThis.window?.setTimeout(() => {
+      refreshTimeoutReference.current = undefined;
+      void refreshTrackedState();
+    }, 500);
+  }, [refreshTrackedState]);
+
+  useEffect(() => {
+    if (!authEnabled || !isAuthenticated) {
+      return;
+    }
+    scheduleRefreshTrackedState(true);
+  }, [authEnabled, isAuthenticated, scheduleRefreshTrackedState]);
+
+  useEffect(() => () => {
+    if (refreshTimeoutReference.current) {
+      globalThis.window?.clearTimeout(refreshTimeoutReference.current);
+      refreshTimeoutReference.current = undefined;
+    }
+  }, []);
 
   useEffect(() => {
     if (!authEnabled || !isAuthenticated) {
@@ -537,6 +572,13 @@ const useMatchStartedNotifications = () => {
         }
       });
 
+      socket.on('tournament:updated', (payload: { status?: string }) => {
+        const status = (payload.status ?? '').toUpperCase();
+        if (status === 'OPEN' || status === 'SIGNATURE' || status === 'LIVE') {
+          scheduleRefreshTrackedState();
+        }
+      });
+
       socket.on('match:started', (payload: Omit<MatchStartedPayload, 'event'>) => {
         const enriched = { ...payload, event: 'started' as const };
         if (!shouldNotifyPlayer(enriched)) {
@@ -573,7 +615,7 @@ const useMatchStartedNotifications = () => {
       socket?.removeAllListeners();
       socket?.disconnect();
     };
-  }, [authEnabled, getSafeAccessToken, isAuthenticated, joinedTournaments, maybeShowBrowserNotification, shouldNotifyPlayer]);
+  }, [authEnabled, getSafeAccessToken, isAuthenticated, joinedTournaments, maybeShowBrowserNotification, scheduleRefreshTrackedState, shouldNotifyPlayer]);
 };
 
 export default useMatchStartedNotifications;
