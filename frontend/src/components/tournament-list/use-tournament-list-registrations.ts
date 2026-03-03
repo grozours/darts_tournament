@@ -13,6 +13,14 @@ import {
 import { getErrorMessage } from './error-utilities';
 import type { Tournament, Translator, UserTournamentGroupStatus } from './types';
 
+const notifyRegistrationUpdated = () => {
+  try {
+    globalThis.window?.dispatchEvent(new Event('tournaments:registration-updated'));
+  } catch {
+    void 0;
+  }
+};
+
 type UseTournamentListRegistrationsProperties = {
   t: Translator;
   tournaments: Tournament[];
@@ -216,6 +224,7 @@ const useRegisterGroupAction = ({
         isGroupRegistered: true,
       },
     });
+    notifyRegistrationUpdated();
     refreshTournaments();
     alert(t('tournaments.registerSuccess') || 'Successfully registered!');
   } catch (error_) {
@@ -296,6 +305,7 @@ const useRegisterSelfAction = ({
     );
 
     setUserRegistrations((previous) => new Set(previous).add(tournamentId));
+    notifyRegistrationUpdated();
     refreshTournaments();
     alert(t('tournaments.registerSuccess') || 'Successfully registered!');
   } catch (error_) {
@@ -357,6 +367,8 @@ const useUnregisterSelfAction = ({
       next.delete(tournamentId);
       return next;
     });
+
+    notifyRegistrationUpdated();
 
     refreshTournaments();
     alert(t('tournaments.unregisterSuccess') || 'Successfully unregistered!');
@@ -432,6 +444,7 @@ const useUnregisterGroupAction = ({
         isGroupRegistered: false,
       },
     });
+    notifyRegistrationUpdated();
     refreshTournaments();
     alert(t('tournaments.unregisterSuccess') || 'Successfully unregistered!');
   } catch (error_) {

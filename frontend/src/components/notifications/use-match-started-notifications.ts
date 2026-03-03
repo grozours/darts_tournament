@@ -525,6 +525,22 @@ const useMatchStartedNotifications = () => {
     scheduleRefreshTrackedState(true);
   }, [authEnabled, isAuthenticated, scheduleRefreshTrackedState]);
 
+  useEffect(() => {
+    if (!authEnabled || !isAuthenticated) {
+      return;
+    }
+
+    const onRegistrationUpdated = () => {
+      scheduleRefreshTrackedState(true);
+    };
+
+    globalThis.window?.addEventListener('tournaments:registration-updated', onRegistrationUpdated);
+
+    return () => {
+      globalThis.window?.removeEventListener('tournaments:registration-updated', onRegistrationUpdated);
+    };
+  }, [authEnabled, isAuthenticated, scheduleRefreshTrackedState]);
+
   useEffect(() => () => {
     if (refreshTimeoutReference.current) {
       globalThis.window?.clearTimeout(refreshTimeoutReference.current);
