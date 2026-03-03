@@ -149,6 +149,7 @@ export const frMessages: Record<string, string> = {
   'tournaments.edit': 'Modifier',
   'tournaments.delete': 'Supprimer',
   'tournaments.loading': 'Chargement des tournois...',
+  'tournaments.signInRequiredForOpenRegistration': 'Des tournois sont ouverts. Connectez-vous pour pouvoir vous inscrire.',
   'common.status': 'Statut',
   'common.all': 'Tous',
   'common.players': 'Joueurs',

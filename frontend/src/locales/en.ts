@@ -149,6 +149,7 @@ export const enMessages: Record<string, string> = {
   'tournaments.edit': 'Edit',
   'tournaments.delete': 'Delete',
   'tournaments.loading': 'Loading tournaments...',
+  'tournaments.signInRequiredForOpenRegistration': 'Open tournaments are available. Sign in to register.',
   'common.status': 'Status',
   'common.all': 'All',
   'common.players': 'Players',

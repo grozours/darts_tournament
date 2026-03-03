@@ -107,6 +107,16 @@ function TournamentList() { // NOSONAR
       )),
     [tournaments, isAdmin]
   );
+  const hasOpenTournament = useMemo(
+    () => visibleTournaments.some((tournament) => normalizeTournamentStatus(tournament.status) === 'OPEN'),
+    [visibleTournaments]
+  );
+  const showAnonymousOpenRegistrationHint = (
+    !isEditPage
+    && !effectiveIsAuthenticated
+    && hasOpenTournament
+    && (isRootStatusView || normalizedRequestedStatus === 'OPEN')
+  );
   const openRegistrationFromCard = useCallback(async (tournamentId: string) => {
     setOpeningRegistrationId(tournamentId);
     try {
@@ -571,6 +581,11 @@ function TournamentList() { // NOSONAR
         <div className="flex items-center gap-3 text-sm text-slate-300">
           <div className="h-4 w-4 rounded-full border-2 border-slate-700 border-t-cyan-400 animate-spin" />
           {t('tournaments.loading')}
+        </div>
+      )}
+      {showAnonymousOpenRegistrationHint && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+          {t('tournaments.signInRequiredForOpenRegistration')}
         </div>
       )}
 
