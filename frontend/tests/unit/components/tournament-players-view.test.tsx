@@ -14,6 +14,7 @@ vi.mock('../../../src/auth/optional-auth', () => ({
   useOptionalAuth: () => ({
     enabled: authEnabled,
     getAccessTokenSilently: mockGetAccessTokenSilently,
+    user: { email: 'player@example.com' },
   }),
 }));
 

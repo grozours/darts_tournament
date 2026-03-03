@@ -85,7 +85,7 @@ describe('useTournamentListRegistrations', () => {
 
     expect(serviceMocks.registerTournamentPlayer).toHaveBeenCalledWith(
       't1',
-      { firstName: 'Ava', lastName: 'Archer', email: 'player@example.com' },
+      { firstName: 'Ava', lastName: 'Archer', surname: 'Ava A', email: 'player@example.com' },
       'token'
     );
     expect(result.current.userRegistrations.has('t1')).toBe(true);

@@ -14,11 +14,111 @@ import {
   type TournamentPlayer,
 } from '../services/tournament-service';
 
+type TournamentPlayerEditForm = {
+  firstName: string;
+  lastName: string;
+  surname: string;
+  teamName: string;
+  email: string;
+  phone: string;
+};
+
+const resolvePlayerNames = ({
+  isAdmin,
+  editingPlayerForm,
+  player,
+}: {
+  isAdmin: boolean;
+  editingPlayerForm: TournamentPlayerEditForm;
+  player: TournamentPlayer;
+}): { firstName: string; lastName: string } => {
+  if (isAdmin) {
+    return {
+      firstName: editingPlayerForm.firstName.trim(),
+      lastName: editingPlayerForm.lastName.trim(),
+    };
+  }
+
+  return {
+    firstName: (player.firstName ?? '').trim(),
+    lastName: (player.lastName ?? '').trim(),
+  };
+};
+
+const buildPlayerUpdatePayload = ({
+  isAdmin,
+  firstName,
+  lastName,
+  surname,
+  teamName,
+  email,
+  phone,
+}: {
+  isAdmin: boolean;
+  firstName: string;
+  lastName: string;
+  surname: string;
+  teamName: string;
+  email: string;
+  phone: string;
+}) => (
+  isAdmin
+    ? {
+        firstName,
+        lastName,
+        ...(surname ? { surname } : {}),
+        ...(teamName ? { teamName } : {}),
+        ...(email ? { email } : {}),
+        ...(phone ? { phone } : {}),
+      }
+    : {
+        firstName,
+        lastName,
+        ...(surname ? { surname } : {}),
+      }
+);
+
+const mergeUpdatedPlayerEntry = ({
+  entry,
+  isAdmin,
+  targetPlayerId,
+  firstName,
+  lastName,
+  surname,
+  teamName,
+  email,
+  phone,
+}: {
+  entry: TournamentPlayer;
+  isAdmin: boolean;
+  targetPlayerId: string;
+  firstName: string;
+  lastName: string;
+  surname: string;
+  teamName: string;
+  email: string;
+  phone: string;
+}): TournamentPlayer => {
+  if (entry.playerId !== targetPlayerId) {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    ...(isAdmin ? { firstName, lastName } : {}),
+    ...(surname ? { surname } : {}),
+    ...(isAdmin && teamName ? { teamName } : {}),
+    ...(isAdmin && email ? { email } : {}),
+    ...(isAdmin && phone ? { phone } : {}),
+  };
+};
+
 function TournamentPlayersView() {
   const { t } = useI18n();
   const {
     enabled: authEnabled,
     getAccessTokenSilently,
+    user,
   } = useOptionalAuth();
 
   const { isAdmin } = useAdminStatus();
@@ -57,6 +157,9 @@ function TournamentPlayersView() {
   const canDeletePlayers = isAdmin
     && normalizedTournamentStatus !== 'LIVE'
     && normalizedTournamentStatus !== 'FINISHED';
+  const canSelfEditPlayers = normalizedTournamentStatus !== 'LIVE'
+    && normalizedTournamentStatus !== 'FINISHED';
+  const normalizedUserEmail = user?.email?.trim().toLowerCase() ?? '';
 
   // Helper to safely get access token
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
@@ -185,8 +288,22 @@ function TournamentPlayersView() {
     }
   }, [getSafeAccessToken, isAdmin, normalizedTournamentStatus, t, tournamentId]);
 
+  const canEditOwnPlayer = useCallback((player: TournamentPlayer): boolean => {
+    if (!canSelfEditPlayers || !normalizedUserEmail) {
+      return false;
+    }
+
+    const playerEmail = player.email?.trim().toLowerCase();
+    if (!playerEmail) {
+      return false;
+    }
+
+    return playerEmail === normalizedUserEmail;
+  }, [canSelfEditPlayers, normalizedUserEmail]);
+
   const startEditPlayer = useCallback((player: TournamentPlayer) => {
-    if (!isAdmin) {
+    const canEditPlayer = isAdmin || canEditOwnPlayer(player);
+    if (!canEditPlayer) {
       return;
     }
 
@@ -199,7 +316,7 @@ function TournamentPlayersView() {
       email: player.email ?? '',
       phone: player.phone ?? '',
     });
-  }, [isAdmin]);
+  }, [canEditOwnPlayer, isAdmin]);
 
   const cancelEditPlayer = useCallback(() => {
     setEditingPlayerId(undefined);
@@ -214,12 +331,16 @@ function TournamentPlayersView() {
   }, []);
 
   const savePlayerEdit = useCallback(async (player: TournamentPlayer) => {
-    if (!isAdmin || !tournamentId || !player.playerId) {
+    const canEditPlayer = isAdmin || canEditOwnPlayer(player);
+    if (!canEditPlayer || !tournamentId || !player.playerId) {
       return;
     }
 
-    const firstName = editingPlayerForm.firstName.trim();
-    const lastName = editingPlayerForm.lastName.trim();
+    const { firstName, lastName } = resolvePlayerNames({
+      isAdmin,
+      editingPlayerForm,
+      player,
+    });
     if (!firstName || !lastName) {
       alert('First and last name are required');
       return;
@@ -237,40 +358,42 @@ function TournamentPlayersView() {
       const email = editingPlayerForm.email.trim();
       const phone = editingPlayerForm.phone.trim();
 
+      const payload = buildPlayerUpdatePayload({
+        isAdmin,
+        firstName,
+        lastName,
+        surname,
+        teamName,
+        email,
+        phone,
+      });
+
       await updateTournamentPlayer(
         tournamentId,
         player.playerId,
-        {
-          firstName,
-          lastName,
-          ...(surname ? { surname } : {}),
-          ...(teamName ? { teamName } : {}),
-          ...(email ? { email } : {}),
-          ...(phone ? { phone } : {}),
-        },
+        payload,
         token
       );
 
-      setPlayers((current) => current.map((entry) => (
-        entry.playerId === player.playerId
-          ? {
-              ...entry,
-              firstName,
-              lastName,
-              ...(surname ? { surname } : {}),
-              ...(teamName ? { teamName } : {}),
-              ...(email ? { email } : {}),
-              ...(phone ? { phone } : {}),
-            }
-          : entry
-      )));
+      const targetPlayerId = player.playerId;
+      setPlayers((current) => current.map((entry) => mergeUpdatedPlayerEntry({
+        entry,
+        isAdmin,
+        targetPlayerId,
+        firstName,
+        lastName,
+        surname,
+        teamName,
+        email,
+        phone,
+      })));
       cancelEditPlayer();
     } catch (error_) {
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedUpdatePlayer'));
     } finally {
       setSavingPlayerId(undefined);
     }
-  }, [cancelEditPlayer, editingPlayerForm, getSafeAccessToken, isAdmin, t, tournamentId]);
+  }, [canEditOwnPlayer, cancelEditPlayer, editingPlayerForm, getSafeAccessToken, isAdmin, t, tournamentId]);
 
   const toggleContactDetails = useCallback((playerId?: string) => {
     if (!playerId) {
@@ -476,6 +599,7 @@ function TournamentPlayersView() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredPlayers.map((player) => {
                 const isEditing = editingPlayerId === player.playerId;
+                const canEditThisPlayer = isAdmin || canEditOwnPlayer(player);
                 let presenceLabel = t('players.confirmPresence');
                 if (player.checkedIn) {
                   presenceLabel = t('players.confirmed');
@@ -493,24 +617,28 @@ function TournamentPlayersView() {
                     <div className="flex-1">
                       {isEditing ? (
                         <div className="space-y-2">
-                          <input
-                            value={editingPlayerForm.firstName}
-                            onChange={(event) => setEditingPlayerForm((current) => ({
-                              ...current,
-                              firstName: event.target.value,
-                            }))}
-                            placeholder={t('edit.firstName')}
-                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          />
-                          <input
-                            value={editingPlayerForm.lastName}
-                            onChange={(event) => setEditingPlayerForm((current) => ({
-                              ...current,
-                              lastName: event.target.value,
-                            }))}
-                            placeholder={t('edit.lastName')}
-                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          />
+                          {isAdmin && (
+                            <>
+                              <input
+                                value={editingPlayerForm.firstName}
+                                onChange={(event) => setEditingPlayerForm((current) => ({
+                                  ...current,
+                                  firstName: event.target.value,
+                                }))}
+                                placeholder={t('edit.firstName')}
+                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                              />
+                              <input
+                                value={editingPlayerForm.lastName}
+                                onChange={(event) => setEditingPlayerForm((current) => ({
+                                  ...current,
+                                  lastName: event.target.value,
+                                }))}
+                                placeholder={t('edit.lastName')}
+                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                              />
+                            </>
+                          )}
                           <input
                             value={editingPlayerForm.surname}
                             onChange={(event) => setEditingPlayerForm((current) => ({
@@ -520,33 +648,37 @@ function TournamentPlayersView() {
                             placeholder={t('edit.surname')}
                             className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                           />
-                          <input
-                            value={editingPlayerForm.teamName}
-                            onChange={(event) => setEditingPlayerForm((current) => ({
-                              ...current,
-                              teamName: event.target.value,
-                            }))}
-                            placeholder={t('edit.teamName')}
-                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          />
-                          <input
-                            value={editingPlayerForm.email}
-                            onChange={(event) => setEditingPlayerForm((current) => ({
-                              ...current,
-                              email: event.target.value,
-                            }))}
-                            placeholder={t('edit.email')}
-                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          />
-                          <input
-                            value={editingPlayerForm.phone}
-                            onChange={(event) => setEditingPlayerForm((current) => ({
-                              ...current,
-                              phone: event.target.value,
-                            }))}
-                            placeholder={t('edit.phone')}
-                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          />
+                          {isAdmin && (
+                            <>
+                              <input
+                                value={editingPlayerForm.teamName}
+                                onChange={(event) => setEditingPlayerForm((current) => ({
+                                  ...current,
+                                  teamName: event.target.value,
+                                }))}
+                                placeholder={t('edit.teamName')}
+                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                              />
+                              <input
+                                value={editingPlayerForm.email}
+                                onChange={(event) => setEditingPlayerForm((current) => ({
+                                  ...current,
+                                  email: event.target.value,
+                                }))}
+                                placeholder={t('edit.email')}
+                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                              />
+                              <input
+                                value={editingPlayerForm.phone}
+                                onChange={(event) => setEditingPlayerForm((current) => ({
+                                  ...current,
+                                  phone: event.target.value,
+                                }))}
+                                placeholder={t('edit.phone')}
+                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                              />
+                            </>
+                          )}
                         </div>
                       ) : (
                         <>
@@ -592,7 +724,7 @@ function TournamentPlayersView() {
                       </p>
                     )}
                   </div>
-                    {isAdmin && (
+                    {canEditThisPlayer && (
                       <div className="mt-4 space-y-2">
                         {isEditing ? (
                           <>
@@ -618,7 +750,7 @@ function TournamentPlayersView() {
                             >
                               {t('common.edit')}
                             </button>
-                            {tournament?.status === 'SIGNATURE' && (
+                            {isAdmin && tournament?.status === 'SIGNATURE' && (
                               <button
                                 onClick={() => confirmPresence(player)}
                                 disabled={player.checkedIn || checkingInId === player.playerId}
@@ -627,7 +759,7 @@ function TournamentPlayersView() {
                                 {presenceLabel}
                               </button>
                             )}
-                            {canDeletePlayers && (
+                            {isAdmin && canDeletePlayers && (
                               <button
                                 onClick={() => removePlayer(player)}
                                 disabled={removingPlayerId === player.playerId}

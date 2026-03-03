@@ -364,7 +364,7 @@ const TournamentCard = ({
   const isLive = normalizedStatus === 'LIVE';
   const isFinished = normalizedStatus === 'FINISHED';
   const isRegistered = userRegistrations.has(tournament.id);
-  const showRegistrationActions = isAuthenticated && !isLive;
+  const showRegistrationActions = isAuthenticated && !isLive && !isFinished;
   const tournamentId = tournament.id;
   let participantLabel = t('common.players');
   if (tournament.format === 'DOUBLE') {
@@ -514,7 +514,7 @@ const TournamentCard = ({
             {t('tournaments.viewLive')}
           </a>
         )}
-        {isAdmin && (
+        {isAdmin && !isFinished && (
           <TournamentAdminActions
             tournament={tournament}
             normalizedStatus={normalizedStatus}

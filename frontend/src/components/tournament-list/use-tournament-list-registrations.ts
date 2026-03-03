@@ -64,6 +64,21 @@ const isGroupTournament = (format: string): format is 'DOUBLE' | 'TEAM_4_PLAYER'
   format === 'DOUBLE' || format === 'TEAM_4_PLAYER'
 );
 
+const buildDefaultSurname = (firstName: string, lastName: string): string => {
+  const trimmedFirstName = firstName.trim();
+  const trimmedLastName = lastName.trim();
+
+  if (!trimmedFirstName) {
+    return '';
+  }
+
+  if (!trimmedLastName) {
+    return trimmedFirstName;
+  }
+
+  return `${trimmedFirstName} ${trimmedLastName.charAt(0).toUpperCase()}`;
+};
+
 const buildGroupStatus = async (
   tournament: Tournament,
   userPlayerId: string | undefined,
@@ -263,6 +278,7 @@ const useRegisterSelfAction = ({
     const nameParts = fullName.split(' ');
     const firstName = nameParts[0] || 'User';
     const lastName = nameParts.slice(1).join(' ') || 'Registration';
+    const surname = buildDefaultSurname(firstName, lastName);
 
     if (!email) {
       throw new Error('Email not found in user profile. Please ensure your account has an email address.');
@@ -273,6 +289,7 @@ const useRegisterSelfAction = ({
       {
         firstName,
         lastName,
+        ...(surname ? { surname } : {}),
         email,
       },
       token

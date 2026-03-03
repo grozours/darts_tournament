@@ -95,6 +95,39 @@ describe('TournamentCard', () => {
     expect(screen.queryByText('tournaments.registered')).not.toBeInTheDocument();
   });
 
+  it('hides admin and registration action buttons for FINISHED cards', () => {
+    const { rerender } = render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="FINISHED"
+      />
+    );
+
+    expect(screen.queryByText('tournaments.edit')).not.toBeInTheDocument();
+    expect(screen.queryByText('tournaments.register')).not.toBeInTheDocument();
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        normalizedStatus="FINISHED"
+        tournament={{ ...baseTournament, format: 'DOUBLE' } as never}
+      />
+    );
+
+    expect(screen.queryByRole('link', { name: 'tournaments.createOwnDoublette' })).not.toBeInTheDocument();
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        normalizedStatus="FINISHED"
+        tournament={{ ...baseTournament, format: 'TEAM_4_PLAYER' } as never}
+      />
+    );
+
+    expect(screen.queryByRole('link', { name: 'tournaments.createOwnEquipe' })).not.toBeInTheDocument();
+  });
+
   it('renders a mini live QR link with tournamentId in URL', () => {
     render(<TournamentCard {...baseProperties} />);
 

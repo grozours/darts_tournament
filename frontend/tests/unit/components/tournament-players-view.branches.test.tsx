@@ -14,6 +14,7 @@ const translate = (key: string) => key;
 const authState = {
   enabled: true,
   getAccessTokenSilently: vi.fn(async () => 'token'),
+  user: { email: 'player@example.com' },
 };
 
 const adminState = {
@@ -46,6 +47,7 @@ describe('TournamentPlayersView branches', () => {
     adminState.isAdmin = true;
     authState.enabled = true;
     authState.getAccessTokenSilently = vi.fn(async () => 'token');
+    authState.user = { email: 'player@example.com' };
 
     fetchTournamentPlayersMock.mockReset();
     fetchDoublettesMock.mockReset();
@@ -176,5 +178,65 @@ describe('TournamentPlayersView branches', () => {
 
     expect(screen.getByText('Squad One')).toBeInTheDocument();
     expect(fetchEquipesMock).toHaveBeenCalledWith('t3', 'token');
+  });
+
+  it('allows non-admin player to edit only their own surname', async () => {
+    adminState.isAdmin = false;
+    authState.user = { email: 'player@example.com' };
+    globalThis.window.history.pushState({}, '', '/?tournamentId=t4');
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        id: 't4',
+        name: 'Open Cup',
+        status: 'OPEN',
+        format: TournamentFormat.SINGLE,
+      }),
+    })));
+
+    fetchTournamentPlayersMock.mockResolvedValue([
+      {
+        playerId: 'p1',
+        firstName: 'Ava',
+        lastName: 'Archer',
+        surname: 'Old Name',
+        email: 'player@example.com',
+        checkedIn: false,
+      },
+      {
+        playerId: 'p2',
+        firstName: 'Bea',
+        lastName: 'Bell',
+        surname: 'No Edit',
+        email: 'other@example.com',
+        checkedIn: false,
+      },
+    ]);
+
+    render(<TournamentPlayersView />);
+
+    await screen.findByText('Ava Archer');
+    const editButtons = screen.getAllByRole('button', { name: 'common.edit' });
+    expect(editButtons).toHaveLength(1);
+
+    fireEvent.click(editButtons[0]);
+
+    expect(screen.getByPlaceholderText('edit.surname')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('edit.firstName')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('edit.surname'), {
+      target: { value: 'Ava A' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
+
+    await waitFor(() => {
+      expect(updateTournamentPlayerMock).toHaveBeenCalledWith(
+        't4',
+        'p1',
+        { firstName: 'Ava', lastName: 'Archer', surname: 'Ava A' },
+        'token'
+      );
+    });
   });
 });
