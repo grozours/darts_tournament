@@ -95,17 +95,23 @@ describe('TournamentCard', () => {
     expect(screen.queryByText('tournaments.registered')).not.toBeInTheDocument();
   });
 
-  it('hides admin and registration action buttons for FINISHED cards', () => {
+  it('shows delete button for admin and hides other admin/registration actions on FINISHED cards', () => {
+    const onDelete = vi.fn();
     const { rerender } = render(
       <TournamentCard
         {...baseProperties}
         isAdmin
         normalizedStatus="FINISHED"
+        onDelete={onDelete}
       />
     );
 
     expect(screen.queryByText('tournaments.edit')).not.toBeInTheDocument();
+    expect(screen.getByText('tournaments.delete')).toBeInTheDocument();
     expect(screen.queryByText('tournaments.register')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('tournaments.delete'));
+    expect(onDelete).toHaveBeenCalledWith('t1');
 
     rerender(
       <TournamentCard

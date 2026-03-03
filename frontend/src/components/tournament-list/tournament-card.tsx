@@ -536,6 +536,14 @@ const TournamentCard = ({
             confirmingTournamentId={confirmingTournamentId}
           />
         )}
+        {isAdmin && isFinished && (
+          <button
+            onClick={() => onDelete(tournament.id)}
+            className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
+          >
+            {t('tournaments.delete')}
+          </button>
+        )}
         <TournamentRegistrationActions
           tournamentFormat={tournament.format}
           tournamentId={tournamentId}
