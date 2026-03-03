@@ -26,6 +26,7 @@ type PrismaMock = {
     create: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+    groupBy: jest.Mock;
   };
   person: {
     findUnique: jest.Mock;
@@ -96,6 +97,7 @@ describe('tournament model', () => {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        groupBy: jest.fn(),
       },
       person: {
         findUnique: jest.fn(),
@@ -498,6 +500,7 @@ describe('tournament model', () => {
     ]);
     prisma.doublette.groupBy = jest.fn().mockResolvedValueOnce([]);
     prisma.equipe.groupBy = jest.fn().mockResolvedValueOnce([]);
+    prisma.bracket.groupBy = jest.fn().mockResolvedValueOnce([]);
 
     const result = await model.findAll({
       status: TournamentStatus.DRAFT,
@@ -515,6 +518,7 @@ describe('tournament model', () => {
       orderBy: { name: 'asc' },
     }));
     expect(result.tournaments[0]?.currentParticipants).toBe(3);
+    expect(result.tournaments[0]?.hasLiveBrackets).toBe(false);
     expect(result.page).toBe(2);
     expect(result.limit).toBe(5);
   });
@@ -524,6 +528,7 @@ describe('tournament model', () => {
     prisma.tournament.count.mockResolvedValueOnce(0);
     prisma.doublette.groupBy = jest.fn().mockResolvedValueOnce([]);
     prisma.equipe.groupBy = jest.fn().mockResolvedValueOnce([]);
+    prisma.bracket.groupBy = jest.fn().mockResolvedValueOnce([]);
 
     await expect(model.findAll({ excludeDraft: true })).resolves.toEqual({
       tournaments: [],
@@ -551,9 +556,13 @@ describe('tournament model', () => {
       { tournamentId: 't-1', _count: { _all: 4 } },
     ]);
     prisma.equipe.groupBy = jest.fn().mockResolvedValueOnce([]);
+    prisma.bracket.groupBy = jest.fn().mockResolvedValueOnce([
+      { tournamentId: 't-1', _count: { _all: 1 } },
+    ]);
 
     const result = await model.findAll();
     expect(result.tournaments[0]?.currentParticipants).toBe(4);
+    expect(result.tournaments[0]?.hasLiveBrackets).toBe(true);
   });
 
   it('maps target range and target list queries with error branches', async () => {

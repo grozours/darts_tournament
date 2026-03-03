@@ -4,6 +4,7 @@ import {
   TournamentFormat,
   DurationType,
   TournamentStatus,
+  BracketStatus,
 } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import {
@@ -80,7 +81,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       limit?: number;
       sortBy?: 'name' | 'startTime' | 'createdAt';
       sortOrder?: 'asc' | 'desc';
-    }): Promise<{ tournaments: Array<Tournament & { currentParticipants: number }>; total: number; page: number; limit: number }> => {
+    }): Promise<{ tournaments: Array<Tournament & { currentParticipants: number; hasLiveBrackets: boolean }>; total: number; page: number; limit: number }> => {
       try {
         const {
           status,
@@ -147,6 +148,16 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
             _count: { _all: true },
           })
           : [];
+        const liveBracketCounts = tournamentIds.length > 0
+          ? await prisma.bracket.groupBy({
+            by: ['tournamentId'],
+            where: {
+              tournamentId: { in: tournamentIds },
+              status: BracketStatus.IN_PROGRESS,
+            },
+            _count: { _all: true },
+          })
+          : [];
         const participantCountByTournament = new Map(
           participantCounts
             .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
@@ -159,6 +170,11 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         );
         const registeredEquipeCountByTournament = new Map(
           registeredEquipeCounts
+            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+            .map((entry) => [entry.tournamentId, entry._count._all])
+        );
+        const liveBracketCountByTournament = new Map(
+          liveBracketCounts
             .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
             .map((entry) => [entry.tournamentId, entry._count._all])
         );
@@ -175,6 +191,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
             return {
               ...mapToTournament(tournament),
               currentParticipants,
+              hasLiveBrackets: (liveBracketCountByTournament.get(tournament.id) ?? 0) > 0,
             };
           }),
           total,

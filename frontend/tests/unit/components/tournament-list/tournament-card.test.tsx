@@ -339,4 +339,31 @@ describe('TournamentCard', () => {
     fireEvent.click(screen.getByText('tournaments.unregister'));
     expect(onUnregisterGroup).toHaveBeenCalledWith('t1');
   });
+
+  it('hides brackets button for non-admin when no live bracket phase exists', () => {
+    render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin={false}
+        tournament={{ ...baseTournament, hasLiveBrackets: false } as never}
+      />
+    );
+
+    expect(screen.queryByRole('link', { name: 'nav.bracketsShort' })).not.toBeInTheDocument();
+  });
+
+  it('shows brackets button when at least one live bracket phase exists', () => {
+    render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin={false}
+        tournament={{ ...baseTournament, hasLiveBrackets: true } as never}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'nav.bracketsShort' })).toHaveAttribute(
+      'href',
+      '/?view=brackets&tournamentId=t1'
+    );
+  });
 });

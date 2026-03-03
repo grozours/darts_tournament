@@ -380,6 +380,7 @@ const TournamentCard = ({
   }
   const poolStagesUrl = `/?view=pool-stages&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
   const bracketsUrl = `/?view=brackets&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
+  const showBracketsAction = isAdmin || tournament.hasLiveBrackets === true;
   const liveViewPath = `/?view=live&tournamentId=${encodeURIComponent(tournamentId)}`;
   const liveViewUrl = globalThis.window?.location
     ? `${globalThis.window.location.origin}${liveViewPath}`
@@ -500,12 +501,14 @@ const TournamentCard = ({
         >
           {t('nav.poolStagesShort')}
         </a>
-        <a
-          href={bracketsUrl}
-          className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
-        >
-          {t('nav.bracketsShort')}
-        </a>
+        {showBracketsAction && (
+          <a
+            href={bracketsUrl}
+            className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
+          >
+            {t('nav.bracketsShort')}
+          </a>
+        )}
         {normalizedStatus === 'LIVE' && (
           <a
             href={liveViewPath}

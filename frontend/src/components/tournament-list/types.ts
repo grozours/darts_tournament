@@ -28,6 +28,7 @@ export type Tournament = {
   completedAt?: string | undefined;
   historicalFlag?: boolean | undefined;
   doubleStageEnabled?: boolean | undefined;
+  hasLiveBrackets?: boolean | undefined;
 };
 
 export type EditFormState = {
