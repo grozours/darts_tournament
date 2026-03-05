@@ -43,6 +43,8 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 - [docs/COMMANDS.fr.md](./COMMANDS.fr.md)
 - [docs/DEPLOYMENT.md](./DEPLOYMENT.md)
 - [docs/DEPLOYMENT.fr.md](./DEPLOYMENT.fr.md)
+- [docs/NGINX_KERNEL_TUNING.md](./NGINX_KERNEL_TUNING.md)
+- [docs/LOAD_TEST_2026-03-05_2500x60s.md](./LOAD_TEST_2026-03-05_2500x60s.md)
 - [docs/FRONTEND.md](./FRONTEND.md)
 - [docs/FRONTEND.fr.md](./FRONTEND.fr.md)
 - [docs/ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -92,6 +94,7 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 | Document | Description | When to Use |
 |----------|-------------|-------------|
 | **[Deployment Guide](./DEPLOYMENT.md)** | Production deployment instructions | Deploying to servers, cloud platforms, Docker |
+| **[Nginx + Kernel Tuning](./NGINX_KERNEL_TUNING.md)** | Reverse proxy and Linux network tuning baseline | Handling high concurrent traffic safely |
 | **[Admin Setup](./ADMIN_SETUP.md)** | Admin authentication configuration | Setting up admin users |
 | **[Auth0 Email Setup](./AUTH0_EMAIL_SETUP.md)** | Auth0 email claim configuration | Configuring authentication |
 
@@ -131,6 +134,7 @@ Welcome to the Darts Tournament Manager documentation! This index will help you 
 
 #### Deployment
 - **Deploy to production** → [Deployment Guide](./DEPLOYMENT.md)
+- **Tune reverse proxy and kernel** → [Nginx + Kernel Tuning](./NGINX_KERNEL_TUNING.md)
 - **Use Docker** → [Docker Deployment](./DEPLOYMENT.md#docker-deployment)
 - **Deploy to AWS/DigitalOcean** → [Cloud Deployment](./DEPLOYMENT.md#cloud-deployment)
 - **Setup monitoring** → [Deployment: Monitoring](./DEPLOYMENT.md#monitoring--maintenance)
