@@ -23,6 +23,45 @@ const buildOpponentPairs = (ids: string[]): Array<[string, string]> => {
   return pairs;
 };
 
+type ActiveTournamentEntry = {
+  id: string;
+  registeredAt: Date;
+  isActive: boolean;
+  skillLevel?: string | null;
+  firstName?: string;
+  lastName?: string;
+  teamName?: string;
+};
+
+type PoolStageJsonPrimitive = string | number | boolean | null;
+type PoolStageJsonValue = PoolStageJsonPrimitive | { [key: string]: PoolStageJsonValue } | PoolStageJsonValue[];
+type PoolStageCreatePayload = {
+  tournamentId: string;
+  stageNumber: number;
+  name: string;
+  poolCount: number;
+  playersPerPool: number;
+  advanceCount: number;
+  losersAdvanceToBracket: boolean;
+  matchFormatKey?: string;
+  inParallelWith?: PoolStageJsonValue;
+  rankingDestinations?: PoolStageJsonValue;
+};
+
+type PoolStageUpdatePayload = Partial<{
+  stageNumber: number;
+  name: string;
+  matchFormatKey: string;
+  inParallelWith: PoolStageJsonValue;
+  poolCount: number;
+  playersPerPool: number;
+  advanceCount: number;
+  losersAdvanceToBracket: boolean;
+  rankingDestinations: PoolStageJsonValue;
+  status: StageStatus;
+  completedAt: Date | null;
+}>;
+
 export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
   getPoolStages: async (tournamentId: string) => {
     try {
@@ -51,15 +90,15 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     stageNumber: number;
     name: string;
     matchFormatKey?: string;
-    inParallelWith?: Prisma.InputJsonValue;
+    inParallelWith?: PoolStageJsonValue;
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
     losersAdvanceToBracket?: boolean;
-    rankingDestinations?: Prisma.InputJsonValue;
+    rankingDestinations?: PoolStageJsonValue;
   }) => {
     try {
-      const payload: Parameters<typeof prisma.poolStage.create>[0]['data'] = {
+      const payload: PoolStageCreatePayload = {
         tournamentId,
         stageNumber: data.stageNumber,
         name: data.name,
@@ -94,20 +133,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
 
   updatePoolStage: async (
     stageId: string,
-    data: Partial<{
-      stageNumber: number;
-      name: string;
-      matchFormatKey: string;
-      inParallelWith: Prisma.InputJsonValue;
-      poolCount: number;
-      playersPerPool: number;
-      advanceCount: number;
-      losersAdvanceToBracket: boolean;
-      rankingDestinations: Prisma.InputJsonValue;
-      status: StageStatus;
-      // eslint-disable-next-line unicorn/no-null
-      completedAt: Date | null;
-    }>
+    data: PoolStageUpdatePayload
   ) => {
     try {
       return await prisma.poolStage.update({
@@ -253,8 +279,8 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
       const pairs: Array<[string, string]> = [];
       for (const match of matches) {
         const ids = match.playerMatches
-          .map((pm) => pm.playerId)
-          .filter((playerId): playerId is string => Boolean(playerId));
+          .map((pm: { playerId: string | null }) => pm.playerId)
+          .filter(Boolean);
         if (ids.length < 2) continue;
         pairs.push(...buildOpponentPairs(ids));
       }
@@ -275,6 +301,82 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     } catch (error) {
       logModelError('getActivePlayersForTournament', error);
       throw new AppError('Failed to fetch tournament players', 500, 'PLAYERS_FETCH_FAILED');
+    }
+  },
+
+  getActiveDoublettePlayersForTournament: async (tournamentId: string) => {
+    try {
+      const doublettes = await prisma.doublette.findMany({
+        where: {
+          tournamentId,
+          isRegistered: true,
+        },
+        include: {
+          members: {
+            include: {
+              player: true,
+            },
+            orderBy: {
+              joinedAt: 'asc',
+            },
+          },
+        },
+        orderBy: {
+          registeredAt: 'asc',
+        },
+      });
+
+      return doublettes.map((doublette: (typeof doublettes)[number]) => ({
+        id: doublette.captainPlayerId ?? doublette.members[0]?.player.id,
+        firstName: doublette.name,
+        lastName: doublette.name,
+        teamName: doublette.name,
+        registeredAt: doublette.registeredAt ?? doublette.createdAt,
+        isActive: true,
+        skillLevel: doublette.members[0]?.player.skillLevel,
+      } as ActiveTournamentEntry)).filter((player: ActiveTournamentEntry) => Boolean(player.id));
+    } catch (error) {
+      logModelError('getActiveDoublettePlayersForTournament', error);
+      throw new AppError('Failed to fetch registered doublettes', 500, 'DOUBLETTE_FETCH_FAILED');
+    }
+  },
+
+  getActiveEquipePlayersForTournament: async (tournamentId: string) => {
+    try {
+      const equipes = await prisma.equipe.findMany({
+        where: {
+          tournamentId,
+          isRegistered: true,
+        },
+        include: {
+          members: {
+            include: {
+              player: true,
+            },
+            orderBy: {
+              joinedAt: 'asc',
+            },
+          },
+        },
+        orderBy: {
+          registeredAt: 'asc',
+        },
+      });
+
+      return equipes
+        .map((equipe: (typeof equipes)[number]) => ({
+          id: equipe.captainPlayerId ?? equipe.members[0]?.player.id,
+          firstName: equipe.name,
+          lastName: equipe.name,
+          teamName: equipe.name,
+          registeredAt: equipe.registeredAt ?? equipe.createdAt,
+          isActive: true,
+          skillLevel: equipe.members[0]?.player.skillLevel,
+        } as ActiveTournamentEntry))
+        .filter((player: ActiveTournamentEntry) => Boolean(player.id));
+    } catch (error) {
+      logModelError('getActiveEquipePlayersForTournament', error);
+      throw new AppError('Failed to fetch registered equipes', 500, 'EQUIPE_FETCH_FAILED');
     }
   },
 

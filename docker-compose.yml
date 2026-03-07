@@ -86,18 +86,18 @@ services:
       sonarqube:
         condition: service_healthy
     environment:
-      SONAR_HOST: http://sonarqube:9000
-      SONAR_ADMIN_OLD: ${SONAR_ADMIN_OLD:-admin}
-      SONAR_ADMIN_NEW: ${SONAR_ADMIN_NEW}
-      SONAR_TOKEN_NAME: ${SONAR_TOKEN_NAME:-ci-token}
-      SONAR_TOKEN_FILE: /sonar-token
-      SONAR_PROJECT_KEY: ${SONAR_PROJECT_KEY:-darts-tournament}
-      SONAR_PROJECT_NAME: ${SONAR_PROJECT_NAME:-Darts Tournament}
-      SONAR_REGENERATE_TOKEN: ${SONAR_REGENERATE_TOKEN:-false}
-      SONAR_WAIT_SECONDS: ${SONAR_WAIT_SECONDS:-180}
+      - SONAR_HOST=http://sonarqube:9000
+      - SONAR_ADMIN_OLD=${SONAR_ADMIN_OLD:-admin}
+      - SONAR_ADMIN_NEW=${SONAR_ADMIN_NEW}
+      - SONAR_TOKEN_NAME=${SONAR_TOKEN_NAME:-ci-token}
+      - SONAR_TOKEN_FILE=/tmp/sonar-token
+      - SONAR_PROJECT_KEY=${SONAR_PROJECT_KEY:-darts-tournament}
+      - SONAR_PROJECT_NAME=${SONAR_PROJECT_NAME:-Darts Tournament}
+      - SONAR_REGENERATE_TOKEN=${SONAR_REGENERATE_TOKEN:-false}
+      - SONAR_WAIT_SECONDS=${SONAR_WAIT_SECONDS:-180}
     volumes:
       - ./scripts/sonar_init.sh:/usr/local/bin/sonar_init.sh:ro
-      - ./.sonar-token:/sonar-token
+      - ./.sonar-token:/tmp/sonar-token:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/sonar_init.sh"]
     restart: "no"
 

@@ -1,7 +1,27 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { BracketStatus, BracketType, MatchStatus, TargetStatus } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError } from './helpers';
+
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
+type BracketCreatePayload = {
+  tournamentId: string;
+  name: string;
+  bracketType: BracketType;
+  totalRounds: number;
+  roundMatchFormats?: JsonValue;
+  inParallelWith?: JsonValue;
+};
+type BracketUpdatePayload = Partial<{
+  name: string;
+  bracketType: BracketType;
+  totalRounds: number;
+  roundMatchFormats: JsonValue;
+  inParallelWith: JsonValue;
+  status: BracketStatus;
+  completedAt: Date | null;
+}>;
 
 export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
   createBracketEntries: async (entries: Array<{ bracketId: string; playerId: string; seedNumber: number; currentRound: number }>) => {
@@ -34,7 +54,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
       return await prisma.match.count({
         where: {
           tournamentId,
-          ...(bracketId ? { bracketId } : { bracketId: { not: null } }),
+          ...(bracketId ? { bracketId } : { bracketId: { not: undefined } }),
           status: { not: MatchStatus.SCHEDULED },
         },
       });
@@ -62,16 +82,16 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
         where: { bracketId },
         select: { id: true, roundNumber: true, targetId: true },
       });
-      const matchIds = matches.map((match) => match.id);
+      const matchIds = matches.map((match: (typeof matches)[number]) => match.id);
       const roundOneMatchIds = matches
-        .filter((match) => match.roundNumber === 1)
-        .map((match) => match.id);
+        .filter((match: (typeof matches)[number]) => match.roundNumber === 1)
+        .map((match: (typeof matches)[number]) => match.id);
       const laterMatchIds = matches
-        .filter((match) => (match.roundNumber ?? 1) > 1)
-        .map((match) => match.id);
+        .filter((match: (typeof matches)[number]) => (match.roundNumber ?? 1) > 1)
+        .map((match: (typeof matches)[number]) => match.id);
       const targetIds = matches
-        .map((match) => match.targetId)
-        .filter((targetId): targetId is string => Boolean(targetId));
+        .map((match: (typeof matches)[number]) => match.targetId)
+        .filter(Boolean);
 
       await prisma.$transaction([
         ...(targetIds.length > 0
@@ -357,7 +377,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
           },
         },
       });
-      const bracketIds = brackets.map((bracket) => bracket.id);
+  const bracketIds = brackets.map((bracket: (typeof brackets)[number]) => bracket.id);
       const startedMatches = bracketIds.length > 0
         ? await prisma.match.groupBy({
           by: ['bracketId'],
@@ -370,13 +390,14 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
         : [];
       const startedMatchesByBracket = new Map(
         startedMatches
-          .filter((entry): entry is { bracketId: string; _count: { _all: number } } => Boolean(entry.bracketId))
-          .map((entry) => [entry.bracketId, entry._count._all])
+          .filter((entry: (typeof startedMatches)[number]): entry is (typeof startedMatches)[number] & { bracketId: string } => Boolean(entry.bracketId))
+          .map((entry: (typeof startedMatches)[number] & { bracketId: string }) => [entry.bracketId, entry._count._all] as const)
       );
-      return brackets.map((bracket) => ({
+      const getStartedMatchCount = (bracketId: string) => Number(startedMatchesByBracket.get(bracketId) ?? 0);
+      return brackets.map((bracket: (typeof brackets)[number]) => ({
         ...bracket,
-        targetIds: bracket.bracketTargets.map((target) => target.targetId),
-        hasStartedMatches: (startedMatchesByBracket.get(bracket.id) ?? 0) > 0,
+        targetIds: bracket.bracketTargets.map((target: (typeof bracket.bracketTargets)[number]) => target.targetId),
+        hasStartedMatches: getStartedMatchCount(bracket.id) > 0,
       }));
     } catch (error) {
       logModelError('getBrackets', error);
@@ -390,7 +411,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
         where: { bracketId },
         select: { targetId: true },
       });
-      return targets.map((target) => target.targetId);
+  return targets.map((target: (typeof targets)[number]) => target.targetId);
     } catch (error) {
       logModelError('getBracketTargetIds', error);
       throw new AppError('Failed to fetch bracket targets', 500, 'BRACKET_TARGETS_FETCH_FAILED');
@@ -441,11 +462,11 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     name: string;
     bracketType: BracketType;
     totalRounds: number;
-    roundMatchFormats?: Prisma.InputJsonValue;
-    inParallelWith?: Prisma.InputJsonValue;
+    roundMatchFormats?: JsonValue;
+    inParallelWith?: JsonValue;
   }) => {
     try {
-      const payload: Parameters<typeof prisma.bracket.create>[0]['data'] = {
+      const payload: BracketCreatePayload = {
         tournamentId,
         name: data.name,
         bracketType: data.bracketType,
@@ -469,16 +490,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
 
   updateBracket: async (
     bracketId: string,
-    data: Partial<{
-      name: string;
-      bracketType: BracketType;
-      totalRounds: number;
-      roundMatchFormats: Prisma.InputJsonValue;
-      inParallelWith: Prisma.InputJsonValue;
-      status: BracketStatus;
-      // eslint-disable-next-line unicorn/no-null
-      completedAt: Date | null;
-    }>
+    data: BracketUpdatePayload
   ) => {
     try {
       return await prisma.bracket.update({

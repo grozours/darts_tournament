@@ -6,6 +6,7 @@ type UseLiveTournamentPlayerIdsProperties = {
   liveViews: LiveViewData[];
   isAuthenticated: boolean;
   user?: { email?: string };
+  fallbackUserEmail?: string;
   getSafeAccessToken: () => Promise<string | undefined>;
 };
 
@@ -22,10 +23,14 @@ const useLiveTournamentPlayerIds = ({
   liveViews,
   isAuthenticated,
   user,
+  fallbackUserEmail,
   getSafeAccessToken,
 }: UseLiveTournamentPlayerIdsProperties): LiveTournamentPlayerIdsResult => {
   const [playerIdByTournament, setPlayerIdByTournament] = useState<Record<string, string>>({});
-  const userEmail = useMemo(() => (user?.email ?? '').toLowerCase(), [user?.email]);
+  const userEmail = useMemo(
+    () => (user?.email ?? fallbackUserEmail ?? '').toLowerCase(),
+    [fallbackUserEmail, user?.email]
+  );
 
   const fetchPlayerIdForView = useCallback(async (viewId: string, token: string | undefined) => {
     try {
@@ -41,7 +46,7 @@ const useLiveTournamentPlayerIds = ({
     let isMounted = true;
 
     const loadPlayerIds = async () => {
-      if (!isAuthenticated || !userEmail || liveViews.length === 0) {
+      if (!userEmail || liveViews.length === 0) {
         if (isMounted) {
           setPlayerIdByTournament({});
         }

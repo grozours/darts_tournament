@@ -1,4 +1,3 @@
-import type { Prisma } from '@prisma/client';
 import type { TournamentModel } from '../../models/tournament-model';
 import { AppError } from '../../middleware/error-handler';
 import {
@@ -9,6 +8,9 @@ import {
 } from '../../../../shared/src/types';
 import { normalizeMatchFormatKey } from './match-format-presets';
 import { emitMatchFormatChangedNotifications } from './match-format-change-notifications';
+
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 
 type MatchForCompletion = {
   id: string;
@@ -138,7 +140,7 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
   const normalizeRoundMatchFormats = (
     roundMatchFormats: unknown,
     errorCode: string
-  ): Prisma.InputJsonValue | undefined => {
+  ): JsonValue | undefined => {
     if (roundMatchFormats === undefined || roundMatchFormats === null) {
       return undefined;
     }
@@ -159,13 +161,13 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
       normalized[String(parsedRound)] = normalizedKey;
     }
 
-    return normalized as Prisma.InputJsonValue;
+    return normalized as JsonValue;
   };
 
   const normalizeParallelReferences = (
     value: unknown,
     errorCode: string
-  ): Prisma.InputJsonValue | undefined => {
+  ): JsonValue | undefined => {
     if (value === undefined || value === null) {
       return undefined;
     }
@@ -182,7 +184,7 @@ export const createBracketHandlers = (context: BracketHandlerContext) => {
       }
     }
 
-    return [...new Set(references)] as Prisma.InputJsonValue;
+    return [...new Set(references)] as JsonValue;
   };
 
   const ensureBracketsEditable = async (

@@ -120,7 +120,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
   };
 
   const hasConfiguredPoolStages = (tournament: TournamentLiveView) => (
-    (tournament.poolStages || []).some((stage) => {
+    (tournament.poolStages || []).some((stage: NonNullable<TournamentLiveView['poolStages']>[number]) => {
       const poolCount = stage.pools?.length ?? stage.poolCount ?? 0;
       return poolCount > 0;
     })
@@ -146,7 +146,7 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       return;
     }
     const hasDoubleStages = (tournament.poolStages || []).some(
-      (stage) => stage.stageNumber === 2 || stage.stageNumber === 3
+      (stage: NonNullable<TournamentLiveView['poolStages']>[number]) => stage.stageNumber === 2 || stage.stageNumber === 3
     );
     if (hasDoubleStages) {
       tournament.doubleStageEnabled = true;

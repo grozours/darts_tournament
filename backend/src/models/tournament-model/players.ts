@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { Player, SkillLevel } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError, mapToPlayer } from './helpers';
@@ -214,23 +214,7 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     checkedIn: boolean;
   }>> => {
     try {
-      type ParticipantRow = Prisma.PlayerGetPayload<{
-        select: {
-          id: true;
-          personId: true;
-          firstName: true;
-          lastName: true;
-          surname: true;
-          teamName: true;
-          email: true;
-          phone: true;
-          skillLevel: true;
-          registeredAt: true;
-          checkedIn: true;
-        };
-      }>;
-
-      const participants: ParticipantRow[] = await prisma.player.findMany({
+      const participants = await prisma.player.findMany({
         where: {
           tournamentId,
           isActive: true,
@@ -253,7 +237,8 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
         },
       });
 
-      return participants.map((player) => ({
+  type ParticipantRow = (typeof participants)[number];
+  return participants.map((player: ParticipantRow) => ({
         playerId: player.id,
         ...(player.personId ? { personId: player.personId } : {}),
         firstName: player.firstName,
@@ -288,23 +273,7 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     checkedIn: boolean;
   }>> => {
     try {
-      type ParticipantRow = Prisma.PlayerGetPayload<{
-        select: {
-          id: true;
-          personId: true;
-          firstName: true;
-          lastName: true;
-          surname: true;
-          teamName: true;
-          email: true;
-          phone: true;
-          skillLevel: true;
-          registeredAt: true;
-          checkedIn: true;
-        };
-      }>;
-
-      const participants: ParticipantRow[] = await prisma.player.findMany({
+      const participants = await prisma.player.findMany({
         where: {
           // eslint-disable-next-line unicorn/no-null
           tournamentId: null,
@@ -328,7 +297,8 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
         },
       });
 
-      return participants.map((player) => ({
+  type ParticipantRow = (typeof participants)[number];
+  return participants.map((player: ParticipantRow) => ({
         playerId: player.id,
         ...(player.personId ? { personId: player.personId } : {}),
         firstName: player.firstName,

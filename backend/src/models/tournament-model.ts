@@ -103,6 +103,8 @@ export class TournamentModel {
   public getPoolAssignmentCountForStage!: TournamentModelPoolStageHandlers['getPoolAssignmentCountForStage'];
   public getOpponentPairsBeforeStage!: TournamentModelPoolStageHandlers['getOpponentPairsBeforeStage'];
   public getActivePlayersForTournament!: TournamentModelPoolStageHandlers['getActivePlayersForTournament'];
+  public getActiveDoublettePlayersForTournament!: TournamentModelPoolStageHandlers['getActiveDoublettePlayersForTournament'];
+  public getActiveEquipePlayersForTournament!: TournamentModelPoolStageHandlers['getActiveEquipePlayersForTournament'];
   public createPoolAssignments!: TournamentModelPoolStageHandlers['createPoolAssignments'];
   public deletePoolAssignmentsForStage!: TournamentModelPoolStageHandlers['deletePoolAssignmentsForStage'];
   public getMatchCountForPool!: TournamentModelPoolStageHandlers['getMatchCountForPool'];

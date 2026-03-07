@@ -18,6 +18,7 @@ npm-debug.log*
 
 # Secrets & credentials
 .sonar-token
+sonar-token
 .envrc
 .npmrc
 .pypirc

@@ -30,7 +30,6 @@ type PoolStageUpdateData = Partial<{
   inParallelWith: string[];
   rankingDestinations: PoolStageRankingDestinationInput[];
   status: StageStatus;
-  // eslint-disable-next-line unicorn/no-null
   completedAt: Date | null;
 }>;
 
@@ -105,6 +104,447 @@ const getStageRankingDestinations = (stage: { rankingDestinations?: unknown }) =
     : undefined;
 };
 
+const isPoolStageEditable = (status: TournamentStatus): boolean => {
+  return [
+    TournamentStatus.DRAFT,
+    TournamentStatus.OPEN,
+    TournamentStatus.SIGNATURE,
+    TournamentStatus.LIVE,
+  ].includes(status);
+};
+
+const buildPoolStageUpdateData = (data: PoolStageUpdateData): {
+  nextData: PoolStageUpdateData;
+  shouldRedistribute: boolean;
+} => {
+  const nextData = { ...data };
+  const shouldRedistribute =
+    data.poolCount !== undefined || data.playersPerPool !== undefined;
+
+  if (nextData.status === StageStatus.COMPLETED) {
+    nextData.completedAt = new Date();
+  }
+
+  return { nextData, shouldRedistribute };
+};
+
+const ensureValidMatchFormatKey = (
+  value: unknown,
+  errorCode: string
+): string | undefined => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const normalized = normalizeMatchFormatKey(value);
+  if (!normalized) {
+    throw new AppError('Invalid match format key', 400, errorCode);
+  }
+  return normalized;
+};
+
+const normalizeParallelReferences = (
+  value: unknown,
+  errorCode: string
+): string[] | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new AppError('Invalid inParallelWith value', 400, errorCode);
+  }
+
+  const references = value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => entry.length > 0);
+  for (const reference of references) {
+    if (!/^(stage:\d+|bracket:.+)$/i.test(reference)) {
+      throw new AppError('Invalid inParallelWith reference', 400, errorCode);
+    }
+  }
+
+  return [...new Set(references)];
+};
+
+const validateRankingPosition = (position: number, playersPerPool: number) => {
+  if (!Number.isInteger(position) || position < 1) {
+    throw new AppError('Invalid ranking destination position', 400, 'POOL_STAGE_ROUTING_INVALID');
+  }
+  if (position > playersPerPool) {
+    throw new AppError('Ranking destination exceeds players per pool', 400, 'POOL_STAGE_ROUTING_INVALID');
+  }
+};
+
+const ensureRankingCoverage = (positions: Set<number>, playersPerPool: number) => {
+  if (positions.size !== playersPerPool) {
+    throw new AppError(
+      'Ranking destinations must cover all positions in the pool',
+      400,
+      'POOL_STAGE_ROUTING_INCOMPLETE'
+    );
+  }
+};
+
+const addEntryToBucket = <T>(bucketMap: Map<string, T[]>, key: string, entry: T) => {
+  const bucket = bucketMap.get(key) ?? [];
+  bucket.push(entry);
+  bucketMap.set(key, bucket);
+};
+
+const buildPlayerLabel = (player?: { firstName?: string; lastName?: string }) => {
+  const first = player?.firstName ?? '';
+  const last = player?.lastName ?? '';
+  return `${first} ${last}`.trim();
+};
+
+const sumOpponentLegs = (
+  playerMatches: Array<{ player?: { id?: string }; scoreTotal?: number | null; legsWon?: number | null }>,
+  playerId: string
+): number => {
+  let opponentTotal = 0;
+  for (const other of playerMatches) {
+    if (other.player?.id && other.player.id !== playerId) {
+      opponentTotal += other.scoreTotal ?? other.legsWon ?? 0;
+    }
+  }
+  return opponentTotal;
+};
+
+const sortPoolStandings = (
+  rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>
+) => {
+  const sorted = [...rows.values()].sort((
+    a: { playerId: string; name: string; legsWon: number; legsLost: number },
+    b: { playerId: string; name: string; legsWon: number; legsLost: number }
+  ) => {
+    if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
+    if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
+    return a.name.localeCompare(b.name);
+  });
+
+  return sorted.map((row: { playerId: string; name: string; legsWon: number; legsLost: number }, index: number) => ({
+    ...row,
+    position: index + 1,
+  }));
+};
+
+const tokenizeBracketName = (name: string) =>
+  name
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((token) => token.toLowerCase());
+
+const uniqueEntriesByPlayerId = <T extends { playerId: string }>(entries: T[]): T[] => {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    if (seen.has(entry.playerId)) return false;
+    seen.add(entry.playerId);
+    return true;
+  });
+};
+
+const computeTargetWinnerCount = (winnerCount: number, totalEntries: number): number => {
+  let targetWinnerCount = winnerCount;
+  for (let target = nextPowerOfTwo(winnerCount); target <= totalEntries; target *= 2) {
+    if (isPowerOfTwo(totalEntries - target)) {
+      targetWinnerCount = target;
+      break;
+    }
+  }
+  return targetWinnerCount;
+};
+
+const rankLosers = (entries: PoolStandingsEntry[]): PoolStandingsEntry[] => {
+  return [...entries].sort((a: PoolStandingsEntry, b: PoolStandingsEntry) => {
+    if (a.position !== b.position) return a.position - b.position;
+    if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
+    if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
+    return a.name.localeCompare(b.name);
+  });
+};
+
+const buildBracketEntriesFromPools = (winners: PoolStandingsEntry[], losers: PoolStandingsEntry[]) => {
+  const winnerList = uniqueEntriesByPlayerId([...winners].sort(compareByPoolAndPosition));
+  const loserList = uniqueEntriesByPlayerId([...losers].sort(compareByPoolAndPosition));
+
+  const totalEntries = winnerList.length + loserList.length;
+  const targetWinnerCount = computeTargetWinnerCount(winnerList.length, totalEntries);
+  const rankedLosers = rankLosers(loserList);
+  const promoteCount = Math.max(0, targetWinnerCount - winnerList.length);
+  const promoted = rankedLosers.slice(0, promoteCount);
+  const promotedIds = new Set(promoted.map((entry) => entry.playerId));
+  const remainingLosers = loserList.filter((entry) => !promotedIds.has(entry.playerId));
+
+  const winnerEntries = [...winnerList, ...promoted].map((entry, index) => ({
+    playerId: entry.playerId,
+    seedNumber: index + 1,
+  }));
+
+  const loserEntries = remainingLosers.map((entry, index) => ({
+    playerId: entry.playerId,
+    seedNumber: index + 1,
+  }));
+
+  return { winnerEntries, loserEntries };
+};
+
+const countOpponentConflicts = (
+  playerId: string,
+  poolPlayers: string[],
+  opponentMap: Map<string, Set<string>>
+): number => {
+  const opponents = opponentMap.get(playerId);
+  if (!opponents || opponents.size === 0) {
+    return 0;
+  }
+  let conflicts = 0;
+  for (const existing of poolPlayers) {
+    if (opponents.has(existing)) {
+      conflicts += 1;
+    }
+  }
+  return conflicts;
+};
+
+const isBetterPoolCandidate = (
+  conflicts: number,
+  size: number,
+  poolId: string,
+  best: { state: { pool: { id: string }; players: string[] }; conflicts: number }
+): boolean => {
+  if (conflicts !== best.conflicts) {
+    return conflicts < best.conflicts;
+  }
+
+  const bestSize = best.state.players.length;
+  if (size !== bestSize) {
+    return size < bestSize;
+  }
+
+  return poolId.localeCompare(best.state.pool.id) < 0;
+};
+
+const ensurePoolRow = (
+  rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
+  player?: { id?: string; firstName?: string; lastName?: string }
+): void => {
+  if (!player?.id) return;
+  if (rows.has(player.id)) return;
+  rows.set(player.id, {
+    playerId: player.id,
+    name: buildPlayerLabel(player),
+    legsWon: 0,
+    legsLost: 0,
+  });
+};
+
+const applyPoolMatchScores = (
+  rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
+  playerMatches: Array<{ player?: { id?: string }; scoreTotal?: number | null; legsWon?: number | null }>
+): void => {
+  for (const pm of playerMatches) {
+    if (!pm.player?.id) continue;
+    const row = rows.get(pm.player.id);
+    if (!row) continue;
+    row.legsWon += pm.scoreTotal ?? pm.legsWon ?? 0;
+    row.legsLost += sumOpponentLegs(playerMatches, pm.player.id);
+  }
+};
+
+const addPoolAssignments = (
+  rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
+  assignments: Array<{ player?: { id?: string; firstName?: string; lastName?: string } }>
+): void => {
+  for (const assignment of assignments) {
+    ensurePoolRow(rows, assignment.player);
+  }
+};
+
+const addPoolMatchResults = (
+  rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
+  matches: Array<{ status?: string | null; playerMatches?: Array<{ player?: { id?: string; firstName?: string; lastName?: string }; scoreTotal?: number | null; legsWon?: number | null }> | null }>
+): void => {
+  for (const match of matches) {
+    if (match.status !== MatchStatus.COMPLETED) continue;
+    const playerMatches = match.playerMatches ?? [];
+    for (const pm of playerMatches) {
+      ensurePoolRow(rows, pm.player);
+    }
+    applyPoolMatchScores(rows, playerMatches);
+  }
+};
+
+const pickPoolForPlayer = (
+  playerId: string,
+  poolState: Array<{ pool: { id: string }; players: string[] }>,
+  playersPerPool: number,
+  opponentMap: Map<string, Set<string>>
+) => {
+  let best: { state: typeof poolState[number]; conflicts: number } | undefined;
+
+  for (const state of poolState) {
+    if (state.players.length >= playersPerPool) continue;
+    const conflicts = countOpponentConflicts(playerId, state.players, opponentMap);
+
+    if (!best || isBetterPoolCandidate(conflicts, state.players.length, state.pool.id, best)) {
+      best = { state, conflicts };
+    }
+  }
+
+  return best?.state ?? poolState.find((state) => state.players.length < playersPerPool);
+};
+
+const collectRankingDestinationInfo = (
+  destinations: PoolStageRankingDestinationInput[],
+  playersPerPool: number
+) => {
+  const positions = new Set<number>();
+  const bracketIds = new Set<string>();
+  const poolStageIds = new Set<string>();
+
+  for (const destination of destinations) {
+    validateRankingPosition(destination.position, playersPerPool);
+    if (positions.has(destination.position)) {
+      throw new AppError('Duplicate ranking destination position', 400, 'POOL_STAGE_ROUTING_INVALID');
+    }
+    positions.add(destination.position);
+
+    if (destination.destinationType === 'BRACKET') {
+      if (!destination.bracketId) {
+        throw new AppError('Bracket destination requires a bracket', 400, 'POOL_STAGE_ROUTING_INVALID');
+      }
+      bracketIds.add(destination.bracketId);
+    } else if (destination.destinationType === 'POOL_STAGE') {
+      if (!destination.poolStageId) {
+        throw new AppError('Pool stage destination requires a stage', 400, 'POOL_STAGE_ROUTING_INVALID');
+      }
+      poolStageIds.add(destination.poolStageId);
+    }
+  }
+
+  return { positions, bracketIds, poolStageIds };
+};
+
+const ensureBracketDestinations = async (
+  tournamentModel: TournamentModel,
+  tournamentId: string,
+  bracketIds: Set<string>
+) => {
+  if (bracketIds.size === 0) return;
+  const brackets = await tournamentModel.getBrackets(tournamentId);
+  const allowedBracketIds = new Set(brackets.map((bracket: (typeof brackets)[number]) => bracket.id));
+  const invalidBracketIds = [...bracketIds].filter((id) => !allowedBracketIds.has(id));
+  if (invalidBracketIds.length > 0) {
+    throw new AppError(
+      'Ranking destinations must reference tournament brackets',
+      400,
+      'POOL_STAGE_ROUTING_INVALID',
+      { invalidBracketIds }
+    );
+  }
+};
+
+const ensurePoolStageDestinations = async (
+  tournamentModel: TournamentModel,
+  tournamentId: string,
+  poolStageIds: Set<string>,
+  stageId?: string
+) => {
+  if (poolStageIds.size === 0) return;
+  const stages = await tournamentModel.getPoolStages(tournamentId);
+  const allowedStageIds = new Set(stages.map((stage: (typeof stages)[number]) => stage.id));
+  const invalidStageIds = [...poolStageIds].filter((id) => !allowedStageIds.has(id));
+  if (invalidStageIds.length > 0) {
+    throw new AppError(
+      'Ranking destinations must reference tournament pool stages',
+      400,
+      'POOL_STAGE_ROUTING_INVALID',
+      { invalidStageIds }
+    );
+  }
+  if (stageId && poolStageIds.has(stageId)) {
+    throw new AppError(
+      'Ranking destinations cannot target the same pool stage',
+      400,
+      'POOL_STAGE_ROUTING_INVALID'
+    );
+  }
+};
+
+const buildBracketEntriesMap = (entriesByBracket: Map<string, PoolStandingsEntry[]>) => {
+  const bracketEntries = new Map<string, Array<{ playerId: string; seedNumber: number }>>();
+  for (const [bracketId, entries] of entriesByBracket) {
+    const ordered = [...entries].sort(compareByPoolAndPosition);
+    bracketEntries.set(
+      bracketId,
+      ordered.map((entry: PoolStandingsEntry, index: number) => ({
+        playerId: entry.playerId,
+        seedNumber: index + 1,
+      }))
+    );
+  }
+  return bracketEntries;
+};
+
+const buildStageEntriesMap = (entriesByStage: Map<string, PoolStandingsEntry[]>) => {
+  const stageEntries = new Map<string, PoolStandingsEntry[]>();
+  for (const [stageKey, entries] of entriesByStage) {
+    stageEntries.set(stageKey, [...entries].sort(compareByPoolAndPosition));
+  }
+  return stageEntries;
+};
+
+const buildRoundRobinSchedule = (playerIds: string[]) => {
+  const players = [...playerIds];
+  if (players.length < 2) {
+    return [] as Array<{ roundNumber: number; pairs: Array<[string, string]> }>;
+  }
+
+  if (players.length % 2 !== 0) {
+    players.push('');
+  }
+
+  const rounds = players.length - 1;
+  const half = players.length / 2;
+  const schedule: Array<{ roundNumber: number; pairs: Array<[string, string]> }> = [];
+  const rotation = [...players];
+
+  for (let round = 0; round < rounds; round += 1) {
+    const pairs: Array<[string, string]> = [];
+    for (let index = 0; index < half; index += 1) {
+      const home = rotation[index];
+      const away = rotation[rotation.length - 1 - index];
+      if (home && away) {
+        pairs.push([home, away]);
+      }
+    }
+
+    schedule.push({ roundNumber: round + 1, pairs });
+
+    const fixed = rotation[0] ?? '';
+    const rest = rotation.slice(1);
+    rest.unshift(rest.pop() as string);
+    rotation.splice(0, rotation.length, fixed, ...rest);
+  }
+
+  return schedule;
+};
+
+const buildPoolMatchesFromSchedule = (
+  schedule: Array<{ roundNumber: number; pairs: Array<[string, string]> }>
+): Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> => {
+  const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
+  for (const round of schedule) {
+    for (const pair of round.pairs) {
+      matches.push({
+        roundNumber: round.roundNumber,
+        matchNumber: matches.length + 1,
+        playerIds: pair,
+      });
+    }
+  }
+  return matches;
+};
+
 export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   const { tournamentModel, validateUUID, completeMatchWithRandomScores } = context;
 
@@ -125,67 +565,6 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     return tournament;
   };
 
-  const isPoolStageEditable = (status: TournamentStatus): boolean => {
-    return [
-      TournamentStatus.DRAFT,
-      TournamentStatus.OPEN,
-      TournamentStatus.SIGNATURE,
-      TournamentStatus.LIVE,
-    ].includes(status);
-  };
-
-  const buildPoolStageUpdateData = (data: PoolStageUpdateData): {
-    nextData: PoolStageUpdateData;
-    shouldRedistribute: boolean;
-  } => {
-    const nextData = { ...data };
-    const shouldRedistribute =
-      data.poolCount !== undefined || data.playersPerPool !== undefined;
-
-    if (nextData.status === StageStatus.COMPLETED) {
-      nextData.completedAt = new Date();
-    }
-
-    return { nextData, shouldRedistribute };
-  };
-
-  const ensureValidMatchFormatKey = (
-    value: unknown,
-    errorCode: string
-  ): string | undefined => {
-    if (value === undefined || value === null || value === '') {
-      return undefined;
-    }
-    const normalized = normalizeMatchFormatKey(value);
-    if (!normalized) {
-      throw new AppError('Invalid match format key', 400, errorCode);
-    }
-    return normalized;
-  };
-
-  const normalizeParallelReferences = (
-    value: unknown,
-    errorCode: string
-  ): string[] | undefined => {
-    if (value === undefined || value === null) {
-      return undefined;
-    }
-    if (!Array.isArray(value)) {
-      throw new AppError('Invalid inParallelWith value', 400, errorCode);
-    }
-
-    const references = value
-      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-      .filter((entry) => entry.length > 0);
-    for (const reference of references) {
-      if (!/^(stage:\d+|bracket:.+)$/i.test(reference)) {
-        throw new AppError('Invalid inParallelWith reference', 400, errorCode);
-      }
-    }
-
-    return [...new Set(references)];
-  };
-
   const validatePoolStageRankingDestinations = async (
     tournamentId: string,
     playersPerPool: number,
@@ -200,60 +579,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     await ensurePoolStageDestinations(tournamentId, poolStageIds, stageId);
   };
 
-  const validateRankingPosition = (position: number, playersPerPool: number) => {
-    if (!Number.isInteger(position) || position < 1) {
-      throw new AppError('Invalid ranking destination position', 400, 'POOL_STAGE_ROUTING_INVALID');
-    }
-    if (position > playersPerPool) {
-      throw new AppError('Ranking destination exceeds players per pool', 400, 'POOL_STAGE_ROUTING_INVALID');
-    }
-  };
-
-  const collectRankingDestinationInfo = (
-    destinations: PoolStageRankingDestinationInput[],
-    playersPerPool: number
-  ) => {
-    const positions = new Set<number>();
-    const bracketIds = new Set<string>();
-    const poolStageIds = new Set<string>();
-
-    for (const destination of destinations) {
-      validateRankingPosition(destination.position, playersPerPool);
-      if (positions.has(destination.position)) {
-        throw new AppError('Duplicate ranking destination position', 400, 'POOL_STAGE_ROUTING_INVALID');
-      }
-      positions.add(destination.position);
-
-      if (destination.destinationType === 'BRACKET') {
-        if (!destination.bracketId) {
-          throw new AppError('Bracket destination requires a bracket', 400, 'POOL_STAGE_ROUTING_INVALID');
-        }
-        bracketIds.add(destination.bracketId);
-      } else if (destination.destinationType === 'POOL_STAGE') {
-        if (!destination.poolStageId) {
-          throw new AppError('Pool stage destination requires a stage', 400, 'POOL_STAGE_ROUTING_INVALID');
-        }
-        poolStageIds.add(destination.poolStageId);
-      }
-    }
-
-    return { positions, bracketIds, poolStageIds };
-  };
-
-  const ensureRankingCoverage = (positions: Set<number>, playersPerPool: number) => {
-    if (positions.size !== playersPerPool) {
-      throw new AppError(
-        'Ranking destinations must cover all positions in the pool',
-        400,
-        'POOL_STAGE_ROUTING_INCOMPLETE'
-      );
-    }
-  };
-
   const ensureBracketDestinations = async (tournamentId: string, bracketIds: Set<string>) => {
     if (bracketIds.size === 0) return;
     const brackets = await tournamentModel.getBrackets(tournamentId);
-    const allowedBracketIds = new Set(brackets.map((bracket) => bracket.id));
+  const allowedBracketIds = new Set(brackets.map((bracket: (typeof brackets)[number]) => bracket.id));
     const invalidBracketIds = [...bracketIds].filter((id) => !allowedBracketIds.has(id));
     if (invalidBracketIds.length > 0) {
       throw new AppError(
@@ -272,7 +601,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   ) => {
     if (poolStageIds.size === 0) return;
     const stages = await tournamentModel.getPoolStages(tournamentId);
-    const allowedStageIds = new Set(stages.map((stage) => stage.id));
+  const allowedStageIds = new Set(stages.map((stage: (typeof stages)[number]) => stage.id));
     const invalidStageIds = [...poolStageIds].filter((id) => !allowedStageIds.has(id));
     if (invalidStageIds.length > 0) {
       throw new AppError(
@@ -289,12 +618,6 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         'POOL_STAGE_ROUTING_INVALID'
       );
     }
-  };
-
-  const addEntryToBucket = <T>(bucketMap: Map<string, T[]>, key: string, entry: T) => {
-    const bucket = bucketMap.get(key) ?? [];
-    bucket.push(entry);
-    bucketMap.set(key, bucket);
   };
 
   const buildPoolEntry = (
@@ -333,19 +656,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       }
     }
 
-    const bracketEntries = new Map<string, Array<{ playerId: string; seedNumber: number }>>();
-    for (const [bracketId, entries] of entriesByBracket) {
-      const ordered = [...entries].sort(compareByPoolAndPosition);
-      bracketEntries.set(
-        bracketId,
-        ordered.map((entry, index) => ({ playerId: entry.playerId, seedNumber: index + 1 }))
-      );
-    }
-
-    const stageEntries = new Map<string, PoolStandingsEntry[]>();
-    for (const [stageKey, entries] of entriesByStage) {
-      stageEntries.set(stageKey, [...entries].sort(compareByPoolAndPosition));
-    }
+    const bracketEntries = buildBracketEntriesMap(entriesByBracket);
+    const stageEntries = buildStageEntriesMap(entriesByStage);
 
     return { bracketEntries, stageEntries };
   };
@@ -355,7 +667,6 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     stageId: string,
     updatedStage: Awaited<ReturnType<TournamentModel['updatePoolStage']>>,
     shouldRedistribute: boolean,
-    // eslint-disable-next-line unicorn/no-null
     completedAt?: Date | null
   ): Promise<void> => {
     switch (updatedStage.status) {
@@ -445,7 +756,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
   const handlePoolStageNotStarted = async (stageId: string): Promise<void> => {
     const pools = await tournamentModel.getPoolsForStage(stageId);
-    await Promise.all(pools.map(async (pool) => {
+  await Promise.all(pools.map(async (pool: (typeof pools)[number]) => {
       await tournamentModel.resetPoolMatches(pool.id);
     }));
   };
@@ -463,10 +774,82 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
   };
 
-  const buildPlayerLabel = (player?: { firstName?: string; lastName?: string }) => {
-    const first = player?.firstName ?? '';
-    const last = player?.lastName ?? '';
-    return `${first} ${last}`.trim();
+  const validateBracketPopulationRequest = async (
+    tournamentId: string,
+    stageId: string,
+    bracketId: string
+  ) => {
+    const tournament = await tournamentModel.findById(tournamentId);
+    if (!tournament) {
+      throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+    }
+
+    if (tournament.status !== TournamentStatus.LIVE) {
+      throw new AppError(
+        'Brackets can only be populated for live tournaments',
+        400,
+        'BRACKET_POPULATE_NOT_LIVE'
+      );
+    }
+
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    if (stage?.tournamentId !== tournamentId) {
+      throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
+    }
+
+    if (stage.status !== StageStatus.COMPLETED) {
+      throw new AppError(
+        'Pool stage must be completed to populate brackets',
+        400,
+        'POOL_STAGE_NOT_COMPLETED'
+      );
+    }
+
+    const bracket = await tournamentModel.getBracketById(bracketId);
+    if (bracket?.tournamentId !== tournamentId) {
+      throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
+    }
+
+    const startedMatchCount = await tournamentModel.getStartedBracketMatchCount(tournamentId, bracketId);
+    if (startedMatchCount > 0) {
+      throw new AppError(
+        'Bracket cannot be populated once matches have started',
+        400,
+        'BRACKET_MATCHES_STARTED'
+      );
+    }
+
+    return { stage, bracket };
+  };
+
+  const resolveBracketPopulationEntries = async (
+    tournamentId: string,
+    stageId: string,
+    bracketId: string,
+    bracketName: string,
+    role?: 'WINNER' | 'LOSER'
+  ) => {
+    const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    const routing = stage ? getStageRankingDestinations(stage) : undefined;
+    if (routing && routing.length > 0) {
+      const { bracketEntries } = buildEntriesFromRankingDestinations(pools, routing);
+      return bracketEntries.get(bracketId) ?? [];
+    }
+
+    const finalStage = await getFinalPoolStage(tournamentId, stageId);
+    if (!finalStage) {
+      throw new AppError(
+        'Pool stage must be the final stage to populate brackets',
+        400,
+        'POOL_STAGE_NOT_FINAL'
+      );
+    }
+
+    const { winners, losers } = collectPoolStandings(pools, finalStage.advanceCount);
+    const { winnerEntries, loserEntries } = buildBracketEntriesFromPools(winners, losers);
+    const resolvedRole = role ?? (/loser/i.test(bracketName) ? 'LOSER' : 'WINNER');
+    return resolvedRole === 'LOSER' ? loserEntries : winnerEntries;
   };
 
   const buildPoolStandings = (pool: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>[number]) => {
@@ -476,84 +859,6 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     addPoolMatchResults(rows, pool.matches ?? []);
 
     return sortPoolStandings(rows);
-  };
-
-  const ensurePoolRow = (
-    rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
-    player?: { id?: string; firstName?: string; lastName?: string }
-  ): void => {
-    if (!player?.id) return;
-    if (rows.has(player.id)) return;
-    rows.set(player.id, {
-      playerId: player.id,
-      name: buildPlayerLabel(player),
-      legsWon: 0,
-      legsLost: 0,
-    });
-  };
-
-  const addPoolAssignments = (
-    rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
-    assignments: Array<{ player?: { id?: string; firstName?: string; lastName?: string } }>
-  ): void => {
-    for (const assignment of assignments) {
-      ensurePoolRow(rows, assignment.player);
-    }
-  };
-
-  const addPoolMatchResults = (
-    rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
-    matches: Array<{ status?: string | null; playerMatches?: Array<{ player?: { id?: string; firstName?: string; lastName?: string }; scoreTotal?: number | null; legsWon?: number | null }> | null }>
-  ): void => {
-    for (const match of matches) {
-      if (match.status !== MatchStatus.COMPLETED) continue;
-      const playerMatches = match.playerMatches ?? [];
-      for (const pm of playerMatches) {
-        ensurePoolRow(rows, pm.player);
-      }
-      applyPoolMatchScores(rows, playerMatches);
-    }
-  };
-
-  const applyPoolMatchScores = (
-    rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
-    playerMatches: Array<{ player?: { id?: string }; scoreTotal?: number | null; legsWon?: number | null }>
-  ): void => {
-    for (const pm of playerMatches) {
-      if (!pm.player?.id) continue;
-      const row = rows.get(pm.player.id);
-      if (!row) continue;
-      row.legsWon += pm.scoreTotal ?? pm.legsWon ?? 0;
-      row.legsLost += sumOpponentLegs(playerMatches, pm.player.id);
-    }
-  };
-
-  const sumOpponentLegs = (
-    playerMatches: Array<{ player?: { id?: string }; scoreTotal?: number | null; legsWon?: number | null }>,
-    playerId: string
-  ): number => {
-    let opponentTotal = 0;
-    for (const other of playerMatches) {
-      if (other.player?.id && other.player.id !== playerId) {
-        opponentTotal += other.scoreTotal ?? other.legsWon ?? 0;
-      }
-    }
-    return opponentTotal;
-  };
-
-  const sortPoolStandings = (
-    rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>
-  ) => {
-    const sorted = [...rows.values()].sort((a, b) => {
-      if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
-      if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
-      return a.name.localeCompare(b.name);
-    });
-
-    return sorted.map((row, index) => ({
-      ...row,
-      position: index + 1,
-    }));
   };
 
   const populateBracket = async (
@@ -589,8 +894,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       return;
     }
 
-    const ordered = [...entries].sort((a, b) => a.seedNumber - b.seedNumber);
-    const playerIds = ordered.map((entry) => entry.playerId);
+  const ordered = [...entries].sort((a, b) => a.seedNumber - b.seedNumber);
+  const playerIds = ordered.map((entry: { playerId: string; seedNumber: number }) => entry.playerId);
     const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
     let matchNumber = 1;
     for (let left = 0, right = playerIds.length - 1; left < right; left += 1, right -= 1) {
@@ -626,7 +931,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
     if (stageEntries.size === 0) return;
     const stages = await tournamentModel.getPoolStages(tournamentId);
-    const stageMap = new Map(stages.map((item) => [item.id, item]));
+  const stageMap = new Map(stages.map((item: (typeof stages)[number]) => [item.id, item]));
     for (const [targetStageId, entries] of stageEntries) {
       const targetStage = stageMap.get(targetStageId);
       if (!targetStage) continue;
@@ -670,19 +975,13 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
   };
 
-  const tokenizeBracketName = (name: string) =>
-    name
-      .split(/[^A-Za-z0-9]+/)
-      .filter(Boolean)
-      .map((token) => token.toLowerCase());
-
   const selectBracketByLabel = (
     brackets: Awaited<ReturnType<TournamentModel['getBrackets']>>,
     label: string
   ) => {
     const target = label.trim().toLowerCase();
     if (!target) return;
-    return brackets.find((bracket) => tokenizeBracketName(bracket.name).includes(target));
+  return brackets.find((bracket: (typeof brackets)[number]) => tokenizeBracketName(bracket.name).includes(target));
   };
 
   const ensureBracketForLabel = async (
@@ -725,7 +1024,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const unique = uniqueEntriesByPlayerId(entries);
     const capacity = stage.poolCount * stage.playersPerPool;
     const selected = unique.slice(0, capacity);
-    const poolStates = pools.map((pool) => ({ pool, count: 0 }));
+  const poolStates = pools.map((pool: (typeof pools)[number]) => ({ pool, count: 0 }));
     const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
 
     let poolIndex = 0;
@@ -787,7 +1086,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     const stages = await tournamentModel.getPoolStages(tournamentId);
-    const hasDoubleStages = stages.some((item) => item.stageNumber === 2 || item.stageNumber === 3);
+  const hasDoubleStages = stages.some((item: (typeof stages)[number]) => item.stageNumber === 2 || item.stageNumber === 3);
     if (!tournament.doubleStageEnabled && !hasDoubleStages) {
       return;
     }
@@ -807,8 +1106,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   };
 
   const handleStageOneDoubleProgression = async (context: DoubleStageContext): Promise<void> => {
-    const stageA = context.stages.find((item) => item.stageNumber === 2);
-    const stageB = context.stages.find((item) => item.stageNumber === 3);
+  const stageA = context.stages.find((item: (typeof context.stages)[number]) => item.stageNumber === 2);
+  const stageB = context.stages.find((item: (typeof context.stages)[number]) => item.stageNumber === 3);
 
     if (!stageA || !stageB) {
       throw new AppError(
@@ -870,8 +1169,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     const bracket = await ensureBracketForLabel(context.tournament.id, context.brackets, label);
-    const ordered = uniqueEntriesByPlayerId(winners).sort(compareByPoolAndPosition);
-    const seeded = ordered.map((entry, index) => ({
+  const ordered = [...uniqueEntriesByPlayerId(winners)].sort(compareByPoolAndPosition);
+    const seeded = ordered.map((entry: PoolStandingsEntry, index: number) => ({
       playerId: entry.playerId,
       seedNumber: index + 1,
     }));
@@ -951,116 +1250,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     return { winners, losers };
   };
 
-  const uniqueEntriesByPlayerId = <T extends { playerId: string }>(entries: T[]): T[] => {
-    const seen = new Set<string>();
-    return entries.filter((entry) => {
-      if (seen.has(entry.playerId)) return false;
-      seen.add(entry.playerId);
-      return true;
-    });
-  };
-
-  const buildBracketEntriesFromPools = (winners: PoolStandingsEntry[], losers: PoolStandingsEntry[]) => {
-    const winnerList = uniqueEntriesByPlayerId([...winners].sort(compareByPoolAndPosition));
-    const loserList = uniqueEntriesByPlayerId([...losers].sort(compareByPoolAndPosition));
-
-    const totalEntries = winnerList.length + loserList.length;
-    const targetWinnerCount = computeTargetWinnerCount(winnerList.length, totalEntries);
-    const rankedLosers = rankLosers(loserList);
-    const promoteCount = Math.max(0, targetWinnerCount - winnerList.length);
-    const promoted = rankedLosers.slice(0, promoteCount);
-    const promotedIds = new Set(promoted.map((entry) => entry.playerId));
-    const remainingLosers = loserList.filter((entry) => !promotedIds.has(entry.playerId));
-
-    const winnerEntries = [...winnerList, ...promoted].map((entry, index) => ({
-      playerId: entry.playerId,
-      seedNumber: index + 1,
-    }));
-
-    const loserEntries = remainingLosers.map((entry, index) => ({
-      playerId: entry.playerId,
-      seedNumber: index + 1,
-    }));
-
-    return { winnerEntries, loserEntries };
-  };
-
-  const computeTargetWinnerCount = (winnerCount: number, totalEntries: number): number => {
-    let targetWinnerCount = winnerCount;
-    for (let target = nextPowerOfTwo(winnerCount); target <= totalEntries; target *= 2) {
-      if (isPowerOfTwo(totalEntries - target)) {
-        targetWinnerCount = target;
-        break;
-      }
-    }
-    return targetWinnerCount;
-  };
-
-  const rankLosers = (entries: PoolStandingsEntry[]): PoolStandingsEntry[] => {
-    return [...entries].sort((a, b) => {
-      if (a.position !== b.position) return a.position - b.position;
-      if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
-      if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
-      return a.name.localeCompare(b.name);
-    });
-  };
-
   const selectWinnerLoserBrackets = (brackets: Awaited<ReturnType<TournamentModel['getBrackets']>>) => {
-    const winnerBracket = brackets.find((bracket) => /winner/i.test(bracket.name)) ?? brackets[0];
-    const loserBracket = brackets.find((bracket) => /loser/i.test(bracket.name));
+  const winnerBracket = brackets.find((bracket: (typeof brackets)[number]) => /winner/i.test(bracket.name)) ?? brackets[0];
+  const loserBracket = brackets.find((bracket: (typeof brackets)[number]) => /loser/i.test(bracket.name));
     return { winnerBracket, loserBracket };
-  };
-
-  const buildRoundRobinSchedule = (playerIds: string[]) => {
-    const players = [...playerIds];
-    if (players.length < 2) {
-      return [] as Array<{ roundNumber: number; pairs: Array<[string, string]> }>;
-    }
-
-    if (players.length % 2 !== 0) {
-      players.push('');
-    }
-
-    const rounds = players.length - 1;
-    const half = players.length / 2;
-    const schedule: Array<{ roundNumber: number; pairs: Array<[string, string]> }> = [];
-    const rotation = [...players];
-
-    for (let round = 0; round < rounds; round += 1) {
-      const pairs: Array<[string, string]> = [];
-      for (let index = 0; index < half; index += 1) {
-        const home = rotation[index];
-        const away = rotation[rotation.length - 1 - index];
-        if (home && away) {
-          pairs.push([home, away]);
-        }
-      }
-
-      schedule.push({ roundNumber: round + 1, pairs });
-
-      const fixed = rotation[0] ?? '';
-      const rest = rotation.slice(1);
-      rest.unshift(rest.pop() as string);
-      rotation.splice(0, rotation.length, fixed, ...rest);
-    }
-
-    return schedule;
-  };
-
-  const buildPoolMatchesFromSchedule = (
-    schedule: Array<{ roundNumber: number; pairs: Array<[string, string]> }>
-  ): Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> => {
-    const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
-    for (const round of schedule) {
-      for (const pair of round.pairs) {
-        matches.push({
-          roundNumber: round.roundNumber,
-          matchNumber: matches.length + 1,
-          playerIds: pair,
-        });
-      }
-    }
-    return matches;
   };
 
   const createEmptyPoolMatchesForStage = async (tournamentId: string, stageId: string): Promise<void> => {
@@ -1104,7 +1297,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
     const getPoolPlayerIds = (pool: (typeof pools)[number]) => (
       (pool.assignments || [])
-        .map((assignment) => assignment.player?.id)
+        .map((assignment: (typeof pool.assignments)[number]) => assignment.player?.id)
         .filter(Boolean)
     );
 
@@ -1113,6 +1306,24 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }>,
       existingByMatchNumber: Map<number, Awaited<ReturnType<typeof tournamentModel.getPoolMatchesWithPlayers>>[number]>
     ) => {
+      const hasSamePlayers = (
+        existing: Awaited<ReturnType<typeof tournamentModel.getPoolMatchesWithPlayers>>[number],
+        nextPlayerIds: [string, string]
+      ) => {
+        const currentPlayerIds = [...(existing.playerMatches ?? [])]
+          .sort(
+            (
+              left: NonNullable<typeof existing.playerMatches>[number],
+              right: NonNullable<typeof existing.playerMatches>[number]
+            ) => (left.position ?? 0) - (right.position ?? 0)
+          )
+          .map((playerMatch: NonNullable<typeof existing.playerMatches>[number]) => playerMatch.player?.id)
+          .filter(Boolean);
+
+        return currentPlayerIds.length === nextPlayerIds.length
+          && currentPlayerIds.every((playerId: string, index: number) => playerId === nextPlayerIds[index]);
+      };
+
       const missingMatches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
 
       for (const nextMatch of matches) {
@@ -1122,7 +1333,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
           continue;
         }
 
-        if ((existing.playerMatches?.length ?? 0) < 2 && existing.status === MatchStatus.SCHEDULED) {
+        if (existing.status === MatchStatus.SCHEDULED && !hasSamePlayers(existing, nextMatch.playerIds)) {
           await tournamentModel.setPoolMatchPlayers(existing.id, nextMatch.playerIds);
         }
       }
@@ -1146,8 +1357,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       const existingMatches = matchCount > 0
         ? await tournamentModel.getPoolMatchesWithPlayers(pool.id)
         : [];
-      const existingByMatchNumber = new Map(
-        existingMatches.map((item) => [item.matchNumber, item])
+      const existingByMatchNumber = new Map<number, (typeof existingMatches)[number]>(
+        existingMatches.map((item: (typeof existingMatches)[number]) => [item.matchNumber, item])
       );
 
       await seedExistingOrCollectMissingMatches(pool.id, matches, existingByMatchNumber);
@@ -1172,7 +1383,14 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const stage = await tournamentModel.getPoolStageById(stageId);
     if (!stage) return;
 
-    const players = await tournamentModel.getActivePlayersForTournament(tournamentId);
+    const tournament = await tournamentModel.findById(tournamentId);
+    if (!tournament) return;
+
+    const players = tournament.format === TournamentFormat.DOUBLE
+      ? await tournamentModel.getActiveDoublettePlayersForTournament(tournamentId)
+      : tournament.format === TournamentFormat.TEAM_4_PLAYER
+        ? await tournamentModel.getActiveEquipePlayersForTournament(tournamentId)
+        : await tournamentModel.getActivePlayersForTournament(tournamentId);
     if (players.length === 0) return;
 
     const opponentMap = await buildOpponentMap(tournamentId, stage.stageNumber);
@@ -1185,21 +1403,21 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     };
 
     const shuffled = players
-      .map((player) => ({
+      .map((player: (typeof players)[number]) => ({
         player,
         score: skillScore[player.skillLevel || ''] || 0,
         tiebreaker: randomInt(0, 1_000_000),
       }))
-      .sort((a, b) => {
+      .sort((a: { score: number; tiebreaker: number }, b: { score: number; tiebreaker: number }) => {
         if (b.score !== a.score) return b.score - a.score;
         return a.tiebreaker - b.tiebreaker;
       })
-      .map((item) => item.player);
+      .map((item: { player: (typeof players)[number] }) => item.player);
 
     const capacity = poolCount * playersPerPool;
     const selected = shuffled.slice(0, capacity);
     const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
-    const poolState = pools.map((pool) => ({ pool, players: [] as string[] }));
+    const poolState = pools.map((pool: (typeof pools)[number]) => ({ pool, players: [] as string[] }));
 
     for (const [index, player] of selected.entries()) {
       if (!player) continue;
@@ -1248,62 +1466,6 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     return opponentMap;
-  };
-
-  const countOpponentConflicts = (
-    playerId: string,
-    poolPlayers: string[],
-    opponentMap: Map<string, Set<string>>
-  ): number => {
-    const opponents = opponentMap.get(playerId);
-    if (!opponents || opponents.size === 0) {
-      return 0;
-    }
-    let conflicts = 0;
-    for (const existing of poolPlayers) {
-      if (opponents.has(existing)) {
-        conflicts += 1;
-      }
-    }
-    return conflicts;
-  };
-
-  const pickPoolForPlayer = (
-    playerId: string,
-    poolState: Array<{ pool: { id: string }; players: string[] }>,
-    playersPerPool: number,
-    opponentMap: Map<string, Set<string>>
-  ) => {
-    let best: { state: typeof poolState[number]; conflicts: number } | undefined;
-
-    for (const state of poolState) {
-      if (state.players.length >= playersPerPool) continue;
-      const conflicts = countOpponentConflicts(playerId, state.players, opponentMap);
-
-      if (!best || isBetterPoolCandidate(conflicts, state.players.length, state.pool.id, best)) {
-        best = { state, conflicts };
-      }
-    }
-
-    return best?.state ?? poolState.find((state) => state.players.length < playersPerPool);
-  };
-
-  const isBetterPoolCandidate = (
-    conflicts: number,
-    size: number,
-    poolId: string,
-    best: { state: { pool: { id: string }; players: string[] }; conflicts: number }
-  ): boolean => {
-    if (conflicts !== best.conflicts) {
-      return conflicts < best.conflicts;
-    }
-
-    const bestSize = best.state.players.length;
-    if (size !== bestSize) {
-      return size < bestSize;
-    }
-
-    return poolId.localeCompare(best.state.pool.id) < 0;
   };
 
   return {
@@ -1370,9 +1532,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         );
       }
 
-      const { matchFormatKey: _inputMatchFormatKey, ...restData } = data;
       const { nextData, shouldRedistribute } = buildPoolStageUpdateData({
-        ...restData,
+        ...data,
         ...(data.matchFormatKey === undefined ? {} : { matchFormatKey: matchFormatKey! }),
         ...(data.inParallelWith === undefined ? {} : { inParallelWith: inParallelWith ?? [] }),
       });
@@ -1397,16 +1558,16 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       if (previousStageMatchFormatKey !== updatedStageMatchFormatKey) {
         const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
         const affectedMatches = pools
-          .flatMap((pool) => (pool.matches ?? []).map((match) => ({ pool, match })))
-          .filter(({ match }) => (
+          .flatMap((pool: (typeof pools)[number]) => (pool.matches ?? []).map((match: NonNullable<typeof pool.matches>[number]) => ({ pool, match })))
+          .filter(({ match }: { match: NonNullable<(typeof pools)[number]['matches']>[number] }) => (
             (match.status === MatchStatus.SCHEDULED || match.status === MatchStatus.IN_PROGRESS)
             && (match.matchFormatKey ?? previousStageMatchFormatKey) !== (match.matchFormatKey ?? updatedStageMatchFormatKey)
           ))
-          .map(({ match }) => ({
+          .map(({ match }: { match: NonNullable<(typeof pools)[number]['matches']>[number] }) => ({
             matchId: match.id,
             matchFormatKey: match.matchFormatKey ?? updatedStageMatchFormatKey,
           }))
-          .filter((item): item is { matchId: string; matchFormatKey: string } => Boolean(item.matchFormatKey));
+          .filter((item: { matchId: string; matchFormatKey?: string }): item is { matchId: string; matchFormatKey: string } => Boolean(item.matchFormatKey));
 
         await emitMatchFormatChangedNotifications(
           {
@@ -1451,73 +1612,14 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       validateUUID(tournamentId);
       validateUUID(stageId);
       validateUUID(bracketId);
-
-      const tournament = await tournamentModel.findById(tournamentId);
-      if (!tournament) {
-        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
-      }
-
-      if (tournament.status !== TournamentStatus.LIVE) {
-        throw new AppError(
-          'Brackets can only be populated for live tournaments',
-          400,
-          'BRACKET_POPULATE_NOT_LIVE'
-        );
-      }
-
-      const stage = await tournamentModel.getPoolStageById(stageId);
-      if (stage?.tournamentId !== tournamentId) {
-        throw new AppError('Pool stage not found', 404, 'POOL_STAGE_NOT_FOUND');
-      }
-
-      if (stage.status !== StageStatus.COMPLETED) {
-        throw new AppError(
-          'Pool stage must be completed to populate brackets',
-          400,
-          'POOL_STAGE_NOT_COMPLETED'
-        );
-      }
-
-      const bracket = await tournamentModel.getBracketById(bracketId);
-      if (bracket?.tournamentId !== tournamentId) {
-        throw new AppError('Bracket not found', 404, 'BRACKET_NOT_FOUND');
-      }
-
-      const startedMatchCount = await tournamentModel.getStartedBracketMatchCount(
+      const { bracket } = await validateBracketPopulationRequest(tournamentId, stageId, bracketId);
+      const entries = await resolveBracketPopulationEntries(
         tournamentId,
-        bracketId
+        stageId,
+        bracketId,
+        bracket.name,
+        role
       );
-      if (startedMatchCount > 0) {
-        throw new AppError(
-          'Bracket cannot be populated once matches have started',
-          400,
-          'BRACKET_MATCHES_STARTED'
-        );
-      }
-
-      const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
-      const routing = getStageRankingDestinations(stage);
-      if (routing && routing.length > 0) {
-        const { bracketEntries } = buildEntriesFromRankingDestinations(pools, routing);
-        const entries = bracketEntries.get(bracketId) ?? [];
-        await populateBracket(tournamentId, bracketId, entries);
-        return;
-      }
-
-      const finalStage = await getFinalPoolStage(tournamentId, stageId);
-      if (!finalStage) {
-        throw new AppError(
-          'Pool stage must be the final stage to populate brackets',
-          400,
-          'POOL_STAGE_NOT_FINAL'
-        );
-      }
-
-      const { winners, losers } = collectPoolStandings(pools, finalStage.advanceCount);
-      const { winnerEntries, loserEntries } = buildBracketEntriesFromPools(winners, losers);
-      const resolvedRole = role
-        ?? (/loser/i.test(bracket.name) ? 'LOSER' : 'WINNER');
-      const entries = resolvedRole === 'LOSER' ? loserEntries : winnerEntries;
 
       await populateBracket(tournamentId, bracketId, entries);
     },
@@ -1548,7 +1650,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       }
 
       const matches = await tournamentModel.getMatchesForPoolStage(stageId);
-      const playableMatches = matches.filter((match) => (match.playerMatches?.length ?? 0) >= 2);
+  const playableMatches = matches.filter((match: (typeof matches)[number]) => (match.playerMatches?.length ?? 0) >= 2);
 
       const now = new Date();
       for (const match of playableMatches) {
@@ -1651,9 +1753,9 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       }
 
       const pools = await tournamentModel.getPoolsForStage(stageId);
-      const poolIds = new Set(pools.map((pool) => pool.id));
+  const poolIds = new Set(pools.map((pool: (typeof pools)[number]) => pool.id));
       const players = await tournamentModel.getActivePlayersForTournament(tournamentId);
-      const playerIds = new Set(players.map((player) => player.id));
+  const playerIds = new Set(players.map((player: (typeof players)[number]) => player.id));
 
       const invalidPool = assignments.find((assignment) => !poolIds.has(assignment.poolId));
       if (invalidPool) {

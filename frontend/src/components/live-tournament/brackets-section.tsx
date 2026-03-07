@@ -1,3 +1,5 @@
+import { getBracketMatchAnchorId } from './bracket-match-anchors';
+import { useEffect } from 'react';
 import type { LiveViewBracket, LiveViewMatch, LiveViewTarget, Translator } from './types';
 import BracketMatches from './bracket-matches';
 import { computeOptimisticStartTimes } from './pool-stage-card';
@@ -15,6 +17,7 @@ type BracketsSectionProperties = {
   tournamentStartTime: string | undefined;
   poolStages: import('./types').LiveViewPoolStage[];
   brackets: LiveViewBracket[];
+  playerIdByTournament: Record<string, string>;
   screenMode: boolean;
   isAdmin: boolean;
   isBracketsReadonly: boolean;
@@ -76,6 +79,61 @@ const formatHourMinute = (date: Date) => new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
   minute: '2-digit',
 }).format(date);
+
+const getHashTargetBracketId = (tournamentId: string) => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const hash = window.location.hash.replace(/^#/, '');
+  const matchPrefix = `match-${tournamentId}-`;
+  if (!hash.startsWith(matchPrefix)) {
+    return undefined;
+  }
+
+  const remainder = hash.slice(matchPrefix.length);
+  const lastDashIndex = remainder.lastIndexOf('-');
+  if (lastDashIndex <= 0) {
+    return undefined;
+  }
+
+  return remainder.slice(0, lastDashIndex);
+};
+
+const BRACKET_MATCH_STATUS_PRIORITY: Record<string, number> = {
+  IN_PROGRESS: 0,
+  SCHEDULED: 1,
+  COMPLETED: 2,
+  CANCELLED: 3,
+};
+
+const getPreferredPlayerMatchCandidate = (
+  brackets: LiveViewBracket[],
+  preferredPlayerId: string | undefined
+) => {
+  if (!preferredPlayerId) {
+    return undefined;
+  }
+
+  return brackets
+    .flatMap((bracket) => (
+      (bracket.matches ?? []).map((match) => ({ bracket, match }))
+    ))
+    .filter(({ match }) => (
+      (match.playerMatches ?? []).some((playerMatch) => playerMatch.player?.id === preferredPlayerId)
+    ))
+    .sort((left, right) => {
+      const leftPriority = BRACKET_MATCH_STATUS_PRIORITY[(left.match.status ?? '').toUpperCase()] ?? 99;
+      const rightPriority = BRACKET_MATCH_STATUS_PRIORITY[(right.match.status ?? '').toUpperCase()] ?? 99;
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+      if ((left.match.roundNumber ?? 0) !== (right.match.roundNumber ?? 0)) {
+        return (left.match.roundNumber ?? 0) - (right.match.roundNumber ?? 0);
+      }
+      return (left.match.matchNumber ?? 0) - (right.match.matchNumber ?? 0);
+    })[0];
+};
 
 const toValidDate = (value: string | undefined) => {
   if (!value) {
@@ -459,6 +517,7 @@ const BracketsSection = ({
   tournamentStartTime,
   poolStages,
   brackets,
+  playerIdByTournament,
   screenMode,
   isAdmin,
   isBracketsReadonly,
@@ -488,6 +547,62 @@ const BracketsSection = ({
   activeBracketId,
   getParticipantLabel,
 }: BracketsSectionProperties) => {
+  const preferredPlayerId = playerIdByTournament[tournamentId];
+
+  useEffect(() => {
+    if (brackets.length === 0) {
+      return;
+    }
+
+    const applyHashBracketSelection = () => {
+      const hashBracketId = getHashTargetBracketId(tournamentId);
+      if (!hashBracketId) {
+        return;
+      }
+
+      const targetBracket = brackets.find((bracket) => bracket.id === hashBracketId);
+      if (!targetBracket) {
+        return;
+      }
+
+      if (activeBracketId !== targetBracket.id) {
+        onSelectBracket(tournamentId, targetBracket.id);
+      }
+    };
+
+    applyHashBracketSelection();
+    window.addEventListener('hashchange', applyHashBracketSelection);
+
+    return () => {
+      window.removeEventListener('hashchange', applyHashBracketSelection);
+    };
+  }, [activeBracketId, brackets, onSelectBracket, tournamentId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || brackets.length === 0 || !preferredPlayerId) {
+      return;
+    }
+
+    if (window.location.hash.replace(/^#/, '').startsWith(`match-${tournamentId}-`)) {
+      return;
+    }
+
+    const candidate = getPreferredPlayerMatchCandidate(brackets, preferredPlayerId);
+    if (!candidate) {
+      return;
+    }
+
+    if (activeBracketId !== candidate.bracket.id) {
+      onSelectBracket(tournamentId, candidate.bracket.id);
+    }
+
+    const nextHash = getBracketMatchAnchorId(tournamentId, candidate.bracket.id, candidate.match.id);
+    if (window.location.hash.replace(/^#/, '') !== nextHash) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${nextHash}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    }
+  }, [activeBracketId, brackets, onSelectBracket, preferredPlayerId, tournamentId]);
+
   if (brackets.length === 0) {
     return <SectionEmptyState title={t('live.bracketStages')} message={t('live.noBrackets')} />;
   }
@@ -549,6 +664,9 @@ const BracketsSection = ({
           t={t}
           tournamentId={tournamentId}
           bracket={activeBracket}
+          {...(preferredPlayerId
+            ? { preferredPlayerId }
+            : {})}
           roundStartTimeByRound={bracketForecast.roundStartTimeByRound}
           screenMode
           isBracketsReadonly={isBracketsReadonly}
@@ -609,6 +727,9 @@ const BracketsSection = ({
             t={t}
             tournamentId={tournamentId}
             bracket={activeBracket}
+            {...(preferredPlayerId
+              ? { preferredPlayerId }
+              : {})}
             roundStartTimeByRound={bracketForecast.roundStartTimeByRound}
             screenMode={screenMode}
             isBracketsReadonly={isBracketsReadonly}

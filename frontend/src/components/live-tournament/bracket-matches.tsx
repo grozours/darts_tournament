@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type {
   LiveViewBracket,
   LiveViewMatch,
@@ -12,6 +13,7 @@ import {
   type BracketMatchSlot,
   type BracketTone,
 } from './bracket-utilities';
+import { getBracketMatchAnchorId } from './bracket-match-anchors';
 import MatchScoreInputs from './match-score-inputs';
 import MatchTargetSelector from './match-target-selector';
 import { getMatchFormatTooltip } from '../../utils/match-format-presets';
@@ -153,6 +155,7 @@ type BracketMatchesProperties = {
   t: Translator;
   tournamentId: string;
   bracket: LiveViewBracket;
+  preferredPlayerId?: string;
   roundStartTimeByRound?: Map<number, string>;
   screenMode?: boolean;
   isBracketsReadonly: boolean;
@@ -182,6 +185,7 @@ const BracketMatches = ({
   t,
   tournamentId,
   bracket,
+  preferredPlayerId,
   roundStartTimeByRound,
   screenMode = false,
   isBracketsReadonly,
@@ -205,6 +209,51 @@ const BracketMatches = ({
   onScoreChange,
   getParticipantLabel,
 }: BracketMatchesProperties) => {
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const scrollToHashMatch = () => {
+      const hash = window.location.hash.replace(/^#/, '');
+      if (!hash) {
+        return;
+      }
+
+      const matchElement = document.getElementById(hash);
+      if (!matchElement) {
+        return;
+      }
+
+      matchElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center',
+      });
+    };
+
+    scrollToHashMatch();
+    window.addEventListener('hashchange', scrollToHashMatch);
+
+    return () => {
+      window.removeEventListener('hashchange', scrollToHashMatch);
+    };
+  }, [bracket.id, tournamentId]);
+
+  const isPreferredPlayerMatch = (match: Pick<BracketMatchSlot, 'playerMatches'>) => {
+    if (!preferredPlayerId) {
+      return false;
+    }
+
+    return (match.playerMatches ?? []).some((playerMatch) => playerMatch.player?.id === preferredPlayerId);
+  };
+
+  const getBracketCardShellClassName = (match: Pick<BracketMatchSlot, 'playerMatches'>, tone: BracketTone) => (
+    isPreferredPlayerMatch(match)
+      ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_20px_45px_-30px_rgba(245,158,11,0.8)]'
+      : tone.card
+  );
 
   const renderScheduledActions = (matchTournamentId: string, match: BracketMatchSlot, matchKey: string) => {
     if (!match.playerMatches || match.playerMatches.length < 2) {
@@ -372,7 +421,9 @@ const BracketMatches = ({
   ) => (
     <div className="relative">
       <div
-        className={`rounded-xl border text-xs shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${options.tone.card} ${screenMode ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}
+        id={getBracketMatchAnchorId(matchTournamentId, bracket.id, match.id)}
+        data-match-anchor={getBracketMatchAnchorId(matchTournamentId, bracket.id, match.id)}
+        className={`rounded-2xl border text-xs transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${getBracketCardShellClassName(match, options.tone)} ${screenMode ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}
         style={{ minHeight: screenMode ? 150 : 220, width: 200 }}
       >
         {(() => {

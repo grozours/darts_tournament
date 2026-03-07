@@ -142,6 +142,7 @@ type LiveParticipant = {
   firstName?: string;
   lastName?: string;
   surname?: string;
+  teamName?: string;
 };
 
 const formatDurationClock = (durationMinutes: number) => {
@@ -1189,6 +1190,11 @@ const LiveTournamentView = ({
       return groupLabel;
     }
 
+    const teamName = (player.teamName ?? '').trim();
+    if (teamName) {
+      return teamName;
+    }
+
     if (view.format === TournamentFormat.SINGLE) {
       const surname = (player.surname ?? '').trim();
       if (surname) {
@@ -1319,6 +1325,7 @@ const LiveTournamentView = ({
     tournamentStartTime: view.startTime,
     poolStages: view.poolStages ?? [],
     brackets: filteredBrackets,
+    playerIdByTournament,
     screenMode,
     isAdmin,
     isBracketsReadonly,

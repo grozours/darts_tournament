@@ -1,26 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { config } from '../config/environment';
+
 
 type ImportPayload = {
   tournamentPresets?: unknown[];
   matchFormatPresets?: unknown[];
 };
 
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
+
 type NormalizedTournamentPreset = {
   name: string;
   presetType: string;
   totalParticipants: number;
   targetCount: number;
-  templateConfig: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  templateConfig: JsonValue;
   isSystem: boolean;
 };
 
 type NormalizedMatchFormatPreset = {
   key: string;
   durationMinutes: number;
-  segments: Prisma.InputJsonValue;
+  segments: JsonValue;
   isSystem: boolean;
 };
 
@@ -83,14 +87,14 @@ export const readImportFile = (filePath: string): { tournamentPresets: unknown[]
 export const normalizeTournamentPreset = (value: unknown): NormalizedTournamentPreset => {
   const candidate = asObject(value);
   const templateConfig = candidate.templateConfig === null
-    ? Prisma.JsonNull
-    : (candidate.templateConfig as Prisma.InputJsonValue | undefined);
+    ? undefined
+    : (candidate.templateConfig as JsonValue | undefined);
   return {
     name: asString(candidate.name),
     presetType: asString(candidate.presetType),
     totalParticipants: asNumber(candidate.totalParticipants),
     targetCount: asNumber(candidate.targetCount),
-    templateConfig: templateConfig ?? Prisma.JsonNull,
+  templateConfig: templateConfig ?? {},
     isSystem: asBoolean(candidate.isSystem),
   };
 };
@@ -100,7 +104,7 @@ export const normalizeMatchFormatPreset = (value: unknown): NormalizedMatchForma
   return {
     key: asString(candidate.key),
     durationMinutes: asNumber(candidate.durationMinutes),
-    segments: ((candidate.segments ?? []) as Prisma.InputJsonValue),
+  segments: ((candidate.segments ?? []) as JsonValue),
     isSystem: asBoolean(candidate.isSystem),
   };
 };
@@ -145,7 +149,7 @@ export const runImport = async (filePath: string, replace: boolean): Promise<voi
     validateMatchFormatPreset(preset);
   }
 
-  await prisma.$transaction(async (transaction) => {
+  await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
     if (replace) {
       await transaction.tournamentPreset.deleteMany();
       await transaction.matchFormatPreset.deleteMany();

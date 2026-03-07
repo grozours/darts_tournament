@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import {
   Tournament,
   TournamentFormat,
@@ -14,6 +14,10 @@ import {
   mapToTournament,
   type TournamentLiveView,
 } from './helpers';
+
+type TournamentRecord = Awaited<ReturnType<PrismaClient['tournament']['findUnique']>>;
+type TournamentListRecord = NonNullable<TournamentRecord>;
+type GroupCountRow = { tournamentId: string | null; _count: { _all: number } };
 
 export const createTournamentModelCore = (prisma: PrismaClient) => {
   const updateStatusWithRaw = async (
@@ -94,7 +98,11 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
           sortOrder = 'desc',
         } = options || {};
 
-        const where: Prisma.TournamentWhereInput = {};
+        const where: {
+          status?: TournamentStatus | { not: TournamentStatus };
+          format?: TournamentFormat;
+          name?: { contains: string; mode: 'insensitive' };
+        } = {};
 
         if (status) {
           where.status = status;
@@ -125,8 +133,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         });
         const total = await prisma.tournament.count({ where });
 
-        const tournamentIds = tournaments.map((tournament) => tournament.id);
-        type ParticipantCountRow = { tournamentId: string | null; _count: { _all: number } };
+  const tournamentIds = tournaments.map((tournament: TournamentListRecord) => tournament.id);
         const participantCounts = tournamentIds.length > 0
           ? await prisma.player.groupBy({
             by: ['tournamentId'],
@@ -160,27 +167,27 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
           : [];
         const participantCountByTournament = new Map(
           participantCounts
-            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-            .map((entry) => [entry.tournamentId, entry._count._all])
+      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
         );
         const registeredDoubletteCountByTournament = new Map(
           registeredDoubletteCounts
-            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-            .map((entry) => [entry.tournamentId, entry._count._all])
+      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
         );
         const registeredEquipeCountByTournament = new Map(
           registeredEquipeCounts
-            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-            .map((entry) => [entry.tournamentId, entry._count._all])
+      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
         );
         const liveBracketCountByTournament = new Map(
           liveBracketCounts
-            .filter((entry: ParticipantCountRow): entry is ParticipantCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-            .map((entry) => [entry.tournamentId, entry._count._all])
+      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
         );
 
         return {
-          tournaments: tournaments.map((tournament) => {
+          tournaments: tournaments.map((tournament: TournamentListRecord) => {
             let currentParticipants = participantCountByTournament.get(tournament.id) ?? 0;
             if (tournament.format === TournamentFormat.DOUBLE) {
               currentParticipants = registeredDoubletteCountByTournament.get(tournament.id) ?? 0;
@@ -188,10 +195,11 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
               currentParticipants = registeredEquipeCountByTournament.get(tournament.id) ?? 0;
             }
 
+            const liveBracketCount = liveBracketCountByTournament.get(tournament.id);
             return {
               ...mapToTournament(tournament),
               currentParticipants,
-              hasLiveBrackets: (liveBracketCountByTournament.get(tournament.id) ?? 0) > 0,
+              hasLiveBrackets: Number(liveBracketCount ?? 0) > 0,
             };
           }),
           total,
@@ -346,7 +354,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       shareTargets: boolean;
     }>> => {
       try {
-        const query: Prisma.TournamentFindManyArgs = {
+        const query = {
           select: {
             id: true,
             name: true,
@@ -357,7 +365,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
           ...(excludeId ? { where: { id: { not: excludeId } } } : {}),
         };
         const tournaments = await prisma.tournament.findMany(query);
-        return tournaments.map((tournament) => ({
+  return tournaments.map((tournament: (typeof tournaments)[number]) => ({
           id: tournament.id,
           name: tournament.name,
           targetStartNumber: tournament.targetStartNumber ?? 1,
@@ -504,7 +512,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
           },
         });
 
-        return tournaments.map((tournament) => mapToTournament(tournament));
+  return tournaments.map((tournament: TournamentListRecord) => mapToTournament(tournament));
       } catch (error) {
         logModelError('findByDateRange', error);
         throw new AppError(

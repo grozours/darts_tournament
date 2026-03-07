@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
 import { AppError } from '../../middleware/error-handler';
 import { isAdmin } from '../../middleware/auth';
@@ -14,6 +14,9 @@ import {
   type TournamentSnapshot,
 } from '../../services/tournament-service/autosave';
 import { restoreTournamentStateFromSnapshot } from '../../services/tournament-service/snapshot-restore';
+
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 
 type CoreHandlerContext = {
   prisma: PrismaClient;
@@ -205,9 +208,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
           ...(templateConfig === undefined
             ? {}
             : {
-              templateConfig: templateConfig === null
-                ? Prisma.JsonNull
-                : templateConfig as Prisma.InputJsonValue,
+              templateConfig: templateConfig as JsonValue,
             }),
         },
       });
@@ -243,9 +244,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         presetType: presetType ?? existing.presetType,
         totalParticipants: totalParticipants ?? existing.totalParticipants,
         targetCount: targetCount ?? existing.targetCount,
-        templateConfig: templateConfigValue === null
-          ? Prisma.JsonNull
-          : templateConfigValue as Prisma.InputJsonValue,
+        templateConfig: templateConfigValue as JsonValue,
       };
 
       const preset = await context.prisma.tournamentPreset.update({
@@ -296,7 +295,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         data: {
           key,
           durationMinutes,
-          segments: segments as Prisma.InputJsonValue,
+          segments: segments as JsonValue,
           isSystem: isSystem ?? false,
         },
       });
@@ -327,7 +326,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         data: {
           ...(key === undefined ? {} : { key }),
           ...(durationMinutes === undefined ? {} : { durationMinutes }),
-          ...(segments === undefined ? {} : { segments: segments as Prisma.InputJsonValue }),
+          ...(segments === undefined ? {} : { segments: segments as JsonValue }),
           ...(isSystem === undefined ? {} : { isSystem }),
         },
       });
@@ -442,7 +441,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
 
       const tournamentService = context.getTournamentService(request);
       const results = await Promise.allSettled(
-        tournaments.map((tournament) => tournamentService.getTournamentLiveView(tournament.id))
+        tournaments.map((tournament: (typeof tournaments)[number]) => tournamentService.getTournamentLiveView(tournament.id))
       );
 
       const liveViews: unknown[] = [];

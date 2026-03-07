@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
   AssignmentType,
+  MatchStatus,
   StageStatus,
   TournamentFormat,
   TournamentStatus,
@@ -50,6 +51,7 @@ const buildModel = () => ({
   getOpponentPairsBeforeStage: jest.fn().mockReturnValue(Promise.resolve([])),
   deletePoolAssignmentsForStage: jest.fn().mockReturnValue(Promise.resolve(undefined)),
   createPoolAssignments: jest.fn().mockReturnValue(Promise.resolve(undefined)),
+  getActiveDoublettePlayersForTournament: jest.fn().mockReturnValue(Promise.resolve([])),
 });
 
 const liveTournament = {
@@ -579,6 +581,119 @@ describe('createPoolStageHandlers', () => {
 
     expect(model.createPoolMatches).toHaveBeenCalled();
     expect(model.updatePoolStatuses).toHaveBeenCalled();
+  });
+
+  it('assigns registered doublettes as pool entries for DOUBLE tournaments', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.OPEN,
+      format: TournamentFormat.DOUBLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 2,
+      poolCount: 1,
+      advanceCount: 1,
+      matchFormatKey: undefined,
+    }));
+    model.updatePoolStage.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 2,
+      poolCount: 1,
+      advanceCount: 1,
+      matchFormatKey: undefined,
+    }));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([{ id: 'pool-1' }]));
+    model.getPoolAssignmentCountForStage.mockReturnValue(Promise.resolve(0));
+    model.getActivePlayersForTournament.mockReturnValue(Promise.resolve([
+      { id: 'member-1' },
+      { id: 'member-2' },
+      { id: 'member-3' },
+      { id: 'member-4' },
+    ]));
+    model.getActiveDoublettePlayersForTournament.mockReturnValue(Promise.resolve([
+      { id: 'doublette-1', skillLevel: 'ADVANCED' },
+      { id: 'doublette-2', skillLevel: 'BEGINNER' },
+    ]));
+
+    const handlers = createHandlers(model);
+
+    await handlers.updatePoolStage('tournament-1', 'stage-1', { name: 'Pools updated' });
+
+    expect(model.createPoolAssignments).toHaveBeenCalledWith([
+      {
+        poolId: 'pool-1',
+        playerId: 'doublette-1',
+        assignmentType: AssignmentType.SEEDED,
+        seedNumber: 1,
+      },
+      {
+        poolId: 'pool-1',
+        playerId: 'doublette-2',
+        assignmentType: AssignmentType.SEEDED,
+        seedNumber: 2,
+      },
+    ]);
+    expect(model.getActiveDoublettePlayersForTournament).toHaveBeenCalledWith('tournament-1');
+  });
+
+  it('reseeds scheduled pool matches when assigned players changed', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({ id: 'tournament-1', status: TournamentStatus.LIVE }));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 2,
+      poolCount: 1,
+      matchFormatKey: 'BO3',
+    }));
+    model.updatePoolStage.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.IN_PROGRESS,
+      playersPerPool: 2,
+      poolCount: 1,
+      matchFormatKey: 'BO3',
+    }));
+    model.getPoolAssignmentCountForStage.mockReturnValue(Promise.resolve(1));
+    model.getPoolsWithAssignmentsForStage.mockReturnValue(Promise.resolve([
+      {
+        id: 'pool-1',
+        assignments: [
+          { player: { id: 'doublette-1' } },
+          { player: { id: 'doublette-2' } },
+        ],
+      },
+    ]));
+    model.getMatchCountForPool.mockReturnValue(Promise.resolve(1));
+    model.getPoolMatchesWithPlayers.mockReturnValue(Promise.resolve([
+      {
+        id: 'match-1',
+        matchNumber: 1,
+        status: MatchStatus.SCHEDULED,
+        playerMatches: [
+          { position: 1, player: { id: 'legacy-doublette' } },
+          { position: 2, player: { id: 'doublette-2' } },
+        ],
+      },
+    ]));
+    const handlers = createHandlers(model);
+
+    await handlers.updatePoolStage('tournament-1', 'stage-1', { status: StageStatus.IN_PROGRESS });
+
+    expect(model.setPoolMatchPlayers).toHaveBeenCalledWith('match-1', ['doublette-1', 'doublette-2']);
+    expect(model.createPoolMatches).not.toHaveBeenCalled();
   });
 
   it('returns updated stage without extra handlers for unknown stage status branch', async () => {

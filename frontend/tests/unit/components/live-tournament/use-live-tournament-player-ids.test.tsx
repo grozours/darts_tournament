@@ -8,13 +8,15 @@ vi.mock('../../../../src/services/tournament-service', () => ({
   fetchTournamentPlayers: (...args: unknown[]) => fetchTournamentPlayers(...args),
 }));
 
+const buildLiveViews = () => [{ id: 't1', name: 'T1', status: 'OPEN' }];
+
 describe('useLiveTournamentPlayerIds', () => {
   beforeEach(() => {
     fetchTournamentPlayers.mockReset();
   });
 
   it('returns empty map when user is not authenticated', async () => {
-    const liveViews = [{ id: 't1', name: 'T1', status: 'OPEN' }] as const;
+    const liveViews = buildLiveViews();
     const getSafeAccessToken = vi.fn(async () => undefined);
 
     const { result } = renderHook(() => useLiveTournamentPlayerIds({
@@ -34,7 +36,7 @@ describe('useLiveTournamentPlayerIds', () => {
       { playerId: 'p1', name: 'Player One', email: 'player@example.com' },
     ]);
 
-    const liveViews = [{ id: 't1', name: 'T1', status: 'OPEN' }] as const;
+  const liveViews = buildLiveViews();
     const getSafeAccessToken = vi.fn(async () => 'token');
 
     const { result } = renderHook(() => useLiveTournamentPlayerIds({
@@ -49,10 +51,30 @@ describe('useLiveTournamentPlayerIds', () => {
     });
   });
 
+  it('uses fallbackUserEmail when auth user email is unavailable', async () => {
+    fetchTournamentPlayers.mockResolvedValue([
+      { playerId: 'p1', name: 'Player One', email: 'player@example.com' },
+    ]);
+
+  const liveViews = buildLiveViews();
+    const getSafeAccessToken = vi.fn(async () => 'token');
+
+    const { result } = renderHook(() => useLiveTournamentPlayerIds({
+      liveViews,
+      isAuthenticated: false,
+      fallbackUserEmail: 'player@example.com',
+      getSafeAccessToken,
+    }));
+
+    await waitFor(() => {
+      expect(result.current.playerIdByTournament).toEqual({ t1: 'p1' });
+    });
+  });
+
   it('keeps map empty when fetch fails', async () => {
     fetchTournamentPlayers.mockRejectedValue(new Error('boom'));
 
-    const liveViews = [{ id: 't1', name: 'T1', status: 'OPEN' }] as const;
+    const liveViews = buildLiveViews();
     const getSafeAccessToken = vi.fn(async () => 'token');
 
     const { result } = renderHook(() => useLiveTournamentPlayerIds({

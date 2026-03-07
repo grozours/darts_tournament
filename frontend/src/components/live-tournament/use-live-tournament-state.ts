@@ -1,23 +1,6 @@
 import { useEffect } from 'react';
-import { useOptionalAuth } from '../../auth/optional-auth';
-import { useAdminStatus } from '../../auth/use-admin-status';
-import { useI18n } from '../../i18n';
-import { getLiveRefreshIntervalMs } from '../../utils/polling-config';
-import useLiveTournamentBracketActions from './use-live-tournament-bracket-actions';
-import useLiveTournamentData from './use-live-tournament-data';
-import useLiveTournamentGlobalQueue from './use-live-tournament-global-queue';
-import useLiveTournamentMatchActions from './use-live-tournament-match-actions';
-import useLiveTournamentMatchKey from './use-live-tournament-match-key';
-import useLiveTournamentParameters from './use-live-tournament-parameters';
-import useLiveTournamentReadonly from './use-live-tournament-readonly';
-import useLiveTournamentRefresh from './use-live-tournament-refresh';
-import useLiveTournamentPlayerIds from './use-live-tournament-player-ids';
-import useLiveTournamentStageActions from './use-live-tournament-stage-actions';
-import useLiveTournamentStatusLabels from './use-live-tournament-status-labels';
-import useLiveTournamentTargetLabels from './use-live-tournament-target-labels';
-import useLiveTournamentTargets from './use-live-tournament-targets';
-import useLiveTournamentToken from './use-live-tournament-token';
-import useLiveTournamentSelection from './use-live-tournament-selection';
+import useLiveTournamentActionsState from './use-live-tournament-actions-state';
+import useLiveTournamentCoreState from './use-live-tournament-core-state';
 import type {
   LiveViewBracket,
   LiveViewData,
@@ -29,7 +12,7 @@ import type {
   Translator,
 } from './types';
 
-type LiveTournamentState = {
+export type LiveTournamentState = {
   t: Translator;
   authEnabled: boolean;
   isAuthenticated: boolean;
@@ -119,235 +102,152 @@ type LiveTournamentState = {
   isBracketsReadonly: boolean;
 };
 
+export type LiveTournamentCoreState = Pick<LiveTournamentState,
+  | 't'
+  | 'authEnabled'
+  | 'isAuthenticated'
+  | 'authLoading'
+  | 'authError'
+  | 'isAdmin'
+  | 'viewMode'
+  | 'viewStatus'
+  | 'tournamentId'
+  | 'stageId'
+  | 'bracketId'
+  | 'isAggregateView'
+  | 'screenMode'
+  | 'getStatusLabel'
+  | 'liveViews'
+  | 'loading'
+  | 'error'
+  | 'setError'
+  | 'getSafeAccessToken'
+  | 'reloadLiveViews'
+  | 'visibleLiveViews'
+  | 'displayedLiveViews'
+  | 'selectedLiveTournamentId'
+  | 'setSelectedLiveTournamentId'
+  | 'selectedPoolStagesTournamentId'
+  | 'setSelectedPoolStagesTournamentId'
+  | 'playerIdByTournament'
+  | 'showGlobalQueue'
+  | 'globalQueue'
+  | 'availableTargetsByTournament'
+  | 'schedulableTargetCountByTournament'
+  | 'matchTargetSelections'
+  | 'handleTargetSelectionChange'
+  | 'getTargetIdForSelection'
+  | 'clearMatchTargetSelection'
+  | 'formatTargetLabel'
+  | 'getTargetLabel'
+  | 'getMatchTargetLabel'
+  | 'getMatchKey'
+  | 'isPoolStagesReadonly'
+  | 'isBracketsReadonly'
+>;
+
+export type LiveTournamentBaseContext = Pick<LiveTournamentCoreState,
+  | 't'
+  | 'authEnabled'
+  | 'isAuthenticated'
+  | 'authLoading'
+  | 'authError'
+  | 'isAdmin'
+  | 'viewMode'
+  | 'viewStatus'
+  | 'tournamentId'
+  | 'stageId'
+  | 'bracketId'
+  | 'isAggregateView'
+  | 'screenMode'
+  | 'getStatusLabel'
+  | 'getSafeAccessToken'
+> & {
+  user?: { email?: string };
+  adminUser?: { email?: string };
+};
+
+export type LiveTournamentLoadedData = Pick<LiveTournamentCoreState,
+  | 'liveViews'
+  | 'loading'
+  | 'error'
+  | 'setError'
+  | 'reloadLiveViews'
+  | 'visibleLiveViews'
+  | 'displayedLiveViews'
+  | 'selectedLiveTournamentId'
+  | 'setSelectedLiveTournamentId'
+  | 'selectedPoolStagesTournamentId'
+  | 'setSelectedPoolStagesTournamentId'
+  | 'playerIdByTournament'
+  | 'showGlobalQueue'
+  | 'globalQueue'
+  | 'availableTargetsByTournament'
+  | 'schedulableTargetCountByTournament'
+  | 'matchTargetSelections'
+  | 'handleTargetSelectionChange'
+  | 'getTargetIdForSelection'
+  | 'clearMatchTargetSelection'
+  | 'formatTargetLabel'
+  | 'getTargetLabel'
+  | 'getMatchTargetLabel'
+  | 'getMatchKey'
+  | 'isPoolStagesReadonly'
+  | 'isBracketsReadonly'
+>;
+
+export type LiveTournamentActionsState = Pick<LiveTournamentState,
+  | 'updatingMatchId'
+  | 'resettingPoolId'
+  | 'matchScores'
+  | 'editingMatchId'
+  | 'handleMatchStatusUpdate'
+  | 'handleResetPoolMatches'
+  | 'handleScoreChange'
+  | 'handleCompleteMatch'
+  | 'handleEditMatch'
+  | 'cancelMatchEdit'
+  | 'handleSaveMatchScores'
+  | 'editingStageId'
+  | 'stageStatusDrafts'
+  | 'stagePoolCountDrafts'
+  | 'stagePlayersPerPoolDrafts'
+  | 'updatingStageId'
+  | 'handleLaunchStage'
+  | 'handleResetStage'
+  | 'handleEditStage'
+  | 'handleStageStatusChange'
+  | 'handleStagePoolCountChange'
+  | 'handleStagePlayersPerPoolChange'
+  | 'handleUpdateStage'
+  | 'handleDeleteStage'
+  | 'handleCompleteStageWithScores'
+  | 'handleRecomputeDoubleStage'
+  | 'cancelEditStage'
+  | 'updatingRoundKey'
+  | 'resettingBracketId'
+  | 'populatingBracketId'
+  | 'handleCompleteBracketRound'
+  | 'handleResetBracketMatches'
+  | 'handlePopulateBracketFromPools'
+  | 'handleSelectBracket'
+  | 'activeBracketByTournament'
+>;
+
 const useLiveTournamentState = (): LiveTournamentState => {
-  const { t } = useI18n();
-  const {
-    enabled: authEnabled,
-    isAuthenticated,
-    isLoading: authLoading,
-    getAccessTokenSilently,
-    error: authError,
-    user,
-  } = useOptionalAuth();
-  const { isAdmin } = useAdminStatus();
-  const { getStatusLabel } = useLiveTournamentStatusLabels(t);
-  const {
-    viewMode,
-    viewStatus,
-    tournamentId,
-    stageId,
-    bracketId,
-    isAggregateView,
-    screenMode,
-  } = useLiveTournamentParameters();
-  const { getSafeAccessToken } = useLiveTournamentToken({
-    authEnabled,
-    isAuthenticated,
-    getAccessTokenSilently,
-  });
-  const {
-    liveViews,
-    loading,
-    error,
-    setError,
-    reloadLiveViews,
-  } = useLiveTournamentData({
-    getSafeAccessToken,
-    viewMode,
-    viewStatus,
-    tournamentId,
-    isAggregateView,
-  });
-  const { playerIdByTournament } = useLiveTournamentPlayerIds({
-    liveViews,
-    isAuthenticated,
-    ...(user ? { user } : {}),
-    getSafeAccessToken,
-  });
-  const canViewEditionByViewId = (viewId: string) => isAdmin || Boolean(playerIdByTournament[viewId]);
-  const allowEmptyPoolsByViewId = () => isAdmin;
-  const {
-    visibleLiveViews,
-    displayedLiveViews,
-    selectedLiveTournamentId,
-    setSelectedLiveTournamentId,
-    selectedPoolStagesTournamentId,
-    setSelectedPoolStagesTournamentId,
-  } = useLiveTournamentSelection({
-    viewMode,
-    viewStatus,
-    screenMode,
-    tournamentId,
-    liveViews,
-    canViewEditionByViewId,
-    allowEmptyPoolsByViewId,
-  });
-  const { showGlobalQueue, globalQueue } = useLiveTournamentGlobalQueue({
-    viewMode,
-    viewStatus,
-    displayedLiveViews,
-    selectedLiveTournamentId,
-    visibleLiveViewsCount: visibleLiveViews.length,
-    allowEmptyPools: isAdmin && !screenMode,
-    screenMode,
-  });
-  const {
-    availableTargetsByTournament,
-    schedulableTargetCountByTournament,
-    matchTargetSelections,
-    handleTargetSelectionChange,
-    getTargetIdForSelection,
-    clearMatchTargetSelection,
-  } = useLiveTournamentTargets({ liveViews });
-  const { formatTargetLabel, getTargetLabel, getMatchTargetLabel } = useLiveTournamentTargetLabels(t);
-  const { getMatchKey } = useLiveTournamentMatchKey();
-  const {
-    updatingMatchId,
-    resettingPoolId,
-    matchScores,
-    editingMatchId,
-    handleMatchStatusUpdate,
-    handleResetPoolMatches,
-    handleScoreChange,
-    handleCompleteMatch,
-    handleEditMatch,
-    cancelMatchEdit,
-    handleSaveMatchScores,
-  } = useLiveTournamentMatchActions({
-    getSafeAccessToken,
-    reloadLiveViews,
-    setError,
-    clearMatchTargetSelection,
-    getMatchKey,
-  });
-  const {
-    editingStageId,
-    stageStatusDrafts,
-    stagePoolCountDrafts,
-    stagePlayersPerPoolDrafts,
-    updatingStageId,
-    handleLaunchStage,
-    handleResetStage,
-    handleEditStage,
-    handleStageStatusChange,
-    handleStagePoolCountChange,
-    handleStagePlayersPerPoolChange,
-    handleUpdateStage,
-    handleDeleteStage,
-    handleCompleteStageWithScores,
-    handleRecomputeDoubleStage,
-    cancelEditStage,
-  } = useLiveTournamentStageActions({
-    t,
-    getSafeAccessToken,
-    reloadLiveViews,
-    setError,
-  });
-  const {
-    updatingRoundKey,
-    resettingBracketId,
-    populatingBracketId,
-    handleCompleteBracketRound,
-    handleResetBracketMatches,
-    handlePopulateBracketFromPools,
-    handleSelectBracket,
-    activeBracketByTournament,
-  } = useLiveTournamentBracketActions({
-    t,
-    getSafeAccessToken,
-    reloadLiveViews,
-    setError,
-  });
+  const coreState = useLiveTournamentCoreState();
+  const actionsState = useLiveTournamentActionsState(coreState);
+  const { bracketId, tournamentId } = coreState;
+  const { handleSelectBracket } = actionsState;
 
   useEffect(() => {
     if (!tournamentId || !bracketId) return;
     handleSelectBracket(tournamentId, bracketId);
   }, [bracketId, handleSelectBracket, tournamentId]);
-  const { isPoolStagesReadonly, isBracketsReadonly } = useLiveTournamentReadonly({ isAdmin, viewMode });
-
-  useLiveTournamentRefresh({
-    reloadLiveViews,
-    canRefresh: !authEnabled || !authLoading,
-    refreshIntervalMs: getLiveRefreshIntervalMs(isAdmin),
-  });
 
   return {
-    t,
-    authEnabled,
-    isAuthenticated,
-    authLoading,
-    authError,
-    isAdmin,
-    viewMode,
-    viewStatus,
-    tournamentId,
-    stageId,
-    bracketId,
-    isAggregateView,
-    screenMode,
-    getStatusLabel,
-    liveViews,
-    loading,
-    error,
-    setError,
-    getSafeAccessToken,
-    reloadLiveViews,
-    visibleLiveViews,
-    displayedLiveViews,
-    selectedLiveTournamentId,
-    setSelectedLiveTournamentId,
-    selectedPoolStagesTournamentId,
-    setSelectedPoolStagesTournamentId,
-    playerIdByTournament,
-    showGlobalQueue,
-    globalQueue,
-    availableTargetsByTournament,
-    schedulableTargetCountByTournament,
-    matchTargetSelections,
-    handleTargetSelectionChange,
-    getTargetIdForSelection,
-    clearMatchTargetSelection,
-    formatTargetLabel,
-    getTargetLabel,
-    getMatchTargetLabel,
-    getMatchKey,
-    updatingMatchId,
-    resettingPoolId,
-    matchScores,
-    editingMatchId,
-    handleMatchStatusUpdate,
-    handleResetPoolMatches,
-    handleScoreChange,
-    handleCompleteMatch,
-    handleEditMatch,
-    cancelMatchEdit,
-    handleSaveMatchScores,
-    editingStageId,
-    stageStatusDrafts,
-    stagePoolCountDrafts,
-    stagePlayersPerPoolDrafts,
-    updatingStageId,
-    handleLaunchStage,
-    handleResetStage,
-    handleEditStage,
-    handleStageStatusChange,
-    handleStagePoolCountChange,
-    handleStagePlayersPerPoolChange,
-    handleUpdateStage,
-    handleDeleteStage,
-    handleCompleteStageWithScores,
-    handleRecomputeDoubleStage,
-    cancelEditStage,
-    updatingRoundKey,
-    resettingBracketId,
-    populatingBracketId,
-    handleCompleteBracketRound,
-    handleResetBracketMatches,
-    handlePopulateBracketFromPools,
-    handleSelectBracket,
-    activeBracketByTournament,
-    isPoolStagesReadonly,
-    isBracketsReadonly,
+    ...coreState,
+    ...actionsState,
   };
 };
 

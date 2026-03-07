@@ -1,4 +1,4 @@
-import type { Prisma, Tournament as PrismaTournament, Player as PrismaPlayer } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import {
   Tournament,
   TournamentFormat,
@@ -78,10 +78,13 @@ export const liveViewArguments = {
   },
 } as const;
 
-export type TournamentLiveView = Prisma.TournamentGetPayload<typeof liveViewArguments>;
+type PrismaTournamentRecord = Awaited<ReturnType<PrismaClient['tournament']['findUnique']>>;
+type PrismaPlayerRecord = Awaited<ReturnType<PrismaClient['player']['findUnique']>>;
+
+export type TournamentLiveView = NonNullable<PrismaTournamentRecord>;
 
 export const mapToTournament = (
-  prismaResult: PrismaTournament & { players?: unknown; targets?: unknown; matches?: unknown }
+  prismaResult: NonNullable<PrismaTournamentRecord> & { players?: unknown; targets?: unknown; matches?: unknown }
 ): Tournament => {
   return {
     id: prismaResult.id,
@@ -107,7 +110,7 @@ export const mapToTournament = (
   };
 };
 
-export const mapToPlayer = (prismaResult: PrismaPlayer): Player => {
+export const mapToPlayer = (prismaResult: NonNullable<PrismaPlayerRecord>): Player => {
   return {
     id: prismaResult.id,
     tournamentId: prismaResult.tournamentId,

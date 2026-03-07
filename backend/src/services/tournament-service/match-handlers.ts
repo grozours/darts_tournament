@@ -364,7 +364,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     bracketId: string
   ): Promise<void> => {
     const poolStages = await tournamentModel.getPoolStages(tournamentId);
-    const sourceStages = poolStages.filter((stage) => {
+  const sourceStages = poolStages.filter((stage: (typeof poolStages)[number]) => {
       const destinations = Array.isArray(stage.rankingDestinations)
         ? stage.rankingDestinations as Array<{ destinationType?: string; bracketId?: string }>
         : [];
@@ -378,7 +378,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       return;
     }
 
-    const allSourcesCompleted = sourceStages.every((stage) => stage.status === StageStatus.COMPLETED);
+  const allSourcesCompleted = sourceStages.every((stage: (typeof sourceStages)[number]) => stage.status === StageStatus.COMPLETED);
     if (!allSourcesCompleted) {
       throw new AppError(
         'Bracket matches cannot start before source pool stages are completed',
@@ -621,7 +621,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       return summary;
     });
 
-    const winner = players.find((player) => player.isWinner)
+  const winner = players.find((player: (typeof players)[number]) => player.isWinner)
       ?? (matchDetails.winner
         ? {
             id: matchDetails.winner.id,
@@ -701,7 +701,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
 
     if (!tournament.doubleStageEnabled) {
       const stages = await tournamentModel.getPoolStages(tournament.id);
-      const hasDoubleStages = stages.some((item) => item.stageNumber === 2 || item.stageNumber === 3);
+  const hasDoubleStages = stages.some((item: (typeof stages)[number]) => item.stageNumber === 2 || item.stageNumber === 3);
       if (!hasDoubleStages) {
         return;
       }
@@ -859,7 +859,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
 
     const roundMatches = await tournamentModel.getBracketMatchesByRound(bracket.id, roundNumber);
     const allCompleted = roundMatches.length > 0
-      && roundMatches.every((item) => item.status === MatchStatus.COMPLETED);
+  && roundMatches.every((item: (typeof roundMatches)[number]) => item.status === MatchStatus.COMPLETED);
     if (!allCompleted) {
       return true;
     }
@@ -884,11 +884,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     const siblingMatchNumber = match.matchNumber % 2 === 1
       ? match.matchNumber + 1
       : match.matchNumber - 1;
-    const sibling = roundMatches.find((item) => item.matchNumber === siblingMatchNumber);
+  const sibling = roundMatches.find((item: (typeof roundMatches)[number]) => item.matchNumber === siblingMatchNumber);
 
     const nextRoundMatchNumber = Math.ceil(match.matchNumber / 2);
     const nextRoundMatches = await tournamentModel.getBracketMatchesByRoundWithPlayers(bracket.id, nextRound);
-    const existingNextMatch = nextRoundMatches.find((item) => item.matchNumber === nextRoundMatchNumber);
+  const existingNextMatch = nextRoundMatches.find((item: (typeof nextRoundMatches)[number]) => item.matchNumber === nextRoundMatchNumber);
     const playerPosition = match.matchNumber % 2 === 1 ? 1 : 2;
 
     if (sibling?.status !== MatchStatus.COMPLETED || !sibling?.winnerId) {
@@ -991,8 +991,8 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     const poolStages = await tournamentModel.getPoolStages(tournamentId);
     const brackets = await tournamentModel.getBrackets(tournamentId);
 
-    const poolsComplete = poolStages.every((stage) => stage.status === StageStatus.COMPLETED);
-    const bracketsComplete = brackets.every((bracket) => bracket.status === BracketStatus.COMPLETED);
+  const poolsComplete = poolStages.every((stage: (typeof poolStages)[number]) => stage.status === StageStatus.COMPLETED);
+  const bracketsComplete = brackets.every((bracket: (typeof brackets)[number]) => bracket.status === BracketStatus.COMPLETED);
 
     if (poolsComplete && bracketsComplete) {
       await transitionTournamentStatus(tournamentId, TournamentStatus.FINISHED);
