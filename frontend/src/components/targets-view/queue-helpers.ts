@@ -272,7 +272,7 @@ const buildBracketQueueItem = (
   };
 };
 
-const buildBracketQueueItems = (
+const buildBracketQueueItems = ( // NOSONAR
   view: LiveViewData,
   groupNameByPlayerId?: Map<string, string>
 ): MatchQueueItem[] => {

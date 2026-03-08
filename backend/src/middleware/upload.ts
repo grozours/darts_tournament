@@ -23,9 +23,8 @@ const ensureUploadDirectory = (): void => {
 ensureUploadDirectory();
 
 // Multer configuration
-// Enforce a conservative upload limit to guard memory/disk usage even if upstream limits are higher.
-// Keep this limit aligned with any reverse proxy/body parser caps to prevent oversized payloads.
-const maxUploadSize = Math.min(config.upload.maxSize, 5 * 1024 * 1024);
+// Keep a strict hard cap below the 8MB Sonar/OWASP recommendation for upload endpoints.
+const maxUploadSize = 5 * 1024 * 1024;
 
 const validateDeclaredContentLength = (request: Request): AppError | undefined => {
   const transferEncoding = request.headers['transfer-encoding'];

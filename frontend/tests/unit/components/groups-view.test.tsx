@@ -32,6 +32,7 @@ const updateEquipePassword = vi.fn();
 const addDoubletteMember = vi.fn();
 const addEquipeMember = vi.fn();
 const registerTournamentPlayer = vi.fn();
+const updateTournamentPlayer = vi.fn();
 const removeDoubletteMember = vi.fn();
 const removeEquipeMember = vi.fn();
 const deleteDoublette = vi.fn();
@@ -70,6 +71,7 @@ vi.mock('../../../src/services/tournament-service', () => ({
   addDoubletteMember: (...args: unknown[]) => addDoubletteMember(...args),
   addEquipeMember: (...args: unknown[]) => addEquipeMember(...args),
   registerTournamentPlayer: (...args: unknown[]) => registerTournamentPlayer(...args),
+  updateTournamentPlayer: (...args: unknown[]) => updateTournamentPlayer(...args),
   removeDoubletteMember: (...args: unknown[]) => removeDoubletteMember(...args),
   removeEquipeMember: (...args: unknown[]) => removeEquipeMember(...args),
   deleteDoublette: (...args: unknown[]) => deleteDoublette(...args),
@@ -103,6 +105,7 @@ describe('GroupsView', () => {
     addDoubletteMember.mockResolvedValue({});
     addEquipeMember.mockResolvedValue({});
     registerTournamentPlayer.mockResolvedValue({ id: 'new-player-id' });
+    updateTournamentPlayer.mockResolvedValue({});
     removeDoubletteMember.mockResolvedValue({});
     removeEquipeMember.mockResolvedValue({});
     deleteDoublette.mockResolvedValue(undefined);
@@ -305,7 +308,7 @@ describe('GroupsView', () => {
     const duoCard = duoHeading.closest('div.rounded-2xl');
     expect(duoCard).toBeTruthy();
 
-    fireEvent.click(within(duoCard as HTMLElement).getByText('common.edit'));
+    fireEvent.click(within(duoCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
     const renameInput = within(duoCard as HTMLElement).getByDisplayValue('CRUD Duo');
     fireEvent.change(renameInput, { target: { value: 'CRUD Duo Updated' } });
     fireEvent.click(within(duoCard as HTMLElement).getByText('common.save'));
@@ -353,7 +356,7 @@ describe('GroupsView', () => {
     const teamCard = teamHeading.closest('div.rounded-2xl');
     expect(teamCard).toBeTruthy();
 
-    fireEvent.click(within(teamCard as HTMLElement).getByText('common.edit'));
+    fireEvent.click(within(teamCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
     const renameInput = within(teamCard as HTMLElement).getByDisplayValue('CRUD Team');
     fireEvent.change(renameInput, { target: { value: 'CRUD Team Updated' } });
     fireEvent.click(within(teamCard as HTMLElement).getByText('common.save'));
@@ -388,7 +391,9 @@ describe('GroupsView', () => {
     render(<GroupsView mode="doublettes" />);
     await screen.findByText('My Duo');
 
-    fireEvent.click(screen.getByText('common.edit'));
+    const captainCard = screen.getByText('My Duo').closest('div.rounded-2xl');
+    expect(captainCard).toBeTruthy();
+    fireEvent.click(within(captainCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
     fireEvent.change(screen.getByDisplayValue('My Duo'), { target: { value: 'Renamed Duo' } });
     fireEvent.click(screen.getByText('common.save'));
     await waitFor(() => {
@@ -578,7 +583,9 @@ describe('GroupsView', () => {
     render(<GroupsView mode="doublettes" />);
     await screen.findByText('Registered Duo');
 
-    fireEvent.click(screen.getByText('common.edit'));
+    const registeredCard = screen.getByText('Registered Duo').closest('div.rounded-2xl');
+    expect(registeredCard).toBeTruthy();
+    fireEvent.click(within(registeredCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
     expect(screen.getByPlaceholderText('groups.promptPlayerSearch')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('groups.removeMember'));
@@ -620,7 +627,7 @@ describe('GroupsView', () => {
     render(<GroupsView mode="doublettes" />);
     await screen.findByText('Registered Duo');
 
-    fireEvent.click(screen.getByText('tournaments.unregister'));
+    fireEvent.click(screen.getByText('desinscrire'));
 
     await waitFor(() => {
       expect(unregisterDoublette).toHaveBeenCalledWith('t1', 'd-registered', 'token-1');
@@ -650,10 +657,136 @@ describe('GroupsView', () => {
     render(<GroupsView mode="equipes" />);
     await screen.findByText('Registered Team');
 
-    fireEvent.click(screen.getByText('tournaments.unregister'));
+    fireEvent.click(screen.getByText('desinscrire'));
 
     await waitFor(() => {
       expect(unregisterEquipe).toHaveBeenCalledWith('t1', 'e-registered', 'token-1');
+    });
+  });
+
+  it('shows admin register label as inscrire', async () => {
+    adminState.isAdmin = true;
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-admin-register',
+        name: 'Admin Register Duo',
+        captainPlayerId: 'p-captain',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p-member', firstName: 'Mem', lastName: 'Ber', email: 'mem@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Admin Register Duo');
+
+    expect(screen.getByText('inscrire')).toBeInTheDocument();
+  });
+
+  it('hides unregister action for live tournaments', async () => {
+    adminState.isAdmin = true;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ tournaments: [{ id: 't1', status: 'LIVE' }] }),
+    } as Response);
+
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-live',
+        name: 'Live Duo',
+        captainPlayerId: 'p-captain',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p-member', firstName: 'Mem', lastName: 'Ber', email: 'mem@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Live Duo');
+
+    expect(screen.queryByText('desinscrire')).not.toBeInTheDocument();
+    fetchSpy.mockRestore();
+  });
+
+  it('keeps groups visible when status lookup fails', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-fallback',
+        name: 'Fallback Duo',
+        captainPlayerId: 'me',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 1,
+        members: [
+          { playerId: 'me', firstName: 'Me', lastName: 'User', email: 'me@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    expect(await screen.findByText('Fallback Duo')).toBeInTheDocument();
+    fetchSpy.mockRestore();
+  });
+
+  it('allows admin to edit group member profile fields', async () => {
+    adminState.isAdmin = true;
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-member-edit',
+        name: 'Edit Member Duo',
+        captainPlayerId: 'p-captain',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', surname: 'Lead', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p-member', firstName: 'Mem', lastName: 'Ber', surname: 'Wing', email: 'mem@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Edit Member Duo');
+
+    const editButtons = screen.getAllByRole('button', { name: 'common.edit' });
+    fireEvent.click(editButtons[1] as HTMLElement);
+
+    const firstNameInput = screen.getAllByPlaceholderText('edit.firstName')[0] as HTMLInputElement;
+    const lastNameInput = screen.getAllByPlaceholderText('edit.lastName')[0] as HTMLInputElement;
+    const surnameInput = screen.getAllByPlaceholderText('edit.surname')[0] as HTMLInputElement;
+    const emailInput = screen.getAllByPlaceholderText('edit.email')[0] as HTMLInputElement;
+
+    fireEvent.change(firstNameInput, { target: { value: 'Member' } });
+    fireEvent.change(lastNameInput, { target: { value: 'Updated' } });
+    fireEvent.change(surnameInput, { target: { value: 'Alias' } });
+    fireEvent.change(emailInput, { target: { value: 'member.updated@example.com' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
+
+    await waitFor(() => {
+      expect(updateTournamentPlayer).toHaveBeenCalledWith(
+        't1',
+        'p-captain',
+        {
+          firstName: 'Member',
+          lastName: 'Updated',
+          surname: 'Alias',
+          email: 'member.updated@example.com',
+        },
+        'token-1'
+      );
     });
   });
 

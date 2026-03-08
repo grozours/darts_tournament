@@ -82,6 +82,7 @@ export class TournamentService {
   public updateTournamentPlayerCheckIn!: PlayerHandlers['updateTournamentPlayerCheckIn'];
   public getTournamentParticipants!: PlayerHandlers['getTournamentParticipants'];
   public getOrphanParticipants!: PlayerHandlers['getOrphanParticipants'];
+  public deleteOrphanParticipants!: PlayerHandlers['deleteOrphanParticipants'];
 
   public listDoublettes!: GroupHandlers['listDoublettes'];
   public createDoublette!: GroupHandlers['createDoublette'];

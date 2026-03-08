@@ -6,6 +6,7 @@ SONAR_TOKEN=${SONAR_TOKEN:-}
 SONAR_DISABLE_SCM=${SONAR_DISABLE_SCM:-0}
 SONAR_PROJECT_KEY=${SONAR_PROJECT_KEY:-darts-tournament}
 SONAR_SUMMARY_FORMAT=${SONAR_SUMMARY_FORMAT:-text}
+SONAR_RUN_COVERAGE=${SONAR_RUN_COVERAGE:-1}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SONAR_TOKEN_FILE="$ROOT_DIR/.sonar-token"
 BACKEND_LCOV_ORIGINAL="$ROOT_DIR/backend/coverage/lcov.info"
@@ -28,6 +29,20 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "[sonar] SonarQube may report 'Missing blame information' for modified/untracked files."
     echo "[sonar] For full SCM features, commit changes first, then re-run this scan."
   fi
+fi
+
+run_coverage_reports() {
+  echo "[sonar] Generating backend coverage report..."
+  DATABASE_URL=' ' npm --prefix "$ROOT_DIR/backend" run test:coverage -- tests/unit --runInBand
+
+  echo "[sonar] Generating frontend coverage report..."
+  npm --prefix "$ROOT_DIR/frontend" run test:coverage:raw
+}
+
+if [[ "$SONAR_RUN_COVERAGE" == "1" ]]; then
+  run_coverage_reports
+else
+  echo "[sonar] Coverage generation skipped (SONAR_RUN_COVERAGE=$SONAR_RUN_COVERAGE)."
 fi
 
 SONAR_EXTRA_ARGS=()
@@ -151,6 +166,20 @@ async function fetchIssueCount(extraQuery = '') {
   return Number(payload.total ?? 0);
 }
 
+async function fetchCoverageMeasures() {
+  const payload = await api(`/api/measures/component?component=${encodeURIComponent(projectKey)}&metricKeys=coverage,new_coverage,lines_to_cover,new_lines_to_cover,uncovered_lines,new_uncovered_lines`);
+  const measures = payload.component?.measures ?? [];
+  const toNumber = (key) => Number((measures.find((measure) => measure.metric === key)?.value) ?? 0);
+  return {
+    coverage: toNumber('coverage'),
+    newCoverage: toNumber('new_coverage'),
+    linesToCover: toNumber('lines_to_cover'),
+    newLinesToCover: toNumber('new_lines_to_cover'),
+    uncoveredLines: toNumber('uncovered_lines'),
+    newUncoveredLines: toNumber('new_uncovered_lines'),
+  };
+}
+
 async function fetchHotspotCount(extraQuery = '') {
   const payload = await api(`/api/hotspots/search?projectKey=${encodeURIComponent(projectKey)}&ps=1${extraQuery}`);
   return Number(payload.paging?.total ?? 0);
@@ -178,12 +207,14 @@ function measureValue(measures, key) {
     hotspotsReviewed,
     issuesTotal,
     codeSmellsTotal,
+    coverage,
   ] = await Promise.all([
     fetchHotspotCount(),
     fetchHotspotCount('&status=TO_REVIEW'),
     fetchHotspotCount('&status=REVIEWED'),
     fetchIssueCount(),
     fetchIssueCount('&types=CODE_SMELL'),
+    fetchCoverageMeasures(),
   ]);
 
   if (summaryFormat === 'json') {
@@ -206,6 +237,14 @@ function measureValue(measures, key) {
           blocks: newDuplicatedBlocks,
         },
       },
+      coverage: {
+        overall: Number(coverage.coverage.toFixed(2)),
+        newCode: Number(coverage.newCoverage.toFixed(2)),
+        linesToCover: coverage.linesToCover,
+        newLinesToCover: coverage.newLinesToCover,
+        uncoveredLines: coverage.uncoveredLines,
+        newUncoveredLines: coverage.newUncoveredLines,
+      },
       issues: {
         total: issuesTotal,
       },
@@ -220,6 +259,8 @@ function measureValue(measures, key) {
   console.log(`HOTSPOTS total=${hotspotsTotal} to_review=${hotspotsToReview} reviewed=${hotspotsReviewed}`);
   console.log(`DUPLICATION overall=${duplicatedDensity.toFixed(2)}% lines=${duplicatedLines} blocks=${duplicatedBlocks}`);
   console.log(`DUPLICATION_NEW ${newDuplicatedDensity.toFixed(2)}% lines=${newDuplicatedLines} blocks=${newDuplicatedBlocks}`);
+  console.log(`COVERAGE overall=${coverage.coverage.toFixed(2)}% lines_to_cover=${coverage.linesToCover} uncovered=${coverage.uncoveredLines}`);
+  console.log(`COVERAGE_NEW ${coverage.newCoverage.toFixed(2)}% lines_to_cover=${coverage.newLinesToCover} uncovered=${coverage.newUncoveredLines}`);
   console.log(`ISSUES total=${issuesTotal}`);
   console.log(`CODE_SMELLS total=${codeSmellsTotal}`);
 })().catch((error) => {

@@ -70,6 +70,14 @@ type MatchForCompletion = {
   startedAt?: Date | null;
 };
 
+type ActiveTournamentEntry = {
+  id: string;
+  skillLevel?: string | null;
+  firstName?: string;
+  lastName?: string;
+  teamName?: string | null;
+};
+
 export type PoolStageHandlerContext = {
   tournamentModel: TournamentModel;
   validateUUID: (id: string) => void;
@@ -241,6 +249,10 @@ const uniqueEntriesByPlayerId = <T extends { playerId: string }>(entries: T[]): 
     return true;
   });
 };
+
+  const isNonEmptyString = (value: string | null | undefined): value is string => (
+    value !== undefined && value !== null && value.length > 0
+  );
 
 const computeTargetWinnerCount = (winnerCount: number, totalEntries: number): number => {
   let targetWinnerCount = winnerCount;
@@ -522,7 +534,10 @@ const buildRoundRobinSchedule = (playerIds: string[]) => {
 
     const fixed = rotation[0] ?? '';
     const rest = rotation.slice(1);
-    rest.unshift(rest.pop() as string);
+    const last = rest.pop();
+    if (last !== undefined) {
+      rest.unshift(last);
+    }
     rotation.splice(0, rotation.length, fixed, ...rest);
   }
 
@@ -575,49 +590,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const { positions, bracketIds, poolStageIds } =
       collectRankingDestinationInfo(destinations, playersPerPool);
     ensureRankingCoverage(positions, playersPerPool);
-    await ensureBracketDestinations(tournamentId, bracketIds);
-    await ensurePoolStageDestinations(tournamentId, poolStageIds, stageId);
-  };
-
-  const ensureBracketDestinations = async (tournamentId: string, bracketIds: Set<string>) => {
-    if (bracketIds.size === 0) return;
-    const brackets = await tournamentModel.getBrackets(tournamentId);
-  const allowedBracketIds = new Set(brackets.map((bracket: (typeof brackets)[number]) => bracket.id));
-    const invalidBracketIds = [...bracketIds].filter((id) => !allowedBracketIds.has(id));
-    if (invalidBracketIds.length > 0) {
-      throw new AppError(
-        'Ranking destinations must reference tournament brackets',
-        400,
-        'POOL_STAGE_ROUTING_INVALID',
-        { invalidBracketIds }
-      );
-    }
-  };
-
-  const ensurePoolStageDestinations = async (
-    tournamentId: string,
-    poolStageIds: Set<string>,
-    stageId?: string
-  ) => {
-    if (poolStageIds.size === 0) return;
-    const stages = await tournamentModel.getPoolStages(tournamentId);
-  const allowedStageIds = new Set(stages.map((stage: (typeof stages)[number]) => stage.id));
-    const invalidStageIds = [...poolStageIds].filter((id) => !allowedStageIds.has(id));
-    if (invalidStageIds.length > 0) {
-      throw new AppError(
-        'Ranking destinations must reference tournament pool stages',
-        400,
-        'POOL_STAGE_ROUTING_INVALID',
-        { invalidStageIds }
-      );
-    }
-    if (stageId && poolStageIds.has(stageId)) {
-      throw new AppError(
-        'Ranking destinations cannot target the same pool stage',
-        400,
-        'POOL_STAGE_ROUTING_INVALID'
-      );
-    }
+    await ensureBracketDestinations(tournamentModel, tournamentId, bracketIds);
+    await ensurePoolStageDestinations(tournamentModel, tournamentId, poolStageIds, stageId);
   };
 
   const buildPoolEntry = (
@@ -894,7 +868,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       return;
     }
 
-  const ordered = [...entries].sort((a, b) => a.seedNumber - b.seedNumber);
+    const ordered = [...entries].sort((a, b) => a.seedNumber - b.seedNumber);
   const playerIds = ordered.map((entry: { playerId: string; seedNumber: number }) => entry.playerId);
     const matches: Array<{ roundNumber: number; matchNumber: number; playerIds: [string, string] }> = [];
     let matchNumber = 1;
@@ -1147,8 +1121,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
     const bracketC = await ensureBracketForLabel(context.tournament.id, context.brackets, 'C');
     const entries = [...bracketCEntries];
-    entries.sort(compareByPoolAndPosition);
-    const seeded = entries.map((entry, index) => ({
+    const orderedEntries = [...entries].sort(compareByPoolAndPosition);
+    const seeded = orderedEntries.map((entry, index) => ({
       playerId: entry.playerId,
       seedNumber: index + 1,
     }));
@@ -1169,7 +1143,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     const bracket = await ensureBracketForLabel(context.tournament.id, context.brackets, label);
-  const ordered = [...uniqueEntriesByPlayerId(winners)].sort(compareByPoolAndPosition);
+    const ordered = [...uniqueEntriesByPlayerId(winners)].sort(compareByPoolAndPosition);
     const seeded = ordered.map((entry: PoolStandingsEntry, index: number) => ({
       playerId: entry.playerId,
       seedNumber: index + 1,
@@ -1298,7 +1272,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const getPoolPlayerIds = (pool: (typeof pools)[number]) => (
       (pool.assignments || [])
         .map((assignment: (typeof pool.assignments)[number]) => assignment.player?.id)
-        .filter(Boolean)
+        .filter(isNonEmptyString)
     );
 
     const seedExistingOrCollectMissingMatches = async (
@@ -1315,10 +1289,10 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
             (
               left: NonNullable<typeof existing.playerMatches>[number],
               right: NonNullable<typeof existing.playerMatches>[number]
-            ) => (left.position ?? 0) - (right.position ?? 0)
+            ) => (left.playerPosition ?? 0) - (right.playerPosition ?? 0)
           )
-          .map((playerMatch: NonNullable<typeof existing.playerMatches>[number]) => playerMatch.player?.id)
-          .filter(Boolean);
+          .map((playerMatch: NonNullable<typeof existing.playerMatches>[number]) => playerMatch.playerId)
+          .filter(isNonEmptyString);
 
         return currentPlayerIds.length === nextPlayerIds.length
           && currentPlayerIds.every((playerId: string, index: number) => playerId === nextPlayerIds[index]);
@@ -1386,11 +1360,14 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const tournament = await tournamentModel.findById(tournamentId);
     if (!tournament) return;
 
-    const players = tournament.format === TournamentFormat.DOUBLE
-      ? await tournamentModel.getActiveDoublettePlayersForTournament(tournamentId)
-      : tournament.format === TournamentFormat.TEAM_4_PLAYER
-        ? await tournamentModel.getActiveEquipePlayersForTournament(tournamentId)
-        : await tournamentModel.getActivePlayersForTournament(tournamentId);
+    let players: ActiveTournamentEntry[];
+    if (tournament.format === TournamentFormat.DOUBLE) {
+      players = await tournamentModel.getActiveDoublettePlayersForTournament(tournamentId);
+    } else if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
+      players = await tournamentModel.getActiveEquipePlayersForTournament(tournamentId);
+    } else {
+      players = await tournamentModel.getActivePlayersForTournament(tournamentId);
+    }
     if (players.length === 0) return;
 
     const opponentMap = await buildOpponentMap(tournamentId, stage.stageNumber);
@@ -1534,7 +1511,9 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
       const { nextData, shouldRedistribute } = buildPoolStageUpdateData({
         ...data,
-        ...(data.matchFormatKey === undefined ? {} : { matchFormatKey: matchFormatKey! }),
+        ...(data.matchFormatKey === undefined || matchFormatKey === undefined
+          ? {}
+          : { matchFormatKey }),
         ...(data.inParallelWith === undefined ? {} : { inParallelWith: inParallelWith ?? [] }),
       });
       if (nextData.status === StageStatus.IN_PROGRESS && tournament.status !== TournamentStatus.LIVE) {
@@ -1567,7 +1546,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
             matchId: match.id,
             matchFormatKey: match.matchFormatKey ?? updatedStageMatchFormatKey,
           }))
-          .filter((item: { matchId: string; matchFormatKey?: string }): item is { matchId: string; matchFormatKey: string } => Boolean(item.matchFormatKey));
+          .filter((item: { matchId: string; matchFormatKey: string | undefined }): item is { matchId: string; matchFormatKey: string } => Boolean(item.matchFormatKey));
 
         await emitMatchFormatChangedNotifications(
           {

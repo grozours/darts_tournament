@@ -1,4 +1,5 @@
-import type { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import {
   AssignmentType,
   PoolStatus,
@@ -33,8 +34,6 @@ type ActiveTournamentEntry = {
   teamName?: string;
 };
 
-type PoolStageJsonPrimitive = string | number | boolean | null;
-type PoolStageJsonValue = PoolStageJsonPrimitive | { [key: string]: PoolStageJsonValue } | PoolStageJsonValue[];
 type PoolStageCreatePayload = {
   tournamentId: string;
   stageNumber: number;
@@ -44,23 +43,41 @@ type PoolStageCreatePayload = {
   advanceCount: number;
   losersAdvanceToBracket: boolean;
   matchFormatKey?: string;
-  inParallelWith?: PoolStageJsonValue;
-  rankingDestinations?: PoolStageJsonValue;
+  inParallelWith?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  rankingDestinations?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
 };
 
 type PoolStageUpdatePayload = Partial<{
   stageNumber: number;
   name: string;
   matchFormatKey: string;
-  inParallelWith: PoolStageJsonValue;
+  inParallelWith: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   poolCount: number;
   playersPerPool: number;
   advanceCount: number;
   losersAdvanceToBracket: boolean;
-  rankingDestinations: PoolStageJsonValue;
+  rankingDestinations: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   status: StageStatus;
   completedAt: Date | null;
 }>;
+
+const buildPoolStageUpdatePayload = (data: PoolStageUpdatePayload): PoolStageUpdatePayload => ({
+  ...(data.stageNumber === undefined ? {} : { stageNumber: data.stageNumber }),
+  ...(data.name === undefined ? {} : { name: data.name }),
+  ...(data.matchFormatKey === undefined ? {} : { matchFormatKey: data.matchFormatKey }),
+  ...(data.inParallelWith === undefined ? {} : { inParallelWith: data.inParallelWith }),
+  ...(data.poolCount === undefined ? {} : { poolCount: data.poolCount }),
+  ...(data.playersPerPool === undefined ? {} : { playersPerPool: data.playersPerPool }),
+  ...(data.advanceCount === undefined ? {} : { advanceCount: data.advanceCount }),
+  ...(data.losersAdvanceToBracket === undefined ? {} : { losersAdvanceToBracket: data.losersAdvanceToBracket }),
+  ...(data.rankingDestinations === undefined ? {} : { rankingDestinations: data.rankingDestinations }),
+  ...(data.status === undefined ? {} : { status: data.status }),
+  ...(data.completedAt === undefined ? {} : { completedAt: data.completedAt }),
+});
+
+const toPrismaNullableJson = (value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput => (
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+);
 
 export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
   getPoolStages: async (tournamentId: string) => {
@@ -90,12 +107,12 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     stageNumber: number;
     name: string;
     matchFormatKey?: string;
-    inParallelWith?: PoolStageJsonValue;
+    inParallelWith?: unknown;
     poolCount: number;
     playersPerPool: number;
     advanceCount: number;
     losersAdvanceToBracket?: boolean;
-    rankingDestinations?: PoolStageJsonValue;
+    rankingDestinations?: unknown;
   }) => {
     try {
       const payload: PoolStageCreatePayload = {
@@ -111,10 +128,10 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
         payload.matchFormatKey = data.matchFormatKey;
       }
       if (data.inParallelWith !== undefined) {
-        payload.inParallelWith = data.inParallelWith;
+        payload.inParallelWith = toPrismaNullableJson(data.inParallelWith);
       }
       if (data.rankingDestinations !== undefined) {
-        payload.rankingDestinations = data.rankingDestinations;
+        payload.rankingDestinations = toPrismaNullableJson(data.rankingDestinations);
       }
 
       return await prisma.poolStage.create({ data: payload });
@@ -138,7 +155,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
     try {
       return await prisma.poolStage.update({
         where: { id: stageId },
-        data,
+        data: buildPoolStageUpdatePayload(data),
       });
     } catch (error) {
       logModelError('updatePoolStage', error);
@@ -280,7 +297,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
       for (const match of matches) {
         const ids = match.playerMatches
           .map((pm: { playerId: string | null }) => pm.playerId)
-          .filter(Boolean);
+          .filter((playerId: string | null): playerId is string => Boolean(playerId));
         if (ids.length < 2) continue;
         pairs.push(...buildOpponentPairs(ids));
       }
@@ -333,7 +350,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
         teamName: doublette.name,
         registeredAt: doublette.registeredAt ?? doublette.createdAt,
         isActive: true,
-        skillLevel: doublette.members[0]?.player.skillLevel,
+        skillLevel: (doublette as { skillLevel?: string | null }).skillLevel,
       } as ActiveTournamentEntry)).filter((player: ActiveTournamentEntry) => Boolean(player.id));
     } catch (error) {
       logModelError('getActiveDoublettePlayersForTournament', error);
@@ -371,7 +388,7 @@ export const createTournamentModelPoolStages = (prisma: PrismaClient) => ({
           teamName: equipe.name,
           registeredAt: equipe.registeredAt ?? equipe.createdAt,
           isActive: true,
-          skillLevel: equipe.members[0]?.player.skillLevel,
+          skillLevel: (equipe as { skillLevel?: string | null }).skillLevel,
         } as ActiveTournamentEntry))
         .filter((player: ActiveTournamentEntry) => Boolean(player.id));
     } catch (error) {

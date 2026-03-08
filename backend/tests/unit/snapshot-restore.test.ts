@@ -167,7 +167,11 @@ describe('snapshot-restore', () => {
       data: Array<{ id: string }>;
     };
     expect(matchCreateManyArgument.data).toHaveLength(2);
-    expect(matchCreateManyArgument.data.map((match) => match.id).sort()).toEqual(['m1', 'm2']);
+    expect(
+      matchCreateManyArgument.data
+        .map((match) => match.id)
+        .sort((left, right) => left.localeCompare(right))
+    ).toEqual(['m1', 'm2']);
   });
 
   it('restores minimal snapshot and applies fallback defaults', async () => {
@@ -197,7 +201,6 @@ describe('snapshot-restore', () => {
           historicalFlag: false,
           doubleStageEnabled: false,
           location: null,
-          logoUrl: null,
           completedAt: null,
         }),
       })

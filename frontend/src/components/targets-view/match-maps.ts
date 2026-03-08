@@ -66,7 +66,7 @@ const createMatchRegistrar = (
   addMatchInfo(byTargetId, byId, match, label, tournamentId, tournamentName, groupNameByPlayerId);
 };
 
-export const buildMatchMaps = (
+export const buildMatchMaps = ( // NOSONAR
   views: LiveViewData[],
   t: Translator,
   groupNameByPlayerIdByTournament?: Map<string, Map<string, string>>

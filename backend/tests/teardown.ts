@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 
 const teardown = async () => {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return;
+  }
+
   const prisma = new PrismaClient();
   try {
     const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`

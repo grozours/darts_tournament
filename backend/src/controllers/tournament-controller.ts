@@ -2,13 +2,10 @@ import { Request, Response } from 'express';
 import { TournamentService, TournamentFilters } from '../services/tournament-service';
 import { MATCH_FORMAT_PRESETS, TournamentFormat, TournamentStatus } from '../../../shared/src/types';
 import { AppError } from '../middleware/error-handler';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { isAdmin } from '../middleware/auth';
 import { createExtendedHandlers } from './tournament-controller/extended-handlers';
 import { createCoreHandlers } from './tournament-controller/core-handlers';
-
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 
 export class TournamentController {
   private readonly prisma: PrismaClient;
@@ -20,6 +17,7 @@ export class TournamentController {
   public getTournamentParticipants!: (request: Request, response: Response) => Promise<void>;
   public getTournamentPlayers!: (request: Request, response: Response) => Promise<void>;
   public getOrphanPlayers!: (request: Request, response: Response) => Promise<void>;
+  public deleteOrphanPlayers!: (request: Request, response: Response) => Promise<void>;
   public getPoolStages!: (request: Request, response: Response) => Promise<void>;
   public createPoolStage!: (request: Request, response: Response) => Promise<void>;
   public updatePoolStage!: (request: Request, response: Response) => Promise<void>;
@@ -157,7 +155,7 @@ export class TournamentController {
         data: MATCH_FORMAT_PRESETS.map((preset) => ({
           key: preset.key,
           durationMinutes: preset.durationMinutes,
-          segments: preset.segments as JsonValue,
+          segments: preset.segments as Prisma.InputJsonValue,
           isSystem: true,
         })),
         skipDuplicates: true,

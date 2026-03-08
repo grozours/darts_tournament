@@ -20,6 +20,7 @@ type TournamentServiceLike = {
   getPlayerById: (playerId: string) => Promise<Player | undefined>;
   getTournamentParticipants: (tournamentId: string) => Promise<unknown[]>;
   getOrphanParticipants: () => Promise<unknown[]>;
+  deleteOrphanParticipants: () => Promise<number>;
   listDoublettes: (tournamentId: string, search?: string) => Promise<unknown[]>;
   createDoublette: (
     tournamentId: string,
@@ -377,6 +378,15 @@ export const createExtendedHandlers = (context: ExtendedHandlerContext) => ({
     try {
       const players = await context.getTournamentService(request).getOrphanParticipants();
       response.json({ players, totalCount: players.length });
+    } catch (error) {
+      context.handleError(response, error);
+    }
+  },
+
+  deleteOrphanPlayers: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const deletedCount = await context.getTournamentService(request).deleteOrphanParticipants();
+      response.json({ deletedCount });
     } catch (error) {
       context.handleError(response, error);
     }

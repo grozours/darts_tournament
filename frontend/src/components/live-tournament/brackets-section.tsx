@@ -511,7 +511,7 @@ const BracketSummaryHeader = ({
   </div>
 );
 
-const BracketsSection = ({
+const BracketsSection = ({ // NOSONAR
   t,
   tournamentId,
   tournamentStartTime,

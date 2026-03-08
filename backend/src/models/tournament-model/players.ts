@@ -318,6 +318,31 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     }
   },
 
+  deleteOrphanParticipants: async (): Promise<number> => {
+    try {
+      const result = await prisma.player.deleteMany({
+        where: {
+          // eslint-disable-next-line unicorn/no-null
+          tournamentId: null,
+          isActive: true,
+          poolAssignments: { none: {} },
+          playerMatches: { none: {} },
+          bracketEntries: { none: {} },
+          wonMatches: { none: {} },
+          scores: { none: {} },
+          captainOfDoublettes: { none: {} },
+          doubletteMemberships: { none: {} },
+          captainOfEquipes: { none: {} },
+          equipeMemberships: { none: {} },
+        },
+      });
+      return result.count;
+    } catch (error) {
+      logModelError('deleteOrphanParticipants', error);
+      throw new AppError('Failed to delete orphan participants', 500, 'ORPHAN_PARTICIPANTS_DELETE_FAILED');
+    }
+  },
+
   updatePlayerCheckIn: async (
     tournamentId: string,
     playerId: string,

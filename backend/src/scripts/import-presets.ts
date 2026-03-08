@@ -9,24 +9,29 @@ type ImportPayload = {
   matchFormatPresets?: unknown[];
 };
 
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
-
 type NormalizedTournamentPreset = {
   name: string;
   presetType: string;
   totalParticipants: number;
   targetCount: number;
-  templateConfig: JsonValue;
+  templateConfig: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   isSystem: boolean;
 };
 
 type NormalizedMatchFormatPreset = {
   key: string;
   durationMinutes: number;
-  segments: JsonValue;
+  segments: Prisma.InputJsonValue | Prisma.JsonNullValueInput;
   isSystem: boolean;
 };
+
+const toPrismaJson = (value: unknown): Prisma.InputJsonValue | Prisma.JsonNullValueInput => (
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+);
+
+const toPrismaNullableJson = (value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput => (
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+);
 
 const prisma = new PrismaClient({
   datasources: {
@@ -86,15 +91,15 @@ export const readImportFile = (filePath: string): { tournamentPresets: unknown[]
 
 export const normalizeTournamentPreset = (value: unknown): NormalizedTournamentPreset => {
   const candidate = asObject(value);
-  const templateConfig = candidate.templateConfig === null
-    ? undefined
-    : (candidate.templateConfig as JsonValue | undefined);
+  const templateConfig = candidate.templateConfig as Prisma.InputJsonValue | undefined;
   return {
     name: asString(candidate.name),
     presetType: asString(candidate.presetType),
     totalParticipants: asNumber(candidate.totalParticipants),
     targetCount: asNumber(candidate.targetCount),
-  templateConfig: templateConfig ?? {},
+    templateConfig: templateConfig === undefined
+      ? Prisma.JsonNull
+      : toPrismaNullableJson(templateConfig),
     isSystem: asBoolean(candidate.isSystem),
   };
 };
@@ -104,7 +109,7 @@ export const normalizeMatchFormatPreset = (value: unknown): NormalizedMatchForma
   return {
     key: asString(candidate.key),
     durationMinutes: asNumber(candidate.durationMinutes),
-  segments: ((candidate.segments ?? []) as JsonValue),
+    segments: toPrismaJson(candidate.segments ?? []),
     isSystem: asBoolean(candidate.isSystem),
   };
 };

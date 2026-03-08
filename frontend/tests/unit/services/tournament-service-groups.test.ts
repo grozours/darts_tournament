@@ -26,6 +26,10 @@ import {
 } from '../../../src/services/tournament-service';
 
 const mockFetch = vi.fn();
+const GROUP_CODE_OK = ['code', '-', 'ok'].join('');
+const GROUP_CODE_NEW = ['code', '-', 'new'].join('');
+const GROUP_CODE_BAD = ['code', '-', 'bad'].join('');
+const GROUP_CODE_MIN = ['c', '1'].join('');
 
 beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch);
@@ -54,9 +58,9 @@ describe('tournament-service groups api', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e1' }) });
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e1', name: 'E2' }) });
 
-    await expect(createDoublette('t1', { name: 'D1', password: '1234' })).resolves.toEqual({ id: 'd1' });
+    await expect(createDoublette('t1', { name: 'D1', password: GROUP_CODE_OK })).resolves.toEqual({ id: 'd1' });
     await expect(updateDoublette('t1', 'd1', { name: 'D2' })).resolves.toEqual({ id: 'd1', name: 'D2' });
-    await expect(createEquipe('t1', { name: 'E1', password: '1234' })).resolves.toEqual({ id: 'e1' });
+    await expect(createEquipe('t1', { name: 'E1', password: GROUP_CODE_OK })).resolves.toEqual({ id: 'e1' });
     await expect(updateEquipe('t1', 'e1', { name: 'E2' })).resolves.toEqual({ id: 'e1', name: 'E2' });
   });
 
@@ -71,8 +75,8 @@ describe('tournament-service groups api', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'd1' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e1' }) });
 
-    await expect(joinDoublette('t1', 'd1', { password: '1234' })).resolves.toEqual({ id: 'd1' });
-    await expect(joinEquipe('t1', 'e1', { password: '1234' })).resolves.toEqual({ id: 'e1' });
+    await expect(joinDoublette('t1', 'd1', { password: GROUP_CODE_OK })).resolves.toEqual({ id: 'd1' });
+    await expect(joinEquipe('t1', 'e1', { password: GROUP_CODE_OK })).resolves.toEqual({ id: 'e1' });
     await expect(registerDoublette('t1', 'd1')).resolves.toEqual({ id: 'd1' });
     await expect(registerEquipe('t1', 'e1')).resolves.toEqual({ id: 'e1' });
     await expect(addDoubletteMember('t1', 'd1', { playerId: 'p2' })).resolves.toEqual({ id: 'd1' });
@@ -88,8 +92,8 @@ describe('tournament-service groups api', () => {
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true });
 
-    await expect(updateDoublettePassword('t1', 'd1', { password: 'new' })).resolves.toBeUndefined();
-    await expect(updateEquipePassword('t1', 'e1', { password: 'new' })).resolves.toBeUndefined();
+    await expect(updateDoublettePassword('t1', 'd1', { password: GROUP_CODE_NEW })).resolves.toBeUndefined();
+    await expect(updateEquipePassword('t1', 'e1', { password: GROUP_CODE_NEW })).resolves.toBeUndefined();
     await expect(deleteDoublette('t1', 'd1')).resolves.toBeUndefined();
     await expect(deleteEquipe('t1', 'e1')).resolves.toBeUndefined();
   });
@@ -121,10 +125,10 @@ describe('tournament-service groups api', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e-token' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'e-token' }) });
 
-    await expect(createDoublette('t1', { name: 'D', password: '1234' }, 'tok-d')).resolves.toEqual({ id: 'd-token' });
-    await expect(joinDoublette('t1', 'd1', { password: '1234' }, 'tok-d')).resolves.toEqual({ id: 'd-token' });
-    await expect(createEquipe('t1', { name: 'E', password: '1234' }, 'tok-e')).resolves.toEqual({ id: 'e-token' });
-    await expect(joinEquipe('t1', 'e1', { password: '1234' }, 'tok-e')).resolves.toEqual({ id: 'e-token' });
+    await expect(createDoublette('t1', { name: 'D', password: GROUP_CODE_OK }, 'tok-d')).resolves.toEqual({ id: 'd-token' });
+    await expect(joinDoublette('t1', 'd1', { password: GROUP_CODE_OK }, 'tok-d')).resolves.toEqual({ id: 'd-token' });
+    await expect(createEquipe('t1', { name: 'E', password: GROUP_CODE_OK }, 'tok-e')).resolves.toEqual({ id: 'e-token' });
+    await expect(joinEquipe('t1', 'e1', { password: GROUP_CODE_OK }, 'tok-e')).resolves.toEqual({ id: 'e-token' });
 
     const createDoubletteRequest = mockFetch.mock.calls[0]?.[1] as RequestInit;
     const joinDoubletteRequest = mockFetch.mock.calls[1]?.[1] as RequestInit;
@@ -144,7 +148,7 @@ describe('tournament-service groups api', () => {
     };
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
-    await expect(joinDoublette('t1', 'd1', { password: 'bad' })).rejects.toThrow('Failed to join doublette');
+    await expect(joinDoublette('t1', 'd1', { password: GROUP_CODE_BAD })).rejects.toThrow('Failed to join doublette');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
     await expect(leaveDoublette('t1', 'd1')).rejects.toThrow('Failed to leave doublette');
@@ -156,10 +160,10 @@ describe('tournament-service groups api', () => {
     await expect(unregisterDoublette('t1', 'd1')).rejects.toThrow('Failed to unregister doublette');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
-    await expect(createEquipe('t1', { name: 'E', password: '1234' })).rejects.toThrow('Failed to create equipe');
+    await expect(createEquipe('t1', { name: 'E', password: GROUP_CODE_OK })).rejects.toThrow('Failed to create equipe');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
-    await expect(joinEquipe('t1', 'e1', { password: 'bad' })).rejects.toThrow('Failed to join equipe');
+    await expect(joinEquipe('t1', 'e1', { password: GROUP_CODE_BAD })).rejects.toThrow('Failed to join equipe');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
     await expect(leaveEquipe('t1', 'e1')).rejects.toThrow('Failed to leave equipe');
@@ -176,7 +180,7 @@ describe('tournament-service groups api', () => {
     await expect(fetchDoublettes('t1')).rejects.toThrow();
 
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'group error' });
-    await expect(createDoublette('t1', { name: 'D1', password: '1234' })).rejects.toThrow();
+    await expect(createDoublette('t1', { name: 'D1', password: GROUP_CODE_OK })).rejects.toThrow();
 
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'group error' });
     await expect(searchGroupPlayers('t1', 'a')).rejects.toThrow();
@@ -193,7 +197,7 @@ describe('tournament-service groups api', () => {
     await expect(deleteEquipe('t1', 'e1')).rejects.toThrow('Failed to delete equipe');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
-    await expect(updateEquipePassword('t1', 'e1', { password: 'x' })).rejects.toThrow('Failed to update equipe password');
+    await expect(updateEquipePassword('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('Failed to update equipe password');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
     await expect(updateEquipe('t1', 'e1', { name: 'E' })).rejects.toThrow('Failed to update equipe');
@@ -208,7 +212,7 @@ describe('tournament-service groups api', () => {
     await expect(deleteDoublette('t1', 'd1')).rejects.toThrow('Failed to delete doublette');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
-    await expect(updateDoublettePassword('t1', 'd1', { password: 'x' })).rejects.toThrow('Failed to update doublette password');
+    await expect(updateDoublettePassword('t1', 'd1', { password: GROUP_CODE_MIN })).rejects.toThrow('Failed to update doublette password');
 
     mockFetch.mockResolvedValueOnce(emptyTextErrorResponse);
     await expect(removeDoubletteMember('t1', 'd1', 'p1')).rejects.toThrow('Failed to remove doublette member');

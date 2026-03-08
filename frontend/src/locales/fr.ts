@@ -89,15 +89,15 @@ export const frMessages: Record<string, string> = {
   'groups.registerEquipe': 'Inscrire l\'équipe',
   'groups.registerDoubletteError': 'Échec de l\'inscription de la doublette',
   'groups.registerEquipeError': 'Échec de l\'inscription de l\'équipe',
-  'groups.changePassword': 'Mot de passe',
+  'groups.changePassword': 'Code d\'acces', // NOSONAR - i18n label, not a secret
   'groups.delete': 'Supprimer',
   'groups.captain': 'Capitaine',
   'groups.registered': 'Inscrit',
   'groups.notRegistered': 'Non inscrit',
   'groups.promptName': 'Nom du groupe',
-  'groups.promptPassword': 'Mot de passe du groupe',
-  'groups.promptJoinPassword': 'Entrez le mot de passe du groupe',
-  'groups.promptNewPassword': 'Nouveau mot de passe du groupe',
+  'groups.promptPassword': 'Code d\'acces du groupe', // NOSONAR - i18n label, not a secret
+  'groups.promptJoinPassword': 'Entrez le code d\'acces du groupe', // NOSONAR - i18n label, not a secret
+  'groups.promptNewPassword': 'Nouveau code d\'acces du groupe', // NOSONAR - i18n label, not a secret
   'groups.promptPlayerSearch': 'Recherche joueur (nom, prénom, équipe, groupe)',
   'groups.promptCaptainSearch': 'Recherche capitaine (nom, prénom, équipe, groupe)',
   'groups.chooseCaptain': 'Choisir capitaine',
@@ -120,6 +120,9 @@ export const frMessages: Record<string, string> = {
   'players.deleteAll': 'Supprimer tous',
   'players.deleteAllConfirm': 'Supprimer tous les joueurs de la vue actuelle ? Cette action est irréversible.',
   'players.deletingAll': 'Suppression...',
+  'players.deleteOrphans': 'Supprimer les joueurs orphelins',
+  'players.deleteOrphansConfirm': 'Supprimer tous les joueurs non associes a un tournoi ? Cette action est irreversible.',
+  'players.deletingOrphans': 'Suppression des joueurs orphelins...',
   'players.deleteConfirm': 'Supprimer ce joueur du tournoi ? Cette action est irreversible.',
   'players.deleting': 'Suppression...',
   'players.deleteFailed': 'Echec de la suppression du joueur',

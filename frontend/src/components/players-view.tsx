@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
+import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
 import { TournamentFormat, SkillLevel } from '@shared/types';
-import { fetchTournamentPlayers, fetchOrphanPlayers, updateTournamentPlayer, removeTournamentPlayer, type TournamentPlayer } from '../services/tournament-service';
+import {
+  fetchTournamentPlayers,
+  fetchOrphanPlayers,
+  deleteOrphanPlayers,
+  updateTournamentPlayer,
+  removeTournamentPlayer,
+  type TournamentPlayer,
+} from '../services/tournament-service';
 
 interface TournamentSummary {
   id: string;
@@ -28,6 +36,7 @@ const buildPlayerLabel = (player: PlayerRecord) => {
 function PlayersView() {
   const { t } = useI18n();
   const { enabled: authEnabled, getAccessTokenSilently } = useOptionalAuth();
+  const { isAdmin } = useAdminStatus();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [search, setSearch] = useState('');
@@ -45,6 +54,7 @@ function PlayersView() {
   });
   const [saving, setSaving] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [deletingOrphans, setDeletingOrphans] = useState(false);
 
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
@@ -52,6 +62,7 @@ function PlayersView() {
     try {
       return await getAccessTokenSilently();
     } catch (error) {
+      console.warn('Failed to retrieve access token in PlayersView', error);
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);
@@ -145,6 +156,11 @@ function PlayersView() {
     return options;
   }, [players, t]);
 
+  const orphanPlayersCount = useMemo(
+    () => players.filter((player) => player.tournamentId === undefined).length,
+    [players]
+  );
+
   const startEdit = (player: PlayerRecord) => {
     setEditingPlayerId(player.playerId);
     setForm({
@@ -232,6 +248,22 @@ function PlayersView() {
     }
   };
 
+  const deleteAllOrphanPlayers = async () => {
+    if (orphanPlayersCount === 0) return;
+    if (!confirm(t('players.deleteOrphansConfirm'))) return;
+    setDeletingOrphans(true);
+    setError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      await deleteOrphanPlayers(token);
+      await loadPlayers();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t('players.error'));
+    } finally {
+      setDeletingOrphans(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -266,6 +298,15 @@ function PlayersView() {
           <h2 className="mt-2 text-2xl font-semibold text-white">{t('players.subtitle')}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={deleteAllOrphanPlayers}
+              disabled={orphanPlayersCount === 0 || deletingOrphans}
+              className="rounded-full border border-amber-500/60 px-4 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60"
+            >
+              {deletingOrphans ? t('players.deletingOrphans') : t('players.deleteOrphans')}
+            </button>
+          )}
           <button
             onClick={deleteAllPlayers}
             disabled={filteredPlayers.length === 0 || deletingAll}

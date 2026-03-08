@@ -144,6 +144,16 @@ describe('tournament model players branches', () => {
     await expect(model.getOrphanParticipants()).rejects.toMatchObject({ code: 'ORPHAN_PARTICIPANTS_FETCH_FAILED' });
   });
 
+  it('deletes orphan participants and maps delete errors', async () => {
+    const { model, prisma } = build();
+
+    prisma.player.deleteMany.mockResolvedValueOnce({ count: 2 });
+    await expect(model.deleteOrphanParticipants()).resolves.toBe(2);
+
+    prisma.player.deleteMany.mockRejectedValueOnce(new Error('x'));
+    await expect(model.deleteOrphanParticipants()).rejects.toMatchObject({ code: 'ORPHAN_PARTICIPANTS_DELETE_FAILED' });
+  });
+
   it('maps updatePlayerCheckIn and updatePlayer prisma error codes', async () => {
     const { model, prisma } = build();
     const now = new Date();

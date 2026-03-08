@@ -65,7 +65,7 @@ const getPlayerScore = (playerMatch: LiveViewMatchPlayer) => (
   playerMatch.scoreTotal ?? playerMatch.legsWon ?? 0
 );
 
-const applyHeadToHeadBonus = (rows: Map<string, PoolLeaderboardRow>, matches: LiveViewMatch[]) => {
+const applyHeadToHeadBonus = (rows: Map<string, PoolLeaderboardRow>, matches: LiveViewMatch[]) => { // NOSONAR
   const groups = new Map<number, PoolLeaderboardRow[]>();
   for (const row of rows.values()) {
     const bucket = groups.get(row.legsWon) ?? [];

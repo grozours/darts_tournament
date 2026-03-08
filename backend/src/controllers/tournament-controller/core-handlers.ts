@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
 import { AppError } from '../../middleware/error-handler';
 import { isAdmin } from '../../middleware/auth';
@@ -14,9 +14,6 @@ import {
   type TournamentSnapshot,
 } from '../../services/tournament-service/autosave';
 import { restoreTournamentStateFromSnapshot } from '../../services/tournament-service/snapshot-restore';
-
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 
 type CoreHandlerContext = {
   prisma: PrismaClient;
@@ -51,6 +48,14 @@ const handleAppError = (response: Response, error: unknown) => {
     },
   });
 };
+
+const toPrismaJson = (value: unknown): Prisma.InputJsonValue | Prisma.JsonNullValueInput => (
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+);
+
+const toPrismaNullableJson = (value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput => (
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+);
 
 const isLiveEndpointCacheEnabled = (): boolean => config.env !== 'test';
 
@@ -208,7 +213,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
           ...(templateConfig === undefined
             ? {}
             : {
-              templateConfig: templateConfig as JsonValue,
+              templateConfig: toPrismaNullableJson(templateConfig),
             }),
         },
       });
@@ -244,7 +249,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         presetType: presetType ?? existing.presetType,
         totalParticipants: totalParticipants ?? existing.totalParticipants,
         targetCount: targetCount ?? existing.targetCount,
-        templateConfig: templateConfigValue as JsonValue,
+        templateConfig: toPrismaNullableJson(templateConfigValue),
       };
 
       const preset = await context.prisma.tournamentPreset.update({
@@ -295,7 +300,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         data: {
           key,
           durationMinutes,
-          segments: segments as JsonValue,
+          segments: toPrismaJson(segments),
           isSystem: isSystem ?? false,
         },
       });
@@ -326,7 +331,7 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
         data: {
           ...(key === undefined ? {} : { key }),
           ...(durationMinutes === undefined ? {} : { durationMinutes }),
-          ...(segments === undefined ? {} : { segments: segments as JsonValue }),
+          ...(segments === undefined ? {} : { segments: toPrismaJson(segments) }),
           ...(isSystem === undefined ? {} : { isSystem }),
         },
       });

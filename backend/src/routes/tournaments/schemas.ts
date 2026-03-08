@@ -646,6 +646,7 @@ export const createGroupSchema = {
   body: z.object({
     name: groupNameSchema,
     password: groupPasswordSchema,
+    skillLevel: z.nativeEnum(SkillLevel).nullable().optional(),
     captainPlayerId: z.string().uuid('Invalid captain player ID').optional(),
     memberPlayerIds: z.array(z.string().uuid('Invalid member player ID')).max(8).optional(),
   }),
@@ -654,7 +655,8 @@ export const createGroupSchema = {
 export const updateGroupSchema = {
   body: z.object({
     name: groupNameSchema.optional(),
-  }).refine((data) => data.name !== undefined, {
+    skillLevel: z.nativeEnum(SkillLevel).nullable().optional(),
+  }).refine((data) => data.name !== undefined || data.skillLevel !== undefined, {
     message: 'At least one field is required',
   }),
 };

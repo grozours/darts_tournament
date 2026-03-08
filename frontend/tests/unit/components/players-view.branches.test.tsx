@@ -5,9 +5,11 @@ import { TournamentFormat, SkillLevel } from '@shared/types';
 
 const fetchTournamentPlayersMock = vi.fn();
 const fetchOrphanPlayersMock = vi.fn();
+const deleteOrphanPlayersMock = vi.fn();
 const updateTournamentPlayerMock = vi.fn();
 const removeTournamentPlayerMock = vi.fn();
 const translate = (key: string) => key;
+const adminState = { isAdmin: true };
 
 const authState = {
   enabled: true,
@@ -22,6 +24,10 @@ vi.mock('../../../src/i18n', () => ({
   useI18n: () => ({ t: translate }),
 }));
 
+vi.mock('../../../src/auth/use-admin-status', () => ({
+  useAdminStatus: () => adminState,
+}));
+
 vi.mock('../../../src/services/tournament-service', async () => {
   const actual = await vi.importActual<typeof import('../../../src/services/tournament-service')>(
     '../../../src/services/tournament-service'
@@ -30,6 +36,7 @@ vi.mock('../../../src/services/tournament-service', async () => {
     ...actual,
     fetchTournamentPlayers: (...args: unknown[]) => fetchTournamentPlayersMock(...args),
     fetchOrphanPlayers: (...args: unknown[]) => fetchOrphanPlayersMock(...args),
+    deleteOrphanPlayers: (...args: unknown[]) => deleteOrphanPlayersMock(...args),
     updateTournamentPlayer: (...args: unknown[]) => updateTournamentPlayerMock(...args),
     removeTournamentPlayer: (...args: unknown[]) => removeTournamentPlayerMock(...args),
   };
@@ -39,6 +46,7 @@ describe('PlayersView branches', () => {
   beforeEach(() => {
     authState.enabled = true;
     authState.getAccessTokenSilently = vi.fn(async () => 'token');
+    adminState.isAdmin = true;
 
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
@@ -51,6 +59,7 @@ describe('PlayersView branches', () => {
     fetchOrphanPlayersMock.mockReset();
     updateTournamentPlayerMock.mockReset();
     removeTournamentPlayerMock.mockReset();
+    deleteOrphanPlayersMock.mockReset();
 
     fetchTournamentPlayersMock.mockResolvedValue([
       {
@@ -72,6 +81,7 @@ describe('PlayersView branches', () => {
     fetchOrphanPlayersMock.mockResolvedValue([]);
     updateTournamentPlayerMock.mockResolvedValue(undefined);
     removeTournamentPlayerMock.mockResolvedValue(undefined);
+    deleteOrphanPlayersMock.mockResolvedValue(1);
     vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
   });
 
@@ -138,5 +148,44 @@ describe('PlayersView branches', () => {
     });
     expect(removeTournamentPlayerMock).toHaveBeenCalledWith('t1', 'p1', 'token');
     expect(removeTournamentPlayerMock).toHaveBeenCalledWith('t1', 'p2', 'token');
+  });
+
+  it('deletes orphan players for admin when confirmed', async () => {
+    fetchOrphanPlayersMock.mockResolvedValueOnce([
+      {
+        playerId: 'o1',
+        firstName: 'Orphan',
+        lastName: 'One',
+        name: 'Orphan One',
+      },
+    ]);
+
+    render(<PlayersView />);
+
+    await screen.findByText('Orphan One');
+    fireEvent.click(screen.getByRole('button', { name: 'players.deleteOrphans' }));
+
+    await waitFor(() => {
+      expect(deleteOrphanPlayersMock).toHaveBeenCalledWith('token');
+    });
+  });
+
+  it('does not delete orphan players when confirmation is cancelled', async () => {
+    fetchOrphanPlayersMock.mockResolvedValueOnce([
+      {
+        playerId: 'o2',
+        firstName: 'Orphan',
+        lastName: 'Two',
+        name: 'Orphan Two',
+      },
+    ]);
+    vi.spyOn(globalThis, 'confirm').mockReturnValueOnce(false);
+
+    render(<PlayersView />);
+
+    await screen.findByText('Orphan Two');
+    fireEvent.click(screen.getByRole('button', { name: 'players.deleteOrphans' }));
+
+    expect(deleteOrphanPlayersMock).not.toHaveBeenCalled();
   });
 });

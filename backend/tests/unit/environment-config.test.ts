@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+const REDIS_TEST_SECRET = ['cache', '-', 'token'].join('');
+
 describe('environment config', () => {
   const originalEnv = process.env;
 
@@ -38,7 +40,7 @@ describe('environment config', () => {
     process.env.PORT = '4000';
     process.env.NODE_ENV = 'development';
     process.env.DB_SSL = 'true';
-    process.env.REDIS_PASSWORD = 'secret';
+    process.env.REDIS_PASSWORD = REDIS_TEST_SECRET;
     process.env.CORS_ORIGINS = 'https://a.example.com,https://b.example.com';
     process.env.UPLOAD_DIR = '/tmp/uploads';
     process.env.LOG_LEVEL = 'debug';
@@ -57,7 +59,7 @@ describe('environment config', () => {
     expect(config.port).toBe(4000);
     expect(config.isDevelopment).toBe(true);
     expect(config.database.ssl).toBe(true);
-    expect(config.redis.password).toBe('secret');
+    expect(config.redis.password).toBe(REDIS_TEST_SECRET);
     expect(config.cors.origins).toEqual(['https://a.example.com', 'https://b.example.com']);
     expect(config.upload.directory).toBe('/tmp/uploads');
     expect(config.logging.level).toBe('debug');

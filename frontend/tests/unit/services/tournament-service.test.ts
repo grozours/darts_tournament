@@ -11,6 +11,7 @@ import {
   fetchBrackets,
   fetchTournamentTargets,
   fetchOrphanPlayers,
+  deleteOrphanPlayers,
   fetchPoolStagePools,
   fetchTournamentLiveView,
   fetchLiveTournamentSummary,
@@ -256,6 +257,13 @@ describe('tournament-service live view', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ players: [{ playerId: 'p-1' }] }) });
     await expect(fetchOrphanPlayers()).resolves.toEqual([{ playerId: 'p-1' }]);
 
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ deletedCount: 3 }) });
+    await expect(deleteOrphanPlayers('tok-1')).resolves.toBe(3);
+
+    const deleteRequest = mockFetch.mock.calls[2]?.[1] as RequestInit;
+    expect(deleteRequest.method).toBe('DELETE');
+    expect(deleteRequest.headers).toEqual({ Authorization: 'Bearer tok-1' });
+
     mockFetch.mockResolvedValueOnce({
       ok: false,
       headers: jsonHeaders,
@@ -263,6 +271,9 @@ describe('tournament-service live view', () => {
       text: async () => 'Live view failed',
     });
     await expect(fetchTournamentLiveView('t-1')).rejects.toThrow('Live view failed');
+
+    mockFetch.mockResolvedValueOnce({ ok: false, text: async () => '' });
+    await expect(deleteOrphanPlayers()).rejects.toThrow('Failed to delete orphan players');
   });
 
   it('fetches live summary with status normalization and default fallback', async () => {

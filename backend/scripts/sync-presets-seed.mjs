@@ -5,27 +5,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
-const seedPath = path.join(projectRoot, 'prisma', 'seed.mts');
-const exportPath = path.join(projectRoot, 'prisma', 'current-presets-export.json');
+const seedSnapshotPath = path.join(projectRoot, 'prisma', 'current-seed-export.json');
+const presetsExportPath = path.join(projectRoot, 'prisma', 'current-presets-export.json');
 
-const indentBlock = (value, spaces) => {
-  const pad = ' '.repeat(spaces);
-  return value
-    .split('\n')
-    .map((line) => `${pad}${line}`)
-    .join('\n');
-};
-
-const replaceDataBlock = (seedContent, blockName, dataArray) => {
-  const escapedBlockName = blockName.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-  const pattern = new RegExp(
-    String.raw`(${escapedBlockName}\s*=\s*await\s*prisma\.[\w.]+\.createMany\(\{\n\s*data:\s*)\[[\s\S]*?\](,\n\s*skipDuplicates:\s*true,\n\s*\}\);)`
-  );
-  const nextDataLiteral = indentBlock(JSON.stringify(dataArray, null, 2), 4);
-  if (!pattern.test(seedContent)) {
-    throw new Error(`Unable to locate data block for ${blockName}`);
+const readJsonFile = (filePath, fallbackValue) => {
+  if (!fs.existsSync(filePath)) {
+    return fallbackValue;
   }
-  return seedContent.replace(pattern, `$1${nextDataLiteral}$2`);
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 };
 
 const normalizeTournamentPreset = (preset) => ({
@@ -57,27 +44,33 @@ const syncPresetsSeed = async () => {
     tournamentPresets,
     matchFormatPresets,
   };
-  fs.writeFileSync(exportPath, `${JSON.stringify(exportPayload, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(presetsExportPath, `${JSON.stringify(exportPayload, null, 2)}\n`, 'utf8');
 
-  const seedContent = fs.readFileSync(seedPath, 'utf8');
-  const seedWithMatchFormats = replaceDataBlock(
-    seedContent,
-    'const matchFormatPresets',
-    matchFormatPresets.map(normalizeMatchFormatPreset)
-  );
-  const seedWithPresets = replaceDataBlock(
-    seedWithMatchFormats,
-    'const tournamentPresets',
-    tournamentPresets.map(normalizeTournamentPreset)
-  );
+  const existingSeedSnapshot = readJsonFile(seedSnapshotPath, {
+    exportedAt: exportPayload.exportedAt,
+    matchFormatPresets: [],
+    tournamentPresets: [],
+    tournaments: [],
+    targets: [],
+    players: [],
+    doublettes: [],
+    doubletteMembers: [],
+  });
 
-  fs.writeFileSync(seedPath, seedWithPresets, 'utf8');
+  const updatedSeedSnapshot = {
+    ...existingSeedSnapshot,
+    exportedAt: exportPayload.exportedAt,
+    matchFormatPresets: matchFormatPresets.map(normalizeMatchFormatPreset),
+    tournamentPresets: tournamentPresets.map(normalizeTournamentPreset),
+  };
+
+  fs.writeFileSync(seedSnapshotPath, `${JSON.stringify(updatedSeedSnapshot, null, 2)}\n`, 'utf8');
 
   console.log(
     `Synced seed from DB: ${tournamentPresets.length} tournament presets, ${matchFormatPresets.length} match formats.`
   );
-  console.log(`Updated: ${path.relative(projectRoot, exportPath)}`);
-  console.log(`Updated: ${path.relative(projectRoot, seedPath)}`);
+  console.log(`Updated: ${path.relative(projectRoot, presetsExportPath)}`);
+  console.log(`Updated: ${path.relative(projectRoot, seedSnapshotPath)}`);
 };
 
 try {

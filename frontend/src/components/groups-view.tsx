@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SkillLevel } from '@shared/types';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import { useI18n } from '../i18n';
@@ -25,6 +26,7 @@ import {
   unregisterEquipe,
   searchGroupPlayers,
   type TournamentGroupEntity,
+  updateTournamentPlayer,
   updateDoublette,
   updateDoublettePassword,
   updateEquipe,
@@ -52,6 +54,15 @@ type OpenTournamentSummary = {
 type GroupWithTournamentContext = TournamentGroupEntity & {
   tournamentId: string;
   tournamentName?: string;
+};
+
+type MemberEditorState = {
+  groupId: string;
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  surname: string;
+  email: string;
 };
 
 const requiredMembersByMode: Record<GroupMode, number> = {
@@ -82,6 +93,40 @@ const isValidEmailFormat = (value: string): boolean => {
   return !domainPart.startsWith('.') && !domainPart.endsWith('.') && !domainPart.includes('..');
 };
 
+const normalizeTournamentStatus = (status?: string): string => {
+  if (!status) {
+    return '';
+  }
+
+  const normalized = status.trim().toUpperCase();
+  switch (normalized) {
+    case 'REGISTRATION_OPEN':
+      return 'OPEN';
+    case 'IN_PROGRESS':
+      return 'LIVE';
+    case 'COMPLETED':
+    case 'ARCHIVED':
+      return 'FINISHED';
+    default:
+      return normalized;
+  }
+};
+
+const toSkillLevelLabel = (value: SkillLevel, t: (key: string) => string): string => {
+  switch (value) {
+    case SkillLevel.BEGINNER:
+      return t('skill.beginner');
+    case SkillLevel.INTERMEDIATE:
+      return t('skill.intermediate');
+    case SkillLevel.ADVANCED:
+      return t('skill.advanced');
+    case SkillLevel.EXPERT:
+      return t('skill.expert');
+    default:
+      return value;
+  }
+};
+
 const GroupsView = ({ mode }: GroupsViewProperties) => {
   const { t } = useI18n();
   const { enabled, isAuthenticated, getAccessTokenSilently, user } = useOptionalAuth();
@@ -102,6 +147,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const [createPassword, setCreatePassword] = useState('');
   const [activeEditor, setActiveEditor] = useState<GroupEditorState | undefined>();
   const [renameValue, setRenameValue] = useState('');
+  const [groupSkillLevelValue, setGroupSkillLevelValue] = useState<SkillLevel | ''>('');
   const [passwordValue, setPasswordValue] = useState('');
   const [joinPasswordValue, setJoinPasswordValue] = useState('');
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
@@ -117,6 +163,8 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const [createCaptainPlayerId, setCreateCaptainPlayerId] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [selectedTournamentId, setSelectedTournamentId] = useState(tournamentIdFromUrl);
+  const [tournamentStatusesById, setTournamentStatusesById] = useState<Record<string, string>>({});
+  const [activeMemberEditor, setActiveMemberEditor] = useState<MemberEditorState | undefined>();
 
   const effectiveUserEmail = useMemo(
     () => (user?.email ?? adminUser?.email)?.toLowerCase(),
@@ -173,11 +221,35 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     return activeStatusTournaments.length > 0 ? activeStatusTournaments : tournaments;
   }, []);
 
-  const loadGroups = useCallback(async () => {
+  const fetchTournamentStatuses = useCallback(async (token: string | undefined) => {
+    const requestOptions = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+    const response = await fetch('/api/tournaments?limit=100', requestOptions);
+    if (!response.ok) {
+      throw new Error('Failed to fetch tournaments');
+    }
+
+    const payload = await response.json() as { tournaments?: Array<{ id?: string; status?: string }> };
+    const tournaments = Array.isArray(payload.tournaments) ? payload.tournaments : [];
+    return tournaments.reduce<Record<string, string>>((accumulator, tournament) => {
+      if (typeof tournament.id === 'string' && tournament.id.length > 0) {
+        accumulator[tournament.id] = normalizeTournamentStatus(tournament.status);
+      }
+      return accumulator;
+    }, {});
+  }, []);
+
+  const loadGroups = useCallback(async () => { // NOSONAR
     setLoading(true);
     setError(undefined);
     try {
       const token = await getToken();
+      try {
+        const tournamentStatuses = await fetchTournamentStatuses(token);
+        setTournamentStatusesById(tournamentStatuses);
+      } catch {
+        // Keep group listing functional when status lookup is unavailable.
+        setTournamentStatusesById({});
+      }
 
       if (selectedTournamentId) {
         setAvailableTournaments([]);
@@ -244,7 +316,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     } finally {
       setLoading(false);
     }
-  }, [fetchOpenTournaments, getToken, mode, search, selectedTournamentFilterId, selectedTournamentId]);
+  }, [fetchOpenTournaments, fetchTournamentStatuses, getToken, mode, search, selectedTournamentFilterId, selectedTournamentId]);
 
   useEffect(() => {
     void loadGroups();
@@ -265,20 +337,25 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   } else {
     content = (
       <div className="grid gap-3">
-        {visibleGroups.map((group) => {
+        {visibleGroups.map((group) => { // NOSONAR
           const member = group.members.find((item) => item.email?.toLowerCase() === effectiveUserEmail);
           const isMember = Boolean(member);
           const isCaptain = member?.playerId === group.captainPlayerId;
           const canManageGroup = isAdmin || (isMember && isCaptain);
           const canJoin = effectiveIsAuthenticated && !isMember && !group.isRegistered && group.memberCount < requiredMembers;
-          const canRegister = isCaptain && !group.isRegistered && group.memberCount === requiredMembers;
-          const canUnregister = group.isRegistered && (isAdmin || isCaptain);
+          const normalizedTournamentStatus = tournamentStatusesById[group.tournamentId] ?? '';
+          const isLiveOrArchivedTournament = normalizedTournamentStatus === 'LIVE' || normalizedTournamentStatus === 'FINISHED';
+          const canRegister = (isCaptain || isAdmin) && !group.isRegistered && group.memberCount === requiredMembers;
+          const canUnregister = group.isRegistered && (isAdmin || isCaptain) && !isLiveOrArchivedTournament;
           const canLeave = isMember && !group.isRegistered;
           const canDelete = isAdmin || (canManageGroup && !group.isRegistered);
           const canChangePassword = canManageGroup && !group.isRegistered;
           const canRename = isAdmin || (canManageGroup && !group.isRegistered);
           const canAddMember = isAdmin && group.memberCount < requiredMembers;
           const canRemoveMembers = isAdmin || (canManageGroup && !group.isRegistered);
+          const canEditMembers = mode === 'doublettes' && (isAdmin || (canManageGroup && !group.isRegistered));
+          const registerButtonLabel = isAdmin ? 'inscrire' : registerLabel;
+          const unregisterButtonLabel = isAdmin ? 'desinscrire' : t('tournaments.unregister');
 
           return (
             <div key={group.id} className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
@@ -288,6 +365,9 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                   <p className="text-xs text-slate-400">
                     {group.memberCount}/{requiredMembers} · {group.isRegistered ? t('groups.registered') : t('groups.notRegistered')}
                   </p>
+                  {group.skillLevel && (
+                    <p className="text-xs text-slate-400">{t('edit.skillLevel')}: {toSkillLevelLabel(group.skillLevel, t)}</p>
+                  )}
                   {!selectedTournamentId && group.tournamentName && (
                     <p className="text-xs text-slate-500">{group.tournamentName}</p>
                   )}
@@ -311,7 +391,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       disabled={saving}
                       onClick={() => {
                         if (isAdmin) {
-                          openAddMemberEditor(group.id, group.name);
+                          openAddMemberEditor(group.id, group.name, group.skillLevel ?? null);
                           return;
                         }
                         openRenameEditor(group.id, group.name);
@@ -326,7 +406,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       type="button"
                       disabled={saving}
                       onClick={() => {
-                        openAddMemberEditor(group.id, group.name);
+                        openAddMemberEditor(group.id, group.name, group.skillLevel ?? null);
                       }}
                       className="rounded-full border border-indigo-500/60 px-3 py-1 text-xs font-semibold text-indigo-200"
                     >
@@ -342,7 +422,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       }}
                       className="rounded-full border border-emerald-500/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                     >
-                      {registerLabel}
+                      {registerButtonLabel}
                     </button>
                   )}
                   {canUnregister && (
@@ -354,7 +434,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       }}
                       className="rounded-full border border-amber-500/60 px-3 py-1 text-xs font-semibold text-amber-200"
                     >
-                      {t('tournaments.unregister')}
+                      {unregisterButtonLabel}
                     </button>
                   )}
                   {canLeave && (
@@ -397,24 +477,126 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
               </div>
               <ul className="mt-3 space-y-1 text-sm text-slate-300">
                 {group.members.map((item) => (
-                  <li key={item.playerId} className="flex items-center gap-2">
-                    <span>{item.firstName} {item.lastName}</span>
-                    {item.playerId === group.captainPlayerId && (
-                      <span className="rounded-full border border-violet-500/60 px-2 py-0.5 text-[10px] text-violet-200">
-                        {t('groups.captain')}
-                      </span>
-                    )}
-                    {canRemoveMembers && item.playerId !== group.captainPlayerId && (
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => {
-                          void handleRemoveMember(group.id, group.tournamentId, item.playerId);
-                        }}
-                        className="rounded-full border border-rose-500/60 px-2 py-0.5 text-[10px] font-semibold text-rose-200"
-                      >
-                        {t('groups.removeMember')}
-                      </button>
+                  <li key={item.playerId} className="rounded-lg border border-slate-800/70 px-2 py-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{item.firstName} {item.lastName}</span>
+                      {item.playerId === group.captainPlayerId && (
+                        <span className="rounded-full border border-violet-500/60 px-2 py-0.5 text-[10px] text-violet-200">
+                          {t('groups.captain')}
+                        </span>
+                      )}
+                      {canEditMembers && (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => {
+                            setActiveMemberEditor({
+                              groupId: group.id,
+                              playerId: item.playerId,
+                              firstName: item.firstName,
+                              lastName: item.lastName,
+                              surname: item.surname ?? '',
+                              email: item.email ?? '',
+                            });
+                          }}
+                          className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
+                        >
+                          {t('common.edit')}
+                        </button>
+                      )}
+                      {canRemoveMembers && item.playerId !== group.captainPlayerId && (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => {
+                            void handleRemoveMember(group.id, group.tournamentId, item.playerId);
+                          }}
+                          className="rounded-full border border-rose-500/60 px-2 py-0.5 text-[10px] font-semibold text-rose-200"
+                        >
+                          {t('groups.removeMember')}
+                        </button>
+                      )}
+                    </div>
+
+                    {activeMemberEditor?.groupId === group.id && activeMemberEditor.playerId === item.playerId && (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                        <input
+                          value={activeMemberEditor.firstName}
+                          onChange={(event) => {
+                            setActiveMemberEditor((previous) => {
+                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
+                                return previous;
+                              }
+                              return { ...previous, firstName: event.target.value };
+                            });
+                          }}
+                          placeholder={t('edit.firstName')}
+                          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
+                        />
+                        <input
+                          value={activeMemberEditor.lastName}
+                          onChange={(event) => {
+                            setActiveMemberEditor((previous) => {
+                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
+                                return previous;
+                              }
+                              return { ...previous, lastName: event.target.value };
+                            });
+                          }}
+                          placeholder={t('edit.lastName')}
+                          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
+                        />
+                        <input
+                          value={activeMemberEditor.surname}
+                          onChange={(event) => {
+                            setActiveMemberEditor((previous) => {
+                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
+                                return previous;
+                              }
+                              return { ...previous, surname: event.target.value };
+                            });
+                          }}
+                          placeholder={t('edit.surname')}
+                          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
+                        />
+                        <input
+                          value={activeMemberEditor.email}
+                          onChange={(event) => {
+                            setActiveMemberEditor((previous) => {
+                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
+                                return previous;
+                              }
+                              return { ...previous, email: event.target.value };
+                            });
+                          }}
+                          placeholder={t('edit.email')}
+                          className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
+                        />
+                        <button
+                          type="button"
+                          disabled={
+                            saving
+                            || activeMemberEditor.firstName.trim().length === 0
+                            || activeMemberEditor.lastName.trim().length === 0
+                          }
+                          onClick={() => {
+                            void handleUpdateMember(group.tournamentId);
+                          }}
+                          className="rounded-xl border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50"
+                        >
+                          {t('common.save')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => {
+                            setActiveMemberEditor(undefined);
+                          }}
+                          className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500 disabled:opacity-50"
+                        >
+                          {t('common.cancel')}
+                        </button>
+                      </div>
                     )}
                   </li>
                 ))}
@@ -501,6 +683,35 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                         disabled={saving || renameValue.trim().length === 0}
                         onClick={() => {
                           void handleRename(group.id, group.tournamentId, renameValue);
+                        }}
+                        className="rounded-xl border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50"
+                      >
+                        {t('common.save')}
+                      </button>
+                    </div>
+                  )}
+
+                  {isAdmin && (
+                    <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <select
+                        value={groupSkillLevelValue}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setGroupSkillLevelValue(value ? (value as SkillLevel) : '');
+                        }}
+                        className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                      >
+                        <option value="">{t('edit.selectSkillLevelOptional')}</option>
+                        <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
+                        <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
+                        <option value={SkillLevel.ADVANCED}>{t('skill.advanced')}</option>
+                        <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => {
+                          void handleRename(group.id, group.tournamentId, renameValue, groupSkillLevelValue);
                         }}
                         className="rounded-xl border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50"
                       >
@@ -675,6 +886,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const closeActiveEditor = useCallback(() => {
     setActiveEditor(undefined);
     setRenameValue('');
+    setGroupSkillLevelValue('');
     setPasswordValue('');
     setJoinPasswordValue('');
     setMemberSearchTerm('');
@@ -688,6 +900,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const openRenameEditor = useCallback((groupId: string, currentName: string) => {
     setActiveEditor({ groupId, type: 'rename' });
     setRenameValue(currentName);
+    setGroupSkillLevelValue('');
     setPasswordValue('');
     setMemberSearchTerm('');
     setMemberSearchResults([]);
@@ -696,14 +909,16 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const openPasswordEditor = useCallback((groupId: string) => {
     setActiveEditor({ groupId, type: 'password' });
     setRenameValue('');
+    setGroupSkillLevelValue('');
     setPasswordValue('');
     setMemberSearchTerm('');
     setMemberSearchResults([]);
   }, []);
 
-  const openAddMemberEditor = useCallback((groupId: string, currentName = '') => {
+  const openAddMemberEditor = useCallback((groupId: string, currentName = '', skillLevel?: SkillLevel | null) => {
     setActiveEditor({ groupId, type: 'add-member' });
     setRenameValue(currentName);
+    setGroupSkillLevelValue(skillLevel ?? '');
     setPasswordValue('');
     setJoinPasswordValue('');
     setMemberSearchTerm('');
@@ -713,6 +928,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const openJoinEditor = useCallback((groupId: string) => {
     setActiveEditor({ groupId, type: 'join-password' });
     setRenameValue('');
+    setGroupSkillLevelValue('');
     setPasswordValue('');
     setJoinPasswordValue('');
     setMemberSearchTerm('');
@@ -832,21 +1048,41 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     }
   }, [closeActiveEditor, executeByMode, runAction]);
 
-  const handleRename = useCallback(async (groupId: string, tournamentId: string, name: string) => {
+  const handleRename = useCallback(async (
+    groupId: string,
+    tournamentId: string,
+    name: string,
+    skillLevel?: SkillLevel | ''
+  ) => {
     const normalizedName = name.trim();
     if (!normalizedName) {
       return;
     }
+    const normalizedSkillLevel = skillLevel === '' ? null : skillLevel;
+    const updatePayload = {
+      name: normalizedName,
+      ...(isAdmin && normalizedSkillLevel !== undefined ? { skillLevel: normalizedSkillLevel } : {}),
+    };
     const succeeded = await runAction(async () => {
       await executeByMode(
-        async (token) => await updateDoublette(tournamentId, groupId, { name: normalizedName }, token),
-        async (token) => await updateEquipe(tournamentId, groupId, { name: normalizedName }, token)
+        async (token) => await updateDoublette(
+          tournamentId,
+          groupId,
+          updatePayload,
+          token
+        ),
+        async (token) => await updateEquipe(
+          tournamentId,
+          groupId,
+          updatePayload,
+          token
+        )
       );
     });
     if (succeeded) {
       closeActiveEditor();
     }
-  }, [closeActiveEditor, executeByMode, runAction]);
+  }, [closeActiveEditor, executeByMode, isAdmin, runAction]);
 
   const handleAddMember = useCallback(async (groupId: string, tournamentId: string, playerId: string) => {
     const succeeded = await runAction(async () => {
@@ -974,6 +1210,40 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
       );
     });
   }, [executeByMode, runAction]);
+
+  const handleUpdateMember = useCallback(async (tournamentId: string) => {
+    if (!activeMemberEditor) {
+      return;
+    }
+
+    const firstName = activeMemberEditor.firstName.trim();
+    const lastName = activeMemberEditor.lastName.trim();
+    const surname = activeMemberEditor.surname.trim();
+    const email = activeMemberEditor.email.trim();
+
+    if (!firstName || !lastName) {
+      return;
+    }
+
+    const succeeded = await runAction(async () => {
+      const token = await getToken();
+      await updateTournamentPlayer(
+        tournamentId,
+        activeMemberEditor.playerId,
+        {
+          firstName,
+          lastName,
+          ...(surname.length > 0 ? { surname } : {}),
+          ...(email.length > 0 ? { email } : {}),
+        },
+        token
+      );
+    });
+
+    if (succeeded) {
+      setActiveMemberEditor(undefined);
+    }
+  }, [activeMemberEditor, getToken, runAction]);
 
   return (
     <div className="space-y-6">

@@ -401,6 +401,21 @@ export async function fetchOrphanPlayers(token?: string): Promise<TournamentPlay
   return data.players || [];
 }
 
+export async function deleteOrphanPlayers(token?: string): Promise<number> {
+  const response = await fetch('/api/tournaments/players/orphans', {
+    method: 'DELETE',
+    ...buildAuthRequestOptions(token),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to delete orphan players');
+  }
+
+  const data = await response.json();
+  return typeof data.deletedCount === 'number' ? data.deletedCount : 0;
+}
+
 export async function fetchTournamentLiveView(
   tournamentId: string,
   token?: string
@@ -1104,6 +1119,7 @@ export interface GroupMemberEntity {
   playerId: string;
   firstName: string;
   lastName: string;
+  surname?: string | null;
   email?: string | null;
   joinedAt: string;
 }
@@ -1111,6 +1127,7 @@ export interface GroupMemberEntity {
 export interface TournamentGroupEntity {
   id: string;
   name: string;
+  skillLevel?: SkillLevel | null;
   captainPlayerId?: string | null;
   isRegistered: boolean;
   registeredAt?: string | null;
@@ -1151,6 +1168,7 @@ export async function createDoublette(
   payload: {
     name: string;
     password: string;
+    skillLevel?: SkillLevel | null;
     captainPlayerId?: string;
     memberPlayerIds?: string[];
   },
@@ -1283,7 +1301,7 @@ export async function updateDoublettePassword(
 export async function updateDoublette(
   tournamentId: string,
   doubletteId: string,
-  payload: { name?: string },
+  payload: { name?: string; skillLevel?: SkillLevel | null },
   token?: string
 ): Promise<TournamentGroupEntity> {
   const response = await fetch(`/api/tournaments/${tournamentId}/doublettes/${doubletteId}`, {
@@ -1366,6 +1384,7 @@ export async function createEquipe(
   payload: {
     name: string;
     password: string;
+    skillLevel?: SkillLevel | null;
     captainPlayerId?: string;
     memberPlayerIds?: string[];
   },
@@ -1498,7 +1517,7 @@ export async function updateEquipePassword(
 export async function updateEquipe(
   tournamentId: string,
   equipeId: string,
-  payload: { name?: string },
+  payload: { name?: string; skillLevel?: SkillLevel | null },
   token?: string
 ): Promise<TournamentGroupEntity> {
   const response = await fetch(`/api/tournaments/${tournamentId}/equipes/${equipeId}`, {

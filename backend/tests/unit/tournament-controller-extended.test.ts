@@ -50,6 +50,7 @@ describe('tournament-controller extended handlers', () => {
     getPlayerById: jest.fn(async () => ({ id: 'player-1', tournamentId: TOURNAMENT_ID, email: 'player@example.com' })),
     getTournamentParticipants: jest.fn(async () => []),
     getOrphanParticipants: jest.fn(async () => []),
+    deleteOrphanParticipants: jest.fn(async () => 0),
     listDoublettes: jest.fn(async () => []),
     createDoublette: jest.fn(async () => ({ id: 'd-1' })),
     updateDoublette: jest.fn(async () => ({ id: 'd-1' })),
@@ -126,6 +127,16 @@ describe('tournament-controller extended handlers', () => {
     await controller.getOrphanPlayers(request as never, response as never);
 
     expect(response.status).toHaveBeenCalledWith(400);
+  });
+
+  it('deletes orphan players payload', async () => {
+    const request = buildRequest();
+    const response = buildResponse();
+    mockService.deleteOrphanParticipants.mockResolvedValue(4);
+
+    await controller.deleteOrphanPlayers(request as never, response as never);
+
+    expect(response.json).toHaveBeenCalledWith({ deletedCount: 4 });
   });
 
   it('creates a pool stage', async () => {

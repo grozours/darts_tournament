@@ -2,5 +2,9 @@
     "chat.tools.terminal.autoApprove": {
         "docker compose": true,
         "npm --prefix frontend": true
+    },
+    "sonarlint.connectedMode.project": {
+        "connectionId": "darts_tournament",
+        "projectKey": "darts-tournament"
     }
 }

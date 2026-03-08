@@ -5,7 +5,6 @@ import type { TournamentSnapshot } from './autosave';
 const toArray = <T>(value: T[] | undefined | null): T[] => value ?? [];
 type DateLike = Date | string;
 type NullableDateLike = DateLike | null;
-type OptionalNullableString = string | null | undefined;
 type TransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 type SnapshotCollections = {
@@ -105,8 +104,8 @@ const restoreSnapshotInTransaction = async (
     where: { id: tournamentId },
     data: {
       name: (data.name as string) ?? 'Tournament',
-      location: data.location as OptionalNullableString,
-      logoUrl: data.logoUrl as string | undefined,
+      location: (data.location as string | null | undefined) ?? null,
+      ...(data.logoUrl === undefined ? {} : { logoUrl: (data.logoUrl as string | null) ?? null }),
       format: data.format as never,
       durationType: data.durationType as never,
       startTime: data.startTime as DateLike,
@@ -116,7 +115,7 @@ const restoreSnapshotInTransaction = async (
       targetStartNumber: (data.targetStartNumber as number | undefined) ?? 1,
       shareTargets: (data.shareTargets as boolean | undefined) ?? true,
       status: data.status as never,
-      completedAt: data.completedAt as NullableDateLike | undefined,
+      completedAt: (data.completedAt as NullableDateLike | undefined) ?? null,
       historicalFlag: (data.historicalFlag as boolean | undefined) ?? false,
       doubleStageEnabled: (data.doubleStageEnabled as boolean | undefined) ?? false,
     },
@@ -127,13 +126,13 @@ const restoreSnapshotInTransaction = async (
       data: players.map((player) => ({
         id: player.id as string,
         tournamentId,
-        personId: player.personId as string | undefined,
+        personId: (player.personId as string | undefined) ?? null,
         firstName: player.firstName as string,
         lastName: player.lastName as string,
-        surname: player.surname as string | undefined,
-        teamName: player.teamName as string | undefined,
-        email: player.email as string | undefined,
-        phone: player.phone as string | undefined,
+        surname: (player.surname as string | undefined) ?? null,
+        teamName: (player.teamName as string | undefined) ?? null,
+        email: (player.email as string | undefined) ?? null,
+        phone: (player.phone as string | undefined) ?? null,
         skillLevel: player.skillLevel as never,
         registeredAt: player.registeredAt as DateLike,
         isActive: (player.isActive as boolean | undefined) ?? true,
@@ -149,10 +148,10 @@ const restoreSnapshotInTransaction = async (
         tournamentId,
         targetNumber: target.targetNumber as number,
         targetCode: target.targetCode as string,
-        name: target.name as string | undefined,
+        name: (target.name as string | undefined) ?? null,
         status: (target.status as never) ?? 'AVAILABLE',
-        currentMatchId: undefined,
-        lastUsedAt: target.lastUsedAt as NullableDateLike | undefined,
+        currentMatchId: null,
+        lastUsedAt: (target.lastUsedAt as NullableDateLike | undefined) ?? null,
       })),
     });
   }
@@ -164,7 +163,7 @@ const restoreSnapshotInTransaction = async (
         tournamentId,
         stageNumber: stage.stageNumber as number,
         name: stage.name as string,
-        matchFormatKey: stage.matchFormatKey as string | undefined,
+        matchFormatKey: (stage.matchFormatKey as string | undefined) ?? null,
         inParallelWith: stage.inParallelWith as never,
         poolCount: stage.poolCount as number,
         playersPerPool: stage.playersPerPool as number,
@@ -173,7 +172,7 @@ const restoreSnapshotInTransaction = async (
         rankingDestinations: stage.rankingDestinations as never,
         status: (stage.status as never) ?? 'NOT_STARTED',
         createdAt: stage.createdAt as DateLike,
-        completedAt: stage.completedAt as NullableDateLike | undefined,
+        completedAt: (stage.completedAt as NullableDateLike | undefined) ?? null,
       })),
     });
   }
@@ -187,7 +186,7 @@ const restoreSnapshotInTransaction = async (
         name: pool.name as string,
         status: (pool.status as never) ?? 'NOT_STARTED',
         createdAt: pool.createdAt as DateLike,
-        completedAt: pool.completedAt as NullableDateLike | undefined,
+        completedAt: (pool.completedAt as NullableDateLike | undefined) ?? null,
       })),
     });
   }
@@ -199,7 +198,7 @@ const restoreSnapshotInTransaction = async (
         poolId: assignment.poolId as string,
         playerId: assignment.playerId as string,
         assignmentType: assignment.assignmentType as never,
-        seedNumber: assignment.seedNumber as number | undefined,
+        seedNumber: (assignment.seedNumber as number | undefined) ?? null,
         assignedAt: assignment.assignedAt as DateLike,
       })),
     });
@@ -217,7 +216,7 @@ const restoreSnapshotInTransaction = async (
         totalRounds: bracket.totalRounds as number,
         status: (bracket.status as never) ?? 'NOT_STARTED',
         createdAt: bracket.createdAt as DateLike,
-        completedAt: bracket.completedAt as NullableDateLike | undefined,
+        completedAt: (bracket.completedAt as NullableDateLike | undefined) ?? null,
       })),
     });
   }
@@ -242,7 +241,7 @@ const restoreSnapshotInTransaction = async (
         seedNumber: entry.seedNumber as number,
         currentRound: entry.currentRound as number,
         isEliminated: (entry.isEliminated as boolean | undefined) ?? false,
-        finalPosition: entry.finalPosition as number | undefined,
+        finalPosition: (entry.finalPosition as number | undefined) ?? null,
         enteredAt: entry.enteredAt as DateLike,
       })),
     });
@@ -253,19 +252,19 @@ const restoreSnapshotInTransaction = async (
       data: matches.map((match) => ({
         id: match.id as string,
         tournamentId,
-        poolId: match.poolId as string | undefined,
-        bracketId: match.bracketId as string | undefined,
-        matchFormatKey: match.matchFormatKey as string | undefined,
-        targetId: match.targetId as string | undefined,
+        poolId: (match.poolId as string | undefined) ?? null,
+        bracketId: (match.bracketId as string | undefined) ?? null,
+        matchFormatKey: (match.matchFormatKey as string | undefined) ?? null,
+        targetId: (match.targetId as string | undefined) ?? null,
         roundNumber: match.roundNumber as number,
         matchNumber: match.matchNumber as number,
         legs: (match.legs as number | undefined) ?? 1,
         sets: (match.sets as number | undefined) ?? 1,
         status: (match.status as never) ?? 'SCHEDULED',
-        scheduledAt: match.scheduledAt as NullableDateLike | undefined,
-        startedAt: match.startedAt as NullableDateLike | undefined,
-        completedAt: match.completedAt as NullableDateLike | undefined,
-        winnerId: match.winnerId as string | undefined,
+        scheduledAt: (match.scheduledAt as NullableDateLike | undefined) ?? null,
+        startedAt: (match.startedAt as NullableDateLike | undefined) ?? null,
+        completedAt: (match.completedAt as NullableDateLike | undefined) ?? null,
+        winnerId: (match.winnerId as string | undefined) ?? null,
       })),
     });
   }

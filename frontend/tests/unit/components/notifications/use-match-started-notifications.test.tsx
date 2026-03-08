@@ -60,6 +60,9 @@ describe('useMatchStartedNotifications', () => {
       if (url.includes('/api/tournaments?status=LIVE')) {
         return { ok: true, json: async () => ({ tournaments: [{ id: 't1', name: 'Cup', status: 'LIVE' }] }) } as Response;
       }
+      if (url.includes('/api/tournaments?status=OPEN')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
       if (url.includes('/api/tournaments?status=SIGNATURE')) {
         return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
       }
@@ -244,6 +247,9 @@ describe('useMatchStartedNotifications', () => {
       if (url.includes('/api/tournaments?status=LIVE')) {
         return { ok: false, json: async () => ({}) } as Response;
       }
+      if (url.includes('/api/tournaments?status=OPEN')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
       if (url.includes('/api/tournaments?status=SIGNATURE')) {
         return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
       }
@@ -263,6 +269,15 @@ describe('useMatchStartedNotifications', () => {
       const url = toUrl(input);
       if (url.endsWith('/api/auth/me')) {
         return { ok: true, json: async () => ({ user: {} }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=OPEN')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=SIGNATURE')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=LIVE')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
       }
       return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
     });
@@ -353,6 +368,9 @@ describe('useMatchStartedNotifications', () => {
       }
       if (url.includes('/api/tournaments?status=LIVE')) {
         return { ok: true, json: async () => ({ tournaments: [{ id: 't1', name: 'Cup', status: 'LIVE' }] }) } as Response;
+      }
+      if (url.includes('/api/tournaments?status=OPEN')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
       }
       if (url.includes('/api/tournaments?status=SIGNATURE')) {
         return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
@@ -487,6 +505,9 @@ describe('useMatchStartedNotifications', () => {
           ok: true,
           json: async () => ({ tournaments: [{ id: 't1', name: 'Cup' }, { id: 't2', name: 'Cup 2' }] }),
         } as Response;
+      }
+      if (url.includes('/api/tournaments?status=OPEN')) {
+        return { ok: true, json: async () => ({ tournaments: [] }) } as Response;
       }
       if (url.includes('/api/tournaments?status=SIGNATURE')) {
         return { ok: true, json: async () => ({ tournaments: [] }) } as Response;

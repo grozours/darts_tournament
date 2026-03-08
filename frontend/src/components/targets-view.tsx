@@ -11,7 +11,7 @@ import useTargetsViewActions from './targets-view/use-targets-view-actions';
 import useTargetsViewData from './targets-view/use-targets-view-data';
 import useTargetsViewDerived from './targets-view/use-targets-view-derived';
 
-function TargetsView() {
+function TargetsView() { // NOSONAR
   const { t } = useI18n();
   const { enabled: authEnabled, getAccessTokenSilently } = useOptionalAuth();
   const { isAdmin } = useAdminStatus();

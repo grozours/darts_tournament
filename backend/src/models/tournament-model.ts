@@ -55,6 +55,7 @@ export class TournamentModel {
   public getCheckedInCount!: TournamentModelPlayerHandlers['getCheckedInCount'];
   public getParticipants!: TournamentModelPlayerHandlers['getParticipants'];
   public getOrphanParticipants!: TournamentModelPlayerHandlers['getOrphanParticipants'];
+  public deleteOrphanParticipants!: TournamentModelPlayerHandlers['deleteOrphanParticipants'];
   public updatePlayerCheckIn!: TournamentModelPlayerHandlers['updatePlayerCheckIn'];
   public updatePlayer!: TournamentModelPlayerHandlers['updatePlayer'];
   public findPlayerBySurname!: TournamentModelPlayerHandlers['findPlayerBySurname'];

@@ -326,4 +326,8 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
     return await context.tournamentModel.getOrphanParticipants();
   },
 
+  deleteOrphanParticipants: async (): Promise<number> => {
+    return await context.tournamentModel.deleteOrphanParticipants();
+  },
+
 });

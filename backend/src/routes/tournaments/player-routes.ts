@@ -11,6 +11,13 @@ export const registerTournamentPlayerRoutes = (
 ) => {
   router.get('/players/orphans', tournamentController.getOrphanPlayers);
 
+  router.delete(
+    '/players/orphans',
+    requireAuth,
+    requireAdmin,
+    tournamentController.deleteOrphanPlayers
+  );
+
   router.get(
     '/:id/participants',
     validate(uuidSchema),

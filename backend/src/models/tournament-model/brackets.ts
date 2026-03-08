@@ -1,27 +1,30 @@
 import type { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { BracketStatus, BracketType, MatchStatus, TargetStatus } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError } from './helpers';
 
-type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | { [key: string]: JsonValue } | JsonValue[];
 type BracketCreatePayload = {
   tournamentId: string;
   name: string;
   bracketType: BracketType;
   totalRounds: number;
-  roundMatchFormats?: JsonValue;
-  inParallelWith?: JsonValue;
+  roundMatchFormats?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  inParallelWith?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
 };
 type BracketUpdatePayload = Partial<{
   name: string;
   bracketType: BracketType;
   totalRounds: number;
-  roundMatchFormats: JsonValue;
-  inParallelWith: JsonValue;
+  roundMatchFormats: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  inParallelWith: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   status: BracketStatus;
   completedAt: Date | null;
 }>;
+
+const toPrismaNullableJson = (value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput => (
+  value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+);
 
 export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
   createBracketEntries: async (entries: Array<{ bracketId: string; playerId: string; seedNumber: number; currentRound: number }>) => {
@@ -54,7 +57,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
       return await prisma.match.count({
         where: {
           tournamentId,
-          ...(bracketId ? { bracketId } : { bracketId: { not: undefined } }),
+          ...(bracketId ? { bracketId } : { bracketId: { not: null } }),
           status: { not: MatchStatus.SCHEDULED },
         },
       });
@@ -91,7 +94,7 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
         .map((match: (typeof matches)[number]) => match.id);
       const targetIds = matches
         .map((match: (typeof matches)[number]) => match.targetId)
-        .filter(Boolean);
+        .filter((targetId: string | null): targetId is string => Boolean(targetId));
 
       await prisma.$transaction([
         ...(targetIds.length > 0
@@ -462,8 +465,8 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     name: string;
     bracketType: BracketType;
     totalRounds: number;
-    roundMatchFormats?: JsonValue;
-    inParallelWith?: JsonValue;
+    roundMatchFormats?: unknown;
+    inParallelWith?: unknown;
   }) => {
     try {
       const payload: BracketCreatePayload = {
@@ -473,10 +476,10 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
         totalRounds: data.totalRounds,
       };
       if (data.roundMatchFormats !== undefined) {
-        payload.roundMatchFormats = data.roundMatchFormats;
+        payload.roundMatchFormats = toPrismaNullableJson(data.roundMatchFormats);
       }
       if (data.inParallelWith !== undefined) {
-        payload.inParallelWith = data.inParallelWith;
+        payload.inParallelWith = toPrismaNullableJson(data.inParallelWith);
       }
 
       return await prisma.bracket.create({
@@ -493,9 +496,19 @@ export const createTournamentModelBrackets = (prisma: PrismaClient) => ({
     data: BracketUpdatePayload
   ) => {
     try {
+      const updateData: BracketUpdatePayload = {
+        ...(data.name === undefined ? {} : { name: data.name }),
+        ...(data.bracketType === undefined ? {} : { bracketType: data.bracketType }),
+        ...(data.totalRounds === undefined ? {} : { totalRounds: data.totalRounds }),
+        ...(data.roundMatchFormats === undefined ? {} : { roundMatchFormats: data.roundMatchFormats }),
+        ...(data.inParallelWith === undefined ? {} : { inParallelWith: data.inParallelWith }),
+        ...(data.status === undefined ? {} : { status: data.status }),
+        ...(data.completedAt === undefined ? {} : { completedAt: data.completedAt }),
+      };
+
       return await prisma.bracket.update({
         where: { id: bracketId },
-        data,
+        data: updateData,
       });
     } catch (error) {
       logModelError('updateBracket', error);

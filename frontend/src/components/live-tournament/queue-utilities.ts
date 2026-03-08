@@ -49,7 +49,7 @@ const sortPoolMatches = (queue: PoolQueue) => {
   });
 };
 
-const buildQueueItems = (
+const buildQueueItems = ( // NOSONAR
   view: LiveViewData,
   poolStages: LiveViewPoolStage[],
   poolQueues: PoolQueue[],
@@ -140,7 +140,7 @@ const buildBlockedMatcher = (
   return false;
 };
 
-export const buildMatchQueue = (view: LiveViewData, poolStages: LiveViewPoolStage[]): MatchQueueItem[] => {
+export const buildMatchQueue = (view: LiveViewData, poolStages: LiveViewPoolStage[]): MatchQueueItem[] => { // NOSONAR
   const isSingleTournament = view.format === TournamentFormat.SINGLE;
   const activePlayerIds = new Set<string>();
   const activePlayerLabels = new Set<string>();

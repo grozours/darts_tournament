@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   Tournament,
   TournamentFormat,
@@ -17,9 +17,23 @@ export const getPrismaErrorCode = (error: unknown): string | undefined => {
 };
 
 export const logModelError = (context: string, error: unknown) => {
+  const errorMessage = (() => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Unserializable error payload';
+    }
+  })();
+
   logger.error(`TournamentModel error: ${context}`, {
     metadata: {
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorMessage,
       errorName: error instanceof Error ? error.name : 'UnknownError',
     },
   });
@@ -81,7 +95,7 @@ export const liveViewArguments = {
 type PrismaTournamentRecord = Awaited<ReturnType<PrismaClient['tournament']['findUnique']>>;
 type PrismaPlayerRecord = Awaited<ReturnType<PrismaClient['player']['findUnique']>>;
 
-export type TournamentLiveView = NonNullable<PrismaTournamentRecord>;
+export type TournamentLiveView = Prisma.TournamentGetPayload<typeof liveViewArguments>;
 
 export const mapToTournament = (
   prismaResult: NonNullable<PrismaTournamentRecord> & { players?: unknown; targets?: unknown; matches?: unknown }

@@ -3,7 +3,7 @@ import type { TournamentModel } from '../../models/tournament-model';
 import type TournamentLogger from '../../utils/tournament-logger';
 import { config } from '../../config/environment';
 import { AppError } from '../../middleware/error-handler';
-import { TournamentFormat, TournamentStatus } from '../../../../shared/src/types';
+import { SkillLevel, TournamentFormat, TournamentStatus } from '../../../../shared/src/types';
 import { getPlayerCapacityFromSlots } from './slot-capacity';
 
 type GroupHandlerContext = {
@@ -142,6 +142,7 @@ const getActorPlayer = async (context: GroupHandlerContext, tournamentId: string
 const mapGroupResponse = <TGroup extends {
   id: string;
   name: string;
+  skillLevel?: string | null;
   captainPlayerId?: string | null;
   isRegistered: boolean;
   registeredAt: Date | null;
@@ -158,6 +159,7 @@ const mapGroupResponse = <TGroup extends {
 }>(group: TGroup) => ({
   id: group.id,
   name: group.name,
+  skillLevel: group.skillLevel ?? null,
   captainPlayerId: group.captainPlayerId,
   isRegistered: group.isRegistered,
   registeredAt: group.registeredAt,
@@ -431,7 +433,13 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
   createDoublette: async (
     tournamentId: string,
-    payload: { name: string; password: string; captainPlayerId?: string; memberPlayerIds?: string[] }
+    payload: {
+      name: string;
+      password: string;
+      skillLevel?: SkillLevel | null;
+      captainPlayerId?: string;
+      memberPlayerIds?: string[];
+    }
   ) => {
     context.validateUUID(tournamentId);
     const tournament = await assertTournamentOpenAndCapacity(context, tournamentId);
@@ -465,6 +473,7 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       tournamentId,
       ...(captainPlayerId ? { captainPlayerId } : {}),
       name: payload.name.trim(),
+      ...(payload.skillLevel !== undefined && isAdmin ? { skillLevel: payload.skillLevel } : {}),
       passwordHash: encodePasswordHash(payload.password),
     });
 
@@ -484,7 +493,11 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     return mapGroupResponse(doublette);
   },
 
-  updateDoublette: async (tournamentId: string, doubletteId: string, payload: { name?: string }) => {
+  updateDoublette: async (
+    tournamentId: string,
+    doubletteId: string,
+    payload: { name?: string; skillLevel?: SkillLevel | null }
+  ) => {
     context.validateUUID(tournamentId);
     context.validateUUID(doubletteId);
 
@@ -503,8 +516,13 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       captainMessage: 'Only the captain can modify this doublette',
     });
 
+    if (payload.skillLevel !== undefined && !context.isAdminAction()) {
+      throw new AppError('Only admin can update group ranking', 403, 'GROUP_RANKING_ADMIN_REQUIRED');
+    }
+
     const updated = await context.tournamentModel.updateDoublette(doubletteId, {
       ...(payload.name?.trim() ? { name: payload.name.trim() } : {}),
+      ...(payload.skillLevel !== undefined && context.isAdminAction() ? { skillLevel: payload.skillLevel } : {}),
     });
     return mapGroupResponse(updated);
   },
@@ -826,7 +844,13 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
   createEquipe: async (
     tournamentId: string,
-    payload: { name: string; password: string; captainPlayerId?: string; memberPlayerIds?: string[] }
+    payload: {
+      name: string;
+      password: string;
+      skillLevel?: SkillLevel | null;
+      captainPlayerId?: string;
+      memberPlayerIds?: string[];
+    }
   ) => {
     context.validateUUID(tournamentId);
     const tournament = await assertTournamentOpenAndCapacity(context, tournamentId);
@@ -860,6 +884,7 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       tournamentId,
       ...(captainPlayerId ? { captainPlayerId } : {}),
       name: payload.name.trim(),
+      ...(payload.skillLevel !== undefined && isAdmin ? { skillLevel: payload.skillLevel } : {}),
       passwordHash: encodePasswordHash(payload.password),
     });
 
@@ -879,7 +904,11 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     return mapGroupResponse(equipe);
   },
 
-  updateEquipe: async (tournamentId: string, equipeId: string, payload: { name?: string }) => {
+  updateEquipe: async (
+    tournamentId: string,
+    equipeId: string,
+    payload: { name?: string; skillLevel?: SkillLevel | null }
+  ) => {
     context.validateUUID(tournamentId);
     context.validateUUID(equipeId);
 
@@ -898,8 +927,13 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
       captainMessage: 'Only the captain can modify this equipe',
     });
 
+    if (payload.skillLevel !== undefined && !context.isAdminAction()) {
+      throw new AppError('Only admin can update group ranking', 403, 'GROUP_RANKING_ADMIN_REQUIRED');
+    }
+
     const updated = await context.tournamentModel.updateEquipe(equipeId, {
       ...(payload.name?.trim() ? { name: payload.name.trim() } : {}),
+      ...(payload.skillLevel !== undefined && context.isAdminAction() ? { skillLevel: payload.skillLevel } : {}),
     });
     return mapGroupResponse(updated);
   },

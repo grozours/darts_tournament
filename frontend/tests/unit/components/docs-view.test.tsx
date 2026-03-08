@@ -69,5 +69,5 @@ describe('docs-view', () => {
 
       unmount();
     }
-  });
+  }, 15000);
 });

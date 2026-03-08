@@ -26,6 +26,7 @@ type DoubletteWithMembers = {
   tournamentId: string;
   captainPlayerId: string | null;
   name: string;
+  skillLevel: string | null;
   passwordHash: string;
   isRegistered: boolean;
   registeredAt: Date | null;
@@ -39,6 +40,7 @@ type EquipeWithMembers = {
   tournamentId: string;
   captainPlayerId: string | null;
   name: string;
+  skillLevel: string | null;
   passwordHash: string;
   isRegistered: boolean;
   registeredAt: Date | null;
@@ -200,6 +202,7 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     tournamentId: string;
     captainPlayerId?: string;
     name: string;
+    skillLevel?: string | null;
     passwordHash: string;
   }) => {
     try {
@@ -208,6 +211,7 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
           tournamentId: data.tournamentId,
           captainPlayerId: data.captainPlayerId || null,
           name: data.name,
+          ...(data.skillLevel === undefined ? {} : { skillLevel: data.skillLevel }),
           passwordHash: data.passwordHash,
           ...(data.captainPlayerId
             ? {
@@ -256,7 +260,7 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     }
   },
 
-  updateDoublette: async (doubletteId: string, data: { name?: string }) => {
+  updateDoublette: async (doubletteId: string, data: { name?: string; skillLevel?: string | null }) => {
     try {
       return await groupPrisma.doublette.update({
         where: { id: doubletteId },
@@ -463,6 +467,7 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     tournamentId: string;
     captainPlayerId?: string;
     name: string;
+    skillLevel?: string | null;
     passwordHash: string;
   }) => {
     try {
@@ -471,6 +476,7 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
           tournamentId: data.tournamentId,
           captainPlayerId: data.captainPlayerId || null,
           name: data.name,
+          ...(data.skillLevel === undefined ? {} : { skillLevel: data.skillLevel }),
           passwordHash: data.passwordHash,
           ...(data.captainPlayerId
             ? {
@@ -519,7 +525,7 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     }
   },
 
-  updateEquipe: async (equipeId: string, data: { name?: string }) => {
+  updateEquipe: async (equipeId: string, data: { name?: string; skillLevel?: string | null }) => {
     try {
       return await groupPrisma.equipe.update({
         where: { id: equipeId },

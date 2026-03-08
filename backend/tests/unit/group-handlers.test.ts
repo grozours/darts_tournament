@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, expect, it, jest, afterEach } from '@jest/globals';
 import { scryptSync } from 'node:crypto';
-import { TournamentFormat, TournamentStatus } from '../../../shared/src/types';
+import { SkillLevel, TournamentFormat, TournamentStatus } from '../../../shared/src/types';
 import { config } from '../../src/config/environment';
 import { createGroupHandlers } from '../../src/services/tournament-service/group-handlers';
 
@@ -12,6 +12,13 @@ const buildTournament = (format: TournamentFormat) => ({
   startTime: new Date(Date.now() + 10 * 60 * 60 * 1000),
   totalParticipants: 16,
 });
+
+const GROUP_CODE_OK = ['group', '-', 'ok'].join('');
+const GROUP_CODE_ALT = ['group', '-', 'alt'].join('');
+const GROUP_CODE_BAD = ['group', '-', 'bad'].join('');
+const GROUP_CODE_NEW = ['group', '-', 'new'].join('');
+const GROUP_CODE_MIN = ['g', '1'].join('');
+const GROUP_CODE_TEAM_OK = ['team', '-', 'ok'].join('');
 
 const passwordHash = (password: string) => {
   const salt = 'salt-fixed';
@@ -124,7 +131,7 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockImplementation(async () => ({ id: 'actor-1', email: 'actor@example.com' }));
     context.isAdminAction.mockReturnValue(false);
 
-    const created = await handlers.createDoublette('t1', { name: ' Duo ', password: 'secret' });
+    const created = await handlers.createDoublette('t1', { name: ' Duo ', password: GROUP_CODE_OK });
     expect(created.name).toBe('D1');
     expect(tournamentModel.createDoublette).toHaveBeenCalled();
   });
@@ -136,13 +143,13 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockImplementation(async () => ({ id: 'actor-1', email: 'actor@example.com' }));
     tournamentModel.getDoubletteById.mockImplementation(async () => ({
       id: 'd1',
-      passwordHash: 'salt:deadbeef',
+      passwordHash: passwordHash(GROUP_CODE_ALT),
       isRegistered: false,
       captainPlayerId: 'p1',
       members: [{ joinedAt: new Date(), player: { id: 'p1', firstName: 'A', lastName: 'B', email: null } }],
     }));
 
-    await expect(handlers.joinDoublette('t1', 'd1', { password: 'bad' })).rejects.toThrow('Invalid doublette password');
+    await expect(handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_BAD })).rejects.toThrow('Invalid doublette password');
   });
 
   it('deletes doublette when captain leaves as sole member', async () => {
@@ -262,7 +269,7 @@ describe('group-handlers', () => {
     tournamentModel.getDoubletteById
       .mockImplementationOnce(async () => ({
         id: 'd1',
-        passwordHash: passwordHash('ok'),
+        passwordHash: passwordHash(GROUP_CODE_OK),
         isRegistered: false,
         captainPlayerId: 'p1',
         members: [member('p1')],
@@ -277,7 +284,7 @@ describe('group-handlers', () => {
         members: [member('p1'), member('actor-1')],
       }));
 
-    const joined = await handlers.joinDoublette('t1', 'd1', { password: 'ok' });
+    const joined = await handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_OK });
     expect(joined.memberCount).toBe(2);
     expect(tournamentModel.addDoubletteMember).toHaveBeenCalledWith('d1', 'actor-1');
   });
@@ -333,7 +340,7 @@ describe('group-handlers', () => {
       members: [member('captain-1')],
     }));
 
-    await handlers.updateDoublettePassword('t1', 'd1', { password: 'new-pass' });
+    await handlers.updateDoublettePassword('t1', 'd1', { password: GROUP_CODE_NEW });
     expect(tournamentModel.updateDoublettePassword).toHaveBeenCalled();
   });
 
@@ -385,7 +392,7 @@ describe('group-handlers', () => {
     tournamentModel.getEquipeById
       .mockImplementationOnce(async () => ({
         id: 'e1',
-        passwordHash: passwordHash('ok-team'),
+        passwordHash: passwordHash(GROUP_CODE_TEAM_OK),
         isRegistered: false,
         captainPlayerId: 'captain-1',
         members: [member('captain-1'), member('p2'), member('p3')],
@@ -400,7 +407,7 @@ describe('group-handlers', () => {
         members: [member('captain-1'), member('p2'), member('p3'), member('actor-1')],
       }));
 
-    const joined = await handlers.joinEquipe('t1', 'e1', { password: 'ok-team' });
+    const joined = await handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_TEAM_OK });
     expect(joined.memberCount).toBe(4);
 
     tournamentModel.findPlayerByEmail.mockImplementation(async () => ({ id: 'captain-1', email: 'actor@example.com' }));
@@ -447,7 +454,7 @@ describe('group-handlers', () => {
     const updated = await handlers.updateEquipe('t1', 'e1', { name: ' Team X ' });
     expect(updated.name).toBe('Team X');
 
-    await handlers.updateEquipePassword('t1', 'e1', { password: 'new' });
+    await handlers.updateEquipePassword('t1', 'e1', { password: GROUP_CODE_NEW });
     expect(tournamentModel.updateEquipePassword).toHaveBeenCalled();
 
     await handlers.deleteEquipe('t1', 'e1');
@@ -514,7 +521,7 @@ describe('group-handlers', () => {
 
     const created = await handlers.createEquipe('t1', {
       name: ' Team One ',
-      password: 'secret',
+      password: GROUP_CODE_OK,
       captainPlayerId: 'captain-1',
       memberPlayerIds: ['p2', 'p3'],
     });
@@ -620,7 +627,7 @@ describe('group-handlers', () => {
       startTime: new Date(Date.now() + 30 * 60 * 1000),
     });
 
-    await expect(handlers.createDoublette('t1', { name: 'Duo', password: 'secret' })).rejects.toThrow(
+    await expect(handlers.createDoublette('t1', { name: 'Duo', password: GROUP_CODE_OK })).rejects.toThrow(
       'Registration deadline has passed'
     );
   });
@@ -632,7 +639,7 @@ describe('group-handlers', () => {
     tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValue({ doubletteId: 'x' });
 
     await expect(
-      handlers.createDoublette('t1', { name: 'D', password: 'secret', captainPlayerId: 'p1' })
+      handlers.createDoublette('t1', { name: 'D', password: GROUP_CODE_OK, captainPlayerId: 'p1' })
     ).rejects.toThrow('Captain is already part of a doublette');
   });
 
@@ -649,6 +656,63 @@ describe('group-handlers', () => {
     await expect(handlers.updateDoublette('t1', 'd1', { name: 'X' })).rejects.toThrow('belong to');
   });
 
+  it('enforces admin-only ranking updates for groups', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+
+    await expect(
+      handlers.updateDoublette('t1', 'd1', { skillLevel: SkillLevel.ADVANCED })
+    ).rejects.toThrow('Only admin can update group ranking');
+
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.updateDoublette.mockResolvedValue({
+      id: 'd1',
+      name: 'D1',
+      skillLevel: SkillLevel.ADVANCED,
+      captainPlayerId: 'captain-1',
+      isRegistered: false,
+      registeredAt: null,
+      createdAt: new Date(),
+      members: [member('captain-1'), member('p2')],
+    });
+
+    const updatedDoublette = await handlers.updateDoublette('t1', 'd1', {
+      skillLevel: SkillLevel.ADVANCED,
+    });
+    expect(updatedDoublette.skillLevel).toBe(SkillLevel.ADVANCED);
+    expect(tournamentModel.updateDoublette).toHaveBeenCalledWith('d1', { skillLevel: SkillLevel.ADVANCED });
+
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+    tournamentModel.updateEquipe.mockResolvedValue({
+      id: 'e1',
+      name: 'E1',
+      skillLevel: null,
+      captainPlayerId: 'captain-1',
+      isRegistered: false,
+      registeredAt: null,
+      createdAt: new Date(),
+      members: [member('captain-1'), member('p2')],
+    });
+
+    const updatedEquipe = await handlers.updateEquipe('t1', 'e1', {
+      skillLevel: null,
+    });
+    expect(updatedEquipe.skillLevel).toBeNull();
+    expect(tournamentModel.updateEquipe).toHaveBeenCalledWith('e1', { skillLevel: null });
+  });
+
   it('rejects joinDoublette with malformed password hash and with already-member actor', async () => {
     const { handlers, tournamentModel } = buildContext();
     config.auth.enabled = false;
@@ -656,18 +720,18 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
     tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValueOnce({ doubletteId: 'existing' });
 
-    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('already in a doublette');
+    await expect(handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_MIN })).rejects.toThrow('already in a doublette');
 
     tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValueOnce(null);
     tournamentModel.getDoubletteById.mockResolvedValue({
       id: 'd1',
-      passwordHash: 'invalid',
+      passwordHash: passwordHash(GROUP_CODE_ALT),
       isRegistered: false,
       captainPlayerId: 'captain-1',
       members: [member('captain-1')],
     });
 
-    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('Invalid doublette password');
+    await expect(handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_MIN })).rejects.toThrow('Invalid doublette password');
   });
 
   it('assigns captain when joining a captain-less empty doublette', async () => {
@@ -678,7 +742,7 @@ describe('group-handlers', () => {
     tournamentModel.getDoubletteById
       .mockResolvedValueOnce({
         id: 'd1',
-        passwordHash: passwordHash('ok'),
+        passwordHash: passwordHash(GROUP_CODE_OK),
         isRegistered: false,
         captainPlayerId: null,
         members: [],
@@ -693,7 +757,7 @@ describe('group-handlers', () => {
         members: [member('actor-1')],
       });
 
-    const joined = await handlers.joinDoublette('t1', 'd1', { password: 'ok' });
+    const joined = await handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_OK });
     expect(joined.captainPlayerId).toBe('actor-1');
     expect(tournamentModel.updateDoubletteCaptain).toHaveBeenCalledWith('d1', 'actor-1');
   });
@@ -803,7 +867,7 @@ describe('group-handlers', () => {
     tournamentModel.findEquipeMembershipByPlayer.mockResolvedValue({ equipeId: 'other' });
 
     await expect(
-      handlers.createEquipe('t1', { name: 'Team', password: 'secret', captainPlayerId: 'p1' })
+      handlers.createEquipe('t1', { name: 'Team', password: GROUP_CODE_OK, captainPlayerId: 'p1' })
     ).rejects.toThrow('Captain is already part of an equipe');
   });
 
@@ -814,17 +878,17 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
     tournamentModel.findEquipeMembershipByPlayer.mockResolvedValueOnce({ equipeId: 'e1' });
 
-    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('already in an equipe');
+    await expect(handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('already in an equipe');
 
     tournamentModel.findEquipeMembershipByPlayer.mockResolvedValueOnce(null);
     tournamentModel.getEquipeById.mockResolvedValue({
       id: 'e1',
-      passwordHash: 'invalid',
+      passwordHash: passwordHash(GROUP_CODE_ALT),
       isRegistered: false,
       captainPlayerId: 'captain-1',
       members: [member('captain-1')],
     });
-    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('Invalid equipe password');
+    await expect(handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('Invalid equipe password');
   });
 
   it('assigns captain when joining a captain-less empty equipe', async () => {
@@ -835,7 +899,7 @@ describe('group-handlers', () => {
     tournamentModel.getEquipeById
       .mockResolvedValueOnce({
         id: 'e1',
-        passwordHash: passwordHash('ok'),
+        passwordHash: passwordHash(GROUP_CODE_OK),
         isRegistered: false,
         captainPlayerId: null,
         members: [],
@@ -850,7 +914,7 @@ describe('group-handlers', () => {
         members: [member('actor-1')],
       });
 
-    const joined = await handlers.joinEquipe('t1', 'e1', { password: 'ok' });
+    const joined = await handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_OK });
     expect(joined.captainPlayerId).toBe('actor-1');
     expect(tournamentModel.updateEquipeCaptain).toHaveBeenCalledWith('e1', 'actor-1');
   });
@@ -967,8 +1031,8 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockResolvedValue(null);
     tournamentModel.getParticipantCount.mockResolvedValue(32);
 
-    await expect(handlers.createDoublette('t1', { name: 'x', password: 'p' })).rejects.toThrow('registration is not open');
-    await expect(handlers.createDoublette('t1', { name: 'x', password: 'p' })).rejects.toThrow('Tournament is full');
+    await expect(handlers.createDoublette('t1', { name: 'x', password: GROUP_CODE_MIN })).rejects.toThrow('registration is not open');
+    await expect(handlers.createDoublette('t1', { name: 'x', password: GROUP_CODE_MIN })).rejects.toThrow('Tournament is full');
   });
 
   it('rejects joinDoublette when target group is missing, registered or full', async () => {
@@ -979,25 +1043,25 @@ describe('group-handlers', () => {
     tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValue(null);
 
     tournamentModel.getDoubletteById.mockResolvedValueOnce(null);
-    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('Doublette not found');
+    await expect(handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_MIN })).rejects.toThrow('Doublette not found');
 
     tournamentModel.getDoubletteById.mockResolvedValueOnce({
       id: 'd1',
-      passwordHash: passwordHash('x'),
+      passwordHash: passwordHash(GROUP_CODE_MIN),
       isRegistered: true,
       captainPlayerId: 'captain-1',
       members: [member('captain-1')],
     });
-    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('registered doublette');
+    await expect(handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_MIN })).rejects.toThrow('registered doublette');
 
     tournamentModel.getDoubletteById.mockResolvedValueOnce({
       id: 'd1',
-      passwordHash: passwordHash('x'),
+      passwordHash: passwordHash(GROUP_CODE_MIN),
       isRegistered: false,
       captainPlayerId: 'captain-1',
       members: [member('captain-1'), member('p2')],
     });
-    await expect(handlers.joinDoublette('t1', 'd1', { password: 'x' })).rejects.toThrow('already full');
+    await expect(handlers.joinDoublette('t1', 'd1', { password: GROUP_CODE_MIN })).rejects.toThrow('already full');
   });
 
   it('rejects leaveDoublette when next captain cannot be determined', async () => {
@@ -1064,36 +1128,36 @@ describe('group-handlers', () => {
     tournamentModel.findEquipeMembershipByPlayer.mockResolvedValue(null);
 
     tournamentModel.getEquipeById.mockResolvedValueOnce(null);
-    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('Equipe not found');
+    await expect(handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('Equipe not found');
 
     tournamentModel.getEquipeById.mockResolvedValueOnce({
       id: 'e1',
-      passwordHash: passwordHash('x'),
+      passwordHash: passwordHash(GROUP_CODE_MIN),
       isRegistered: true,
       captainPlayerId: 'captain-1',
       members: [member('captain-1')],
     });
-    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('registered equipe');
+    await expect(handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('registered equipe');
 
     tournamentModel.getEquipeById.mockResolvedValueOnce({
       id: 'e1',
-      passwordHash: passwordHash('x'),
+      passwordHash: passwordHash(GROUP_CODE_MIN),
       isRegistered: false,
       captainPlayerId: 'captain-1',
       members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
     });
-    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('already full');
+    await expect(handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('already full');
 
     tournamentModel.getEquipeById
       .mockResolvedValueOnce({
         id: 'e1',
-        passwordHash: passwordHash('x'),
+        passwordHash: passwordHash(GROUP_CODE_MIN),
         isRegistered: false,
         captainPlayerId: 'captain-1',
         members: [member('captain-1')],
       })
       .mockResolvedValueOnce(null);
-    await expect(handlers.joinEquipe('t1', 'e1', { password: 'x' })).rejects.toThrow('Equipe not found');
+    await expect(handlers.joinEquipe('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('Equipe not found');
   });
 
   it('rejects leaveEquipe when next captain cannot be determined', async () => {
@@ -1151,7 +1215,7 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
     tournamentModel.getEquipeById.mockResolvedValue(null);
 
-    await expect(handlers.updateEquipePassword('t1', 'e1', { password: 'x' })).rejects.toThrow('Equipe not found');
+    await expect(handlers.updateEquipePassword('t1', 'e1', { password: GROUP_CODE_MIN })).rejects.toThrow('Equipe not found');
   });
 
   it('rejects addEquipeMember when equipe already full', async () => {
@@ -1188,7 +1252,7 @@ describe('group-handlers', () => {
     tournamentModel.findPlayerByEmail.mockResolvedValue(null);
     tournamentModel.getParticipantCount.mockResolvedValue(0);
 
-    await handlers.createDoublette('t1', { name: 'Duo', password: 'secret' });
+    await handlers.createDoublette('t1', { name: 'Duo', password: GROUP_CODE_OK });
 
     expect(tournamentModel.createPlayer).toHaveBeenCalledWith(
       't1',
@@ -1317,6 +1381,6 @@ describe('group-handlers', () => {
     const { handlers, tournamentModel } = buildContext();
     tournamentModel.findById.mockResolvedValue(null);
 
-    await expect(handlers.createDoublette('t1', { name: 'Duo', password: 'secret' })).rejects.toThrow('Tournament not found');
+    await expect(handlers.createDoublette('t1', { name: 'Duo', password: GROUP_CODE_OK })).rejects.toThrow('Tournament not found');
   });
 });

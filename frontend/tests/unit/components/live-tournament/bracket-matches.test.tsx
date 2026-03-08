@@ -156,9 +156,9 @@ describe('BracketMatches', () => {
       />
     );
 
-    const highlightedCards = container.querySelectorAll('.border-amber-400/70');
+    const highlightedCards = container.querySelectorAll('[class*="border-amber-400/70"]');
     expect(highlightedCards.length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('.bg-amber-500/10').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[class*="bg-amber-500/10"]').length).toBeGreaterThan(0);
   });
 
   it('adds stable anchors to match cards', () => {

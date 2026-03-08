@@ -13,6 +13,7 @@ type ModelMock = {
   getCheckedInCount: jest.Mock;
   getParticipants: jest.Mock;
   getOrphanParticipants: jest.Mock;
+  deleteOrphanParticipants: jest.Mock;
   findPlayerBySurname: jest.Mock;
   findPlayerByTeamName: jest.Mock;
   findPersonByEmailAndPhone: jest.Mock;
@@ -34,6 +35,7 @@ const buildContext = (options?: { isAdminAction?: boolean }) => {
     getCheckedInCount: jest.fn().mockResolvedValue(2),
     getParticipants: jest.fn().mockResolvedValue([]),
     getOrphanParticipants: jest.fn().mockResolvedValue([]),
+    deleteOrphanParticipants: jest.fn().mockResolvedValue(0),
     findPlayerBySurname: jest.fn().mockResolvedValue(undefined),
     findPlayerByTeamName: jest.fn().mockResolvedValue(undefined),
     findPersonByEmailAndPhone: jest.fn().mockResolvedValue(undefined),
@@ -341,5 +343,8 @@ describe('player handlers', () => {
 
     model.getOrphanParticipants.mockResolvedValue([{ id: 'o1' }]);
     await expect(handlers.getOrphanParticipants()).resolves.toEqual([{ id: 'o1' }]);
+
+    model.deleteOrphanParticipants.mockResolvedValue(3);
+    await expect(handlers.deleteOrphanParticipants()).resolves.toBe(3);
   });
 });

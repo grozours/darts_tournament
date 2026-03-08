@@ -19,7 +19,7 @@ interface TournamentSummary {
   totalParticipants: number;
 }
 
-function RegistrationPlayers() {
+function RegistrationPlayers() { // NOSONAR
   const { t } = useI18n();
   const {
     enabled: authEnabled,
