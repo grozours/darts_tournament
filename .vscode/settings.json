@@ -4,7 +4,7 @@
         "npm --prefix frontend": true
     },
     "sonarlint.connectedMode.project": {
-        "connectionId": "darts_tournament",
+        "connectionId": "MyCompanySonarQube",
         "projectKey": "darts-tournament"
     }
 }
