@@ -139,9 +139,9 @@ describe('tournament autosave', () => {
 
     const restored = await autosave.restoreTournamentSnapshotById(
       't-history',
-      latest!.snapshotId
+      latest.snapshotId
     );
-    expect(restored?.snapshotId).toBe(latest!.snapshotId);
+    expect(restored?.snapshotId).toBe(latest.snapshotId);
 
     const current = await autosave.readTournamentSnapshot('t-history');
     expect(current?.action).toBe('RESTORE_SNAPSHOT');
