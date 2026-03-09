@@ -20,12 +20,12 @@
     "db:export-seed": "node scripts/export-seed-from-db.mjs",
     "db:sync-presets-seed": "node scripts/sync-presets-seed.mjs",
     "db:import-presets": "sh -lc 'if [ -f dist/scripts/import-presets.js ]; then node dist/scripts/import-presets.js; elif [ -f dist/backend/src/scripts/import-presets.js ]; then node dist/backend/src/scripts/import-presets.js; else node scripts/import-presets.mjs; fi'",
-    "db:seed": "node ./node_modules/typescript/bin/tsc prisma/seed.mts --module NodeNext --moduleResolution NodeNext --target ES2022 --outDir .tmp-seed --esModuleInterop --skipLibCheck && node .tmp-seed/seed.mjs",
+    "db:seed": "node scripts/run-seed.cjs",
     "db:reset": "node ./node_modules/prisma/build/index.js migrate reset --force",
     "db:studio": "node ./node_modules/prisma/build/index.js studio"
   },
   "prisma": {
-    "seed": "node ./node_modules/typescript/bin/tsc prisma/seed.mts --module NodeNext --moduleResolution NodeNext --target ES2022 --outDir .tmp-seed --esModuleInterop --skipLibCheck && node .tmp-seed/seed.mjs"
+    "seed": "node scripts/run-seed.cjs"
   },
   "keywords": [
     "darts",
