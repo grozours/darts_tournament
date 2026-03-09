@@ -49,6 +49,7 @@ services:
       - ./backend/prisma:/app/backend/prisma
       - ./backend/logs:/app/backend/logs
       - ./backend/uploads:/app/backend/uploads
+      - ./backend/backups:/app/backend/backups
 
   frontend:
     image: darts-tournament/frontend:${IMAGE_TAG:-latest}

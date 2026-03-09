@@ -324,18 +324,18 @@ REMOTE_PROJECT_PATH_RESOLVED="$REMOTE_PROJECT_PATH"
 print_info "Checking remote project directory"
 ssh "${SSH_OPTIONS[@]}" "$REMOTE" "\
   set -euo pipefail; \
-  mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED' '$REMOTE_PROJECT_PATH_RESOLVED/scripts' '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
-  if ! touch '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads/.copilot-write-test' 2>/dev/null; then \
+  mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED' '$REMOTE_PROJECT_PATH_RESOLVED/scripts' '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads' '$REMOTE_PROJECT_PATH_RESOLVED/backend/backups'; \
+  if ! touch '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/backups/.copilot-write-test' 2>/dev/null; then \
     if command -v sudo >/dev/null 2>&1; then \
-      sudo mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
-      sudo chown -R '$SSH_USER':'$SSH_USER' '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
-      sudo chmod -R u+rwX '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
+      sudo mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads' '$REMOTE_PROJECT_PATH_RESOLVED/backend/backups'; \
+      sudo chown -R '$SSH_USER':'$SSH_USER' '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads' '$REMOTE_PROJECT_PATH_RESOLVED/backend/backups'; \
+      sudo chmod -R u+rwX '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads' '$REMOTE_PROJECT_PATH_RESOLVED/backend/backups'; \
     else \
       echo '[ERR]  Remote directories are not writable and sudo is unavailable' >&2; \
       exit 1; \
     fi; \
   fi; \
-  rm -f '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads/.copilot-write-test' \
+  rm -f '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/backups/.copilot-write-test' \
 "
 
 if [[ "$PUSH_MODE" == "false" ]]; then

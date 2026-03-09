@@ -1,8 +1,8 @@
 {
-  "exportedAt": "2026-03-08T15:38:42.726Z",
+  "exportedAt": "2026-03-09T14:37:33.033Z",
   "tournamentPresets": [
     {
-      "id": "87b86606-126a-4b4d-a112-6449ea23da20",
+      "id": "de99bc27-b307-4143-be22-d49aea0ee361",
       "name": "Doublette 40 Slots",
       "presetType": "three-pool-stages",
       "totalParticipants": 40,
@@ -161,11 +161,11 @@
         ]
       },
       "isSystem": true,
-      "createdAt": "2026-03-08T14:29:07.270Z",
-      "updatedAt": "2026-03-08T15:07:55.155Z"
+      "createdAt": "2026-03-09T13:41:52.090Z",
+      "updatedAt": "2026-03-09T13:41:52.090Z"
     },
     {
-      "id": "2c0c495e-ae9b-435e-8c76-0689132c133f",
+      "id": "8e7fed82-b6b7-4574-b4d6-3b939948b493",
       "name": "Individuels 40 Slots",
       "presetType": "single-pool-stage",
       "totalParticipants": 40,
@@ -242,11 +242,22 @@
         ]
       },
       "isSystem": true,
-      "createdAt": "2026-03-08T14:29:07.270Z",
-      "updatedAt": "2026-03-08T15:08:19.811Z"
+      "createdAt": "2026-03-09T13:41:52.090Z",
+      "updatedAt": "2026-03-09T13:41:52.090Z"
     },
     {
-      "id": "0183f2ef-86df-4d0d-acdb-fe6b707c8e2a",
+      "id": "ee958190-e117-4d75-bb15-43c89596d4d7",
+      "name": "Single pool stage",
+      "presetType": "single-pool-stage",
+      "totalParticipants": 16,
+      "targetCount": 4,
+      "templateConfig": null,
+      "isSystem": true,
+      "createdAt": "2026-03-09T13:21:30.292Z",
+      "updatedAt": "2026-03-09T13:21:30.292Z"
+    },
+    {
+      "id": "a9ef5787-c7a6-49dc-992e-dee68f4e9852",
       "name": "Team 40 Slots",
       "presetType": "three-pool-stages",
       "totalParticipants": 40,
@@ -405,13 +416,24 @@
         ]
       },
       "isSystem": false,
-      "createdAt": "2026-03-08T15:06:43.275Z",
-      "updatedAt": "2026-03-08T15:08:07.514Z"
+      "createdAt": "2026-03-09T13:41:52.090Z",
+      "updatedAt": "2026-03-09T13:41:52.090Z"
+    },
+    {
+      "id": "765c76ab-301e-4d2f-a8a7-cb91652b979e",
+      "name": "Three pool stages",
+      "presetType": "three-pool-stages",
+      "totalParticipants": 16,
+      "targetCount": 4,
+      "templateConfig": null,
+      "isSystem": true,
+      "createdAt": "2026-03-09T13:21:30.292Z",
+      "updatedAt": "2026-03-09T13:21:30.292Z"
     }
   ],
   "matchFormatPresets": [
     {
-      "id": "228ca6be-3da1-4fd4-92c2-fefc1a64498c",
+      "id": "90d1d1b2-103e-45fd-9e8f-00cd24aa5bc8",
       "key": "BO3",
       "durationMinutes": 30,
       "segments": [
@@ -429,11 +451,11 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-03-08T14:28:47.505Z",
-      "updatedAt": "2026-03-08T14:28:47.505Z"
+      "createdAt": "2026-03-09T13:21:29.920Z",
+      "updatedAt": "2026-03-09T13:21:29.920Z"
     },
     {
-      "id": "04c67df6-c4c8-4cec-afc4-962d594750fb",
+      "id": "72be332d-d6ab-4fd6-a9e4-e201d90efd57",
       "key": "BO3_Arbre_Niveau_C",
       "durationMinutes": 30,
       "segments": [
@@ -451,11 +473,11 @@
         }
       ],
       "isSystem": false,
-      "createdAt": "2026-03-08T14:29:07.218Z",
-      "updatedAt": "2026-03-08T14:29:07.218Z"
+      "createdAt": "2026-03-09T13:41:52.085Z",
+      "updatedAt": "2026-03-09T13:41:52.085Z"
     },
     {
-      "id": "3a22fc38-1862-4c83-b0f0-7b49fa3833bc",
+      "id": "c84f6d9c-1d2f-4221-86b8-49d27dd0fd01",
       "key": "BO3_INDIV",
       "durationMinutes": 20,
       "segments": [
@@ -473,11 +495,11 @@
         }
       ],
       "isSystem": false,
-      "createdAt": "2026-03-08T14:29:07.218Z",
-      "updatedAt": "2026-03-08T14:29:07.218Z"
+      "createdAt": "2026-03-09T13:41:52.085Z",
+      "updatedAt": "2026-03-09T13:41:52.085Z"
     },
     {
-      "id": "a83bda70-2f25-4559-9608-32a7af879cc4",
+      "id": "e9724012-5446-48b1-8787-e252c734dfdd",
       "key": "BO5",
       "durationMinutes": 60,
       "segments": [
@@ -503,11 +525,11 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-03-08T14:28:47.505Z",
-      "updatedAt": "2026-03-08T14:28:47.505Z"
+      "createdAt": "2026-03-09T13:21:29.920Z",
+      "updatedAt": "2026-03-09T13:21:29.920Z"
     },
     {
-      "id": "d4d1f511-a2f9-45d1-9c66-28ed7c6ef3f3",
+      "id": "9d59517e-1961-4386-8c88-0a32fa3d5412",
       "key": "BO5_501",
       "durationMinutes": 45,
       "segments": [
@@ -533,11 +555,11 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-03-08T14:29:07.218Z",
-      "updatedAt": "2026-03-08T14:29:07.218Z"
+      "createdAt": "2026-03-09T13:41:52.085Z",
+      "updatedAt": "2026-03-09T13:41:52.085Z"
     },
     {
-      "id": "90afe2d2-0b6a-4f4b-83ca-c3e1c1068d8b",
+      "id": "8109be87-97af-4659-b341-d03c3a947b5d",
       "key": "BO5_501_701",
       "durationMinutes": 60,
       "segments": [
@@ -563,11 +585,11 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-03-08T14:29:07.218Z",
-      "updatedAt": "2026-03-08T14:29:07.218Z"
+      "createdAt": "2026-03-09T13:41:52.085Z",
+      "updatedAt": "2026-03-09T13:41:52.085Z"
     },
     {
-      "id": "f7de5e47-7176-45c0-b73e-a195d8d52ce7",
+      "id": "ae7cc2eb-77c4-4a2a-8b7e-3c40236e45ca",
       "key": "BO5_501_INDIV",
       "durationMinutes": 30,
       "segments": [
@@ -593,11 +615,11 @@
         }
       ],
       "isSystem": false,
-      "createdAt": "2026-03-08T14:29:07.218Z",
-      "updatedAt": "2026-03-08T14:29:07.218Z"
+      "createdAt": "2026-03-09T13:41:52.085Z",
+      "updatedAt": "2026-03-09T13:41:52.085Z"
     },
     {
-      "id": "809a65cd-7cc5-4dfc-a912-df3acbf9be7d",
+      "id": "0b04d0b6-ddb6-44e6-b343-31f1a184f9d5",
       "key": "BO5_F",
       "durationMinutes": 60,
       "segments": [
@@ -623,8 +645,8 @@
         }
       ],
       "isSystem": true,
-      "createdAt": "2026-03-08T14:28:47.505Z",
-      "updatedAt": "2026-03-08T14:28:47.505Z"
+      "createdAt": "2026-03-09T13:21:29.920Z",
+      "updatedAt": "2026-03-09T13:21:29.920Z"
     }
   ]
 }

@@ -120,6 +120,7 @@ services:
       - ./shared:/app/shared
       - backend_logs:/app/backend/logs
       - backend_uploads:/app/backend/uploads
+      - ./backend/backups:/app/backend/backups
     depends_on:
       postgres:
         condition: service_healthy

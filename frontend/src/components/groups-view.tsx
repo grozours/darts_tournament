@@ -485,6 +485,18 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                           {t('groups.captain')}
                         </span>
                       )}
+                      {canRemoveMembers && item.playerId !== group.captainPlayerId && (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => {
+                            void handleRemoveMember(group.id, group.tournamentId, item.playerId);
+                          }}
+                          className="rounded-full border border-rose-500/60 px-2 py-0.5 text-[10px] font-semibold text-rose-200"
+                        >
+                          {t('groups.removeMember')}
+                        </button>
+                      )}
                       {canEditMembers && (
                         <button
                           type="button"
@@ -502,18 +514,6 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                           className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
                         >
                           {t('common.edit')}
-                        </button>
-                      )}
-                      {canRemoveMembers && item.playerId !== group.captainPlayerId && (
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => {
-                            void handleRemoveMember(group.id, group.tournamentId, item.playerId);
-                          }}
-                          className="rounded-full border border-rose-500/60 px-2 py-0.5 text-[10px] font-semibold text-rose-200"
-                        >
-                          {t('groups.removeMember')}
                         </button>
                       )}
                     </div>

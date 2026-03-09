@@ -785,6 +785,11 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     }
 
     await context.tournamentModel.addDoubletteMember(doubletteId, payload.playerId);
+
+    if (!doublette.captainPlayerId && doublette.members.length === 0) {
+      await context.tournamentModel.updateDoubletteCaptain(doubletteId, payload.playerId);
+    }
+
     const updated = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!updated) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');

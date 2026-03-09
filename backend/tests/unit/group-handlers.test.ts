@@ -384,6 +384,32 @@ describe('group-handlers', () => {
     expect(removed.memberCount).toBe(1);
   });
 
+  it('sets first added member as captain when admin adds member to empty doublette', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.findPlayerByEmail.mockImplementation(async () => ({ id: 'admin-1', email: 'actor@example.com' }));
+    tournamentModel.getDoubletteById
+      .mockImplementationOnce(async () => ({
+        id: 'd1',
+        isRegistered: false,
+        captainPlayerId: null,
+        members: [],
+      }))
+      .mockImplementationOnce(async () => ({
+        id: 'd1',
+        name: 'D1',
+        captainPlayerId: 'p2',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('p2')],
+      }));
+
+    const updated = await handlers.addDoubletteMember('t1', 'd1', { playerId: 'p2' });
+    expect(updated.captainPlayerId).toBe('p2');
+    expect(tournamentModel.updateDoubletteCaptain).toHaveBeenCalledWith('d1', 'p2');
+  });
+
   it('joins and registers equipe with valid password', async () => {
     const { handlers, tournamentModel } = buildContext();
     config.auth.enabled = false;

@@ -80,7 +80,7 @@ const useTournamentListEditFlow = ({
     resetStructureState();
     setLogoFile(undefined);
     if (isEditPage) {
-      globalThis.window?.location.assign('/?status=DRAFT');
+      globalThis.window?.location.assign('/');
     }
   }, [
     isEditPage,

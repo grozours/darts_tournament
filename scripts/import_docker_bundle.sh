@@ -13,6 +13,7 @@ USE_EXISTING_IMAGES=false
 BACKEND_HOST_UPLOADS_DIR="$PROJECT_ROOT/backend/uploads"
 BACKEND_HOST_LOGS_DIR="$PROJECT_ROOT/backend/logs"
 BACKEND_HOST_PRISMA_DIR="$PROJECT_ROOT/backend/prisma"
+BACKEND_HOST_BACKUPS_DIR="$PROJECT_ROOT/backend/backups"
 
 print_info() {
   echo "[INFO] $1"
@@ -101,7 +102,8 @@ prepare_backend_host_mount_dirs() {
   ensure_host_directory "$BACKEND_HOST_PRISMA_DIR"
   ensure_host_directory "$BACKEND_HOST_UPLOADS_DIR"
   ensure_host_directory "$BACKEND_HOST_LOGS_DIR"
-  print_success "Backend host directories ready: $BACKEND_HOST_PRISMA_DIR, $BACKEND_HOST_UPLOADS_DIR and $BACKEND_HOST_LOGS_DIR"
+  ensure_host_directory "$BACKEND_HOST_BACKUPS_DIR"
+  print_success "Backend host directories ready: $BACKEND_HOST_PRISMA_DIR, $BACKEND_HOST_UPLOADS_DIR, $BACKEND_HOST_LOGS_DIR and $BACKEND_HOST_BACKUPS_DIR"
 }
 
 prune_old_images() {
