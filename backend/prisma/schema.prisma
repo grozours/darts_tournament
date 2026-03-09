@@ -42,6 +42,7 @@ model Tournament {
   targets           Target[]
 
   @@index([status])
+  @@index([status, createdAt])
   @@map("tournaments")
 }
 
@@ -60,13 +61,13 @@ model TournamentPreset {
 }
 
 model MatchFormatPreset {
-  id              String   @id @default(uuid())
+  id              String   @id @default(uuid()) @db.Uuid
   key             String   @unique @db.VarChar(20)
   durationMinutes Int      @map("duration_minutes")
   segments        Json
   isSystem        Boolean  @default(false) @map("is_system")
   createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("match_format_presets")
 }
@@ -102,6 +103,8 @@ model Player {
 
   @@unique([tournamentId, email])
   @@unique([tournamentId, firstName, lastName])
+  @@index([tournamentId, isActive, registeredAt])
+  @@index([tournamentId, isActive, checkedIn])
   @@map("players")
 }
 
@@ -123,6 +126,8 @@ model Doublette {
 
   @@unique([tournamentId, name])
   @@unique([tournamentId, captainPlayerId])
+  @@index([tournamentId, isRegistered])
+  @@index([tournamentId, createdAt])
   @@map("doublettes")
 }
 
@@ -136,6 +141,7 @@ model DoubletteMember {
   player      Player    @relation("DoubletteMemberships", fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([doubletteId, playerId])
+  @@index([playerId])
   @@map("doublette_members")
 }
 
@@ -157,6 +163,8 @@ model Equipe {
 
   @@unique([tournamentId, name])
   @@unique([tournamentId, captainPlayerId])
+  @@index([tournamentId, isRegistered])
+  @@index([tournamentId, createdAt])
   @@map("equipes")
 }
 
@@ -170,6 +178,7 @@ model EquipeMember {
   player   Player @relation("EquipeMemberships", fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([equipeId, playerId])
+  @@index([playerId])
   @@map("equipe_members")
 }
 
@@ -367,6 +376,7 @@ model Match {
   @@index([status])
   @@index([bracketId])
   @@index([targetId])
+  @@index([bracketId, roundNumber, matchNumber])
   @@map("matches")
 }
 
@@ -408,6 +418,7 @@ model Score {
   player     Player   @relation("PlayerScores", fields: [playerId], references: [id], onDelete: Cascade)
 
   @@map("scores")
+  @@index([matchId])
 }
 
 // Schedule Entity
