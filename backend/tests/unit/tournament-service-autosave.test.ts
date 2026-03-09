@@ -135,7 +135,9 @@ describe('tournament autosave', () => {
     const snapshots = await autosave.listTournamentSnapshots('t-history');
     expect(snapshots.length).toBeGreaterThan(0);
     const latest = snapshots[0];
-    expect(latest).toBeDefined();
+    if (!latest) {
+      throw new Error('Expected at least one snapshot');
+    }
 
     const restored = await autosave.restoreTournamentSnapshotById(
       't-history',
