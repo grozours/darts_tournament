@@ -65,11 +65,6 @@ const TournamentSnapshotsView = () => {
   );
 
   const loadSnapshots = useCallback(async (tournamentId: string) => {
-    if (!tournamentId) {
-      setSnapshotList([]);
-      return;
-    }
-
     setLoadingSnapshots(true);
     setError(undefined);
     try {
@@ -141,10 +136,6 @@ const TournamentSnapshotsView = () => {
   }, [loadSnapshots, selectedTournamentId]);
 
   const exportCurrentSnapshot = useCallback(async () => {
-    if (!selectedTournamentId) {
-      return;
-    }
-
     setError(undefined);
     setSuccess(undefined);
     try {
@@ -166,9 +157,6 @@ const TournamentSnapshotsView = () => {
   }, [getSafeAccessToken, selectedTournamentId]);
 
   const restoreById = useCallback(async (snapshotId: string) => {
-    if (!selectedTournamentId || !snapshotId) {
-      return;
-    }
     setError(undefined);
     setSuccess(undefined);
     setIsRestoringSnapshotId(snapshotId);
@@ -248,10 +236,6 @@ const TournamentSnapshotsView = () => {
   }, [isRestoringSnapshotId, loadingSnapshots, restoreById, snapshotList, t]);
 
   const importAndRestore = useCallback(async (file: File) => {
-    if (!selectedTournamentId) {
-      return;
-    }
-
     setError(undefined);
     setSuccess(undefined);
     setIsImporting(true);
