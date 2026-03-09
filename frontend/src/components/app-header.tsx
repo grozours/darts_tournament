@@ -476,6 +476,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
           <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=doc">
             Doc
           </a>
+          {!isAuthenticated && !isAdmin && (
+            <a className="rounded-md px-2 py-1 hover:bg-slate-800" href="/?view=github">
+              GitHub
+            </a>
+          )}
           <details className="relative">
             <summary
               className="list-none cursor-pointer rounded-md px-2 py-1 hover:bg-slate-800"

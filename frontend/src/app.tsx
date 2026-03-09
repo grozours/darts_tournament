@@ -14,6 +14,7 @@ import MatchFormatsView from './components/match-formats-view';
 import DoublettesView from './components/doublettes-view';
 import EquipesView from './components/equipes-view';
 import DocsView from './components/docs-view';
+import OpenSourceView from './components/open-source-view';
 import TournamentSnapshotsView from './components/tournament-snapshots-view';
 import { fetchLiveTournamentSummary, fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
@@ -197,6 +198,10 @@ const resolveMainContent = (
     }
     case 'doc': {
       return <DocsView accountType={docsAccountTypeOverride ?? docsAccountType} />;
+    }
+    case 'github':
+    case 'open-source': {
+      return <OpenSourceView />;
     }
     default: {
       if (normalizedStatus === 'live') {
