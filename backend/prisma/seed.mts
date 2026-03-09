@@ -84,6 +84,7 @@ type SeedSnapshot = {
 
 const prisma = new PrismaClient();
 const snapshotPath = path.join(process.cwd(), 'prisma', 'current-seed-export.json');
+const presetsPath = path.join(process.cwd(), 'prisma', 'current-presets-export.json');
 
 const asDate = (value: string | null | undefined): Date | null => {
   if (!value) {
@@ -94,11 +95,47 @@ const asDate = (value: string | null | undefined): Date | null => {
 
 const readSnapshot = (): SeedSnapshot => {
   if (!fs.existsSync(snapshotPath)) {
+    if (fs.existsSync(presetsPath)) {
+      const presetsOnly = JSON.parse(fs.readFileSync(presetsPath, 'utf8')) as {
+        exportedAt?: string;
+        matchFormatPresets?: SeedSnapshot['matchFormatPresets'];
+        tournamentPresets?: SeedSnapshot['tournamentPresets'];
+      };
+
+      return {
+        exportedAt: presetsOnly.exportedAt ?? new Date().toISOString(),
+        matchFormatPresets: presetsOnly.matchFormatPresets ?? [],
+        tournamentPresets: presetsOnly.tournamentPresets ?? [],
+        tournaments: [],
+        targets: [],
+        players: [],
+        doublettes: [],
+        doubletteMembers: [],
+      };
+    }
+
     throw new Error(
-      `Snapshot file not found: ${snapshotPath}. Run npm run db:export-seed in backend first.`
+      `Snapshot files not found: ${snapshotPath} and ${presetsPath}. Run npm run db:export-seed or npm run db:sync-presets-seed in backend first.`
     );
   }
-  return JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as SeedSnapshot;
+
+  const baseSnapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as SeedSnapshot;
+  if (!fs.existsSync(presetsPath)) {
+    return baseSnapshot;
+  }
+
+  const presetsOnly = JSON.parse(fs.readFileSync(presetsPath, 'utf8')) as {
+    exportedAt?: string;
+    matchFormatPresets?: SeedSnapshot['matchFormatPresets'];
+    tournamentPresets?: SeedSnapshot['tournamentPresets'];
+  };
+
+  return {
+    ...baseSnapshot,
+    exportedAt: presetsOnly.exportedAt ?? baseSnapshot.exportedAt,
+    matchFormatPresets: presetsOnly.matchFormatPresets ?? baseSnapshot.matchFormatPresets,
+    tournamentPresets: presetsOnly.tournamentPresets ?? baseSnapshot.tournamentPresets,
+  };
 };
 
 async function main() {
