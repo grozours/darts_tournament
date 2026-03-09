@@ -45,7 +45,7 @@ const joinLabel = /Join|Rejoindre/i;
 const editLabel = /Edit|Modifier/i;
 const saveLabel = /Save|Enregistrer/i;
 const createLabel = /Create|Créer/i;
-const unregisterLabel = /Unregister|désinscrire/i;
+const unregisterLabel = /Unregister|désinscrire|desinscrire/i;
 
 const createMember = (playerId: string, email: string, firstName: string, lastName: string): GroupMember => ({
   playerId,
@@ -264,9 +264,11 @@ for (const configuration of modeConfigurations) {
       await page.goto(`/?view=${configuration.view}&tournamentId=${tournamentId}`);
       await expect(page.getByText(/No group found|Aucun groupe/i)).toBeVisible();
 
-      await page.getByPlaceholder(/^Group name$|^Nom du groupe$/i).fill('My Group');
-      await page.getByPlaceholder(/^Group password$|^Mot de passe du groupe$/i).fill('secret');
-      await page.getByRole('button', { name: createLabel }).click();
+      const createButton = page.getByRole('button', { name: createLabel });
+      const createForm = createButton.locator('xpath=ancestor::div[contains(@class,"grid")][1]');
+      await createForm.locator('input').nth(0).fill('My Group');
+      await createForm.locator('input').nth(1).fill('secret');
+      await createButton.click();
 
       await expect(page.getByText('My Group')).toBeVisible();
       await expect.poll(() => groups.length).toBe(1);
@@ -301,9 +303,12 @@ for (const configuration of modeConfigurations) {
       await page.goto(`/?view=${configuration.view}&tournamentId=${tournamentId}`);
       await expect(page.getByText('Join Group')).toBeVisible();
 
-      await page.getByRole('button', { name: joinLabel }).first().click();
-      await page.getByPlaceholder(/Enter group password|Mot de passe du groupe/i).fill('secret');
-      await page.getByRole('button', { name: joinLabel }).nth(1).click();
+      const openJoinButton = page.getByRole('button', { name: joinLabel }).first();
+      await openJoinButton.click();
+      const confirmJoinButton = page.getByRole('button', { name: joinLabel }).last();
+      const joinEditor = confirmJoinButton.locator('xpath=ancestor::div[contains(@class,"grid")][1]');
+      await joinEditor.locator('input').first().fill('secret');
+      await confirmJoinButton.click();
 
       await expect.poll(() => groups[0]?.members.some((member) => member.playerId === 'p-player')).toBe(true);
   await expect(page.getByRole('button', { name: joinLabel })).toHaveCount(0);
@@ -341,20 +346,21 @@ for (const configuration of modeConfigurations) {
 
       await page.goto(`/?view=${configuration.view}&tournamentId=${tournamentId}`);
       await expect(page.getByText('Captain Group')).toBeVisible();
+      const groupCard = page.locator('div.rounded-2xl').filter({ has: page.getByText('Captain Group') }).first();
 
-      await page.getByRole('button', { name: editLabel }).click();
-      await page.locator('input[value="Captain Group"]').fill('Captain Group Updated');
-      await page.getByRole('button', { name: saveLabel }).click();
+      await groupCard.getByRole('button', { name: editLabel }).first().click();
+      await groupCard.locator('input[value="Captain Group"]').first().fill('Captain Group Updated');
+      await groupCard.getByRole('button', { name: saveLabel }).first().click();
       await expect(page.getByText('Captain Group Updated')).toBeVisible();
 
-      await page.getByRole('button', { name: configuration.registerButtonLabel }).click();
+      await groupCard.getByRole('button', { name: configuration.registerButtonLabel }).first().click();
       await expect.poll(() => groups[0]?.isRegistered).toBe(true);
-      await expect(page.getByRole('button', { name: unregisterLabel })).toBeVisible();
+      await expect(groupCard.getByRole('button', { name: unregisterLabel }).first()).toBeVisible();
 
       page.once('dialog', async (dialog) => {
         await dialog.accept();
       });
-      await page.getByRole('button', { name: unregisterLabel }).click();
+      await groupCard.getByRole('button', { name: unregisterLabel }).first().click();
 
       await expect.poll(() => groups[0]?.isRegistered).toBe(false);
       await expect(page.getByRole('button', { name: configuration.registerButtonLabel })).toBeVisible();

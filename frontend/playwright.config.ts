@@ -39,6 +39,10 @@ const frontendWebServerEnv = {
 	...process.env,
 	VITE_API_PROXY_TARGET:
 		process.env.VITE_API_PROXY_TARGET ?? `http://localhost:${PLAYWRIGHT_BACKEND_PORT}`,
+	// Force optional auth off during E2E so /api/auth/me mocks drive admin behavior.
+	VITE_AUTH0_DOMAIN: '',
+	VITE_AUTH0_CLIENT_ID: '',
+	VITE_AUTH0_AUDIENCE: '',
 };
 
 export default defineConfig({

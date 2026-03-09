@@ -5,7 +5,7 @@ const adminProfile = {
   isAdmin: true,
 };
 
-const unregisterLabel = /unregister|désinscrire/i;
+const unregisterLabel = /unregister|désinscrire|desinscrire/i;
 
 const mockAdminAuth = async (page: Parameters<typeof test>[0]['page']) => {
   await page.addInitScript(() => {
@@ -93,11 +93,13 @@ test('admin unregisters registered doublette from groups card and tournament car
 
   await page.goto('/?view=doublettes&tournamentId=t-double');
   await expect(page.getByText('Duo One')).toBeVisible();
+  const doubletteCard = page.locator('div.rounded-2xl').filter({ has: page.getByText('Duo One') }).first();
+  await expect(doubletteCard.getByRole('button', { name: unregisterLabel }).first()).toBeVisible();
 
   page.once('dialog', async (dialog) => {
     await dialog.accept();
   });
-  await page.getByRole('button', { name: unregisterLabel }).click();
+  await doubletteCard.getByRole('button', { name: unregisterLabel }).first().click();
 
   await expect.poll(() => unregisterCalls).toBe(1);
   await expect(page.getByRole('button', { name: unregisterLabel })).toHaveCount(0);
@@ -105,11 +107,12 @@ test('admin unregisters registered doublette from groups card and tournament car
   doubletteRegistered = true;
   await page.goto('/?status=OPEN');
   await expect(page.getByRole('heading', { name: 'Double Open' })).toBeVisible();
+  await expect(page.getByRole('button', { name: unregisterLabel }).first()).toBeVisible();
 
   page.once('dialog', async (dialog) => {
     await dialog.accept();
   });
-  await page.getByRole('button', { name: unregisterLabel }).click();
+  await page.getByRole('button', { name: unregisterLabel }).first().click();
 
   await expect.poll(() => unregisterCalls).toBe(2);
 });
@@ -188,11 +191,13 @@ test('admin unregisters registered equipe from groups card and tournament card',
 
   await page.goto('/?view=equipes&tournamentId=t-team');
   await expect(page.getByText('Team One')).toBeVisible();
+  const equipeCard = page.locator('div.rounded-2xl').filter({ has: page.getByText('Team One') }).first();
+  await expect(equipeCard.getByRole('button', { name: unregisterLabel }).first()).toBeVisible();
 
   page.once('dialog', async (dialog) => {
     await dialog.accept();
   });
-  await page.getByRole('button', { name: unregisterLabel }).click();
+  await equipeCard.getByRole('button', { name: unregisterLabel }).first().click();
 
   await expect.poll(() => unregisterCalls).toBe(1);
   await expect(page.getByRole('button', { name: unregisterLabel })).toHaveCount(0);
@@ -200,11 +205,12 @@ test('admin unregisters registered equipe from groups card and tournament card',
   equipeRegistered = true;
   await page.goto('/?status=OPEN');
   await expect(page.getByRole('heading', { name: 'Team Open' })).toBeVisible();
+  await expect(page.getByRole('button', { name: unregisterLabel }).first()).toBeVisible();
 
   page.once('dialog', async (dialog) => {
     await dialog.accept();
   });
-  await page.getByRole('button', { name: unregisterLabel }).click();
+  await page.getByRole('button', { name: unregisterLabel }).first().click();
 
   await expect.poll(() => unregisterCalls).toBe(2);
 });
