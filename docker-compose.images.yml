@@ -46,8 +46,9 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - backend_logs:/app/backend/logs
-      - backend_uploads:/app/backend/uploads
+      - ./backend/prisma:/app/backend/prisma
+      - ./backend/logs:/app/backend/logs
+      - ./backend/uploads:/app/backend/uploads
 
   frontend:
     image: darts-tournament/frontend:${IMAGE_TAG:-latest}
@@ -61,5 +62,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  backend_logs:
-  backend_uploads:

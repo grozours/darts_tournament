@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-03-08T15:38:42.726Z",
+  "exportedAt": "2026-03-09T10:29:49.992Z",
   "matchFormatPresets": [
     {
       "key": "BO3",
@@ -597,9 +597,9 @@
   "tournaments": [
     {
       "id": "bfb2810f-4dea-497a-9944-925a65c3c8ba",
-      "name": "Tournoi Individuel - Vendrei 3 Avril 2026",
+      "name": "Tournoi Individuel - Vendredi 3 Avril 2026",
       "location": "Landeda",
-      "logoUrl": null,
+      "logoUrl": "/uploads/logo-1773052082294-56546ed0-9fcb-4cb8-98e7-f50a174cd5d0.png",
       "format": "SINGLE",
       "durationType": "HALF_DAY_NIGHT",
       "startTime": "2026-04-03T17:00:00.000Z",
@@ -615,9 +615,9 @@
     },
     {
       "id": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
-      "name": "Tournoi Doublette -4 avril 2026",
+      "name": "Tournoi Doublette - Samedi 4 avril 2026",
       "location": "Landeda",
-      "logoUrl": null,
+      "logoUrl": "/uploads/logo-1773052107859-45c802cb-52a8-4b64-bfda-bbaca12fa876.png",
       "format": "DOUBLE",
       "durationType": "FULL_DAY",
       "startTime": "2026-04-04T08:00:00.000Z",
@@ -626,7 +626,7 @@
       "targetCount": 9,
       "targetStartNumber": 1,
       "shareTargets": true,
-      "status": "DRAFT",
+      "status": "OPEN",
       "completedAt": null,
       "historicalFlag": false,
       "doubleStageEnabled": true
@@ -1080,9 +1080,9 @@
     {
       "id": "40f7dd76-f84e-4402-9617-7dce67c96ead",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
-      "firstName": "Rouk1",
-      "lastName": "NC",
-      "surname": null,
+      "firstName": "Sylvain",
+      "lastName": "Roussel",
+      "surname": "Rouk1",
       "teamName": null,
       "email": null,
       "phone": null,
@@ -1708,6 +1708,48 @@
       "checkedIn": false
     },
     {
+      "id": "105023da-f718-4173-a5c2-6fde0a0e6821",
+      "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
+      "firstName": "tangi",
+      "lastName": "curet",
+      "surname": null,
+      "teamName": null,
+      "email": "tangi.curet@gmail.com",
+      "phone": null,
+      "skillLevel": null,
+      "registeredAt": "2026-03-08T22:23:14.798Z",
+      "isActive": true,
+      "checkedIn": false
+    },
+    {
+      "id": "09c33cc5-5fc9-4e35-b7be-3eda35e5db8e",
+      "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
+      "firstName": "Gwen",
+      "lastName": "Cornec",
+      "surname": null,
+      "teamName": null,
+      "email": null,
+      "phone": null,
+      "skillLevel": null,
+      "registeredAt": "2026-03-08T22:33:30.113Z",
+      "isActive": true,
+      "checkedIn": false
+    },
+    {
+      "id": "312468df-22df-4014-ba91-9dbfc025e4e5",
+      "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
+      "firstName": "Titouan",
+      "lastName": "Cornec",
+      "surname": null,
+      "teamName": null,
+      "email": null,
+      "phone": null,
+      "skillLevel": null,
+      "registeredAt": "2026-03-08T22:33:45.516Z",
+      "isActive": true,
+      "checkedIn": false
+    },
+    {
       "id": "c67808cd-d789-4017-adf8-cd823bbac485",
       "tournamentId": "bfb2810f-4dea-497a-9944-925a65c3c8ba",
       "firstName": "Anthony",
@@ -1838,11 +1880,11 @@
       "tournamentId": "bfb2810f-4dea-497a-9944-925a65c3c8ba",
       "firstName": "Sylvain",
       "lastName": "Roussel",
-      "surname": null,
+      "surname": "Rouk1",
       "teamName": null,
       "email": null,
       "phone": null,
-      "skillLevel": null,
+      "skillLevel": "EXPERT",
       "registeredAt": "2026-03-08T14:42:23.822Z",
       "isActive": true,
       "checkedIn": false
@@ -1878,7 +1920,7 @@
     {
       "id": "29b78710-25a6-46b8-a485-37295a11b642",
       "tournamentId": "bfb2810f-4dea-497a-9944-925a65c3c8ba",
-      "firstName": "Keks",
+      "firstName": "Kek's",
       "lastName": "NC",
       "surname": null,
       "teamName": null,
@@ -2273,7 +2315,7 @@
       "id": "f53de0b3-9d19-4229-b5a5-d350801c128a",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "0e675f2e-f498-48ef-bb4a-c70a5437770e",
-      "name": "Ben/Julien",
+      "name": "Ben / Julien",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.521Z"
@@ -2282,7 +2324,7 @@
       "id": "17f096e4-4295-4b67-b717-649a7f577f8d",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "97ae65f2-986d-4291-94da-fc13b591a03f",
-      "name": "Celia/mehdi",
+      "name": "Celia / Mehdi",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.600Z"
@@ -2291,7 +2333,7 @@
       "id": "4e622387-c885-4e5f-96af-ebe11044f54d",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "14f38450-162b-4357-a7a5-8ed48874af06",
-      "name": "Coco/Berthou",
+      "name": "Coco / Berthou",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.532Z"
@@ -2309,7 +2351,7 @@
       "id": "5288437d-49b0-4f77-8182-a02643a63e5c",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "89d706e6-23f3-44cd-810c-e101af0d0855",
-      "name": "Dam/Kerj",
+      "name": "Dam / Kerj",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.559Z"
@@ -2318,7 +2360,7 @@
       "id": "153c3ba6-5335-484b-96e4-5cbca423ff88",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "0ab62906-49f8-4059-911a-65ce8658a74f",
-      "name": "Damien R/Romain M",
+      "name": "Damien R / Romain M",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.584Z"
@@ -2327,7 +2369,7 @@
       "id": "b65c3a10-14da-4739-8d9a-01ae0f998a7d",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "faf20d73-85ed-45e0-9b0e-1f2b2fbeec57",
-      "name": "Dav/Gildas",
+      "name": "Dav / Gildas",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.628Z"
@@ -2336,7 +2378,7 @@
       "id": "fa5ddc6f-88d5-4900-99c8-2c0a7aea9c7a",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "97d9a6f5-e5c8-4ea1-b546-458af921a4ce",
-      "name": "Erwan R/Estevan",
+      "name": "Erwan R / Estevan",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.580Z"
@@ -2345,7 +2387,7 @@
       "id": "99b06be6-bedd-4244-9a0b-8e4e22fd1926",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "39eb325c-d7bf-4388-907b-06d6b1151f87",
-      "name": "Filipe/ Dav",
+      "name": "Filipe / Dav",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.616Z"
@@ -2354,7 +2396,7 @@
       "id": "26c163e7-6c70-4189-bb81-c26ba5d8623a",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "42b32542-c32c-487e-8eee-2fc470191a8f",
-      "name": "Gaël/Lenny",
+      "name": "Gaël / Lenny",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.576Z"
@@ -2381,7 +2423,7 @@
       "id": "983f17d1-8ed7-485e-81d5-2b8c1a747426",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "f447b844-f55a-4c08-9ea2-6fa63fd2e87e",
-      "name": "Joce/Inaya",
+      "name": "Joce / Inaya",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.609Z"
@@ -2390,7 +2432,7 @@
       "id": "15b37d22-4e8a-4d76-b995-024052d68ae7",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "cc426e34-8081-461a-9e5b-ffb3880b235e",
-      "name": "José/Sophie",
+      "name": "José / Sophie",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.622Z"
@@ -2399,7 +2441,7 @@
       "id": "374d5935-51b1-4348-a569-7b0ab5ca5c90",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "c252cfe6-a3c7-431f-865d-a920b4517a1e",
-      "name": "Keks/Evan",
+      "name": "Kek's / Evan",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.538Z"
@@ -2498,7 +2540,7 @@
       "id": "48e29150-1549-4891-8229-f2425b2d31ac",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "2b4bdd0d-2375-4829-8b68-2a529d79fa2b",
-      "name": "Lylian/Noah",
+      "name": "Lylian / Noah",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.588Z"
@@ -2507,7 +2549,7 @@
       "id": "1f629927-4bfa-436d-a2d5-95290cb2f82e",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "e039c4b6-6b8d-4343-91ba-987b73fe0edb",
-      "name": "Mel/Lilian",
+      "name": "Mel / Lilian",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.555Z"
@@ -2516,7 +2558,7 @@
       "id": "1382ffeb-cfc7-4227-85b6-eded134b822a",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "af843f94-2026-4731-9b5d-b9b2987d78a7",
-      "name": "Nolan/Edwin",
+      "name": "Nolan / Edwin",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.613Z"
@@ -2543,7 +2585,7 @@
       "id": "e4a98565-3116-4323-b18b-dccb8d9ce358",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "4f54af5b-9aad-4c2d-87ee-1bb6d7099cae",
-      "name": "Paul/Steph",
+      "name": "Paul / Steph",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.605Z"
@@ -2561,7 +2603,7 @@
       "id": "5a07a708-5bea-4ee8-8865-1e0d9a30e6c0",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "cae6113f-8037-4381-87e0-f39f20bc3ec3",
-      "name": "Pierrot/Gauthier",
+      "name": "Pierrot / Gauthier",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.547Z"
@@ -2570,7 +2612,7 @@
       "id": "e418760a-823a-4b98-8ed2-b4319f40c2dd",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "9e884e00-1ea4-4679-af22-2084906cfa7f",
-      "name": "Polo/Ben",
+      "name": "Polo / Ben",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.619Z"
@@ -2579,7 +2621,7 @@
       "id": "d89b16ac-5225-47f8-83d3-f7acb96b5000",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "1e1d6c49-a72f-4e97-ac01-4d6d55d89f05",
-      "name": "Remi/JP",
+      "name": "Remi / JP",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.592Z"
@@ -2588,7 +2630,7 @@
       "id": "3d4b229f-4ee2-403b-a59d-21ff2d823bcf",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "40f7dd76-f84e-4402-9617-7dce67c96ead",
-      "name": "Rouk1/Dav",
+      "name": "Rouk1 / Dav",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.551Z"
@@ -2609,13 +2651,13 @@
       "name": "Tocards",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
-      "registeredAt": "2026-03-08T14:59:03.535Z"
+      "registeredAt": "2026-03-08T19:46:19.017Z"
     },
     {
       "id": "c0e10ed0-95bd-4c04-9d29-4c8f1c756e7b",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "64580a03-c14d-49a2-91db-237cbc9093bb",
-      "name": "Tom/Leo",
+      "name": "Tom / Leo",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.624Z"
@@ -2624,7 +2666,7 @@
       "id": "4675adda-5919-40a3-8afa-5805cbdaa566",
       "tournamentId": "8a814e69-fc08-4c8c-9f97-8aac2f2ae149",
       "captainPlayerId": "e0ebbc1b-edb8-4109-a36f-5990acae77b2",
-      "name": "Ty Ju/Alex P",
+      "name": "Ty Ju / Alex P",
       "passwordHash": "$2b$10$u0d7nkpwM4Q2WOGf6Q6fue3w0kM4R2m3Me6l8S5D9zV9jQ7dQv6X6",
       "isRegistered": true,
       "registeredAt": "2026-03-08T14:59:03.564Z"
@@ -3014,6 +3056,18 @@
       "doubletteId": "e4a98565-3116-4323-b18b-dccb8d9ce358",
       "playerId": "0de51417-5237-455f-baef-f1fb4297f004",
       "joinedAt": "2026-03-08T15:00:26.912Z"
+    },
+    {
+      "id": "3ee1e0f1-53c2-43e6-bbf6-4dc90e65f0b2",
+      "doubletteId": "e81b13f1-7d6c-48b5-a40c-218d8fe3e50b",
+      "playerId": "09c33cc5-5fc9-4e35-b7be-3eda35e5db8e",
+      "joinedAt": "2026-03-08T22:33:30.405Z"
+    },
+    {
+      "id": "053471d9-cc79-4817-9518-2e558b8986c4",
+      "doubletteId": "e81b13f1-7d6c-48b5-a40c-218d8fe3e50b",
+      "playerId": "312468df-22df-4014-ba91-9dbfc025e4e5",
+      "joinedAt": "2026-03-08T22:33:45.767Z"
     },
     {
       "id": "15d40f67-984a-4ea1-830b-1559673c1e0c",

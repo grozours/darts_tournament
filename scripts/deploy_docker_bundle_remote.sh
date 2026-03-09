@@ -322,7 +322,21 @@ REMOTE="$SSH_USER@$SSH_HOST"
 REMOTE_PROJECT_PATH_RESOLVED="$REMOTE_PROJECT_PATH"
 
 print_info "Checking remote project directory"
-ssh "${SSH_OPTIONS[@]}" "$REMOTE" "mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED' '$REMOTE_PROJECT_PATH_RESOLVED/scripts'"
+ssh "${SSH_OPTIONS[@]}" "$REMOTE" "\
+  set -euo pipefail; \
+  mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED' '$REMOTE_PROJECT_PATH_RESOLVED/scripts' '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
+  if ! touch '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads/.copilot-write-test' 2>/dev/null; then \
+    if command -v sudo >/dev/null 2>&1; then \
+      sudo mkdir -p '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
+      sudo chown -R '$SSH_USER':'$SSH_USER' '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
+      sudo chmod -R u+rwX '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads'; \
+    else \
+      echo '[ERR]  Remote directories are not writable and sudo is unavailable' >&2; \
+      exit 1; \
+    fi; \
+  fi; \
+  rm -f '$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/logs/.copilot-write-test' '$REMOTE_PROJECT_PATH_RESOLVED/backend/uploads/.copilot-write-test' \
+"
 
 if [[ "$PUSH_MODE" == "false" ]]; then
   print_info "Uploading bundle to $REMOTE:$REMOTE_BUNDLE_PATH"
@@ -334,6 +348,11 @@ scp "${SCP_OPTIONS[@]}" \
   "$PROJECT_ROOT/docker-compose.yml" \
   "$PROJECT_ROOT/docker-compose.images.yml" \
   "$REMOTE:$REMOTE_PROJECT_PATH_RESOLVED/"
+
+print_info "Uploading backend Prisma assets"
+scp "${SCP_OPTIONS[@]}" -r \
+  "$PROJECT_ROOT/backend/prisma/." \
+  "$REMOTE:$REMOTE_PROJECT_PATH_RESOLVED/backend/prisma/"
 
 scp "${SCP_OPTIONS[@]}" \
   "$PROJECT_ROOT/scripts/import_docker_bundle.sh" \
