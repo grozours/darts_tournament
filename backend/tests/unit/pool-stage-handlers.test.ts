@@ -1109,6 +1109,178 @@ describe('createPoolStageHandlers', () => {
       .not.toBe((seedByPlayer.get('p3') as number) <= firstHalfLimit);
   });
 
+  it('applies head-to-head +1 tie-break when selecting stage 2 qualifiers from stage 1', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.LIVE,
+      format: TournamentFormat.DOUBLE,
+      doubleStageEnabled: true,
+    }));
+    model.getPoolStageById.mockImplementation(async (stageId) => {
+      const id = String(stageId);
+      if (id === 'stage-1') {
+        return {
+          id: 'stage-1',
+          tournamentId: 'tournament-1',
+          stageNumber: 1,
+          playersPerPool: 5,
+          poolCount: 1,
+          advanceCount: 2,
+        };
+      }
+      if (id === 'stage-2') {
+        return {
+          id: 'stage-2',
+          tournamentId: 'tournament-1',
+          stageNumber: 2,
+          playersPerPool: 2,
+          poolCount: 1,
+          advanceCount: 2,
+        };
+      }
+      if (id === 'stage-3') {
+        return {
+          id: 'stage-3',
+          tournamentId: 'tournament-1',
+          stageNumber: 3,
+          playersPerPool: 2,
+          poolCount: 1,
+          advanceCount: 2,
+        };
+      }
+      return undefined;
+    });
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', tournamentId: 'tournament-1', stageNumber: 1, playersPerPool: 5, poolCount: 1 },
+      { id: 'stage-2', tournamentId: 'tournament-1', stageNumber: 2, playersPerPool: 2, poolCount: 1 },
+      { id: 'stage-3', tournamentId: 'tournament-1', stageNumber: 3, playersPerPool: 2, poolCount: 1 },
+    ]));
+    model.getBrackets.mockReturnValue(Promise.resolve([]));
+    model.getPoolsWithMatchesForStage.mockImplementation(async (stageId) => {
+      if (String(stageId) !== 'stage-1') {
+        return [];
+      }
+
+      return [
+        {
+          id: 'pool-c',
+          poolNumber: 3,
+          assignments: [
+            { player: { id: 'd28', firstName: 'Riley', lastName: 'Singh-Cross' } },
+            { player: { id: 'd36', firstName: 'Cameron', lastName: 'Santos-Vale' } },
+            { player: { id: 'd1', firstName: 'Jordan', lastName: 'Nguyen-River' } },
+            { player: { id: 'd33', firstName: 'Parker', lastName: 'Lopez-Stone' } },
+            { player: { id: 'd4', firstName: 'Taylor', lastName: 'Fischer' } },
+          ],
+          matches: [
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd36' }, scoreTotal: 3 },
+                { player: { id: 'd4' }, scoreTotal: 2 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd33' }, scoreTotal: 4 },
+                { player: { id: 'd1' }, scoreTotal: 0 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd4' }, scoreTotal: 4 },
+                { player: { id: 'd28' }, scoreTotal: 0 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd1' }, scoreTotal: 1 },
+                { player: { id: 'd36' }, scoreTotal: 0 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd28' }, scoreTotal: 5 },
+                { player: { id: 'd33' }, scoreTotal: 2 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd1' }, scoreTotal: 4 },
+                { player: { id: 'd4' }, scoreTotal: 3 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd28' }, scoreTotal: 1 },
+                { player: { id: 'd1' }, scoreTotal: 0 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd36' }, scoreTotal: 5 },
+                { player: { id: 'd33' }, scoreTotal: 3 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd28' }, scoreTotal: 2 },
+                { player: { id: 'd36' }, scoreTotal: 0 },
+              ],
+            },
+            {
+              status: MatchStatus.COMPLETED,
+              playerMatches: [
+                { player: { id: 'd33' }, scoreTotal: 2 },
+                { player: { id: 'd4' }, scoreTotal: 0 },
+              ],
+            },
+          ],
+        },
+      ];
+    });
+    model.getPoolCountForStage.mockImplementation(async (stageId) => {
+      const id = String(stageId);
+      if (id === 'stage-2' || id === 'stage-3') {
+        return 1;
+      }
+      return 0;
+    });
+    model.getPoolsForStage.mockImplementation(async (stageId) => {
+      const id = String(stageId);
+      if (id === 'stage-2') {
+        return [{ id: 'stage2-pool-1' }];
+      }
+      if (id === 'stage-3') {
+        return [{ id: 'stage3-pool-1' }];
+      }
+      return [];
+    });
+
+    const handlers = createHandlers(model);
+
+    await handlers.recomputeDoubleStageProgression('tournament-1', 'stage-1');
+
+    const stage2Call = model.createPoolAssignments.mock.calls.find((call) =>
+      Array.isArray(call[0]) && call[0].some((entry: { poolId: string }) => entry.poolId === 'stage2-pool-1')
+    );
+    const stage2Assignments = (stage2Call?.[0] ?? []) as Array<{ playerId: string }>;
+    const stage2PlayerIds = new Set(stage2Assignments.map((entry) => entry.playerId));
+
+    expect(stage2PlayerIds.has('d33')).toBe(true);
+    expect(stage2PlayerIds.has('d28')).toBe(true);
+    expect(stage2PlayerIds.has('d4')).toBe(false);
+  });
+
   it('rejects recomputeDoubleStageProgression when stage 2/3 are missing', async () => {
     const model = buildModel();
     model.findById.mockReturnValue(Promise.resolve({

@@ -501,6 +501,62 @@ const addPoolMatchResults = (
   }
 };
 
+const getPlayerScore = (playerMatch: { scoreTotal?: number | null; legsWon?: number | null }) => (
+  playerMatch.scoreTotal ?? playerMatch.legsWon ?? 0
+);
+
+const applyHeadToHeadBonus = (
+  rows: Map<string, { playerId: string; name: string; legsWon: number; legsLost: number }>,
+  matches: Array<{ status?: string | null; playerMatches?: Array<{ player?: { id?: string }; scoreTotal?: number | null; legsWon?: number | null }> | null }>
+): void => {
+  const groups = new Map<number, Array<{ playerId: string; name: string; legsWon: number; legsLost: number }>>();
+  for (const row of rows.values()) {
+    const bucket = groups.get(row.legsWon) ?? [];
+    bucket.push(row);
+    groups.set(row.legsWon, bucket);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length !== 2) {
+      continue;
+    }
+    const [first, second] = group;
+    if (!first || !second) {
+      continue;
+    }
+
+    const headToHead = matches.find((match) => {
+      if (match.status !== MatchStatus.COMPLETED) return false;
+      const ids = new Set(
+        (match.playerMatches ?? [])
+          .map((playerMatch) => playerMatch.player?.id)
+          .filter((id): id is string => Boolean(id))
+      );
+      return ids.has(first.playerId) && ids.has(second.playerId);
+    });
+
+    if (!headToHead) {
+      continue;
+    }
+
+    const playerMatches = headToHead.playerMatches ?? [];
+    const firstMatch = playerMatches.find((playerMatch) => playerMatch.player?.id === first.playerId);
+    const secondMatch = playerMatches.find((playerMatch) => playerMatch.player?.id === second.playerId);
+    if (!firstMatch || !secondMatch) {
+      continue;
+    }
+
+    const firstScore = getPlayerScore(firstMatch);
+    const secondScore = getPlayerScore(secondMatch);
+    if (firstScore === secondScore) {
+      continue;
+    }
+
+    const winner = firstScore > secondScore ? first : second;
+    winner.legsWon += 1;
+  }
+};
+
 const pickPoolForPlayer = (
   playerId: string,
   poolState: Array<{ pool: { id: string }; players: string[] }>,
@@ -998,6 +1054,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
     addPoolAssignments(rows, pool.assignments ?? []);
     addPoolMatchResults(rows, pool.matches ?? []);
+    applyHeadToHeadBonus(rows, pool.matches ?? []);
 
     return sortPoolStandings(rows);
   };
