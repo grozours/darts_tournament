@@ -835,7 +835,7 @@ const PoolStageCard = ({
 
     return (
       <div className="mt-2 overflow-hidden rounded-xl border border-slate-800/60">
-        {leaderboard.length === 0 ? (
+            {leaderboard.length === 0 ? (
           <p className="px-3 py-3 text-xs text-slate-400">{t('live.noStandings')}</p>
         ) : (
           <table className="min-w-full text-xs">
@@ -853,8 +853,8 @@ const PoolStageCard = ({
                   <td className="px-2 py-2 text-center font-semibold text-slate-300">#{row.position}</td>
                   <td className="px-3 py-2">{row.name}</td>
                   <td className="px-3 py-2 text-right">
-                    {row.legsWon}
-                    {(row.headToHeadBonus ?? 0) > 0 && (
+                        {row.legsWon}
+                        {row.headToHeadBonus !== undefined && (
                       <span
                         className="ml-1 text-amber-300"
                         title={t('live.headToHeadBonusTooltip')}
@@ -1269,7 +1269,7 @@ const PoolStageCard = ({
                             <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
                             <span className="w-16 text-right text-slate-300">
                               {row.legsWon}
-                              {(row.headToHeadBonus ?? 0) > 0 && (
+                              {row.headToHeadBonus !== undefined && (
                                 <span
                                   className="ml-1 text-amber-300"
                                   title={t('live.headToHeadBonusTooltip')}

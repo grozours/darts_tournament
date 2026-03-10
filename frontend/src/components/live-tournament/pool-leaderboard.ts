@@ -23,7 +23,6 @@ const ensureLeaderboardRow = (
       name: getLeaderboardPlayerLabel(player, getParticipantLabel),
       legsWon: 0,
       legsLost: 0,
-      headToHeadBonus: 0,
       position: 0,
     });
   }
@@ -74,49 +73,54 @@ const applyHeadToHeadBonus = (rows: Map<string, PoolLeaderboardRow>, matches: Li
   }
 
   for (const group of groups.values()) {
-    if (group.length !== 2) {
+    if (group.length < 2) {
       continue;
     }
-    const [first, second] = group;
-    if (!first || !second) {
-      continue;
+    const groupIds = new Set(group.map((row) => row.playerId));
+    const rowsByPlayerId = new Map(group.map((row) => [row.playerId, row]));
+
+    for (const row of group) {
+      row.headToHeadBonus = row.headToHeadBonus ?? 0;
     }
 
-    const headToHead = matches.find((match) => {
-      if (match.status !== 'COMPLETED') return false;
-      const ids = new Set(
-        (match.playerMatches ?? [])
-          .map((playerMatch) => playerMatch.player?.id)
-          .filter((id): id is string => Boolean(id))
+    for (const match of matches) {
+      if (match.status !== 'COMPLETED') {
+        continue;
+      }
+
+      const relevantPlayers = (match.playerMatches ?? []).filter((playerMatch) =>
+        Boolean(playerMatch.player?.id && groupIds.has(playerMatch.player.id))
       );
-      return ids.has(first.playerId) && ids.has(second.playerId);
-    });
+      if (relevantPlayers.length !== 2) {
+        continue;
+      }
 
-    if (!headToHead) {
-      continue;
-    }
+      const [firstMatch, secondMatch] = relevantPlayers;
+      if (!firstMatch?.player?.id || !secondMatch?.player?.id) {
+        continue;
+      }
 
-    const playerMatches = headToHead.playerMatches ?? [];
-    const firstMatch = playerMatches.find((playerMatch) => playerMatch.player?.id === first.playerId);
-    const secondMatch = playerMatches.find((playerMatch) => playerMatch.player?.id === second.playerId);
-    if (!firstMatch || !secondMatch) {
-      continue;
-    }
+      const firstScore = getPlayerScore(firstMatch);
+      const secondScore = getPlayerScore(secondMatch);
+      if (firstScore === secondScore) {
+        continue;
+      }
 
-    const firstScore = getPlayerScore(firstMatch);
-    const secondScore = getPlayerScore(secondMatch);
-    if (firstScore === secondScore) {
-      continue;
+      const winnerId = firstScore > secondScore ? firstMatch.player.id : secondMatch.player.id;
+      const winner = rowsByPlayerId.get(winnerId);
+      if (!winner) {
+        continue;
+      }
+      winner.headToHeadBonus = (winner.headToHeadBonus ?? 0) + 1;
     }
-    const winner = firstScore > secondScore ? first : second;
-    winner.legsWon += 1;
-    winner.headToHeadBonus = (winner.headToHeadBonus ?? 0) + 1;
   }
 };
 
 const sortLeaderboardRows = (rows: Map<string, PoolLeaderboardRow>) => {
   const sorted = [...rows.values()].toSorted((a, b) => {
     if (b.legsWon !== a.legsWon) return b.legsWon - a.legsWon;
+    const bonusDiff = (b.headToHeadBonus ?? 0) - (a.headToHeadBonus ?? 0);
+    if (bonusDiff !== 0) return bonusDiff;
     if (a.legsLost !== b.legsLost) return a.legsLost - b.legsLost;
     return a.name.localeCompare(b.name);
   });

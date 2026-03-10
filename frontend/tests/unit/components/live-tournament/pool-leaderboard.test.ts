@@ -77,7 +77,144 @@ describe('buildPoolLeaderboard', () => {
     } as never);
 
     const p1 = leaderboard.find((row) => row.playerId === 'p1');
+    const p2 = leaderboard.find((row) => row.playerId === 'p2');
     expect(p1?.headToHeadBonus).toBe(1);
+    expect(p2?.headToHeadBonus).toBe(1);
+    expect(p1?.legsWon).toBe(3);
+    expect(p2?.legsWon).toBe(3);
+  });
+
+  it('does not let head-to-head bonus overtake a participant with more legs won', () => {
+    const leaderboard = buildPoolLeaderboard({
+      id: 'pool-1',
+      poolNumber: 1,
+      name: 'Pool 1',
+      status: 'IN_PROGRESS',
+      assignments: [
+        { id: 'a1', player: { id: 'p4', firstName: 'Top', lastName: 'Seed' } },
+        { id: 'a2', player: { id: 'p1', firstName: 'A', lastName: 'A' } },
+        { id: 'a3', player: { id: 'p2', firstName: 'B', lastName: 'B' } },
+      ],
+      matches: [
+        {
+          id: 'm1',
+          matchNumber: 1,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p1', firstName: 'A', lastName: 'A' }, scoreTotal: 2 },
+            { playerPosition: 2, player: { id: 'p2', firstName: 'B', lastName: 'B' }, scoreTotal: 1 },
+          ],
+        },
+        {
+          id: 'm2',
+          matchNumber: 2,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p1', firstName: 'A', lastName: 'A' }, scoreTotal: 1 },
+            { playerPosition: 2, player: { id: 'p2', firstName: 'B', lastName: 'B' }, scoreTotal: 2 },
+          ],
+        },
+        {
+          id: 'm3',
+          matchNumber: 3,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p4', firstName: 'Top', lastName: 'Seed' }, scoreTotal: 4 },
+            { playerPosition: 2, player: { id: 'p2', firstName: 'B', lastName: 'B' }, scoreTotal: 0 },
+          ],
+        },
+      ],
+    } as never);
+
+    expect(leaderboard[0]?.playerId).toBe('p4');
+    expect(leaderboard.find((row) => row.playerId === 'p1')?.headToHeadBonus).toBe(1);
+    expect(leaderboard.find((row) => row.playerId === 'p4')?.headToHeadBonus).toBeUndefined();
+  });
+
+  it('applies mini head-to-head ranking for three-way ties', () => {
+    const leaderboard = buildPoolLeaderboard({
+      id: 'pool-1',
+      poolNumber: 1,
+      name: 'Pool 1',
+      status: 'IN_PROGRESS',
+      assignments: [
+        { id: 'a1', player: { id: 'p1', firstName: 'A', lastName: 'A' } },
+        { id: 'a2', player: { id: 'p2', firstName: 'B', lastName: 'B' } },
+        { id: 'a3', player: { id: 'p3', firstName: 'C', lastName: 'C' } },
+        { id: 'a4', player: { id: 'p4', firstName: 'D', lastName: 'D' } },
+      ],
+      matches: [
+        {
+          id: 'm1',
+          matchNumber: 1,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p1', firstName: 'A', lastName: 'A' }, scoreTotal: 2 },
+            { playerPosition: 2, player: { id: 'p2', firstName: 'B', lastName: 'B' }, scoreTotal: 1 },
+          ],
+        },
+        {
+          id: 'm2',
+          matchNumber: 2,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p1', firstName: 'A', lastName: 'A' }, scoreTotal: 2 },
+            { playerPosition: 2, player: { id: 'p3', firstName: 'C', lastName: 'C' }, scoreTotal: 1 },
+          ],
+        },
+        {
+          id: 'm3',
+          matchNumber: 3,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p2', firstName: 'B', lastName: 'B' }, scoreTotal: 2 },
+            { playerPosition: 2, player: { id: 'p3', firstName: 'C', lastName: 'C' }, scoreTotal: 1 },
+          ],
+        },
+        {
+          id: 'm4',
+          matchNumber: 4,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p1', firstName: 'A', lastName: 'A' }, scoreTotal: 0 },
+            { playerPosition: 2, player: { id: 'p4', firstName: 'D', lastName: 'D' }, scoreTotal: 5 },
+          ],
+        },
+        {
+          id: 'm5',
+          matchNumber: 5,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p2', firstName: 'B', lastName: 'B' }, scoreTotal: 1 },
+            { playerPosition: 2, player: { id: 'p4', firstName: 'D', lastName: 'D' }, scoreTotal: 3 },
+          ],
+        },
+        {
+          id: 'm6',
+          matchNumber: 6,
+          roundNumber: 1,
+          status: 'COMPLETED',
+          playerMatches: [
+            { playerPosition: 1, player: { id: 'p3', firstName: 'C', lastName: 'C' }, scoreTotal: 2 },
+            { playerPosition: 2, player: { id: 'p4', firstName: 'D', lastName: 'D' }, scoreTotal: 3 },
+          ],
+        },
+      ],
+    } as never);
+
+    const tied = leaderboard.filter((row) => ['p1', 'p2', 'p3'].includes(row.playerId));
+    expect(tied.map((row) => row.playerId)).toEqual(['p1', 'p2', 'p3']);
+    expect(leaderboard.find((row) => row.playerId === 'p1')?.headToHeadBonus).toBe(2);
+    expect(leaderboard.find((row) => row.playerId === 'p2')?.headToHeadBonus).toBe(1);
+    expect(leaderboard.find((row) => row.playerId === 'p3')?.headToHeadBonus).toBe(0);
   });
 
   it('uses custom participant labels when provided', () => {

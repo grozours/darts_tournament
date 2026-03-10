@@ -191,14 +191,13 @@ describe('tournament-players-actions hooks', () => {
     expect(autoPlayerPayload).toEqual(expect.objectContaining({
       firstName: 'A',
       lastName: 'B',
-      skillLevel: expect.stringMatching(/^(BEGINNER|INTERMEDIATE|ADVANCED|EXPERT)$/),
-      surname: expect.stringMatching(/^★{1,4}$/),
+      skillLevel: expect.stringMatching(/^(BEGINNER|INTERMEDIATE|EXPERT)$/),
+      surname: expect.stringMatching(/^★{1,3}$/),
     }));
     const starsBySkill: Record<string, string> = {
       BEGINNER: '★',
       INTERMEDIATE: '★★',
-      ADVANCED: '★★★',
-      EXPERT: '★★★★',
+      EXPERT: '★★★',
     };
     expect(autoPlayerPayload.surname).toBe(starsBySkill[autoPlayerPayload.skillLevel]);
   });

@@ -919,6 +919,103 @@ describe('createPoolStageHandlers', () => {
     expect(poolByPlayer.get('b1')).not.toBe(poolByPlayer.get('b2'));
   });
 
+  it('balances first and second qualifiers across next-stage pools', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.LIVE,
+      format: TournamentFormat.SINGLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      status: StageStatus.COMPLETED,
+      stageNumber: 1,
+      playersPerPool: 4,
+      poolCount: 4,
+      rankingDestinations: [
+        { position: 1, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+        { position: 2, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+        { position: 3, destinationType: 'ELIMINATED' },
+        { position: 4, destinationType: 'ELIMINATED' },
+      ],
+    }));
+    model.getPoolsWithMatchesForStage.mockReturnValue(Promise.resolve([
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        assignments: [
+          { player: { id: 'a1', firstName: 'A', lastName: '01' } },
+          { player: { id: 'a2', firstName: 'A', lastName: '02' } },
+          { player: { id: 'a3', firstName: 'A', lastName: '03' } },
+          { player: { id: 'a4', firstName: 'A', lastName: '04' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-2',
+        poolNumber: 2,
+        assignments: [
+          { player: { id: 'b1', firstName: 'B', lastName: '01' } },
+          { player: { id: 'b2', firstName: 'B', lastName: '02' } },
+          { player: { id: 'b3', firstName: 'B', lastName: '03' } },
+          { player: { id: 'b4', firstName: 'B', lastName: '04' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-3',
+        poolNumber: 3,
+        assignments: [
+          { player: { id: 'c1', firstName: 'C', lastName: '01' } },
+          { player: { id: 'c2', firstName: 'C', lastName: '02' } },
+          { player: { id: 'c3', firstName: 'C', lastName: '03' } },
+          { player: { id: 'c4', firstName: 'C', lastName: '04' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-4',
+        poolNumber: 4,
+        assignments: [
+          { player: { id: 'd1', firstName: 'D', lastName: '01' } },
+          { player: { id: 'd2', firstName: 'D', lastName: '02' } },
+          { player: { id: 'd3', firstName: 'D', lastName: '03' } },
+          { player: { id: 'd4', firstName: 'D', lastName: '04' } },
+        ],
+        matches: [],
+      },
+    ]));
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', tournamentId: 'tournament-1', stageNumber: 1, playersPerPool: 4, poolCount: 4 },
+      { id: 'stage-2', tournamentId: 'tournament-1', stageNumber: 2, playersPerPool: 4, poolCount: 2 },
+    ]));
+    model.getPoolCountForStage.mockReturnValue(Promise.resolve(2));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([{ id: 'pool-x' }, { id: 'pool-y' }]));
+
+    const handlers = createHandlers(model);
+
+    await handlers.completePoolStageWithRandomScores('tournament-1', 'stage-1');
+
+    const assignments = model.createPoolAssignments.mock.calls[0]?.[0] as Array<{ poolId: string; playerId: string }>;
+    const byPool = new Map<string, string[]>();
+    for (const assignment of assignments) {
+      const bucket = byPool.get(assignment.poolId) ?? [];
+      bucket.push(assignment.playerId);
+      byPool.set(assignment.poolId, bucket);
+    }
+
+    const firstIds = new Set(['a1', 'b1', 'c1', 'd1']);
+    const secondIds = new Set(['a2', 'b2', 'c2', 'd2']);
+    for (const playerIds of byPool.values()) {
+      const firstCount = playerIds.filter((id) => firstIds.has(id)).length;
+      const secondCount = playerIds.filter((id) => secondIds.has(id)).length;
+      expect(firstCount).toBe(2);
+      expect(secondCount).toBe(2);
+    }
+  });
+
   it('rejects next-stage routing when same-pool separation is impossible with at least two pools', async () => {
     const model = buildModel();
     model.findById.mockReturnValue(Promise.resolve({
@@ -1109,7 +1206,7 @@ describe('createPoolStageHandlers', () => {
       .not.toBe((seedByPlayer.get('p3') as number) <= firstHalfLimit);
   });
 
-  it('applies head-to-head +1 tie-break when selecting stage 2 qualifiers from stage 1', async () => {
+  it('uses head-to-head bonus only within equal legs and keeps higher legsWon ahead', async () => {
     const model = buildModel();
     model.findById.mockReturnValue(Promise.resolve({
       id: 'tournament-1',
@@ -1277,8 +1374,121 @@ describe('createPoolStageHandlers', () => {
     const stage2PlayerIds = new Set(stage2Assignments.map((entry) => entry.playerId));
 
     expect(stage2PlayerIds.has('d33')).toBe(true);
-    expect(stage2PlayerIds.has('d28')).toBe(true);
-    expect(stage2PlayerIds.has('d4')).toBe(false);
+    expect(stage2PlayerIds.has('d28')).toBe(false);
+    expect(stage2PlayerIds.has('d4')).toBe(true);
+  });
+
+  it('applies mini head-to-head ranking for three-way ties in stage 1 progression', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.LIVE,
+      format: TournamentFormat.DOUBLE,
+      doubleStageEnabled: true,
+    }));
+    model.getPoolStageById.mockImplementation(async (stageId) => {
+      const id = String(stageId);
+      if (id === 'stage-1') {
+        return {
+          id: 'stage-1',
+          tournamentId: 'tournament-1',
+          stageNumber: 1,
+          playersPerPool: 5,
+          poolCount: 1,
+          advanceCount: 2,
+        };
+      }
+      if (id === 'stage-2') {
+        return {
+          id: 'stage-2',
+          tournamentId: 'tournament-1',
+          stageNumber: 2,
+          playersPerPool: 2,
+          poolCount: 1,
+          advanceCount: 2,
+        };
+      }
+      if (id === 'stage-3') {
+        return {
+          id: 'stage-3',
+          tournamentId: 'tournament-1',
+          stageNumber: 3,
+          playersPerPool: 2,
+          poolCount: 1,
+          advanceCount: 2,
+        };
+      }
+      return undefined;
+    });
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', tournamentId: 'tournament-1', stageNumber: 1, playersPerPool: 5, poolCount: 1 },
+      { id: 'stage-2', tournamentId: 'tournament-1', stageNumber: 2, playersPerPool: 2, poolCount: 1 },
+      { id: 'stage-3', tournamentId: 'tournament-1', stageNumber: 3, playersPerPool: 2, poolCount: 1 },
+    ]));
+    model.getBrackets.mockReturnValue(Promise.resolve([]));
+    model.getPoolsWithMatchesForStage.mockImplementation(async (stageId) => {
+      if (String(stageId) !== 'stage-1') {
+        return [];
+      }
+
+      return [
+        {
+          id: 'pool-1',
+          poolNumber: 1,
+          assignments: [
+            { player: { id: 'a', firstName: 'A', lastName: 'Top' } },
+            { player: { id: 'b', firstName: 'B', lastName: 'Tie' } },
+            { player: { id: 'c', firstName: 'C', lastName: 'Tie' } },
+            { player: { id: 'd', firstName: 'D', lastName: 'Tie' } },
+            { player: { id: 'e', firstName: 'E', lastName: 'Low' } },
+          ],
+          matches: [
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'b' }, scoreTotal: 2 }, { player: { id: 'c' }, scoreTotal: 1 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'b' }, scoreTotal: 2 }, { player: { id: 'd' }, scoreTotal: 1 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'c' }, scoreTotal: 2 }, { player: { id: 'd' }, scoreTotal: 1 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'b' }, scoreTotal: 2 }, { player: { id: 'e' }, scoreTotal: 0 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'c' }, scoreTotal: 2 }, { player: { id: 'e' }, scoreTotal: 0 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'd' }, scoreTotal: 2 }, { player: { id: 'e' }, scoreTotal: 0 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'a' }, scoreTotal: 5 }, { player: { id: 'b' }, scoreTotal: 0 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'a' }, scoreTotal: 3 }, { player: { id: 'c' }, scoreTotal: 1 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'a' }, scoreTotal: 3 }, { player: { id: 'd' }, scoreTotal: 2 }] },
+            { status: MatchStatus.COMPLETED, playerMatches: [{ player: { id: 'a' }, scoreTotal: 3 }, { player: { id: 'e' }, scoreTotal: 0 }] },
+          ],
+        },
+      ];
+    });
+    model.getPoolCountForStage.mockImplementation(async (stageId) => {
+      const id = String(stageId);
+      if (id === 'stage-2' || id === 'stage-3') {
+        return 1;
+      }
+      return 0;
+    });
+    model.getPoolsForStage.mockImplementation(async (stageId) => {
+      const id = String(stageId);
+      if (id === 'stage-2') {
+        return [{ id: 'stage2-pool-1' }];
+      }
+      if (id === 'stage-3') {
+        return [{ id: 'stage3-pool-1' }];
+      }
+      return [];
+    });
+
+    const handlers = createHandlers(model);
+
+    await handlers.recomputeDoubleStageProgression('tournament-1', 'stage-1');
+
+    const stage2Call = model.createPoolAssignments.mock.calls.find((call) =>
+      Array.isArray(call[0]) && call[0].some((entry: { poolId: string }) => entry.poolId === 'stage2-pool-1')
+    );
+    const stage2Assignments = (stage2Call?.[0] ?? []) as Array<{ playerId: string }>;
+    const stage2PlayerIds = new Set(stage2Assignments.map((entry) => entry.playerId));
+
+    expect(stage2PlayerIds.has('a')).toBe(true);
+    expect(stage2PlayerIds.has('b')).toBe(true);
+    expect(stage2PlayerIds.has('c')).toBe(false);
+    expect(stage2PlayerIds.has('d')).toBe(false);
   });
 
   it('rejects recomputeDoubleStageProgression when stage 2/3 are missing', async () => {

@@ -704,7 +704,6 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                         <option value="">{t('edit.selectSkillLevelOptional')}</option>
                         <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
                         <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
-                        <option value={SkillLevel.ADVANCED}>{t('skill.advanced')}</option>
                         <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
                       </select>
                       <button

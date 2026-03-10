@@ -99,7 +99,7 @@ describe('PlayersView branches', () => {
     fireEvent.change(screen.getByLabelText('edit.teamName'), { target: { value: ' Team X ' } });
     fireEvent.change(screen.getByLabelText('edit.email'), { target: { value: ' ava@example.com ' } });
     fireEvent.change(screen.getByLabelText('edit.phone'), { target: { value: ' 123 ' } });
-    fireEvent.change(screen.getByLabelText('edit.skillLevel'), { target: { value: SkillLevel.ADVANCED } });
+    fireEvent.change(screen.getByLabelText('edit.skillLevel'), { target: { value: SkillLevel.INTERMEDIATE } });
 
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }));
 
@@ -114,7 +114,7 @@ describe('PlayersView branches', () => {
           teamName: 'Team X',
           email: 'ava@example.com',
           phone: '123',
-          skillLevel: SkillLevel.ADVANCED,
+          skillLevel: SkillLevel.INTERMEDIATE,
         },
         'token'
       );

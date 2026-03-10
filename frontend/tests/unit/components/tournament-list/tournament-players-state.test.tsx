@@ -96,7 +96,7 @@ describe('tournament-players-state hooks', () => {
         playerId: 'p1',
         name: 'Jane Doe',
         email: 'jane@example.com',
-        skillLevel: 'ADVANCED',
+        skillLevel: 'INTERMEDIATE',
       } as never);
     });
 
@@ -105,7 +105,7 @@ describe('tournament-players-state hooks', () => {
       firstName: 'Jane',
       lastName: 'Doe',
       email: 'jane@example.com',
-      skillLevel: 'ADVANCED',
+      skillLevel: 'INTERMEDIATE',
     }));
 
     act(() => {

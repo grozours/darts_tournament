@@ -33,7 +33,6 @@ const useTournamentOptions = (t: Translator): TournamentOptionsResult => {
     () => [
       { value: SkillLevel.BEGINNER, label: t('skill.beginner') },
       { value: SkillLevel.INTERMEDIATE, label: t('skill.intermediate') },
-      { value: SkillLevel.ADVANCED, label: t('skill.advanced') },
       { value: SkillLevel.EXPERT, label: t('skill.expert') },
     ],
     [t]

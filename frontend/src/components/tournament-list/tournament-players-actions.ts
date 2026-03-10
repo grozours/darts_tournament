@@ -38,15 +38,14 @@ type ProgressCallback = (progress: ActionProgress) => void;
 const SKILL_LEVELS_FOR_AUTOFILL: SkillLevel[] = [
   SkillLevel.BEGINNER,
   SkillLevel.INTERMEDIATE,
-  SkillLevel.ADVANCED,
   SkillLevel.EXPERT,
 ];
 
 const SKILL_STARS: Record<SkillLevel, string> = {
   [SkillLevel.BEGINNER]: '★',
   [SkillLevel.INTERMEDIATE]: '★★',
-  [SkillLevel.ADVANCED]: '★★★',
-  [SkillLevel.EXPERT]: '★★★★',
+  [SkillLevel.ADVANCED]: '★★',
+  [SkillLevel.EXPERT]: '★★★',
 };
 
 const pickRandomAutoFillSkillLevel = (): SkillLevel => {

@@ -8,6 +8,12 @@ import {
 
 export const minutesToMs = 60_000;
 
+const skillLevelWithoutAdvancedSchema = z
+  .nativeEnum(SkillLevel)
+  .refine((value) => value !== SkillLevel.ADVANCED, {
+    message: 'ADVANCED skill level is no longer supported',
+  });
+
 export const createTournamentSchema = {
   body: z.object({
     name: z
@@ -587,7 +593,7 @@ export const createPlayerSchema = {
       .min(5, 'Phone number must be at least 5 characters long')
       .max(20, 'Phone number cannot exceed 20 characters')
       .optional(),
-    skillLevel: z.nativeEnum(SkillLevel).optional(),
+    skillLevel: skillLevelWithoutAdvancedSchema.optional(),
   }),
 };
 
@@ -615,7 +621,7 @@ export const updatePlayerSchema = {
       .min(5, 'Phone number must be at least 5 characters long')
       .max(20, 'Phone number cannot exceed 20 characters')
       .optional(),
-    skillLevel: z.nativeEnum(SkillLevel).optional(),
+    skillLevel: skillLevelWithoutAdvancedSchema.optional(),
   }),
 };
 
@@ -646,7 +652,7 @@ export const createGroupSchema = {
   body: z.object({
     name: groupNameSchema,
     password: groupPasswordSchema,
-    skillLevel: z.nativeEnum(SkillLevel).nullable().optional(),
+    skillLevel: skillLevelWithoutAdvancedSchema.nullable().optional(),
     captainPlayerId: z.string().uuid('Invalid captain player ID').optional(),
     memberPlayerIds: z.array(z.string().uuid('Invalid member player ID')).max(8).optional(),
   }),
@@ -655,7 +661,7 @@ export const createGroupSchema = {
 export const updateGroupSchema = {
   body: z.object({
     name: groupNameSchema.optional(),
-    skillLevel: z.nativeEnum(SkillLevel).nullable().optional(),
+    skillLevel: skillLevelWithoutAdvancedSchema.nullable().optional(),
   }).refine((data) => data.name !== undefined || data.skillLevel !== undefined, {
     message: 'At least one field is required',
   }),
