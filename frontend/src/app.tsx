@@ -1,28 +1,29 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
-import TournamentList from "./components/tournament-list";
-import RegistrationPlayers from "./components/registration-players";
-import PlayersView from "./components/players-view";
-import LiveTournament from "./components/live-tournament";
-import TargetsView from "./components/targets-view";
-import NotificationsView from "./components/notifications-view";
-import CreateTournamentPage from "./components/tournaments/create-tournament-page";
-import AccountView from "./components/account-view";
-import TournamentPlayersView from "./components/tournament-players-view";
-import TournamentPresetsView from './components/tournament-presets-view';
-import MatchFormatsView from './components/match-formats-view';
-import DoublettesView from './components/doublettes-view';
-import EquipesView from './components/equipes-view';
-import DocsView from './components/docs-view';
-import OpenSourceView from './components/open-source-view';
-import TournamentSnapshotsView from './components/tournament-snapshots-view';
 import { fetchLiveTournamentSummary, fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
 import { useI18n } from './i18n';
 import { useOptionalAuth } from './auth/optional-auth';
 import { useAdminStatus } from './auth/use-admin-status';
-import AppHeader from './components/app-header';
+const AppHeader = lazy(() => import('./components/app-header'));
+
+const TournamentList = lazy(() => import('./components/tournament-list'));
+const RegistrationPlayers = lazy(() => import('./components/registration-players'));
+const PlayersView = lazy(() => import('./components/players-view'));
+const LiveTournament = lazy(() => import('./components/live-tournament'));
+const TargetsView = lazy(() => import('./components/targets-view'));
+const NotificationsView = lazy(() => import('./components/notifications-view'));
+const CreateTournamentPage = lazy(() => import('./components/tournaments/create-tournament-page'));
+const AccountView = lazy(() => import('./components/account-view'));
+const TournamentPlayersView = lazy(() => import('./components/tournament-players-view'));
+const TournamentPresetsView = lazy(() => import('./components/tournament-presets-view'));
+const MatchFormatsView = lazy(() => import('./components/match-formats-view'));
+const DoublettesView = lazy(() => import('./components/doublettes-view'));
+const EquipesView = lazy(() => import('./components/equipes-view'));
+const DocsView = lazy(() => import('./components/docs-view'));
+const OpenSourceView = lazy(() => import('./components/open-source-view'));
+const TournamentSnapshotsView = lazy(() => import('./components/tournament-snapshots-view'));
 
 type LiveViewPoolStageSummary = {
   id: string;
@@ -447,13 +448,15 @@ function App() {
       )}
 
       {!screenMode && (
-        <AppHeader
-          t={t}
-          isAdmin={headerIsAdmin}
-          isAuthenticated={headerIsAuthenticated}
-          lang={lang}
-          setLanguage={setLanguage}
-        />
+        <Suspense fallback={<div className="h-[74px]" />}>
+          <AppHeader
+            t={t}
+            isAdmin={headerIsAdmin}
+            isAuthenticated={headerIsAuthenticated}
+            lang={lang}
+            setLanguage={setLanguage}
+          />
+        </Suspense>
       )}
 
       <main className={screenMode
@@ -462,7 +465,9 @@ function App() {
         <section className={screenMode
           ? 'w-full rounded-3xl border border-slate-800/40 bg-slate-900/30 p-4'
           : 'rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8'}>
-          {mainContent}
+          <Suspense fallback={<div className="text-center text-slate-300">Loading...</div>}>
+            {mainContent}
+          </Suspense>
         </section>
       </main>
     </div>

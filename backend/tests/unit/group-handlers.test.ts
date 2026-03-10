@@ -739,6 +739,90 @@ describe('group-handlers', () => {
     expect(tournamentModel.updateEquipe).toHaveBeenCalledWith('e1', { skillLevel: null });
   });
 
+  it('allows admin to update doublette ranking even when tournament is full and admin has no player profile', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    context.getActorEmail.mockReturnValue('admin@example.com');
+    tournamentModel.findPlayerByEmail.mockResolvedValue(null);
+    tournamentModel.findById.mockResolvedValue({
+      ...buildTournament(TournamentFormat.DOUBLE),
+      totalParticipants: 1,
+    });
+    tournamentModel.getParticipantCount.mockResolvedValue(2);
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      name: 'D1',
+      skillLevel: SkillLevel.BEGINNER,
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      registeredAt: new Date(),
+      createdAt: new Date(),
+      members: [member('captain-1'), member('p2')],
+    });
+    tournamentModel.updateDoublette.mockResolvedValue({
+      id: 'd1',
+      name: 'D1',
+      skillLevel: SkillLevel.EXPERT,
+      captainPlayerId: 'captain-1',
+      isRegistered: true,
+      registeredAt: new Date(),
+      createdAt: new Date(),
+      members: [member('captain-1'), member('p2')],
+    });
+
+    const updated = await handlers.updateDoublette('t1', 'd1', {
+      skillLevel: SkillLevel.EXPERT,
+    });
+
+    expect(updated.skillLevel).toBe(SkillLevel.EXPERT);
+    expect(tournamentModel.createPlayer).not.toHaveBeenCalled();
+    expect(tournamentModel.updateDoublette).toHaveBeenCalledWith('d1', {
+      skillLevel: SkillLevel.EXPERT,
+    });
+  });
+
+  it('allows admin to update equipe ranking even when tournament is full and admin has no player profile', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    context.getActorEmail.mockReturnValue('admin@example.com');
+    tournamentModel.findPlayerByEmail.mockResolvedValue(null);
+    tournamentModel.findById.mockResolvedValue({
+      ...buildTournament(TournamentFormat.TEAM_4_PLAYER),
+      totalParticipants: 1,
+    });
+    tournamentModel.getParticipantCount.mockResolvedValue(4);
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      name: 'E1',
+      skillLevel: SkillLevel.BEGINNER,
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      registeredAt: new Date(),
+      createdAt: new Date(),
+      members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+    });
+    tournamentModel.updateEquipe.mockResolvedValue({
+      id: 'e1',
+      name: 'E1',
+      skillLevel: SkillLevel.EXPERT,
+      captainPlayerId: 'captain-1',
+      isRegistered: true,
+      registeredAt: new Date(),
+      createdAt: new Date(),
+      members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+    });
+
+    const updated = await handlers.updateEquipe('t1', 'e1', {
+      skillLevel: SkillLevel.EXPERT,
+    });
+
+    expect(updated.skillLevel).toBe(SkillLevel.EXPERT);
+    expect(tournamentModel.createPlayer).not.toHaveBeenCalled();
+    expect(tournamentModel.updateEquipe).toHaveBeenCalledWith('e1', {
+      skillLevel: SkillLevel.EXPERT,
+    });
+  });
+
   it('rejects joinDoublette with malformed password hash and with already-member actor', async () => {
     const { handlers, tournamentModel } = buildContext();
     config.auth.enabled = false;

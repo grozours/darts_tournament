@@ -21,7 +21,7 @@ describe('Home page', () => {
   it('renders the header and empty state', async () => {
     render(<App />);
 
-    expect(screen.getByText(/tournament manager/i)).toBeInTheDocument();
+    expect(await screen.findByText(/tournament manager/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText(/no tournaments yet|aucun tournoi pour le moment/i)).toBeInTheDocument();

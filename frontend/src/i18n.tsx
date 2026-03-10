@@ -1,12 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { deMessages } from './locales/de';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { enMessages } from './locales/en';
-import { esMessages } from './locales/es';
 import { frMessages } from './locales/fr';
-import { itMessages } from './locales/it';
-import { nlMessages } from './locales/nl';
-import { ptMessages } from './locales/pt';
 
 type Language = 'en' | 'fr' | 'es' | 'de' | 'it' | 'pt' | 'nl';
 
@@ -28,14 +23,46 @@ const getStoredLang = (): Language => {
   return resolveLang(storage.getItem('lang'));
 };
 
-const messages: Record<Language, Record<string, string>> = {
+const baseMessages: Record<Language, Record<string, string>> = {
   en: enMessages,
   fr: frMessages,
-  es: { ...enMessages, ...esMessages },
-  de: { ...enMessages, ...deMessages },
-  it: { ...enMessages, ...itMessages },
-  pt: { ...enMessages, ...ptMessages },
-  nl: { ...enMessages, ...nlMessages },
+  es: enMessages,
+  de: enMessages,
+  it: enMessages,
+  pt: enMessages,
+  nl: enMessages,
+};
+
+const loadLanguageMessages = async (lang: Language): Promise<Record<string, string>> => {
+  switch (lang) {
+    case 'es': {
+      const { esMessages } = await import('./locales/es');
+      return { ...enMessages, ...esMessages };
+    }
+    case 'de': {
+      const { deMessages } = await import('./locales/de');
+      return { ...enMessages, ...deMessages };
+    }
+    case 'it': {
+      const { itMessages } = await import('./locales/it');
+      return { ...enMessages, ...itMessages };
+    }
+    case 'pt': {
+      const { ptMessages } = await import('./locales/pt');
+      return { ...enMessages, ...ptMessages };
+    }
+    case 'nl': {
+      const { nlMessages } = await import('./locales/nl');
+      return { ...enMessages, ...nlMessages };
+    }
+    case 'fr': {
+      return frMessages;
+    }
+    case 'en':
+    default: {
+      return enMessages;
+    }
+  }
 };
 
 const languageOrder: Language[] = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl'];
@@ -51,35 +78,66 @@ const I18nContext = createContext<I18nContextValue>({
   lang: getStoredLang(),
   setLanguage: () => {},
   toggleLang: () => {},
-  t: (key) => messages[getStoredLang()]?.[key] || messages.en[key] || key,
+  t: (key) => baseMessages[getStoredLang()]?.[key] || enMessages[key] || key,
 });
 
 type I18nProviderProperties = Readonly<{ children: ReactNode }>;
 
 export function I18nProvider({ children }: I18nProviderProperties) {
   const [lang, setLang] = useState<Language>(() => getStoredLang());
+  const [messagesByLang, setMessagesByLang] = useState<Record<Language, Record<string, string>>>(baseMessages);
 
-  const setLanguage = (nextLanguage: Language) => {
+  useEffect(() => {
+    if (lang === 'en' || lang === 'fr') {
+      return;
+    }
+    if (messagesByLang[lang] !== enMessages) {
+      return;
+    }
+
+    let disposed = false;
+    const loadMessages = async () => {
+      try {
+        const loaded = await loadLanguageMessages(lang);
+        if (disposed) {
+          return;
+        }
+        setMessagesByLang((current) => ({
+          ...current,
+          [lang]: loaded,
+        }));
+      } catch {
+        // Keep English fallback if a locale chunk fails to load.
+      }
+    };
+
+    void loadMessages();
+    return () => {
+      disposed = true;
+    };
+  }, [lang, messagesByLang]);
+
+  const setLanguage = useCallback((nextLanguage: Language) => {
     setLang(nextLanguage);
     if (globalThis.window) {
       globalThis.window.localStorage.setItem('lang', nextLanguage);
     }
-  };
+  }, []);
 
-  const toggleLang = () => {
+  const toggleLang = useCallback(() => {
     const currentIndex = languageOrder.indexOf(lang);
     const next = languageOrder[(currentIndex + 1) % languageOrder.length] ?? 'fr';
     setLanguage(next);
-  };
+  }, [lang, setLanguage]);
 
   const value = useMemo<I18nContextValue>(
     () => ({
       lang,
       setLanguage,
       toggleLang,
-      t: (key: string) => messages[lang]?.[key] || messages.en[key] || key,
+      t: (key: string) => messagesByLang[lang]?.[key] || enMessages[key] || key,
     }),
-    [lang]
+    [lang, messagesByLang, setLanguage, toggleLang]
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

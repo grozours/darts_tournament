@@ -6,6 +6,8 @@ escape_json() {
 }
 
 write_env_js() {
+  # In production containers this file is generated at startup and overrides
+  # the static fallback shipped from frontend/public/env.js.
   cat > /usr/share/nginx/html/env.js <<EOF
 window.__APP_ENV__ = {
   "VITE_AUTH0_DOMAIN": "$(escape_json "${VITE_AUTH0_DOMAIN:-}")",

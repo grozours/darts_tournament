@@ -852,6 +852,118 @@ describe('createPoolStageHandlers', () => {
     expect(model.createPoolAssignments).toHaveBeenCalled();
   });
 
+  it('separates qualifiers from the same source pool across next-stage pools', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.LIVE,
+      format: TournamentFormat.SINGLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      status: StageStatus.COMPLETED,
+      stageNumber: 1,
+      playersPerPool: 4,
+      poolCount: 2,
+      rankingDestinations: [
+        { position: 1, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+        { position: 2, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+        { position: 3, destinationType: 'ELIMINATED' },
+        { position: 4, destinationType: 'ELIMINATED' },
+      ],
+    }));
+    model.getPoolsWithMatchesForStage.mockReturnValue(Promise.resolve([
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        assignments: [
+          { player: { id: 'a1', firstName: 'A', lastName: '01' } },
+          { player: { id: 'a2', firstName: 'A', lastName: '02' } },
+          { player: { id: 'a3', firstName: 'A', lastName: '03' } },
+          { player: { id: 'a4', firstName: 'A', lastName: '04' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-2',
+        poolNumber: 2,
+        assignments: [
+          { player: { id: 'b1', firstName: 'B', lastName: '01' } },
+          { player: { id: 'b2', firstName: 'B', lastName: '02' } },
+          { player: { id: 'b3', firstName: 'B', lastName: '03' } },
+          { player: { id: 'b4', firstName: 'B', lastName: '04' } },
+        ],
+        matches: [],
+      },
+    ]));
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', tournamentId: 'tournament-1', stageNumber: 1, playersPerPool: 4, poolCount: 2 },
+      { id: 'stage-2', tournamentId: 'tournament-1', stageNumber: 2, playersPerPool: 2, poolCount: 2 },
+    ]));
+    model.getPoolCountForStage.mockReturnValue(Promise.resolve(2));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([{ id: 'pool-x' }, { id: 'pool-y' }]));
+    const handlers = createHandlers(model);
+
+    await handlers.completePoolStageWithRandomScores('tournament-1', 'stage-1');
+
+    const assignments = model.createPoolAssignments.mock.calls[0]?.[0] as Array<{ poolId: string; playerId: string }>;
+    expect(assignments).toBeDefined();
+    const poolByPlayer = new Map(assignments.map((assignment) => [assignment.playerId, assignment.poolId]));
+    expect(poolByPlayer.get('a1')).toBeDefined();
+    expect(poolByPlayer.get('a2')).toBeDefined();
+    expect(poolByPlayer.get('a1')).not.toBe(poolByPlayer.get('a2'));
+    expect(poolByPlayer.get('b1')).toBeDefined();
+    expect(poolByPlayer.get('b2')).toBeDefined();
+    expect(poolByPlayer.get('b1')).not.toBe(poolByPlayer.get('b2'));
+  });
+
+  it('rejects next-stage routing when same-pool separation is impossible with at least two pools', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.LIVE,
+      format: TournamentFormat.SINGLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      status: StageStatus.COMPLETED,
+      stageNumber: 1,
+      playersPerPool: 3,
+      poolCount: 1,
+      rankingDestinations: [
+        { position: 1, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+        { position: 2, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+        { position: 3, destinationType: 'POOL_STAGE', poolStageId: 'stage-2' },
+      ],
+    }));
+    model.getPoolsWithMatchesForStage.mockReturnValue(Promise.resolve([
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        assignments: [
+          { player: { id: 'a1', firstName: 'A', lastName: 'One' } },
+          { player: { id: 'a2', firstName: 'A', lastName: 'Two' } },
+          { player: { id: 'a3', firstName: 'A', lastName: 'Three' } },
+        ],
+        matches: [],
+      },
+    ]));
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', tournamentId: 'tournament-1', stageNumber: 1, playersPerPool: 3, poolCount: 1 },
+      { id: 'stage-2', tournamentId: 'tournament-1', stageNumber: 2, playersPerPool: 2, poolCount: 2 },
+    ]));
+    model.getPoolCountForStage.mockReturnValue(Promise.resolve(2));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([{ id: 'pool-x' }, { id: 'pool-y' }]));
+    const handlers = createHandlers(model);
+
+    await expect(handlers.completePoolStageWithRandomScores('tournament-1', 'stage-1'))
+      .rejects.toThrow('Unable to separate qualifiers from the same pool in the next pool stage');
+  });
+
   it('handles stage 1 double-stage progression and creates bracket C when missing', async () => {
     const model = buildModel();
     model.findById.mockReturnValue(Promise.resolve({
@@ -937,25 +1049,64 @@ describe('createPoolStageHandlers', () => {
     model.getBrackets.mockReturnValue(Promise.resolve([
       { id: 'bracket-a', name: 'A Bracket', roundMatchFormats: {} },
     ]));
-    model.getPoolsWithMatchesForStage.mockReturnValue(Promise.resolve([
-      {
-        id: 'pool-1',
-        poolNumber: 1,
-        assignments: [
-          { player: { id: 'p1', firstName: 'A', lastName: 'A' } },
-          { player: { id: 'p2', firstName: 'B', lastName: 'B' } },
-          { player: { id: 'p3', firstName: 'C', lastName: 'C' } },
-          { player: { id: 'p4', firstName: 'D', lastName: 'D' } },
-        ],
-        matches: [],
-      },
-    ]));
+    model.getPoolsWithMatchesForStage.mockImplementation(async (stageId) => {
+      if (stageId === 'stage-1') {
+        return [
+          {
+            id: 's1-pool-1',
+            poolNumber: 1,
+            assignments: [
+              { player: { id: 'p1', firstName: 'A', lastName: '01' } },
+              { player: { id: 'p2', firstName: 'A', lastName: '02' } },
+            ],
+            matches: [],
+          },
+          {
+            id: 's1-pool-2',
+            poolNumber: 2,
+            assignments: [
+              { player: { id: 'p3', firstName: 'B', lastName: '01' } },
+              { player: { id: 'p4', firstName: 'B', lastName: '02' } },
+            ],
+            matches: [],
+          },
+        ];
+      }
+
+      return [
+        {
+          id: 'pool-1',
+          poolNumber: 1,
+          assignments: [
+            { player: { id: 'p1', firstName: 'A', lastName: '01' } },
+            { player: { id: 'p3', firstName: 'B', lastName: '01' } },
+          ],
+          matches: [],
+        },
+        {
+          id: 'pool-2',
+          poolNumber: 2,
+          assignments: [
+            { player: { id: 'p2', firstName: 'A', lastName: '02' } },
+            { player: { id: 'p4', firstName: 'B', lastName: '02' } },
+          ],
+          matches: [],
+        },
+      ];
+    });
     const handlers = createHandlers(model);
 
     await handlers.recomputeDoubleStageProgression('tournament-1', 'stage-2');
 
     expect(model.deleteMatchesForBracket).toHaveBeenCalledWith('bracket-a');
     expect(model.createBracketEntries).toHaveBeenCalled();
+    const payload = model.createBracketEntries.mock.calls[0]?.[0] as Array<{ playerId: string; seedNumber: number }>;
+    const seedByPlayer = new Map(payload.map((entry) => [entry.playerId, entry.seedNumber]));
+    expect(seedByPlayer.get('p1')).toBeDefined();
+    expect(seedByPlayer.get('p3')).toBeDefined();
+    const firstHalfLimit = payload.length / 2;
+    expect((seedByPlayer.get('p1') as number) <= firstHalfLimit)
+      .not.toBe((seedByPlayer.get('p3') as number) <= firstHalfLimit);
   });
 
   it('rejects recomputeDoubleStageProgression when stage 2/3 are missing', async () => {
@@ -1138,6 +1289,84 @@ describe('createPoolStageHandlers', () => {
 
     expect(model.deleteMatchesForBracket).toHaveBeenCalledWith('bracket-1');
     expect(model.createBracketEntries).toHaveBeenCalledWith([]);
+  });
+
+  it('separates two qualifiers from the same pool until bracket final', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve(liveTournament));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      status: StageStatus.COMPLETED,
+      stageNumber: 1,
+      advanceCount: 2,
+    }));
+    model.getBracketById.mockReturnValue(Promise.resolve({
+      id: 'bracket-winner',
+      tournamentId: 'tournament-1',
+      name: 'Winner Bracket',
+      roundMatchFormats: {},
+    }));
+    model.getStartedBracketMatchCount.mockReturnValue(Promise.resolve(0));
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', tournamentId: 'tournament-1', stageNumber: 1 },
+    ]));
+    model.getPoolsWithMatchesForStage.mockReturnValue(Promise.resolve([
+      {
+        id: 'pool-1',
+        poolNumber: 1,
+        assignments: [
+          { player: { id: 'p1', firstName: 'Alpha', lastName: 'One' } },
+          { player: { id: 'p2', firstName: 'Bravo', lastName: 'One' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-2',
+        poolNumber: 2,
+        assignments: [
+          { player: { id: 'p3', firstName: 'Alpha', lastName: 'Two' } },
+          { player: { id: 'p4', firstName: 'Bravo', lastName: 'Two' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-3',
+        poolNumber: 3,
+        assignments: [
+          { player: { id: 'p5', firstName: 'Alpha', lastName: 'Three' } },
+          { player: { id: 'p6', firstName: 'Bravo', lastName: 'Three' } },
+        ],
+        matches: [],
+      },
+      {
+        id: 'pool-4',
+        poolNumber: 4,
+        assignments: [
+          { player: { id: 'p7', firstName: 'Alpha', lastName: 'Four' } },
+          { player: { id: 'p8', firstName: 'Bravo', lastName: 'Four' } },
+        ],
+        matches: [],
+      },
+    ]));
+
+    const handlers = createHandlers(model);
+
+    await handlers.populateBracketFromPools('tournament-1', 'stage-1', 'bracket-winner');
+
+    const payload = model.createBracketEntries.mock.calls[0]?.[0] as Array<{
+      playerId: string;
+      seedNumber: number;
+    }>;
+
+    expect(payload).toBeDefined();
+    expect(payload).toHaveLength(8);
+
+    const seedByPlayer = new Map(payload.map((entry) => [entry.playerId, entry.seedNumber]));
+    expect(Math.abs((seedByPlayer.get('p1') ?? 0) - (seedByPlayer.get('p2') ?? 0))).toBe(4);
+    expect(Math.abs((seedByPlayer.get('p3') ?? 0) - (seedByPlayer.get('p4') ?? 0))).toBe(4);
+    expect(Math.abs((seedByPlayer.get('p5') ?? 0) - (seedByPlayer.get('p6') ?? 0))).toBe(4);
+    expect(Math.abs((seedByPlayer.get('p7') ?? 0) - (seedByPlayer.get('p8') ?? 0))).toBe(4);
   });
 
   it('rejects delete when tournament status is not editable', async () => {

@@ -274,6 +274,92 @@ const rankLosers = (entries: PoolStandingsEntry[]): PoolStandingsEntry[] => {
   });
 };
 
+const arrangePoolMatesForFinalOnly = (entries: PoolStandingsEntry[]): PoolStandingsEntry[] => {
+  const ordered = [...entries].sort(compareByPoolAndPosition);
+  if (ordered.length < 2) {
+    return ordered;
+  }
+
+  const firstHalfSize = Math.ceil(ordered.length / 2);
+  const pairedPools = new Set<number>();
+  const countByPool = new Map<number, number>();
+
+  for (const entry of ordered) {
+    const next = (countByPool.get(entry.poolNumber) ?? 0) + 1;
+    countByPool.set(entry.poolNumber, next);
+  }
+
+  for (const [poolNumber, count] of countByPool) {
+    if (count === 2) {
+      pairedPools.add(poolNumber);
+    }
+  }
+
+  if (pairedPools.size === 0) {
+    return ordered;
+  }
+
+  const placed = new Array<PoolStandingsEntry | undefined>(ordered.length).fill(undefined);
+  const leftovers: PoolStandingsEntry[] = [];
+  const placedCountByPool = new Map<number, number>();
+  let firstIndex = 0;
+  let secondIndex = firstHalfSize;
+
+  const nextEmptyIndex = (start: number, end: number) => {
+    for (let index = start; index < end; index += 1) {
+      if (!placed[index]) {
+        return index;
+      }
+    }
+    return -1;
+  };
+
+  for (const entry of ordered) {
+    if (!pairedPools.has(entry.poolNumber)) {
+      leftovers.push(entry);
+      continue;
+    }
+
+    const currentPoolPlaced = placedCountByPool.get(entry.poolNumber) ?? 0;
+    if (currentPoolPlaced === 0) {
+      const target = nextEmptyIndex(firstIndex, firstHalfSize);
+      if (target === -1) {
+        leftovers.push(entry);
+        continue;
+      }
+      placed[target] = entry;
+      firstIndex = target + 1;
+      placedCountByPool.set(entry.poolNumber, 1);
+      continue;
+    }
+
+    if (currentPoolPlaced === 1) {
+      const target = nextEmptyIndex(secondIndex, placed.length);
+      if (target === -1) {
+        leftovers.push(entry);
+        continue;
+      }
+      placed[target] = entry;
+      secondIndex = target + 1;
+      placedCountByPool.set(entry.poolNumber, 2);
+      continue;
+    }
+
+    leftovers.push(entry);
+  }
+
+  let leftoverIndex = 0;
+  for (let index = 0; index < placed.length; index += 1) {
+    if (placed[index]) continue;
+    const nextEntry = leftovers[leftoverIndex];
+    if (!nextEntry) break;
+    placed[index] = nextEntry;
+    leftoverIndex += 1;
+  }
+
+  return placed.filter((entry): entry is PoolStandingsEntry => entry !== undefined);
+};
+
 const buildBracketEntriesFromPools = (winners: PoolStandingsEntry[], losers: PoolStandingsEntry[]) => {
   const winnerList = uniqueEntriesByPlayerId([...winners].sort(compareByPoolAndPosition));
   const loserList = uniqueEntriesByPlayerId([...losers].sort(compareByPoolAndPosition));
@@ -285,13 +371,15 @@ const buildBracketEntriesFromPools = (winners: PoolStandingsEntry[], losers: Poo
   const promoted = rankedLosers.slice(0, promoteCount);
   const promotedIds = new Set(promoted.map((entry) => entry.playerId));
   const remainingLosers = loserList.filter((entry) => !promotedIds.has(entry.playerId));
+  const arrangedWinners = arrangePoolMatesForFinalOnly([...winnerList, ...promoted]);
+  const arrangedLosers = arrangePoolMatesForFinalOnly(remainingLosers);
 
-  const winnerEntries = [...winnerList, ...promoted].map((entry, index) => ({
+  const winnerEntries = arrangedWinners.map((entry, index) => ({
     playerId: entry.playerId,
     seedNumber: index + 1,
   }));
 
-  const loserEntries = remainingLosers.map((entry, index) => ({
+  const loserEntries = arrangedLosers.map((entry, index) => ({
     playerId: entry.playerId,
     seedNumber: index + 1,
   }));
@@ -333,6 +421,34 @@ const isBetterPoolCandidate = (
   }
 
   return poolId.localeCompare(best.state.pool.id) < 0;
+};
+
+const pickTargetStagePool = (
+  poolStates: Array<{ pool: { id: string }; count: number; sourcePools: Set<number> }>,
+  playersPerPool: number,
+  sourcePoolNumber: number,
+  enforceSourcePoolSeparation: boolean
+) => {
+  const candidates = poolStates.filter((state) => {
+    if (state.count >= playersPerPool) {
+      return false;
+    }
+    if (!enforceSourcePoolSeparation) {
+      return true;
+    }
+    return !state.sourcePools.has(sourcePoolNumber);
+  });
+
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  return candidates.sort((left, right) => {
+    if (left.count !== right.count) {
+      return left.count - right.count;
+    }
+    return left.pool.id.localeCompare(right.pool.id);
+  })[0];
 };
 
 const ensurePoolRow = (
@@ -485,7 +601,7 @@ const ensurePoolStageDestinations = async (
 const buildBracketEntriesMap = (entriesByBracket: Map<string, PoolStandingsEntry[]>) => {
   const bracketEntries = new Map<string, Array<{ playerId: string; seedNumber: number }>>();
   for (const [bracketId, entries] of entriesByBracket) {
-    const ordered = [...entries].sort(compareByPoolAndPosition);
+    const ordered = arrangePoolMatesForFinalOnly(entries);
     bracketEntries.set(
       bracketId,
       ordered.map((entry: PoolStandingsEntry, index: number) => ({
@@ -609,7 +725,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
   const buildEntriesFromRankingDestinations = (
     pools: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>,
-    destinations: PoolStageRankingDestinationInput[]
+    destinations: PoolStageRankingDestinationInput[],
+    options?: { sourcePoolByPlayerId?: Map<string, number> }
   ) => {
     const destinationMap = buildRankDestinationMap(destinations);
     const entriesByBracket = new Map<string, PoolStandingsEntry[]>();
@@ -625,6 +742,11 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         if (destination.destinationType === 'BRACKET' && destination.bracketId) {
           addEntryToBucket(entriesByBracket, destination.bracketId, entry);
         } else if (destination.destinationType === 'POOL_STAGE' && destination.poolStageId) {
+          const sourcePoolNumber = options?.sourcePoolByPlayerId?.get(entry.playerId);
+          if (sourcePoolNumber) {
+            entry.poolNumber = sourcePoolNumber;
+            entry.seedKey = `${sourcePoolNumber}-${entry.position}`;
+          }
           addEntryToBucket(entriesByStage, destination.poolStageId, entry);
         }
       }
@@ -634,6 +756,51 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const stageEntries = buildStageEntriesMap(entriesByStage);
 
     return { bracketEntries, stageEntries };
+  };
+
+  const resolveSourcePoolByPlayerId = async (
+    tournamentId: string,
+    stageId: string,
+    playerIds: string[]
+  ): Promise<Map<string, number>> => {
+    const requested = new Set(playerIds.filter(Boolean));
+    if (requested.size === 0) {
+      return new Map<string, number>();
+    }
+
+    const stage = await tournamentModel.getPoolStageById(stageId);
+    if (!stage || stage.stageNumber <= 1) {
+      return new Map<string, number>();
+    }
+
+    const stages = await tournamentModel.getPoolStages(tournamentId);
+    const previousStages = stages
+      .filter((item: (typeof stages)[number]) => item.stageNumber < stage.stageNumber)
+      .sort((left: (typeof stages)[number], right: (typeof stages)[number]) => left.stageNumber - right.stageNumber);
+
+    if (previousStages.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const sourceByPlayer = new Map<string, number>();
+    for (const previousStage of previousStages) {
+      if (sourceByPlayer.size >= requested.size) {
+        break;
+      }
+
+      const pools = await tournamentModel.getPoolsWithMatchesForStage(previousStage.id);
+      for (const pool of pools) {
+        for (const assignment of pool.assignments ?? []) {
+          const playerId = assignment?.player?.id;
+          if (!playerId || !requested.has(playerId) || sourceByPlayer.has(playerId)) {
+            continue;
+          }
+          sourceByPlayer.set(playerId, pool.poolNumber);
+        }
+      }
+    }
+
+    return sourceByPlayer;
   };
 
   const applyPoolStageStatusUpdates = async (
@@ -896,9 +1063,18 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
   const populateStageRouting = async (
     tournamentId: string,
     pools: Awaited<ReturnType<TournamentModel['getPoolsWithMatchesForStage']>>,
-    routing: PoolStageRankingDestinationInput[]
+    routing: PoolStageRankingDestinationInput[],
+    stageId: string
   ): Promise<void> => {
-    const { bracketEntries, stageEntries } = buildEntriesFromRankingDestinations(pools, routing);
+    const playerIds = pools.flatMap((pool) =>
+      (pool.assignments ?? [])
+        .map((assignment) => assignment?.player?.id)
+        .filter((playerId): playerId is string => Boolean(playerId))
+    );
+    const sourcePoolByPlayerId = await resolveSourcePoolByPlayerId(tournamentId, stageId, playerIds);
+    const { bracketEntries, stageEntries } = buildEntriesFromRankingDestinations(pools, routing, {
+      sourcePoolByPlayerId,
+    });
     for (const [bracketId, entries] of bracketEntries) {
       await populateBracket(tournamentId, bracketId, entries);
     }
@@ -922,7 +1098,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const pools = await tournamentModel.getPoolsWithMatchesForStage(stageId);
     const routing = getStageRankingDestinations(stage);
     if (routing && routing.length > 0) {
-      await populateStageRouting(tournamentId, pools, routing);
+      await populateStageRouting(tournamentId, pools, routing, stageId);
       return;
     }
 
@@ -998,40 +1174,41 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const unique = uniqueEntriesByPlayerId(entries);
     const capacity = stage.poolCount * stage.playersPerPool;
     const selected = unique.slice(0, capacity);
-  const poolStates = pools.map((pool: (typeof pools)[number]) => ({ pool, count: 0 }));
+    const poolStates = pools.map((pool: (typeof pools)[number]) => ({
+      pool,
+      count: 0,
+      sourcePools: new Set<number>(),
+    }));
     const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
+    const enforceSourcePoolSeparation = poolStates.length >= 2;
 
-    let poolIndex = 0;
     for (const entry of selected) {
-      let attempts = 0;
-      while (attempts < poolStates.length) {
-        const current = poolStates[poolIndex];
-        if (!current) {
-          break;
-        }
-        if (current.count < stage.playersPerPool) {
-          break;
-        }
-        poolIndex = (poolIndex + 1) % poolStates.length;
-        attempts += 1;
-      }
-
-      if (attempts >= poolStates.length) {
-        break;
-      }
-
-      const target = poolStates[poolIndex];
+      const target = pickTargetStagePool(
+        poolStates,
+        stage.playersPerPool,
+        entry.poolNumber,
+        enforceSourcePoolSeparation
+      );
       if (!target) {
+        if (enforceSourcePoolSeparation) {
+          throw new AppError(
+            'Unable to separate qualifiers from the same pool in the next pool stage',
+            400,
+            'POOL_STAGE_ROUTING_CONFLICT',
+            { targetStageId: stage.id, sourcePoolNumber: entry.poolNumber }
+          );
+        }
         break;
       }
+
       target.count += 1;
+      target.sourcePools.add(entry.poolNumber);
       assignments.push({
         poolId: target.pool.id,
         playerId: entry.playerId,
         assignmentType: AssignmentType.SEEDED,
         seedNumber: assignments.length + 1,
       });
-      poolIndex = (poolIndex + 1) % poolStates.length;
     }
 
     await tournamentModel.createPoolAssignments(assignments);
@@ -1143,7 +1320,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     }
 
     const bracket = await ensureBracketForLabel(context.tournament.id, context.brackets, label);
-    const ordered = [...uniqueEntriesByPlayerId(winners)].sort(compareByPoolAndPosition);
+    const uniqueWinners = uniqueEntriesByPlayerId(winners);
+    const ordered = arrangePoolMatesForFinalOnly(uniqueWinners);
     const seeded = ordered.map((entry: PoolStandingsEntry, index: number) => ({
       playerId: entry.playerId,
       seedNumber: index + 1,

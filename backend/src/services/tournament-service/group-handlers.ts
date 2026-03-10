@@ -452,6 +452,7 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
     const isAdmin = context.isAdminAction();
     const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
+    const actorPlayerId = actorPlayer?.id;
     const captainPlayerId = resolveCaptainPlayerId(
       isAdmin,
       actorPlayer?.id,
@@ -501,22 +502,29 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(doubletteId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
+    const isAdmin = context.isAdminAction();
+    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
+    const actorPlayerId = actorPlayer?.id;
     const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!doublette) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
-    ensureActorCanManageGroup(context, {
-      group: doublette,
-      actorPlayerId: actorPlayer.id,
-      forbiddenCode: 'DOUBLETTE_FORBIDDEN',
-      forbiddenMessage: 'You can only modify a doublette you belong to',
-      captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
-      captainMessage: 'Only the captain can modify this doublette',
-    });
+    if (!isAdmin) {
+      if (!actorPlayerId) {
+        throw new AppError('Cannot resolve actor player', 403, 'FORBIDDEN');
+      }
+      ensureActorCanManageGroup(context, {
+        group: doublette,
+        actorPlayerId,
+        forbiddenCode: 'DOUBLETTE_FORBIDDEN',
+        forbiddenMessage: 'You can only modify a doublette you belong to',
+        captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
+        captainMessage: 'Only the captain can modify this doublette',
+      });
+    }
 
-    if (payload.skillLevel !== undefined && !context.isAdminAction()) {
+    if (payload.skillLevel !== undefined && !isAdmin) {
       throw new AppError('Only admin can update group ranking', 403, 'GROUP_RANKING_ADMIN_REQUIRED');
     }
 
@@ -917,22 +925,29 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(equipeId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
+    const isAdmin = context.isAdminAction();
+    const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
+    const actorPlayerId = actorPlayer?.id;
     const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!equipe) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
-    ensureActorCanManageGroup(context, {
-      group: equipe,
-      actorPlayerId: actorPlayer.id,
-      forbiddenCode: 'EQUIPE_FORBIDDEN',
-      forbiddenMessage: 'You can only modify an equipe you belong to',
-      captainCode: 'EQUIPE_CAPTAIN_REQUIRED',
-      captainMessage: 'Only the captain can modify this equipe',
-    });
+    if (!isAdmin) {
+      if (!actorPlayerId) {
+        throw new AppError('Cannot resolve actor player', 403, 'FORBIDDEN');
+      }
+      ensureActorCanManageGroup(context, {
+        group: equipe,
+        actorPlayerId,
+        forbiddenCode: 'EQUIPE_FORBIDDEN',
+        forbiddenMessage: 'You can only modify an equipe you belong to',
+        captainCode: 'EQUIPE_CAPTAIN_REQUIRED',
+        captainMessage: 'Only the captain can modify this equipe',
+      });
+    }
 
-    if (payload.skillLevel !== undefined && !context.isAdminAction()) {
+    if (payload.skillLevel !== undefined && !isAdmin) {
       throw new AppError('Only admin can update group ranking', 403, 'GROUP_RANKING_ADMIN_REQUIRED');
     }
 
