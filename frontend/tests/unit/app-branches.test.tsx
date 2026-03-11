@@ -119,6 +119,6 @@ describe('App branch coverage', () => {
     await waitFor(() => {
       expect(fetchLiveTournamentSummaryMock).toHaveBeenCalled();
     });
-    expect(screen.getByText('TOURNAMENT_LIST')).toBeInTheDocument();
+    expect(await screen.findByText('TOURNAMENT_LIST')).toBeInTheDocument();
   });
 });

@@ -66,6 +66,7 @@ export interface LiveViewPool {
 export interface PoolLeaderboardRow {
   playerId: string;
   name: string;
+  matchesPlayed: number;
   legsWon: number;
   legsLost: number;
   headToHeadBonus?: number;

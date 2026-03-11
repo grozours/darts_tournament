@@ -18,6 +18,7 @@ export const frMessages: Record<string, string> = {
   'nav.targets': 'Cibles',
   'nav.finished': 'Terminés',
   'nav.account': 'Compte',
+  'nav.accountAnonymous': 'S identifier',
   'nav.notifications': 'Notifications',
   'auth.checkingSession': 'Vérification de session...',
   'auth.signIn': 'Se connecter',

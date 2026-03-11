@@ -854,7 +854,7 @@ const PoolStageCard = ({
                   <td className="px-3 py-2">{row.name}</td>
                   <td className="px-3 py-2 text-right">
                         {row.legsWon}
-                        {row.headToHeadBonus !== undefined && (
+                        {row.matchesPlayed > 0 && row.headToHeadBonus !== undefined && (
                       <span
                         className="ml-1 text-amber-300"
                         title={t('live.headToHeadBonusTooltip')}
@@ -1269,7 +1269,7 @@ const PoolStageCard = ({
                             <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
                             <span className="w-16 text-right text-slate-300">
                               {row.legsWon}
-                              {row.headToHeadBonus !== undefined && (
+                              {row.matchesPlayed > 0 && row.headToHeadBonus !== undefined && (
                                 <span
                                   className="ml-1 text-amber-300"
                                   title={t('live.headToHeadBonusTooltip')}

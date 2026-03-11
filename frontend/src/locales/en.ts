@@ -18,6 +18,7 @@ export const enMessages: Record<string, string> = {
   'nav.targets': 'Targets',
   'nav.finished': 'Finished',
   'nav.account': 'Account',
+  'nav.accountAnonymous': 'Sign in',
   'auth.checkingSession': 'Checking session...',
   'nav.notifications': 'Notifications',
   'auth.signIn': 'Sign in',

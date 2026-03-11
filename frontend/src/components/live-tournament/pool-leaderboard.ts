@@ -21,6 +21,7 @@ const ensureLeaderboardRow = (
     rows.set(player.id, {
       playerId: player.id,
       name: getLeaderboardPlayerLabel(player, getParticipantLabel),
+      matchesPlayed: 0,
       legsWon: 0,
       legsLost: 0,
       position: 0,
@@ -55,6 +56,7 @@ const applyMatchResults = (
     const row = rows.get(playerMatch.player.id);
     if (!row) continue;
 
+    row.matchesPlayed += 1;
     row.legsWon += playerMatch.scoreTotal ?? playerMatch.legsWon ?? 0;
     row.legsLost += sumOpponentLegs(playerMatches, row.playerId);
   }

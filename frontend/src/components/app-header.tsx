@@ -361,7 +361,7 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
             className={`rounded-md px-2 py-1 hover:bg-slate-800 ${isAuthenticated ? 'text-emerald-400' : ''}`}
             href="/?view=account"
           >
-            {t('nav.account')}
+            {!isAuthenticated && !isAdmin ? t('nav.accountAnonymous') : t('nav.account')}
           </a>
         </nav>
 

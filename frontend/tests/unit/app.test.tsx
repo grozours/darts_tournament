@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import App from '../../src/app';
 
 const mockFetch = vi.fn();
 
 describe('Home page', () => {
   beforeEach(() => {
+    vi.useRealTimers();
+    globalThis.history.replaceState({}, '', '/');
+    globalThis.localStorage.clear();
+
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ tournaments: [] }),
@@ -14,6 +18,7 @@ describe('Home page', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -23,9 +28,9 @@ describe('Home page', () => {
 
     expect(await screen.findByText(/tournament manager/i)).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByText(/no tournaments yet|aucun tournoi pour le moment/i)).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(/no tournaments yet|aucun tournoi pour le moment/i, {}, { timeout: 5000 })
+    ).toBeInTheDocument();
 
   });
 });
