@@ -1251,6 +1251,57 @@ const LiveTournamentView = ({
     screenMode,
     isAdmin
   );
+
+  useEffect(() => {
+    if (!screenMode || !isPoolStagesView(viewMode) || !stageId) {
+      return;
+    }
+
+    const stageCard = globalThis.document?.getElementById(`pool-stage-${view.id}-${stageId}`);
+    if (!stageCard) {
+      return;
+    }
+
+    const frameId = globalThis.window?.requestAnimationFrame(() => {
+      stageCard.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
+    });
+
+    return () => {
+      if (frameId !== undefined) {
+        globalThis.window?.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [screenMode, stageId, view.id, viewMode, displayedPoolStages.length]);
+
+  useEffect(() => {
+    if (!screenMode || !isBracketsView(viewMode) || !activeBracketId) {
+      return;
+    }
+
+    const bracketCard = globalThis.document?.getElementById(`bracket-${view.id}-${activeBracketId}`);
+    if (!bracketCard) {
+      return;
+    }
+
+    const frameId = globalThis.window?.requestAnimationFrame(() => {
+      bracketCard.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
+    });
+
+    return () => {
+      if (frameId !== undefined) {
+        globalThis.window?.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [screenMode, viewMode, view.id, activeBracketId, filteredBrackets.length]);
+
   const headerPoolStages = isAdmin
     ? displayedPoolStages
     : displayedPoolStages.filter((stage) =>
@@ -1409,7 +1460,11 @@ const LiveTournamentView = ({
         <MatchQueueSection {...queueProperties} />
       )}
       {showPools && <PoolStagesSection {...poolStagesProperties} />}
-      {showBrackets && <BracketsSection {...bracketsProperties} />}
+      {showBrackets && (
+        <div id={`bracket-${view.id}-${activeBracketId}`}>
+          <BracketsSection {...bracketsProperties} />
+        </div>
+      )}
     </div>
   );
 };

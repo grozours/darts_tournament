@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { fetchLiveTournamentSummary } from '../services/tournament-service';
 
@@ -40,6 +40,8 @@ type UseScreenRotationProperties = {
   getAccessTokenSilently: () => Promise<string>;
 };
 
+const SCREEN_SCOPE_PARAM = 'screenScope';
+
 const loadLiveView = async (tournamentId: string): Promise<LiveViewSummary | undefined> => {
   const response = await fetch(`/api/tournaments/${tournamentId}/live`);
   if (!response.ok) {
@@ -48,15 +50,29 @@ const loadLiveView = async (tournamentId: string): Promise<LiveViewSummary | und
   return response.json();
 };
 
-const isLivePoolStage = (stage: LiveViewPoolStageSummary) => (
-  stage.status === 'IN_PROGRESS'
-  && ((stage.pools?.length ?? stage.poolCount ?? 0) > 0)
-  && (stage.pools || []).some((pool) => (pool.assignments || []).some((assignment) => Boolean(assignment?.player?.id)))
-);
+const isLivePoolStage = (stage: LiveViewPoolStageSummary) => {
+  if (stage.status !== 'IN_PROGRESS') {
+    return false;
+  }
+
+  const poolCount = stage.pools && stage.pools.length > 0
+    ? stage.pools.length
+    : (stage.poolCount ?? 0);
+  if (poolCount <= 0) {
+    return false;
+  }
+
+  // live-summary payloads may only expose poolCount without assignment details.
+  if (!stage.pools || stage.pools.length === 0) {
+    return true;
+  }
+
+  return stage.pools.some((pool) => (pool.assignments || []).some((assignment) => Boolean(assignment?.player?.id)));
+};
 
 const isLiveBracket = (bracket: LiveViewBracketSummary) => (
+  // In summary payloads, entries can be omitted or empty even when bracket is live.
   bracket.status === 'IN_PROGRESS'
-  && (bracket.entries || []).some((entry) => Boolean(entry?.player?.id))
 );
 
 const toRotationItems = (data: LiveViewSummary, fallbackTournamentId?: string): ScreenRotationItem[] => {
@@ -151,11 +167,13 @@ const findCurrentScreenRotationIndex = (
 const navigateToScreenRotationItem = (
   windowReference: Window,
   item: ScreenRotationItem,
-  status: string | undefined
+  status: string | undefined,
+  rotationScope: 'global' | 'tournament'
 ): void => {
   const url = new URL(windowReference.location.href);
   url.searchParams.set('view', item.view);
   url.searchParams.set('screen', '1');
+  url.searchParams.set(SCREEN_SCOPE_PARAM, rotationScope);
   if (item.tournamentId) {
     url.searchParams.set('tournamentId', item.tournamentId);
   } else {
@@ -223,17 +241,52 @@ const useScreenRotation = ({
   isAuthenticated,
   getAccessTokenSilently,
 }: UseScreenRotationProperties) => {
+  const resolvedInitialScope = (() => {
+    const params = new URLSearchParams(globalThis.window?.location.search ?? '');
+    const scopeFromUrl = params.get(SCREEN_SCOPE_PARAM);
+    if (scopeFromUrl === 'global' || scopeFromUrl === 'tournament') {
+      return scopeFromUrl;
+    }
+    return tournamentId ? 'tournament' : 'global';
+  })();
+
+  const [rotationScope, setRotationScope] = useState<'global' | 'tournament'>(
+    resolvedInitialScope
+  );
+  const hasEnteredScreenModeRef = useRef(false);
   const [screenRotationItems, setScreenRotationItems] = useState<ScreenRotationItem[]>(
     buildDefaultScreenRotationItems(tournamentId)
   );
   const [screenRotationReady, setScreenRotationReady] = useState(!screenMode);
+
+  useEffect(() => {
+    if (!screenMode) {
+      hasEnteredScreenModeRef.current = false;
+      setRotationScope(tournamentId ? 'tournament' : 'global');
+      return;
+    }
+
+    if (hasEnteredScreenModeRef.current) {
+      return;
+    }
+
+    const params = new URLSearchParams(globalThis.window?.location.search ?? '');
+    const scopeFromUrl = params.get(SCREEN_SCOPE_PARAM);
+    if (scopeFromUrl === 'global' || scopeFromUrl === 'tournament') {
+      setRotationScope(scopeFromUrl);
+    } else {
+      setRotationScope(tournamentId ? 'tournament' : 'global');
+    }
+    hasEnteredScreenModeRef.current = true;
+  }, [screenMode, tournamentId]);
 
   const resolveScreenViews = useCallback(async () => {
     if (!screenMode) {
       return;
     }
     try {
-      const items = await resolveScreenRotationItems(tournamentId ?? undefined);
+      const targetTournamentId = rotationScope === 'tournament' ? tournamentId ?? undefined : undefined;
+      const items = await resolveScreenRotationItems(targetTournamentId);
       if (!items || items.length === 0) {
         setScreenRotationReady(true);
         return;
@@ -244,7 +297,7 @@ const useScreenRotation = ({
     } finally {
       setScreenRotationReady(true);
     }
-  }, [screenMode, tournamentId]);
+  }, [screenMode, rotationScope, tournamentId]);
 
   useEffect(() => {
     if (!screenMode) {
@@ -262,7 +315,7 @@ const useScreenRotation = ({
   }, [screenMode, resolveScreenViews]);
 
   useEffect(() => {
-    if (!screenMode || !tournamentId) {
+    if (!screenMode || rotationScope !== 'tournament' || !tournamentId) {
       return undefined;
     }
 
@@ -286,7 +339,7 @@ const useScreenRotation = ({
       socket?.removeAllListeners();
       socket?.disconnect();
     };
-  }, [authEnabled, getAccessTokenSilently, isAuthenticated, screenMode, tournamentId, resolveScreenViews]);
+  }, [authEnabled, getAccessTokenSilently, isAuthenticated, screenMode, rotationScope, tournamentId, resolveScreenViews]);
 
   useEffect(() => {
     if (!screenMode) {
@@ -314,13 +367,13 @@ const useScreenRotation = ({
     const delayMs = 10_000;
 
     const timeoutId = windowReference.setTimeout(() => {
-      navigateToScreenRotationItem(windowReference, nextItem, status);
+      navigateToScreenRotationItem(windowReference, nextItem, status, rotationScope);
     }, delayMs);
 
     return () => {
       windowReference.clearTimeout(timeoutId);
     };
-  }, [bracketId, screenMode, screenRotationItems, screenRotationReady, stageId, status, tournamentId, view]);
+  }, [bracketId, rotationScope, screenMode, screenRotationItems, screenRotationReady, stageId, status, tournamentId, view]);
 };
 
 export default useScreenRotation;

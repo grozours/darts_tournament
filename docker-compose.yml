@@ -106,7 +106,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "${BACKEND_PORT:-3000}:3000"
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://darts_user:${POSTGRES_PASSWORD}@postgres:5432/darts_tournament
@@ -140,7 +140,7 @@ services:
     labels:
       com.darts.build_id: ${BUILD_ID:-local}
     ports:
-      - "3001:80"
+      - "${FRONTEND_PORT:-3001}:80"
     depends_on:
       - backend
 

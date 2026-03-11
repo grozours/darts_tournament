@@ -147,6 +147,38 @@ describe('App routing', () => {
     });
   });
 
+  it('keeps global screen rotation scope after URL includes tournamentId', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ tournaments: [] }) } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+    fetchLiveTournamentSummaryMock.mockResolvedValueOnce([
+      {
+        id: 't1',
+        poolStages: [{ id: 's1', status: 'IN_PROGRESS', poolCount: 1 }],
+        brackets: [],
+      },
+      {
+        id: 't2',
+        poolStages: [{ id: 's2', status: 'IN_PROGRESS', poolCount: 1 }],
+        brackets: [],
+      },
+    ]);
+
+    navigateTo('/?screen=1&status=LIVE');
+    const { rerender } = render(<App />);
+
+    await waitFor(() => {
+      expect(fetchLiveTournamentSummaryMock).toHaveBeenCalledWith(['LIVE']);
+    });
+
+    navigateTo('/?screen=1&status=LIVE&screenScope=global&view=pool-stages&tournamentId=t1&stageId=s1');
+    rerender(<App />);
+
+    await waitFor(() => {
+      expect(fetchLiveTournamentSummaryMock).toHaveBeenCalledTimes(2);
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/tournaments/t1/live');
+  });
+
   it('stores empty match presets when presets fetch fails', async () => {
     fetchMatchFormatPresetsMock.mockRejectedValueOnce(new Error('network'));
 

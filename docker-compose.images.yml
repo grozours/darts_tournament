@@ -32,7 +32,7 @@ services:
     image: darts-tournament/backend:${IMAGE_TAG:-latest}
     command: sh -lc "npm run db:migrate && npm start"
     ports:
-      - "3000:3000"
+      - "${BACKEND_PORT:-3000}:3000"
     env_file:
       - ./backend/.env
     environment:
@@ -56,7 +56,7 @@ services:
     env_file:
       - ./frontend/.env
     ports:
-      - "3001:80"
+      - "${FRONTEND_PORT:-3001}:80"
     depends_on:
       - backend
 

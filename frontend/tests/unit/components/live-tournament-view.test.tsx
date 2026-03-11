@@ -411,6 +411,79 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('pools-1')).toBeInTheDocument();
   });
 
+  it('centers active pool stage card in screen mode', async () => {
+    const scrollIntoView = vi.fn();
+    const getElementByIdSpy = vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
+      if (id === 'pool-stage-t1-s2') {
+        return { scrollIntoView } as unknown as HTMLElement;
+      }
+      return null;
+    });
+
+    await renderView(
+      <LiveTournamentView
+        {...baseProperties}
+        screenMode={true}
+        viewMode="pool-stages"
+        stageId="s2"
+        view={makeView({
+          poolStages: [
+            {
+              id: 's1',
+              stageNumber: 1,
+              name: 'Stage 1',
+              status: 'IN_PROGRESS',
+              pools: [{ id: 'p1', poolNumber: 1, name: 'Pool 1', status: 'IN_PROGRESS', assignments: [{ id: 'a1' }] }],
+            },
+            {
+              id: 's2',
+              stageNumber: 2,
+              name: 'Stage 2',
+              status: 'IN_PROGRESS',
+              pools: [{ id: 'p2', poolNumber: 1, name: 'Pool 2', status: 'IN_PROGRESS', assignments: [{ id: 'a2' }] }],
+            },
+          ],
+        })}
+      />
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+
+    getElementByIdSpy.mockRestore();
+  });
+
+  it('centers active bracket card in screen mode', async () => {
+    const scrollIntoView = vi.fn();
+    const getElementByIdSpy = vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
+      if (id === 'bracket-t1-b1') {
+        return { scrollIntoView } as unknown as HTMLElement;
+      }
+      return null;
+    });
+
+    await renderView(
+      <LiveTournamentView
+        {...baseProperties}
+        screenMode={true}
+        viewMode="brackets"
+        activeBracketId="b1"
+        view={makeView()}
+      />
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+
+    getElementByIdSpy.mockRestore();
+  });
+
   it('shows tournament id for admin users in header', async () => {
     await renderView(
       <LiveTournamentView
