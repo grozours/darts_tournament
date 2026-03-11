@@ -69,15 +69,15 @@ export type TournamentListSharedProperties = {
 };
 
 export type TournamentEditState = {
-  editingTournament?: Tournament;
-  editForm?: EditFormState;
-  editError?: string;
+  editingTournament: Tournament | undefined;
+  editForm: EditFormState | undefined;
+  editError: string | undefined;
   isSaving: boolean;
   isEditPage: boolean;
-  logoFile?: File;
+  logoFile: File | undefined;
   isUploadingLogo: boolean;
   poolStages: PoolStageConfig[];
-  poolStagesError?: string;
+  poolStagesError: string | undefined;
   newPoolStage: {
     stageNumber: number;
     name: string;
@@ -89,7 +89,7 @@ export type TournamentEditState = {
   };
   isAddingPoolStage: boolean;
   brackets: BracketConfig[];
-  bracketsError?: string;
+  bracketsError: string | undefined;
   newBracket: {
     name: string;
     bracketType: string;
@@ -100,23 +100,23 @@ export type TournamentEditState = {
   isBracketRoundsAuto: boolean;
   players: TournamentPlayer[];
   playersLoading: boolean;
-  playersError?: string;
+  playersError: string | undefined;
   playerForm: PlayerFormState;
-  editingPlayerId?: string;
+  editingPlayerId: string | undefined;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
-  checkingInPlayerId?: string;
+  checkingInPlayerId: string | undefined;
   skillLevelOptions: Array<{ value: string; label: string }>;
   formatOptions: Array<{ value: string; label: string }>;
   durationOptions: Array<{ value: string; label: string }>;
 };
 
 export type PoolStageAssignmentsModalState = {
-  editingPoolStage?: PoolStageConfig;
+  editingPoolStage: PoolStageConfig | undefined;
   poolStagePools: PoolStagePool[];
   poolStagePlayers: TournamentPlayer[];
   poolStageAssignments: PoolStageAssignmentsState;
-  poolStageEditError?: string;
+  poolStageEditError: string | undefined;
   isSavingAssignments: boolean;
 };

@@ -742,16 +742,19 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(doubletteId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
     const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!doublette) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
+    const actorPlayerId = context.isAdminAction()
+      ? (doublette.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     requireCaptainOrAdmin(
       context,
       doublette.captainPlayerId,
-      actorPlayer.id,
+      actorPlayerId,
       'DOUBLETTE_CAPTAIN_REQUIRED',
       'Only the captain can update this doublette password'
     );
@@ -764,15 +767,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(doubletteId);
     context.validateUUID(payload.playerId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
     const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!doublette) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
+    const actorPlayerId = context.isAdminAction()
+      ? (doublette.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     ensureActorCanManageGroup(context, {
       group: doublette,
-      actorPlayerId: actorPlayer.id,
+      actorPlayerId,
       forbiddenCode: 'DOUBLETTE_FORBIDDEN',
       forbiddenMessage: 'You can only modify a doublette you belong to',
       captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
@@ -809,15 +815,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(doubletteId);
     context.validateUUID(playerId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
     const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!doublette) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
+    const actorPlayerId = context.isAdminAction()
+      ? (doublette.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     ensureActorCanManageGroup(context, {
       group: doublette,
-      actorPlayerId: actorPlayer.id,
+      actorPlayerId,
       forbiddenCode: 'DOUBLETTE_FORBIDDEN',
       forbiddenMessage: 'You can only modify a doublette you belong to',
       captainCode: 'DOUBLETTE_CAPTAIN_REQUIRED',
@@ -1165,16 +1174,19 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(equipeId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
     const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!equipe) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
+    const actorPlayerId = context.isAdminAction()
+      ? (equipe.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     requireCaptainOrAdmin(
       context,
       equipe.captainPlayerId,
-      actorPlayer.id,
+      actorPlayerId,
       'EQUIPE_CAPTAIN_REQUIRED',
       'Only the captain can update this equipe password'
     );
@@ -1187,15 +1199,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(equipeId);
     context.validateUUID(payload.playerId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
     const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!equipe) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
+    const actorPlayerId = context.isAdminAction()
+      ? (equipe.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     ensureActorCanManageGroup(context, {
       group: equipe,
-      actorPlayerId: actorPlayer.id,
+      actorPlayerId,
       forbiddenCode: 'EQUIPE_FORBIDDEN',
       forbiddenMessage: 'You can only modify an equipe you belong to',
       captainCode: 'EQUIPE_CAPTAIN_REQUIRED',
@@ -1227,15 +1242,18 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(equipeId);
     context.validateUUID(playerId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
     const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!equipe) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
+    const actorPlayerId = context.isAdminAction()
+      ? (equipe.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     ensureActorCanManageGroup(context, {
       group: equipe,
-      actorPlayerId: actorPlayer.id,
+      actorPlayerId,
       forbiddenCode: 'EQUIPE_FORBIDDEN',
       forbiddenMessage: 'You can only modify an equipe you belong to',
       captainCode: 'EQUIPE_CAPTAIN_REQUIRED',

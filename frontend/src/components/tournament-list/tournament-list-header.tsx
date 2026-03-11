@@ -3,7 +3,7 @@ import { normalizeTournamentStatus } from './tournament-status-helpers';
 
 export type TournamentListHeaderProperties = {
   isEditPage: boolean;
-  editingTournament?: Tournament;
+  editingTournament: Tournament | undefined;
   tournamentsCount: number;
   t: Translator;
 };

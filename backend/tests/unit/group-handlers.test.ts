@@ -1208,6 +1208,35 @@ describe('group-handlers', () => {
     await expect(handlers.addDoubletteMember('t1', 'd1', { playerId: 'p3' })).rejects.toThrow('already part of a doublette');
   });
 
+  it('allows admin to remove doublette member even when tournament is full', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.findById.mockImplementation(async () => ({ ...buildTournament(TournamentFormat.DOUBLE), totalParticipants: 1 }));
+    tournamentModel.getParticipantCount.mockImplementation(async () => 2);
+    tournamentModel.findPlayerByEmail.mockImplementation(async () => null);
+    tournamentModel.getDoubletteById
+      .mockImplementationOnce(async () => ({
+        id: 'd1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      }))
+      .mockImplementationOnce(async () => ({
+        id: 'd1',
+        name: 'D1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1')],
+      }));
+
+    const removed = await handlers.removeDoubletteMember('t1', 'd1', 'p2');
+    expect(removed.memberCount).toBe(1);
+    expect(tournamentModel.removeDoubletteMember).toHaveBeenCalledWith('d1', 'p2');
+    expect(tournamentModel.createPlayer).not.toHaveBeenCalled();
+  });
+
   it('rejects listEquipes on format mismatch', async () => {
     const { handlers, tournamentModel } = buildContext();
     tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.SINGLE));
