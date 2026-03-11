@@ -349,7 +349,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
           const canUnregister = group.isRegistered && (isAdmin || isCaptain) && !isLiveOrArchivedTournament;
           const canLeave = isMember && !group.isRegistered;
           const canDelete = isAdmin || (canManageGroup && !group.isRegistered);
-          const canChangePassword = canManageGroup && !group.isRegistered;
+          const canChangePassword = isAdmin || (canManageGroup && !group.isRegistered);
           const canRename = isAdmin || (canManageGroup && !group.isRegistered);
           const canAddMember = isAdmin && group.memberCount < requiredMembers;
           const canRemoveMembers = isAdmin || (canManageGroup && !group.isRegistered);

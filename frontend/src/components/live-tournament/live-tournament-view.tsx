@@ -985,12 +985,32 @@ const LiveTournamentViewHeader = ({
 
   const estimatedDurationMinutes = Math.max(remainingEstimatedMinutes, 0);
   const remainingDurationMinutes = getRemainingDurationMinutes(estimatedEndAt, startAt, nowTimestamp);
+  const timingTooltipLines = [
+    `${t('live.estimatedDuration')}: ${formatDurationClock(estimatedDurationMinutes)}`,
+    startAt ? `${t('live.startTime')}: ${formatDateTime(startAt)}` : undefined,
+    estimatedEndAt ? `${t('live.estimatedEndTime')}: ${formatDateTime(estimatedEndAt)}` : undefined,
+    remainingDurationMinutes !== undefined
+      ? `${t('live.remainingDuration')}: ${formatDurationClock(remainingDurationMinutes)}`
+      : undefined,
+  ].filter((line): line is string => Boolean(line));
+  const timingTooltip = timingTooltipLines.join('\n');
 
   return (
   <div className={`flex flex-wrap items-center justify-between ${headerGap}`}>
     <div>
       <p className={titleClass}>{t('live.title')}</p>
-      <h2 className={nameClass}>{view.name}</h2>
+      <div className="flex items-center gap-2">
+        <h2 className={nameClass}>{view.name}</h2>
+        {timingTooltip.length > 0 && (
+          <span
+            className="inline-flex cursor-help select-none items-center text-base text-slate-300"
+            title={timingTooltip}
+            aria-label={timingTooltipLines.join('. ')}
+          >
+            ⏱️
+          </span>
+        )}
+      </div>
       {isAdmin && (
         <p className={idClass}>ID: {view.id}</p>
       )}
@@ -1001,28 +1021,6 @@ const LiveTournamentViewHeader = ({
           <span className="hidden sm:inline">{t('common.status')}: </span>
           {view.status}
         </span>
-        <span className={infoBadgeClass} title={`${t('live.estimatedDuration')}: ${formatDurationClock(estimatedDurationMinutes)}`}>
-          <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
-          {formatDurationClock(estimatedDurationMinutes)}
-        </span>
-        {startAt && (
-          <span className={infoBadgeClass} title={`${t('live.startTime')}: ${formatDateTime(startAt)}`}>
-            <span className="hidden sm:inline">{t('live.startTime')}: </span>
-            {formatDateTime(startAt)}
-          </span>
-        )}
-        {estimatedEndAt && (
-          <span className={infoBadgeClass} title={`${t('live.estimatedEndTime')}: ${formatDateTime(estimatedEndAt)}`}>
-            <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
-            {formatDateTime(estimatedEndAt)}
-          </span>
-        )}
-        {remainingDurationMinutes !== undefined && (
-          <span className={infoBadgeClass} title={`${t('live.remainingDuration')}: ${formatDurationClock(remainingDurationMinutes)}`}>
-            <span className="hidden sm:inline">{t('live.remainingDuration')}: </span>
-            {formatDurationClock(remainingDurationMinutes)}
-          </span>
-        )}
       </div>
       <div className={`flex w-full flex-wrap items-center justify-start sm:justify-end ${actionsGap}`}>
         {isAdmin && !screenMode && (

@@ -121,6 +121,49 @@ describe('PlayersView branches', () => {
     });
   });
 
+  it('allows admin to edit a player in a live single tournament', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        tournaments: [{ id: 't-live-single', name: 'Live Single Cup', format: TournamentFormat.SINGLE, status: 'LIVE' }],
+      }),
+    })));
+
+    fetchTournamentPlayersMock.mockResolvedValueOnce([
+      {
+        playerId: 'p-live-1',
+        firstName: 'Lina',
+        lastName: 'Lane',
+        name: 'Lina Lane',
+        tournamentId: 't-live-single',
+      },
+    ]);
+
+    render(<PlayersView />);
+
+    await screen.findByText('Lina Lane');
+    fireEvent.click(screen.getByRole('button', { name: 'edit.edit' }));
+
+    fireEvent.change(screen.getByLabelText('edit.firstName'), { target: { value: ' Lina ' } });
+    fireEvent.change(screen.getByLabelText('edit.lastName'), { target: { value: ' Updated ' } });
+    fireEvent.change(screen.getByLabelText('edit.email'), { target: { value: ' lina@example.com ' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }));
+
+    await waitFor(() => {
+      expect(updateTournamentPlayerMock).toHaveBeenCalledWith(
+        't-live-single',
+        'p-live-1',
+        {
+          firstName: 'Lina',
+          lastName: 'Updated',
+          email: 'lina@example.com',
+        },
+        'token'
+      );
+    });
+  });
+
   it('shows fallback error when save fails with non-Error value', async () => {
     updateTournamentPlayerMock.mockRejectedValueOnce('save failed');
 

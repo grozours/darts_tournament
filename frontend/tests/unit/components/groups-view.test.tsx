@@ -716,6 +716,81 @@ describe('GroupsView', () => {
     fetchSpy.mockRestore();
   });
 
+  it('allows admin to change password for a registered doublette in live tournament', async () => {
+    adminState.isAdmin = true;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ tournaments: [{ id: 't1', status: 'LIVE' }] }),
+    } as Response);
+
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-live-password',
+        name: 'Live Duo Password',
+        captainPlayerId: 'p-captain',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p-member', firstName: 'Mem', lastName: 'Ber', email: 'mem@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Live Duo Password');
+
+    fireEvent.click(screen.getByText('groups.changePassword'));
+    fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: 'new-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
+
+    await waitFor(() => {
+      expect(updateDoublettePassword).toHaveBeenCalledWith('t1', 'd-live-password', { password: 'new-secret' }, 'token-1');
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it('allows admin to change password for a registered equipe in live tournament', async () => {
+    adminState.isAdmin = true;
+    globalThis.history.pushState({}, '', '/?view=equipes&tournamentId=t1');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ tournaments: [{ id: 't1', status: 'LIVE' }] }),
+    } as Response);
+
+    fetchEquipes.mockResolvedValue([
+      {
+        id: 'e-live-password',
+        name: 'Live Team Password',
+        captainPlayerId: 'p-captain',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 4,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'cap@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p2', firstName: 'A', lastName: 'B', email: 'a@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p3', firstName: 'C', lastName: 'D', email: 'c@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p4', firstName: 'E', lastName: 'F', email: 'e@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="equipes" />);
+    await screen.findByText('Live Team Password');
+
+    fireEvent.click(screen.getByText('groups.changePassword'));
+    fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: 'new-team-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
+
+    await waitFor(() => {
+      expect(updateEquipePassword).toHaveBeenCalledWith('t1', 'e-live-password', { password: 'new-team-secret' }, 'token-1');
+    });
+
+    fetchSpy.mockRestore();
+  });
+
   it('keeps groups visible when status lookup fails', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
