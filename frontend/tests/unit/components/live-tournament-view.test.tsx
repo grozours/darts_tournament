@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, type ReactElement } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { LiveViewData } from '../../../src/components/live-tournament/types';
 import LiveTournamentView from '../../../src/components/live-tournament/live-tournament-view';
@@ -75,6 +75,29 @@ const baseProperties = {
   onRefresh: vi.fn(),
 };
 
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  act(() => {
+    vi.runOnlyPendingTimers();
+  });
+  vi.useRealTimers();
+});
+
+const renderView = async (view: ReactElement) => {
+  let result: ReturnType<typeof render> | undefined;
+  await act(async () => {
+    result = render(view);
+    await Promise.resolve();
+  });
+  act(() => {
+    vi.runOnlyPendingTimers();
+  });
+  return result as ReturnType<typeof render>;
+};
+
 const makeView = (overrides?: Partial<LiveViewData>): LiveViewData => ({
   id: 't1',
   name: 'Tournament',
@@ -102,8 +125,8 @@ const makeView = (overrides?: Partial<LiveViewData>): LiveViewData => ({
 });
 
 describe('LiveTournamentView', () => {
-  it('shows pools and hides brackets in pool-stages view', () => {
-    render(
+  it('shows pools and hides brackets in pool-stages view', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="pool-stages"
@@ -115,8 +138,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByText('brackets-1')).not.toBeInTheDocument();
   });
 
-  it('shows brackets in brackets view even when pools are running', () => {
-    render(
+  it('shows brackets in brackets view even when pools are running', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="brackets"
@@ -127,8 +150,8 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('brackets-1')).toBeInTheDocument();
   });
 
-  it('hides brackets in live view when pools are running for non-admin', () => {
-    render(
+  it('hides brackets in live view when pools are running for non-admin', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="live"
@@ -139,8 +162,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByText('brackets-1')).not.toBeInTheDocument();
   });
 
-  it('shows brackets in live view for admins', () => {
-    render(
+  it('shows brackets in live view for admins', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         isAdmin={true}
@@ -152,8 +175,8 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('brackets-1')).toBeInTheDocument();
   });
 
-  it('shows queue section in live view when pools are shown and global queue is disabled', () => {
-    render(
+  it('shows queue section in live view when pools are shown and global queue is disabled', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="live"
@@ -173,8 +196,8 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('queue')).toBeInTheDocument();
   });
 
-  it('shows pools navigation link when viewing brackets and pools exist', () => {
-    render(
+  it('shows pools navigation link when viewing brackets and pools exist', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="brackets"
@@ -186,8 +209,8 @@ describe('LiveTournamentView', () => {
     expect(poolsLink).toHaveAttribute('href', '/?view=pool-stages&tournamentId=t1');
   });
 
-  it('toggles pool summary cards from header action', () => {
-    render(
+  it('toggles pool summary cards from header action', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="live"
@@ -202,8 +225,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByText('live.totalPools')).not.toBeInTheDocument();
   });
 
-  it('shows brackets navigation link in pool-stages view when stage completed and brackets active', () => {
-    render(
+  it('shows brackets navigation link in pool-stages view when stage completed and brackets active', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="pool-stages"
@@ -236,8 +259,8 @@ describe('LiveTournamentView', () => {
     expect(bracketsLink).toHaveAttribute('href', '/?view=brackets&tournamentId=t1');
   });
 
-  it('hides header in screen mode when viewing brackets', () => {
-    render(
+  it('hides header in screen mode when viewing brackets', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         screenMode={true}
@@ -249,8 +272,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByRole('button', { name: 'common.refresh' })).not.toBeInTheDocument();
   });
 
-  it('shows admin edit link in header when not in screen mode', () => {
-    render(
+  it('shows admin edit link in header when not in screen mode', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         isAdmin={true}
@@ -264,8 +287,8 @@ describe('LiveTournamentView', () => {
     expect(editLink).toHaveAttribute('href', '/?view=edit-tournament&tournamentId=t1');
   });
 
-  it('hides admin edit link in screen mode', () => {
-    render(
+  it('hides admin edit link in screen mode', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         isAdmin={true}
@@ -278,8 +301,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByRole('link', { name: 'common.edit' })).not.toBeInTheDocument();
   });
 
-  it('hides queue section when global queue is enabled', () => {
-    render(
+  it('hides queue section when global queue is enabled', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="live"
@@ -291,8 +314,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByText('queue')).not.toBeInTheDocument();
   });
 
-  it('hides queue section in pool-stages mode', () => {
-    render(
+  it('hides queue section in pool-stages mode', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="pool-stages"
@@ -304,8 +327,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByText('queue')).not.toBeInTheDocument();
   });
 
-  it('shows brackets in live mode for non-admin when no pool stage is still running', () => {
-    render(
+  it('shows brackets in live mode for non-admin when no pool stage is still running', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         isAdmin={false}
@@ -325,8 +348,8 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('brackets-1')).toBeInTheDocument();
   });
 
-  it('hides pools navigation link in brackets view when no pool stage is displayed', () => {
-    render(
+  it('hides pools navigation link in brackets view when no pool stage is displayed', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="brackets"
@@ -337,8 +360,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByRole('link', { name: 'nav.poolStagesRunning' })).not.toBeInTheDocument();
   });
 
-  it('hides brackets navigation link when no completed pool stage is available', () => {
-    render(
+  it('hides brackets navigation link when no completed pool stage is available', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="pool-stages"
@@ -357,8 +380,8 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByRole('link', { name: 'nav.bracketsRunning' })).not.toBeInTheDocument();
   });
 
-  it('filters pool stages by stageId in screen mode', () => {
-    render(
+  it('filters pool stages by stageId in screen mode', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         screenMode={true}
@@ -388,8 +411,8 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('pools-1')).toBeInTheDocument();
   });
 
-  it('shows tournament id for admin users in header', () => {
-    render(
+  it('shows tournament id for admin users in header', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         isAdmin={true}
@@ -401,8 +424,8 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('ID: t1')).toBeInTheDocument();
   });
 
-  it('hides tournament id for non-admin users in header', () => {
-    render(
+  it('hides tournament id for non-admin users in header', async () => {
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         isAdmin={false}
@@ -414,9 +437,9 @@ describe('LiveTournamentView', () => {
     expect(screen.queryByText('ID: t1')).not.toBeInTheDocument();
   });
 
-  it('calls refresh callback when refresh button is clicked', () => {
+  it('calls refresh callback when refresh button is clicked', async () => {
     const onRefresh = vi.fn();
-    render(
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         onRefresh={onRefresh}
@@ -429,10 +452,10 @@ describe('LiveTournamentView', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('renders normally when etaDebug flag is enabled', () => {
+  it('renders normally when etaDebug flag is enabled', async () => {
     globalThis.window?.history.pushState({}, '', '/?etaDebug=1');
 
-    render(
+    await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="live"
@@ -455,15 +478,14 @@ describe('LiveTournamentView', () => {
     globalThis.window?.history.pushState({}, '', '/');
   });
 
-  it('cleans up ETA timers on unmount when estimation is active', () => {
-    vi.useFakeTimers();
+  it('cleans up ETA timers on unmount when estimation is active', async () => {
     vi.setSystemTime(new Date('2026-04-10T10:00:00.000Z'));
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
     const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
     const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
-    const { unmount } = render(
+    const { unmount } = await renderView(
       <LiveTournamentView
         {...baseProperties}
         viewMode="live"
@@ -498,6 +520,5 @@ describe('LiveTournamentView', () => {
     setIntervalSpy.mockRestore();
     clearTimeoutSpy.mockRestore();
     clearIntervalSpy.mockRestore();
-    vi.useRealTimers();
   });
 });

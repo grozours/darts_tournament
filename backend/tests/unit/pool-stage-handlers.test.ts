@@ -389,7 +389,7 @@ describe('createPoolStageHandlers', () => {
     model.getPoolsWithMatchesForStage.mockReturnValue(Promise.resolve([
       {
         id: 'pool-1',
-        matches: [{ id: 'match-1', status: 'SCHEDULED', matchFormatKey: 'BO3' }],
+        matches: [{ id: 'match-1', status: 'SCHEDULED', matchFormatKey: undefined }],
       },
     ]));
     const handlers = createHandlers(model);

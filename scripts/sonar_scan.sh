@@ -90,6 +90,12 @@ if [[ -f "$FRONTEND_LCOV_ORIGINAL" ]]; then
         if (path ~ /^frontend\/tests\// && path !~ /\.test\.tsx?$/ && path !~ /\.spec\.tsx?$/) {
           keep_record = 0;
         }
+
+        # frontend/src/locales is excluded in sonar-project.properties,
+        # so keep those files out of coverage to avoid unresolved LCOV warnings.
+        if (path ~ /^src\/locales\// || path ~ /^frontend\/src\/locales\//) {
+          keep_record = 0;
+        }
       }
 
       record = record line ORS;
