@@ -224,8 +224,6 @@ const buildTemplateFromEditorState = (
   const stageNumberById = new Map(sortedStages.map((stage) => [stage.id, stage.stageNumber]));
   const bracketNameById = new Map(brackets.map((bracket) => [bracket.id, bracket.name]));
 
-  const routingRules: TournamentPresetTemplateConfig['routingRules'] = [];
-
   const resolveRoutingRule = (
     stageNumber: number,
     destination: PoolStageRankingDestination
@@ -265,31 +263,43 @@ const buildTemplateFromEditorState = (
     };
   };
 
-  for (const stage of sortedStages) {
-    const normalizedDestinations = normalizeStageRankingDestinations(stage, brackets);
-    routingRules.push(...normalizedDestinations.map((destination) => resolveRoutingRule(stage.stageNumber, destination)));
-  }
+  const buildRoutingRules = (): TournamentPresetTemplateConfig['routingRules'] => {
+    const routingRules: TournamentPresetTemplateConfig['routingRules'] = [];
+
+    for (const stage of sortedStages) {
+      const normalizedDestinations = normalizeStageRankingDestinations(stage, brackets);
+      routingRules.push(...normalizedDestinations.map((destination) => resolveRoutingRule(stage.stageNumber, destination)));
+    }
+
+    return routingRules;
+  };
+
+  const buildTemplateStages = () => sortedStages.map((stage) => ({
+    name: stage.name,
+    poolCount: stage.poolCount,
+    playersPerPool: stage.playersPerPool,
+    advanceCount: stage.advanceCount,
+    ...(stage.matchFormatKey ? { matchFormatKey: stage.matchFormatKey } : {}),
+    ...((stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith
+      ? { inParallelWith: (stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith }
+      : {}),
+  }));
+
+  const buildTemplateBrackets = () => brackets.map((bracket) => ({
+    name: bracket.name,
+    totalRounds: bracket.totalRounds,
+    ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
+    ...((bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith
+      ? { inParallelWith: (bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith }
+      : {}),
+  }));
+
+  const routingRules = buildRoutingRules();
 
   return {
     format,
-    stages: sortedStages.map((stage) => ({
-      name: stage.name,
-      poolCount: stage.poolCount,
-      playersPerPool: stage.playersPerPool,
-      advanceCount: stage.advanceCount,
-      ...(stage.matchFormatKey ? { matchFormatKey: stage.matchFormatKey } : {}),
-      ...((stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith
-        ? { inParallelWith: (stage as PoolStageConfig & { inParallelWith?: string[] }).inParallelWith }
-        : {}),
-    })),
-    brackets: brackets.map((bracket) => ({
-      name: bracket.name,
-      totalRounds: bracket.totalRounds,
-      ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
-      ...((bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith
-        ? { inParallelWith: (bracket as BracketConfig & { inParallelWith?: string[] }).inParallelWith }
-        : {}),
-    })),
+    stages: buildTemplateStages(),
+    brackets: buildTemplateBrackets(),
     routingRules,
   };
 };

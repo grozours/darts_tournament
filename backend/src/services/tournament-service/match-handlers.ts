@@ -28,6 +28,107 @@ type MatchForCompletion = {
   startedAt?: Date | null;
 };
 
+type LiveViewCandidateMatch = {
+  id: string;
+  status: string;
+  playerMatches?: Array<{ playerId?: string | null; player?: { id?: string } }>;
+};
+
+type LiveViewPoolLike = {
+  id: string;
+  assignments?: Array<{ player?: { id?: string } }>;
+  matches?: LiveViewCandidateMatch[];
+};
+
+type FinishedNotificationPlayerSummary = {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  surname?: string;
+  teamName?: string;
+  scoreTotal?: number | null;
+  legsWon?: number | null;
+  setsWon?: number | null;
+  isWinner?: boolean | null;
+};
+
+const collectActivePlayersFromMatches = (
+  candidateMatches: LiveViewCandidateMatch[] | undefined,
+  ignoredMatchId: string,
+  activePlayerIds: Set<string>
+): void => {
+  for (const candidateMatch of candidateMatches ?? []) {
+    if (candidateMatch.id === ignoredMatchId || candidateMatch.status !== MatchStatus.IN_PROGRESS) {
+      continue;
+    }
+
+    for (const playerMatch of candidateMatch.playerMatches ?? []) {
+      const playerId = playerMatch.playerId ?? playerMatch.player?.id;
+      if (playerId) {
+        activePlayerIds.add(playerId);
+      }
+    }
+  }
+};
+
+const collectLiveViewActivePlayersAndTargetPool = (
+  liveView: TournamentLiveView,
+  targetPoolId: string | null | undefined,
+  ignoredMatchId: string
+): { activePlayerIds: Set<string>; targetPool: LiveViewPoolLike | undefined } => {
+  const activePlayerIds = new Set<string>();
+  let targetPool: LiveViewPoolLike | undefined;
+
+  for (const stage of liveView.poolStages ?? []) {
+    for (const pool of stage.pools ?? []) {
+      if (!targetPool && pool.id === targetPoolId) {
+        targetPool = pool as LiveViewPoolLike;
+      }
+      collectActivePlayersFromMatches(pool.matches as LiveViewCandidateMatch[] | undefined, ignoredMatchId, activePlayerIds);
+    }
+  }
+
+  for (const bracket of liveView.brackets ?? []) {
+    collectActivePlayersFromMatches(bracket.matches as LiveViewCandidateMatch[] | undefined, ignoredMatchId, activePlayerIds);
+  }
+
+  return { activePlayerIds, targetPool };
+};
+
+const getPoolPlayerIds = (pool: LiveViewPoolLike): Set<string> => {
+  const assignmentPlayerIds = new Set(
+    (pool.assignments ?? [])
+      .map((assignment) => assignment.player?.id)
+      .filter((playerId): playerId is string => Boolean(playerId))
+  );
+  if (assignmentPlayerIds.size > 0) {
+    return assignmentPlayerIds;
+  }
+
+  return new Set(
+    (pool.matches ?? [])
+      .flatMap((candidateMatch) => candidateMatch.playerMatches ?? [])
+      .map((playerMatch) => playerMatch.playerId ?? playerMatch.player?.id)
+      .filter((playerId): playerId is string => Boolean(playerId))
+  );
+};
+
+const ensurePoolConcurrentLimitNotReached = (pool: LiveViewPoolLike, matchId: string): void => {
+  const poolPlayerIds = getPoolPlayerIds(pool);
+  const maxConcurrentMatches = Math.floor(poolPlayerIds.size / 2);
+  const inProgressMatchesInPool = (pool.matches ?? []).filter((candidateMatch) => (
+    candidateMatch.id !== matchId && candidateMatch.status === MatchStatus.IN_PROGRESS
+  )).length;
+
+  if (maxConcurrentMatches > 0 && inProgressMatchesInPool >= maxConcurrentMatches) {
+    throw new AppError(
+      `Pool concurrent match limit reached (${maxConcurrentMatches})`,
+      400,
+      'POOL_MAX_CONCURRENT_MATCHES_REACHED'
+    );
+  }
+};
+
 export type MatchHandlerContext = {
   tournamentModel: TournamentModel;
   validateUUID: (id: string) => void;
@@ -61,6 +162,51 @@ const normalizeMatchFormatSegments = (value: unknown): Array<{ game: string; tar
 
   return segments;
 };
+
+const buildFinishedNotificationPlayers = (
+  playerMatches: Array<{
+    playerId?: string | null;
+    player?: {
+      id?: string;
+      firstName?: string;
+      lastName?: string;
+      surname?: string | null;
+      teamName?: string | null;
+    };
+    scoreTotal?: number | null;
+    legsWon?: number | null;
+    setsWon?: number | null;
+    isWinner?: boolean | null;
+  }> | undefined
+): FinishedNotificationPlayerSummary[] => (
+  (playerMatches ?? []).map((pm) => {
+    const summary: FinishedNotificationPlayerSummary = {
+      scoreTotal: pm.scoreTotal ?? null,
+      legsWon: pm.legsWon ?? null,
+      setsWon: pm.setsWon ?? null,
+      isWinner: pm.isWinner ?? null,
+    };
+
+    const playerId = pm.player?.id ?? pm.playerId ?? undefined;
+    if (playerId !== undefined) {
+      summary.id = playerId;
+    }
+    if (pm.player?.firstName !== undefined) {
+      summary.firstName = pm.player.firstName;
+    }
+    if (pm.player?.lastName !== undefined) {
+      summary.lastName = pm.player.lastName;
+    }
+    if (pm.player?.surname) {
+      summary.surname = pm.player.surname;
+    }
+    if (pm.player?.teamName) {
+      summary.teamName = pm.player.teamName;
+    }
+
+    return summary;
+  })
+);
 
 export const createMatchHandlers = (context: MatchHandlerContext) => {
   const {
@@ -257,93 +403,11 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
     }
 
-    type LiveViewPoolLike = {
-      id: string;
-      assignments?: Array<{ player?: { id?: string } }>;
-      matches?: Array<{
-        id: string;
-        status: string;
-        playerMatches?: Array<{ playerId?: string | null; player?: { id?: string } }>;
-      }>;
-    };
-
-    const collectActivePlayersFromMatches = (
-      candidateMatches: Array<{
-        id: string;
-        status: string;
-        playerMatches?: Array<{ playerId?: string | null; player?: { id?: string } }>;
-      }> | undefined,
-      activePlayerIds: Set<string>
-    ) => {
-      for (const candidateMatch of candidateMatches ?? []) {
-        if (candidateMatch.id === matchId || candidateMatch.status !== MatchStatus.IN_PROGRESS) {
-          continue;
-        }
-        for (const playerMatch of candidateMatch.playerMatches ?? []) {
-          const playerId = playerMatch.playerId ?? playerMatch.player?.id;
-          if (playerId) {
-            activePlayerIds.add(playerId);
-          }
-        }
-      }
-    };
-
-    const collectLiveViewActivePlayersAndTargetPool = () => {
-      const activePlayerIds = new Set<string>();
-      let targetPool: LiveViewPoolLike | undefined;
-
-      for (const stage of liveView.poolStages ?? []) {
-        for (const pool of stage.pools ?? []) {
-          if (!targetPool && pool.id === matchWithPlayers.poolId) {
-            targetPool = pool as LiveViewPoolLike;
-          }
-          collectActivePlayersFromMatches(pool.matches, activePlayerIds);
-        }
-      }
-
-      for (const bracket of liveView.brackets ?? []) {
-        collectActivePlayersFromMatches(bracket.matches, activePlayerIds);
-      }
-
-      return { activePlayerIds, targetPool };
-    };
-
-    const getPoolPlayerIds = (pool: LiveViewPoolLike) => {
-      const assignmentPlayerIds = new Set(
-        (pool.assignments ?? [])
-          .map((assignment) => assignment.player?.id)
-          .filter((playerId): playerId is string => Boolean(playerId))
-      );
-
-      if (assignmentPlayerIds.size > 0) {
-        return assignmentPlayerIds;
-      }
-
-      return new Set(
-        (pool.matches ?? [])
-          .flatMap((candidateMatch) => candidateMatch.playerMatches ?? [])
-          .map((playerMatch) => playerMatch.playerId ?? playerMatch.player?.id)
-          .filter((playerId): playerId is string => Boolean(playerId))
-      );
-    };
-
-    const ensurePoolConcurrentLimitNotReached = (pool: LiveViewPoolLike) => {
-      const poolPlayerIds = getPoolPlayerIds(pool);
-      const maxConcurrentMatches = Math.floor(poolPlayerIds.size / 2);
-      const inProgressMatchesInPool = (pool.matches ?? []).filter((candidateMatch) => (
-        candidateMatch.id !== matchId && candidateMatch.status === MatchStatus.IN_PROGRESS
-      )).length;
-
-      if (maxConcurrentMatches > 0 && inProgressMatchesInPool >= maxConcurrentMatches) {
-        throw new AppError(
-          `Pool concurrent match limit reached (${maxConcurrentMatches})`,
-          400,
-          'POOL_MAX_CONCURRENT_MATCHES_REACHED'
-        );
-      }
-    };
-
-    const { activePlayerIds, targetPool } = collectLiveViewActivePlayersAndTargetPool();
+    const { activePlayerIds, targetPool } = collectLiveViewActivePlayersAndTargetPool(
+      liveView,
+      matchWithPlayers.poolId,
+      matchId
+    );
 
     const conflictingPlayer = playerIds.find((playerId) => activePlayerIds.has(playerId));
     if (conflictingPlayer) {
@@ -355,7 +419,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
     }
 
     if (targetPool) {
-      ensurePoolConcurrentLimitNotReached(targetPool);
+      ensurePoolConcurrentLimitNotReached(targetPool, matchId);
     }
   };
 
@@ -571,55 +635,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
       return;
     }
 
-    type PlayerMatchRow = {
-      playerId?: string | null;
-      player?: {
-        id?: string;
-        firstName?: string;
-        lastName?: string;
-        surname?: string | null;
-        teamName?: string | null;
-      };
-      scoreTotal?: number | null;
-      legsWon?: number | null;
-      setsWon?: number | null;
-      isWinner?: boolean | null;
-    };
-    const players = (matchDetails.playerMatches ?? []).map((pm: PlayerMatchRow) => {
-      const summary: {
-        id?: string;
-        firstName?: string;
-        lastName?: string;
-        surname?: string;
-        teamName?: string;
-        scoreTotal?: number | null;
-        legsWon?: number | null;
-        setsWon?: number | null;
-        isWinner?: boolean | null;
-      } = {
-        scoreTotal: pm.scoreTotal ?? null,
-        legsWon: pm.legsWon ?? null,
-        setsWon: pm.setsWon ?? null,
-        isWinner: pm.isWinner ?? null,
-      };
-      const playerId = pm.player?.id ?? pm.playerId ?? undefined;
-      if (playerId !== undefined) {
-        summary.id = playerId;
-      }
-      if (pm.player?.firstName !== undefined) {
-        summary.firstName = pm.player.firstName;
-      }
-      if (pm.player?.lastName !== undefined) {
-        summary.lastName = pm.player.lastName;
-      }
-      if (pm.player?.surname) {
-        summary.surname = pm.player.surname;
-      }
-      if (pm.player?.teamName) {
-        summary.teamName = pm.player.teamName;
-      }
-      return summary;
-    });
+    const players = buildFinishedNotificationPlayers(matchDetails.playerMatches);
 
   const winner = players.find((player: (typeof players)[number]) => player.isWinner)
       ?? (matchDetails.winner

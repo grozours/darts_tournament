@@ -194,4 +194,52 @@ describe('useBracketStructure', () => {
 
     expect(fetchTournamentTargets).not.toHaveBeenCalled();
   });
+
+  it('computes rounds for perdants naming and non-auth target loading path', async () => {
+    fetchTournamentTargets.mockResolvedValue([{ id: 'target-2', targetNumber: 2 }]);
+    const { result } = build({
+      authEnabled: false,
+      getSafeAccessToken: vi.fn(async () => undefined),
+      poolStages: [{ stageNumber: 3, poolCount: 2, playersPerPool: 6, advanceCount: 2, losersAdvanceToBracket: true }],
+    });
+
+    expect(result.current.getDefaultBracketRounds('Tableau des perdants', BracketType.SINGLE_ELIMINATION)).toBe(3);
+
+    await act(async () => {
+      await result.current.loadTargets('t1');
+    });
+
+    expect(fetchTournamentTargets).toHaveBeenCalledWith('t1', undefined);
+    expect(result.current.targets).toHaveLength(1);
+  });
+
+  it('returns early for mutations when editing tournament is undefined', async () => {
+    const { result } = build({ editingTournament: undefined });
+
+    await act(async () => {
+      await result.current.addBracket();
+      await result.current.saveBracket({
+        id: 'b-early',
+        tournamentId: 't1',
+        name: 'Early',
+        bracketType: 'SINGLE_ELIMINATION',
+        totalRounds: 2,
+        status: 'NOT_STARTED',
+      });
+      await result.current.saveBracketTargets({
+        id: 'b-early',
+        tournamentId: 't1',
+        name: 'Early',
+        bracketType: 'SINGLE_ELIMINATION',
+        totalRounds: 2,
+        status: 'NOT_STARTED',
+      });
+      await result.current.removeBracket('b-early');
+    });
+
+    expect(createBracket).not.toHaveBeenCalled();
+    expect(updateBracket).not.toHaveBeenCalled();
+    expect(updateBracketTargets).not.toHaveBeenCalled();
+    expect(deleteBracket).not.toHaveBeenCalled();
+  });
 });

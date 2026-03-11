@@ -17,11 +17,11 @@ type UsePoolStageAssignmentsProperties = {
 };
 
 type UsePoolStageAssignmentsResult = {
-  editingPoolStage?: PoolStageConfig | undefined;
+  editingPoolStage?: PoolStageConfig;
   poolStagePools: PoolStagePool[];
   poolStagePlayers: TournamentPlayer[];
   poolStageAssignments: Record<string, string[]>;
-  poolStageEditError?: string | undefined;
+  poolStageEditError?: string;
   isSavingAssignments: boolean;
   openPoolStageAssignments: (stage: PoolStageConfig) => Promise<void>;
   closePoolStageAssignments: () => void;

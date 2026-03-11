@@ -739,11 +739,6 @@ describe('TournamentList - player registration', () => {
     adminState.isAdmin = true;
     mockFetchTournamentPresets.mockResolvedValueOnce([]);
     globalThis.window?.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
-    const locationAssign = vi.fn();
-    Object.defineProperty(globalThis.window, 'location', {
-      configurable: true,
-      value: { ...globalThis.window.location, assign: locationAssign },
-    });
     const { fetchResponse, fetchDetailsResponse } = buildTournamentFetchResponses();
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
       const url = toRequestUrl(input);
@@ -762,7 +757,9 @@ describe('TournamentList - player registration', () => {
     render(<TournamentList />);
 
     await waitFor(() => {
-      expect(locationAssign).toHaveBeenCalled();
+      expect(globalThis.window.location.search).toContain('view=tournament-presets');
+      expect(globalThis.window.location.search).toContain('from=edit-tournament');
+      expect(globalThis.window.location.search).toContain('tournamentId=tournament-1');
     });
   });
 
@@ -784,11 +781,6 @@ describe('TournamentList - player registration', () => {
       },
     ]);
     globalThis.window?.history.pushState({}, '', '/?view=edit-tournament&tournamentId=tournament-1');
-    const locationAssign = vi.fn();
-    Object.defineProperty(globalThis.window, 'location', {
-      configurable: true,
-      value: { ...globalThis.window.location, assign: locationAssign },
-    });
     const { fetchResponse, fetchDetailsResponse } = buildTournamentFetchResponses();
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
       const url = toRequestUrl(input);
@@ -809,7 +801,8 @@ describe('TournamentList - player registration', () => {
     await waitFor(() => {
       expect(mockFetchTournamentPresets).toHaveBeenCalled();
     });
-    expect(locationAssign).not.toHaveBeenCalled();
+    expect(globalThis.window.location.search).toContain('view=edit-tournament');
+    expect(globalThis.window.location.search).toContain('tournamentId=tournament-1');
   });
 
   it('keeps edit page available when quick presets fetch fails', async () => {
@@ -1035,11 +1028,6 @@ describe('TournamentList - player registration', () => {
     adminState.isAdmin = true;
     mockFetchTournamentPresets.mockResolvedValueOnce([]);
     globalThis.window?.history.pushState({}, '', '/?view=edit-tournament');
-    const locationAssign = vi.fn();
-    Object.defineProperty(globalThis.window, 'location', {
-      configurable: true,
-      value: { ...globalThis.window.location, assign: locationAssign },
-    });
 
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
@@ -1049,10 +1037,9 @@ describe('TournamentList - player registration', () => {
     render(<TournamentList />);
 
     await waitFor(() => {
-      expect(locationAssign).toHaveBeenCalled();
+      expect(globalThis.window.location.search).toContain('view=tournament-presets');
     });
-    expect(String(locationAssign.mock.calls[0]?.[0] ?? '')).toContain('view=tournament-presets');
-    expect(String(locationAssign.mock.calls[0]?.[0] ?? '')).not.toContain('tournamentId=');
+    expect(globalThis.window.location.search).not.toContain('tournamentId=');
   });
 
 });

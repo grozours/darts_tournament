@@ -44,7 +44,7 @@ type LiveTournamentViewProperties = {
   isAdmin: boolean;
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
-  stageId?: string | undefined;
+  stageId?: string;
   isAggregateView: boolean;
   screenMode: boolean;
   visibleLiveViewsCount: number;
@@ -56,9 +56,9 @@ type LiveTournamentViewProperties = {
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
-  editingMatchId?: string | undefined;
-  updatingRoundKey?: string | undefined;
-  resettingBracketId?: string | undefined;
+  editingMatchId?: string;
+  updatingRoundKey?: string;
+  resettingBracketId?: string;
   matchScores: Record<string, Record<string, string>>;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   getTargetIdForSelection: (matchTournamentId: string, targetNumberValue: string) => string | undefined;
@@ -87,8 +87,8 @@ type LiveTournamentViewProperties = {
   onLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   canDeleteStage: boolean;
-  editingStageId?: string | undefined;
-  updatingStageId?: string | undefined;
+  editingStageId?: string;
+  updatingStageId?: string;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
@@ -269,6 +269,82 @@ type BracketRoundWorkload = {
   schedulableMatches: Array<{ id: string; durationMinutes: number; playerIds: string[] }>;
 };
 
+const createEmptyBracketRoundWorkload = (): BracketRoundWorkload => ({
+  totalMinutes: 0,
+  maxSingleMatchMinutes: 0,
+  knownMatchesCount: 0,
+  schedulableMatches: [],
+});
+
+const addKnownBracketMatchToRoundWorkload = (
+  roundWorkloadByRound: Map<number, BracketRoundWorkload>,
+  roundNumber: number,
+  duration: number,
+  match: LiveViewMatch
+) => {
+  const current = roundWorkloadByRound.get(roundNumber) ?? createEmptyBracketRoundWorkload();
+  current.totalMinutes += duration;
+  current.maxSingleMatchMinutes = Math.max(current.maxSingleMatchMinutes, duration);
+  current.knownMatchesCount += 1;
+  current.schedulableMatches.push({
+    id: match.id,
+    durationMinutes: duration,
+    playerIds: (match.playerMatches ?? [])
+      .map((playerMatch) => playerMatch.player?.id)
+      .filter((playerId): playerId is string => Boolean(playerId)),
+  });
+  roundWorkloadByRound.set(roundNumber, current);
+};
+
+const addMissingBracketMatchesToRoundWorkload = (
+  roundWorkloadByRound: Map<number, BracketRoundWorkload>,
+  bracket: LiveViewBracket,
+  roundNumber: number,
+  missingCount: number,
+  durationByFormatKey: Map<string, number>
+) => {
+  if (missingCount <= 0) {
+    return;
+  }
+
+  const current = roundWorkloadByRound.get(roundNumber) ?? createEmptyBracketRoundWorkload();
+  const roundDuration = resolveMatchDuration(
+    bracket.roundMatchFormats?.[String(roundNumber)],
+    durationByFormatKey
+  );
+  current.totalMinutes += missingCount * roundDuration;
+  current.maxSingleMatchMinutes = Math.max(current.maxSingleMatchMinutes, roundDuration);
+  for (let index = 0; index < missingCount; index += 1) {
+    current.schedulableMatches.push({
+      id: `missing-${bracket.id}-${roundNumber}-${index}`,
+      durationMinutes: roundDuration,
+      playerIds: [],
+    });
+  }
+  roundWorkloadByRound.set(roundNumber, current);
+};
+
+const buildGroupedMemberNameMap = (groups: Array<{ name: string; members: Array<{ playerId: string }> }>) => {
+  const nextMap = new Map<string, string>();
+  for (const group of groups) {
+    for (const member of group.members) {
+      nextMap.set(member.playerId, group.name);
+    }
+  }
+  return nextMap;
+};
+
+const loadGroupedMemberNameMapForView = async (view: LiveViewData): Promise<Map<string, string>> => {
+  if (view.format !== TournamentFormat.DOUBLE && view.format !== TournamentFormat.TEAM_4_PLAYER) {
+    return new Map();
+  }
+
+  const groups = view.format === TournamentFormat.DOUBLE
+    ? await fetchDoublettes(view.id)
+    : await fetchEquipes(view.id);
+  return buildGroupedMemberNameMap(groups);
+};
+
 const getBracketRoundWorkloads = (
   bracket: LiveViewBracket,
   durationByFormatKey: Map<string, number>,
@@ -291,53 +367,20 @@ const getBracketRoundWorkloads = (
       match.matchFormatKey ?? bracket.roundMatchFormats?.[String(roundNumber)],
       durationByFormatKey
     );
-    const current = roundWorkloadByRound.get(roundNumber) ?? {
-      totalMinutes: 0,
-      maxSingleMatchMinutes: 0,
-      knownMatchesCount: 0,
-      schedulableMatches: [],
-    };
-
-    current.totalMinutes += duration;
-    current.maxSingleMatchMinutes = Math.max(current.maxSingleMatchMinutes, duration);
-    current.knownMatchesCount += 1;
-    current.schedulableMatches.push({
-      id: match.id,
-      durationMinutes: duration,
-      playerIds: (match.playerMatches ?? [])
-        .map((playerMatch) => playerMatch.player?.id)
-        .filter((playerId): playerId is string => Boolean(playerId)),
-    });
-    roundWorkloadByRound.set(roundNumber, current);
+    addKnownBracketMatchToRoundWorkload(roundWorkloadByRound, roundNumber, duration, match);
   }
 
   for (const [roundNumber, expectedCount] of expectedByRound.entries()) {
-    const current = roundWorkloadByRound.get(roundNumber) ?? {
-      totalMinutes: 0,
-      maxSingleMatchMinutes: 0,
-      knownMatchesCount: 0,
-      schedulableMatches: [],
-    };
+    const current = roundWorkloadByRound.get(roundNumber) ?? createEmptyBracketRoundWorkload();
     const knownCount = current.knownMatchesCount;
     const missingCount = Math.max(expectedCount - knownCount, 0);
-    if (missingCount <= 0) {
-      continue;
-    }
-
-    const roundDuration = resolveMatchDuration(
-      bracket.roundMatchFormats?.[String(roundNumber)],
+    addMissingBracketMatchesToRoundWorkload(
+      roundWorkloadByRound,
+      bracket,
+      roundNumber,
+      missingCount,
       durationByFormatKey
     );
-    current.totalMinutes += missingCount * roundDuration;
-    current.maxSingleMatchMinutes = Math.max(current.maxSingleMatchMinutes, roundDuration);
-    for (let index = 0; index < missingCount; index += 1) {
-      current.schedulableMatches.push({
-        id: `missing-${bracket.id}-${roundNumber}-${index}`,
-        durationMinutes: roundDuration,
-        playerIds: [],
-      });
-    }
-    roundWorkloadByRound.set(roundNumber, current);
   }
 
   return roundWorkloadByRound;
@@ -1147,26 +1190,12 @@ const LiveTournamentView = ({
     let isCancelled = false;
 
     const loadGroupLabels = async () => {
-      if (view.format !== TournamentFormat.DOUBLE && view.format !== TournamentFormat.TEAM_4_PLAYER) {
-        if (!isCancelled) {
-          setGroupNameByPlayerId(new Map());
-        }
-        return;
-      }
-
       try {
-        const groups = view.format === TournamentFormat.DOUBLE
-          ? await fetchDoublettes(view.id)
-          : await fetchEquipes(view.id);
-        const nextMap = new Map<string, string>();
-        for (const group of groups) {
-          for (const member of group.members) {
-            nextMap.set(member.playerId, group.name);
-          }
+        const nextMap = await loadGroupedMemberNameMapForView(view);
+        if (isCancelled) {
+          return;
         }
-        if (!isCancelled) {
-          setGroupNameByPlayerId(nextMap);
-        }
+        setGroupNameByPlayerId(nextMap);
       } catch {
         if (!isCancelled) {
           setGroupNameByPlayerId(new Map());

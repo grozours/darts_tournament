@@ -490,6 +490,190 @@ function TournamentPlayersView() {
     });
   }, [groups, search]);
 
+  const resolvePresenceLabel = (player: TournamentPlayer) => {
+    if (player.checkedIn) {
+      return t('players.confirmed');
+    }
+    if (checkingInId === player.playerId) {
+      return t('common.loading');
+    }
+    return t('players.confirmPresence');
+  };
+
+  const renderSingleTournamentPlayerCard = (player: TournamentPlayer) => {
+    const isEditing = editingPlayerId === player.playerId;
+    const canEditThisPlayer = isAdmin || canEditOwnPlayer(player);
+    const presenceLabel = resolvePresenceLabel(player);
+    const isContactExpanded = Boolean(expandedContacts[player.playerId]);
+
+    return (
+      <div
+        key={player.playerId}
+        className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            {isEditing ? (
+              <div className="space-y-2">
+                {isAdmin && (
+                  <>
+                    <input
+                      value={editingPlayerForm.firstName}
+                      onChange={(event) => setEditingPlayerForm((current) => ({
+                        ...current,
+                        firstName: event.target.value,
+                      }))}
+                      placeholder={t('edit.firstName')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <input
+                      value={editingPlayerForm.lastName}
+                      onChange={(event) => setEditingPlayerForm((current) => ({
+                        ...current,
+                        lastName: event.target.value,
+                      }))}
+                      placeholder={t('edit.lastName')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                  </>
+                )}
+                <input
+                  value={editingPlayerForm.surname}
+                  onChange={(event) => setEditingPlayerForm((current) => ({
+                    ...current,
+                    surname: event.target.value,
+                  }))}
+                  placeholder={t('edit.surname')}
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                />
+                {isAdmin && (
+                  <>
+                    <input
+                      value={editingPlayerForm.teamName}
+                      onChange={(event) => setEditingPlayerForm((current) => ({
+                        ...current,
+                        teamName: event.target.value,
+                      }))}
+                      placeholder={t('edit.teamName')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <input
+                      value={editingPlayerForm.email}
+                      onChange={(event) => setEditingPlayerForm((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))}
+                      placeholder={t('edit.email')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <input
+                      value={editingPlayerForm.phone}
+                      onChange={(event) => setEditingPlayerForm((current) => ({
+                        ...current,
+                        phone: event.target.value,
+                      }))}
+                      placeholder={t('edit.phone')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <h3 className="font-semibold text-white">
+                  {player.firstName} {player.lastName}
+                </h3>
+                {player.surname && (
+                  <p className="text-xs text-slate-500 italic">"{player.surname}"</p>
+                )}
+                {player.teamName && (
+                  <p className="text-xs text-cyan-400 mt-1">{player.teamName}</p>
+                )}
+              </>
+            )}
+          </div>
+          {player.checkedIn && (
+            <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-[10px] font-semibold text-emerald-300">
+              ✓
+            </span>
+          )}
+        </div>
+        <div className="mt-3 space-y-1 text-xs text-slate-400">
+          {isAdmin && (player.email || player.phone) && (
+            <button
+              type="button"
+              onClick={() => toggleContactDetails(player.playerId)}
+              className="text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
+            >
+              {isContactExpanded ? t('players.hideContact') : t('players.showContact')}
+            </button>
+          )}
+          {isAdmin && isContactExpanded && player.email && (
+            <p className="truncate">📧 {player.email}</p>
+          )}
+          {isAdmin && isContactExpanded && player.phone && (
+            <p>📱 {player.phone}</p>
+          )}
+          {player.skillLevel && (
+            <p className="mt-2">
+              <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300">
+                {player.skillLevel}
+              </span>
+            </p>
+          )}
+        </div>
+        {canEditThisPlayer && (
+          <div className="mt-4 space-y-2">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => savePlayerEdit(player)}
+                  disabled={savingPlayerId === player.playerId}
+                  className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingPlayerId === player.playerId ? t('common.loading') : t('common.save')}
+                </button>
+                <button
+                  onClick={cancelEditPlayer}
+                  className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                >
+                  {t('common.cancel')}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => startEditPlayer(player)}
+                  className="w-full rounded-full border border-cyan-500/60 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                >
+                  {t('common.edit')}
+                </button>
+                {isAdmin && tournament?.status === 'SIGNATURE' && (
+                  <button
+                    onClick={() => confirmPresence(player)}
+                    disabled={player.checkedIn || checkingInId === player.playerId}
+                    className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {presenceLabel}
+                  </button>
+                )}
+                {isAdmin && canDeletePlayers && (
+                  <button
+                    onClick={() => removePlayer(player)}
+                    disabled={removingPlayerId === player.playerId}
+                    className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (!tournamentId) {
     return (
       <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
@@ -597,184 +781,7 @@ function TournamentPlayersView() {
 
           {isSingleTournament && filteredPlayers.length > 0 && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredPlayers.map((player) => {
-                const isEditing = editingPlayerId === player.playerId;
-                const canEditThisPlayer = isAdmin || canEditOwnPlayer(player);
-                let presenceLabel = t('players.confirmPresence');
-                if (player.checkedIn) {
-                  presenceLabel = t('players.confirmed');
-                } else if (checkingInId === player.playerId) {
-                  presenceLabel = t('common.loading');
-                }
-                const isContactExpanded = Boolean(expandedContacts[player.playerId]);
-
-                return (
-                  <div
-                    key={player.playerId}
-                    className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4"
-                  >
-                    <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      {isEditing ? (
-                        <div className="space-y-2">
-                          {isAdmin && (
-                            <>
-                              <input
-                                value={editingPlayerForm.firstName}
-                                onChange={(event) => setEditingPlayerForm((current) => ({
-                                  ...current,
-                                  firstName: event.target.value,
-                                }))}
-                                placeholder={t('edit.firstName')}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                              />
-                              <input
-                                value={editingPlayerForm.lastName}
-                                onChange={(event) => setEditingPlayerForm((current) => ({
-                                  ...current,
-                                  lastName: event.target.value,
-                                }))}
-                                placeholder={t('edit.lastName')}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                              />
-                            </>
-                          )}
-                          <input
-                            value={editingPlayerForm.surname}
-                            onChange={(event) => setEditingPlayerForm((current) => ({
-                              ...current,
-                              surname: event.target.value,
-                            }))}
-                            placeholder={t('edit.surname')}
-                            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          />
-                          {isAdmin && (
-                            <>
-                              <input
-                                value={editingPlayerForm.teamName}
-                                onChange={(event) => setEditingPlayerForm((current) => ({
-                                  ...current,
-                                  teamName: event.target.value,
-                                }))}
-                                placeholder={t('edit.teamName')}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                              />
-                              <input
-                                value={editingPlayerForm.email}
-                                onChange={(event) => setEditingPlayerForm((current) => ({
-                                  ...current,
-                                  email: event.target.value,
-                                }))}
-                                placeholder={t('edit.email')}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                              />
-                              <input
-                                value={editingPlayerForm.phone}
-                                onChange={(event) => setEditingPlayerForm((current) => ({
-                                  ...current,
-                                  phone: event.target.value,
-                                }))}
-                                placeholder={t('edit.phone')}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                              />
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <h3 className="font-semibold text-white">
-                            {player.firstName} {player.lastName}
-                          </h3>
-                          {player.surname && (
-                            <p className="text-xs text-slate-500 italic">"{player.surname}"</p>
-                          )}
-                          {player.teamName && (
-                            <p className="text-xs text-cyan-400 mt-1">{player.teamName}</p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    {player.checkedIn && (
-                      <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-[10px] font-semibold text-emerald-300">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3 space-y-1 text-xs text-slate-400">
-                    {isAdmin && (player.email || player.phone) && (
-                      <button
-                        type="button"
-                        onClick={() => toggleContactDetails(player.playerId)}
-                        className="text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
-                      >
-                        {isContactExpanded ? t('players.hideContact') : t('players.showContact')}
-                      </button>
-                    )}
-                    {isAdmin && isContactExpanded && player.email && (
-                      <p className="truncate">📧 {player.email}</p>
-                    )}
-                    {isAdmin && isContactExpanded && player.phone && (
-                      <p>📱 {player.phone}</p>
-                    )}
-                    {player.skillLevel && (
-                      <p className="mt-2">
-                        <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300">
-                          {player.skillLevel}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                    {canEditThisPlayer && (
-                      <div className="mt-4 space-y-2">
-                        {isEditing ? (
-                          <>
-                            <button
-                              onClick={() => savePlayerEdit(player)}
-                              disabled={savingPlayerId === player.playerId}
-                              className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {savingPlayerId === player.playerId ? t('common.loading') : t('common.save')}
-                            </button>
-                            <button
-                              onClick={cancelEditPlayer}
-                              className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
-                            >
-                              {t('common.cancel')}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => startEditPlayer(player)}
-                              className="w-full rounded-full border border-cyan-500/60 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-                            >
-                              {t('common.edit')}
-                            </button>
-                            {isAdmin && tournament?.status === 'SIGNATURE' && (
-                              <button
-                                onClick={() => confirmPresence(player)}
-                                disabled={player.checkedIn || checkingInId === player.playerId}
-                                className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {presenceLabel}
-                              </button>
-                            )}
-                            {isAdmin && canDeletePlayers && (
-                              <button
-                                onClick={() => removePlayer(player)}
-                                disabled={removingPlayerId === player.playerId}
-                                className="w-full rounded-full border border-rose-500/60 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {removingPlayerId === player.playerId ? t('players.deleting') : t('common.delete')}
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {filteredPlayers.map((player) => renderSingleTournamentPlayerCard(player))}
             </div>
           )}
 

@@ -76,7 +76,9 @@ describe('useTargetsViewData', () => {
       tournamentId: undefined,
     }));
 
-    await expect(result.current.fetchLiveViews()).rejects.toThrow('Failed to fetch live tournaments');
+    await act(async () => {
+      await expect(result.current.fetchLiveViews()).rejects.toThrow('Failed to fetch live tournaments');
+    });
 
     await act(async () => {
       result.current.setError('manual-error');

@@ -221,6 +221,98 @@ function RegistrationPlayers() { // NOSONAR
     );
   };
 
+  const resolveTournamentRegistrationData = (tournament: TournamentSummary) => {
+    const players = playersByTournament[tournament.id] || [];
+    const doublettes = doublettesByTournament[tournament.id] || [];
+    const equipes = equipesByTournament[tournament.id] || [];
+    const isSingleTournament = tournament.format === TournamentFormat.SINGLE;
+    const isDoubleTournament = tournament.format === TournamentFormat.DOUBLE;
+    const slots = getSlotCapacity(tournament);
+
+    let currentCount = equipes.length;
+    if (isSingleTournament) {
+      currentCount = players.length;
+    } else if (isDoubleTournament) {
+      currentCount = doublettes.length;
+    }
+
+    return {
+      players,
+      isSingleTournament,
+      isDoubleTournament,
+      slots,
+      currentCount,
+      groupsToRender: isDoubleTournament ? doublettes : equipes,
+    };
+  };
+
+  const renderSingleTournamentPlayers = (players: TournamentPlayer[]) => {
+    if (players.length === 0) {
+      return (
+        <p className="mt-4 text-sm text-slate-400">{t('registration.noneRegisteredPlayers')}</p>
+      );
+    }
+
+    return (
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {players.map((player) => (
+          <div
+            key={player.playerId}
+            className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-2 text-sm"
+          >
+            <div>
+              <p className="text-slate-100">{player.name}</p>
+              <p className="text-xs text-slate-500">
+                {player.email || t('registration.noEmail')}
+              </p>
+            </div>
+            {player.skillLevel && (
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
+                {player.skillLevel}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderTournamentCard = (tournament: TournamentSummary) => {
+    const {
+      players,
+      isSingleTournament,
+      slots,
+      currentCount,
+      groupsToRender,
+    } = resolveTournamentRegistrationData(tournament);
+    const countLabel = isSingleTournament
+      ? t('registration.playersCount')
+      : t('registration.slotsCount');
+    const registeredContent = isSingleTournament
+      ? renderSingleTournamentPlayers(players)
+      : renderGroupCards(groupsToRender);
+
+    return (
+      <div
+        key={tournament.id}
+        className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-lg font-semibold text-white">{tournament.name}</h4>
+            <p className="text-sm text-slate-400">
+              {currentCount} / {slots} {countLabel}
+            </p>
+          </div>
+          <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
+            {tournament.format}
+          </span>
+        </div>
+        {registeredContent}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -260,78 +352,7 @@ function RegistrationPlayers() { // NOSONAR
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {sectionTournaments.map((tournament) => {
-                      const players = playersByTournament[tournament.id] || [];
-                      const doublettes = doublettesByTournament[tournament.id] || [];
-                      const equipes = equipesByTournament[tournament.id] || [];
-                      const isSingleTournament = tournament.format === TournamentFormat.SINGLE;
-                      const isDoubleTournament = tournament.format === TournamentFormat.DOUBLE;
-                      const slots = getSlotCapacity(tournament);
-                      let currentCount = equipes.length;
-                      if (isSingleTournament) {
-                        currentCount = players.length;
-                      } else if (isDoubleTournament) {
-                        currentCount = doublettes.length;
-                      }
-                      const countLabel = isSingleTournament
-                        ? t('registration.playersCount')
-                        : t('registration.slotsCount');
-                      const groupsToRender = isDoubleTournament ? doublettes : equipes;
-
-                      let registeredContent: JSX.Element;
-                      if (isSingleTournament) {
-                        if (players.length === 0) {
-                          registeredContent = (
-                            <p className="mt-4 text-sm text-slate-400">{t('registration.noneRegisteredPlayers')}</p>
-                          );
-                        } else {
-                          registeredContent = (
-                            <div className="mt-4 grid gap-2 md:grid-cols-2">
-                              {players.map((player) => (
-                                <div
-                                  key={player.playerId}
-                                  className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-2 text-sm"
-                                >
-                                  <div>
-                                    <p className="text-slate-100">{player.name}</p>
-                                    <p className="text-xs text-slate-500">
-                                      {player.email || t('registration.noEmail')}
-                                    </p>
-                                  </div>
-                                  {player.skillLevel && (
-                                    <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-                                      {player.skillLevel}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                      } else {
-                        registeredContent = renderGroupCards(groupsToRender);
-                      }
-
-                      return (
-                        <div
-                          key={tournament.id}
-                          className="rounded-3xl border border-slate-800/70 bg-slate-900/60 p-6"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <h4 className="text-lg font-semibold text-white">{tournament.name}</h4>
-                              <p className="text-sm text-slate-400">
-                                {currentCount} / {slots} {countLabel}
-                              </p>
-                            </div>
-                            <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
-                              {tournament.format}
-                            </span>
-                          </div>
-                          {registeredContent}
-                        </div>
-                      );
-                    })}
+                    {sectionTournaments.map((tournament) => renderTournamentCard(tournament))}
                   </div>
                 )}
               </div>

@@ -11,6 +11,47 @@ import useTargetsViewActions from './targets-view/use-targets-view-actions';
 import useTargetsViewData from './targets-view/use-targets-view-data';
 import useTargetsViewDerived from './targets-view/use-targets-view-derived';
 
+const isGroupedTournamentFormat = (format: TournamentFormat | undefined): boolean => (
+  format === TournamentFormat.DOUBLE || format === TournamentFormat.TEAM_4_PLAYER
+);
+
+const buildGroupNameByPlayerIdMap = (groups: Array<{ name: string; members: Array<{ playerId: string }> }>): Map<string, string> => {
+  const byPlayerId = new Map<string, string>();
+  for (const group of groups) {
+    for (const member of group.members) {
+      byPlayerId.set(member.playerId, group.name);
+    }
+  }
+  return byPlayerId;
+};
+
+const loadGroupsForView = async (
+  view: { id: string; format?: TournamentFormat },
+  token: string | undefined
+): Promise<{ viewId: string; byPlayerId: Map<string, string> }> => {
+  const groups = view.format === TournamentFormat.DOUBLE
+    ? await fetchDoublettes(view.id, token)
+    : await fetchEquipes(view.id, token);
+
+  return {
+    viewId: view.id,
+    byPlayerId: buildGroupNameByPlayerIdMap(groups),
+  };
+};
+
+const buildGroupNameByPlayerIdByTournament = (
+  settledResults: Array<PromiseSettledResult<{ viewId: string; byPlayerId: Map<string, string> }>>
+): Map<string, Map<string, string>> => {
+  const nextMap = new Map<string, Map<string, string>>();
+  for (const result of settledResults) {
+    if (result.status !== 'fulfilled') {
+      continue;
+    }
+    nextMap.set(result.value.viewId, result.value.byPlayerId);
+  }
+  return nextMap;
+};
+
 function TargetsView() { // NOSONAR
   const { t } = useI18n();
   const { enabled: authEnabled, getAccessTokenSilently } = useOptionalAuth();
@@ -50,9 +91,7 @@ function TargetsView() { // NOSONAR
     let isCancelled = false;
 
     const loadGroupLabels = async () => {
-      const groupedViews = scopedViews.filter(
-        (view) => view.format === TournamentFormat.DOUBLE || view.format === TournamentFormat.TEAM_4_PLAYER
-      );
+      const groupedViews = scopedViews.filter((view) => isGroupedTournamentFormat(view.format));
 
       if (groupedViews.length === 0) {
         if (!isCancelled) {
@@ -62,31 +101,8 @@ function TargetsView() { // NOSONAR
       }
 
       const token = await getSafeAccessToken();
-      const settledResults = await Promise.allSettled(groupedViews.map(async (view) => {
-        const groups = view.format === TournamentFormat.DOUBLE
-          ? await fetchDoublettes(view.id, token)
-          : await fetchEquipes(view.id, token);
-
-        const byPlayerId = new Map<string, string>();
-        for (const group of groups) {
-          for (const member of group.members) {
-            byPlayerId.set(member.playerId, group.name);
-          }
-        }
-
-        return {
-          viewId: view.id,
-          byPlayerId,
-        };
-      }));
-
-      const nextMap = new Map<string, Map<string, string>>();
-      for (const result of settledResults) {
-        if (result.status !== 'fulfilled') {
-          continue;
-        }
-        nextMap.set(result.value.viewId, result.value.byPlayerId);
-      }
+      const settledResults = await Promise.allSettled(groupedViews.map((view) => loadGroupsForView(view, token)));
+      const nextMap = buildGroupNameByPlayerIdByTournament(settledResults);
 
       if (!isCancelled) {
         setGroupNameByPlayerIdByTournament(nextMap);

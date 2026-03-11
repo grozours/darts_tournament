@@ -5,9 +5,9 @@ import type { LiveViewStatus } from '../../utils/live-view-helpers';
 type LiveTournamentParameters = {
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
-  tournamentId?: string | undefined;
-  stageId?: string | undefined;
-  bracketId?: string | undefined;
+  tournamentId?: string;
+  stageId?: string;
+  bracketId?: string;
   isAggregateView: boolean;
   screenMode: boolean;
 };

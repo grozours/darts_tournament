@@ -4,9 +4,9 @@ import useLiveTournamentLoaders from './use-live-tournament-loaders';
 
 type UseLiveTournamentDataProperties = {
   getSafeAccessToken: () => Promise<string | undefined>;
-  viewMode?: string | undefined;
+  viewMode?: string;
   viewStatus?: LiveViewStatus;
-  tournamentId?: string | undefined;
+  tournamentId?: string;
   isAggregateView: boolean;
 };
 

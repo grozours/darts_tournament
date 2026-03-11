@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/app';
 
@@ -49,6 +49,10 @@ vi.mock('../../src/components/equipes-view', () => ({ default: () => <div>EQUIPE
 
 describe('App branch coverage', () => {
   beforeEach(() => {
+    vi.useRealTimers();
+    globalThis.history.replaceState({}, '', '/');
+    globalThis.localStorage.clear();
+
     socketHandlers.connect = undefined;
     socketHandlers['match:finished'] = undefined;
     emitMock.mockReset();
@@ -89,7 +93,9 @@ describe('App branch coverage', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it('renders debug panel and performs screen rotation navigation', async () => {
@@ -104,8 +110,10 @@ describe('App branch coverage', () => {
       expect(globalThis.fetch).toHaveBeenCalledWith('/api/tournaments/t1/live');
     });
 
-    socketHandlers.connect?.();
-    socketHandlers['match:finished']?.({ match: { source: 'bracket' } });
+    await act(async () => {
+      socketHandlers.connect?.();
+      socketHandlers['match:finished']?.({ match: { source: 'bracket' } });
+    });
 
     expect(emitMock).toHaveBeenCalledWith('join-tournament', 't1');
   });

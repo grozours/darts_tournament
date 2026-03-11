@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import AppHeader from '../../../src/components/app-header';
 
@@ -50,7 +50,7 @@ describe('AppHeader', () => {
     ]);
   });
 
-  it('shows admin manage links and notification badge', () => {
+  it('shows admin manage links and notification badge', async () => {
     globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([
       { id: '1' },
       { id: '2', acknowledgedAt: '2026-01-01' },
@@ -66,6 +66,10 @@ describe('AppHeader', () => {
       />
     );
 
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     expect(screen.getByText('nav.manage')).toBeInTheDocument();
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     const signUpLink = screen.getByRole('link', { name: 'nav.signUp' });
@@ -75,7 +79,7 @@ describe('AppHeader', () => {
     expect(screen.getByLabelText('1 unread notifications')).toBeInTheDocument();
   });
 
-  it('shows registrations menu for non-admin and updates unread on custom event', () => {
+  it('shows registrations menu for non-admin and updates unread on custom event', async () => {
     render(
       <AppHeader
         t={t}
@@ -86,19 +90,25 @@ describe('AppHeader', () => {
       />
     );
 
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'nav.signUp' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'nav.players' })).not.toBeInTheDocument();
 
-    globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
-    globalThis.dispatchEvent(new Event('notifications:updated'));
+    await act(async () => {
+      globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
+      globalThis.dispatchEvent(new Event('notifications:updated'));
+    });
 
     return waitFor(() => {
       expect(screen.getByLabelText('2 unread notifications')).toBeInTheDocument();
     });
   });
 
-  it('switches language from selector and handles screen mode link', () => {
+  it('switches language from selector and handles screen mode link', async () => {
     globalThis.history.pushState({}, '', '/?screen=1');
     const setLanguage = vi.fn();
 
@@ -112,9 +122,15 @@ describe('AppHeader', () => {
       />
     );
 
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     const details = document.querySelector('details');
     details?.setAttribute('open', 'open');
-    fireEvent.click(screen.getByText('Français'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Français'));
+    });
 
     expect(setLanguage).toHaveBeenCalledWith('fr');
     expect(screen.getByLabelText('live.exitScreenMode')).toBeInTheDocument();
@@ -148,6 +164,10 @@ describe('AppHeader', () => {
         setLanguage={vi.fn()}
       />
     );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 
     await waitFor(() => {
       expect(screen.getByLabelText('account.devAutologinMode')).toBeInTheDocument();
@@ -185,6 +205,10 @@ describe('AppHeader', () => {
     );
 
     await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    await waitFor(() => {
       expect(screen.queryByRole('link', { name: 'groups.doublettes' })).not.toBeInTheDocument();
     });
     expect(screen.queryByRole('link', { name: 'groups.equipes' })).not.toBeInTheDocument();
@@ -203,6 +227,10 @@ describe('AppHeader', () => {
         setLanguage={vi.fn()}
       />
     );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();

@@ -272,25 +272,41 @@ const buildBracketQueueItem = (
   };
 };
 
+const compareBracketQueueItems = (firstItem: MatchQueueItem, secondItem: MatchQueueItem) => {
+  if (firstItem.roundNumber !== secondItem.roundNumber) {
+    return firstItem.roundNumber - secondItem.roundNumber;
+  }
+
+  const firstBracketName = firstItem.bracketName ?? '';
+  const secondBracketName = secondItem.bracketName ?? '';
+  const bracketOrder = firstBracketName.localeCompare(secondBracketName, undefined, { sensitivity: 'base' });
+  if (bracketOrder !== 0) {
+    return bracketOrder;
+  }
+
+  if ((firstItem.bracketId ?? '') !== (secondItem.bracketId ?? '')) {
+    return (firstItem.bracketId ?? '').localeCompare(secondItem.bracketId ?? '');
+  }
+
+  return firstItem.matchNumber - secondItem.matchNumber;
+};
+
+const isEligibleBracketQueue = (view: LiveViewData, bracket: LiveViewBracket) => {
+  const bracketStatus = (bracket as { status?: string }).status;
+  return !isPhaseNotStarted(bracketStatus) && isBracketReadyFromPools(view, bracket.id);
+};
+
 const buildBracketQueueItems = ( // NOSONAR
   view: LiveViewData,
   groupNameByPlayerId?: Map<string, string>
 ): MatchQueueItem[] => {
-  const bracketItems: MatchQueueItem[] = [];
-  for (const bracket of view.brackets ?? []) {
-    const bracketStatus = (bracket as { status?: string }).status;
-    if (isPhaseNotStarted(bracketStatus)) {
-      continue;
-    }
-    if (!isBracketReadyFromPools(view, bracket.id)) {
-      continue;
-    }
-
+  const appendBracketMatches = (bracket: LiveViewBracket, bracketItems: MatchQueueItem[]) => {
     const bracketTargetIds = getBracketTargetIds(bracket);
     const maxRoundNumber = getBracketMaxRound(bracket);
     const maxRoundMatchCount = maxRoundNumber > 0
       ? getBracketRoundMatchCount(bracket, maxRoundNumber)
       : 0;
+
     for (const match of bracket.matches ?? []) {
       if (!isQueueableBracketMatch(match)) {
         continue;
@@ -305,82 +321,62 @@ const buildBracketQueueItems = ( // NOSONAR
         groupNameByPlayerId
       ));
     }
+  };
+
+  const bracketItems: MatchQueueItem[] = [];
+  const eligibleBrackets = (view.brackets ?? []).filter((bracket) => isEligibleBracketQueue(view, bracket));
+
+  for (const bracket of eligibleBrackets) {
+    appendBracketMatches(bracket, bracketItems);
   }
-  return bracketItems.toSorted((firstItem, secondItem) => {
-    if (firstItem.roundNumber !== secondItem.roundNumber) {
-      return firstItem.roundNumber - secondItem.roundNumber;
-    }
-
-    const firstBracketName = firstItem.bracketName ?? '';
-    const secondBracketName = secondItem.bracketName ?? '';
-    const bracketOrder = firstBracketName.localeCompare(secondBracketName, undefined, { sensitivity: 'base' });
-    if (bracketOrder !== 0) {
-      return bracketOrder;
-    }
-
-    if ((firstItem.bracketId ?? '') !== (secondItem.bracketId ?? '')) {
-      return (firstItem.bracketId ?? '').localeCompare(secondItem.bracketId ?? '');
-    }
-
-    return firstItem.matchNumber - secondItem.matchNumber;
-  });
+  return bracketItems.toSorted(compareBracketQueueItems);
 };
 
 export const buildMatchQueue = (
   view: LiveViewData,
   groupNameByPlayerId?: Map<string, string>
 ): MatchQueueItem[] => {
-  const buildQueue = (options?: { ignoreBlocking?: boolean }) => {
-    const items: MatchQueueItem[] = [];
-    const activePlayerKeys = new Set<string>();
-    const poolQueues: PoolQueue[] = [];
-
-    const collectActivePlayers = (match: LiveViewMatch) => {
-      for (const playerMatch of match.playerMatches ?? []) {
-        const key = getPlayerIdentity(playerMatch.player);
-        if (key) {
-          activePlayerKeys.add(key);
-        }
+  const activePlayerKeys = new Set<string>();
+  const collectActivePlayers = (match: LiveViewMatch) => {
+    for (const playerMatch of match.playerMatches ?? []) {
+      const key = getPlayerIdentity(playerMatch.player);
+      if (key) {
+        activePlayerKeys.add(key);
       }
-    };
-
-    poolQueues.push(...buildPoolQueues<LiveViewPoolStage, LiveViewPool, LiveViewMatch, MatchQueueItem>({
-      stages: view.poolStages ?? [],
-      getPools: (stage) => stage.pools,
-      getPoolId: (pool) => pool.id,
-      getStageNumber: (stage) => stage.stageNumber,
-      getPoolNumber: (pool) => pool.poolNumber,
-      getMatches: (pool) => pool.matches,
-      isMatchCompletedOrInProgress: isCompletedOrInProgress,
-      isMatchInProgress: isInProgress,
-      onInProgressMatch: collectActivePlayers,
-    }));
-
-    for (const bracket of view.brackets ?? []) {
-      collectActiveFromMatches(bracket.matches ?? [], isInProgress, collectActivePlayers);
     }
-
-    const isMatchBlocked = buildMatchBlocker(activePlayerKeys);
-
-    const ignoreBlocking = options?.ignoreBlocking;
-    items.push(...buildQueueItems({
-      view,
-      poolQueues,
-      isMatchBlocked,
-      ...(groupNameByPlayerId ? { groupNameByPlayerId } : {}),
-      ...(ignoreBlocking === undefined ? {} : { ignoreBlocking }),
-    }));
-    for (const queue of poolQueues) {
-      sortPoolMatches(queue);
-    }
-    const ordered = orderPoolQueuesByParallelStageGroups(view, poolQueues);
-    const poolItems = ordered.length > 0 ? ordered : items;
-    const bracketItems = buildBracketQueueItems(view, groupNameByPlayerId);
-
-    return [...poolItems, ...bracketItems];
   };
 
-  return buildQueue({ ignoreBlocking: true });
+  const poolQueues: PoolQueue[] = buildPoolQueues<LiveViewPoolStage, LiveViewPool, LiveViewMatch, MatchQueueItem>({
+    stages: view.poolStages ?? [],
+    getPools: (stage) => stage.pools,
+    getPoolId: (pool) => pool.id,
+    getStageNumber: (stage) => stage.stageNumber,
+    getPoolNumber: (pool) => pool.poolNumber,
+    getMatches: (pool) => pool.matches,
+    isMatchCompletedOrInProgress: isCompletedOrInProgress,
+    isMatchInProgress: isInProgress,
+    onInProgressMatch: collectActivePlayers,
+  });
+
+  for (const bracket of view.brackets ?? []) {
+    collectActiveFromMatches(bracket.matches ?? [], isInProgress, collectActivePlayers);
+  }
+
+  const poolItems = buildQueueItems({
+    view,
+    poolQueues,
+    isMatchBlocked: buildMatchBlocker(activePlayerKeys),
+    ...(groupNameByPlayerId ? { groupNameByPlayerId } : {}),
+    ignoreBlocking: true,
+  });
+
+  for (const queue of poolQueues) {
+    sortPoolMatches(queue);
+  }
+
+  const orderedPoolItems = orderPoolQueuesByParallelStageGroups(view, poolQueues);
+  const bracketItems = buildBracketQueueItems(view, groupNameByPlayerId);
+  return [...(orderedPoolItems.length > 0 ? orderedPoolItems : poolItems), ...bracketItems];
 };
 
 export const buildGlobalMatchQueue = (

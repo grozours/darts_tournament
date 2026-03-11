@@ -10,11 +10,11 @@ type UseLiveTournamentStageActionsProperties = {
 };
 
 type LiveTournamentStageActionsResult = {
-  editingStageId?: string | undefined;
+  editingStageId?: string;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
-  updatingStageId?: string | undefined;
+  updatingStageId?: string;
   handleLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleEditStage: (stage: LiveViewPoolStage) => void;

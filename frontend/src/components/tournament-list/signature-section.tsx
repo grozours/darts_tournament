@@ -6,10 +6,10 @@ type SignatureSectionProperties = {
   t: Translator;
   players: TournamentPlayer[];
   playersLoading: boolean;
-  playersError?: string | undefined;
-  checkingInPlayerId?: string | undefined;
+  playersError?: string;
+  checkingInPlayerId?: string;
   isConfirmingAll: boolean;
-  confirmAllProgress?: { current: number; total: number } | undefined;
+  confirmAllProgress?: { current: number; total: number };
   onConfirmAllPlayers: () => void;
   onFetchPlayers: () => void;
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;

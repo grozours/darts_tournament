@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import TournamentForm from '../../../src/components/tournaments/tournament-form';
@@ -83,7 +83,9 @@ describe('TournamentForm validation fields', () => {
     render(<TournamentForm {...defaultProps} />);
 
     const submitButton = screen.getByRole('button', { name: /create tournament/i });
-    await user.click(submitButton);
+    await act(async () => {
+      await user.click(submitButton);
+    });
 
     // Should show validation errors
     await waitFor(() => {
@@ -101,17 +103,21 @@ describe('TournamentForm validation fields', () => {
     const nameInput = screen.getByLabelText(/tournament name/i);
 
     // Test minimum length
-    await user.type(nameInput, 'AB');
-    await user.tab(); // Trigger blur
+    await act(async () => {
+      await user.type(nameInput, 'AB');
+      await user.tab(); // Trigger blur
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/name must be at least 3 characters/i)).toBeInTheDocument();
     });
 
     // Test maximum length
-    await user.clear(nameInput);
-    await user.type(nameInput, 'A'.repeat(101));
-    await user.tab();
+    await act(async () => {
+      await user.clear(nameInput);
+      await user.type(nameInput, 'A'.repeat(101));
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/name cannot exceed 100 characters/i)).toBeInTheDocument();
@@ -125,17 +131,21 @@ describe('TournamentForm validation fields', () => {
     const participantsInput = screen.getByLabelText(/total slots/i);
 
     // Test minimum
-    await user.type(participantsInput, '1');
-    await user.tab();
+    await act(async () => {
+      await user.type(participantsInput, '1');
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/minimum 2 slots/i)).toBeInTheDocument();
     });
 
     // Test maximum
-    await user.clear(participantsInput);
-    await user.type(participantsInput, '513');
-    await user.tab();
+    await act(async () => {
+      await user.clear(participantsInput);
+      await user.type(participantsInput, '513');
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/maximum 512 slots/i)).toBeInTheDocument();
@@ -149,17 +159,21 @@ describe('TournamentForm validation fields', () => {
     const targetInput = screen.getByLabelText(/target count/i);
 
     // Test minimum
-    await user.type(targetInput, '0');
-    await user.tab();
+    await act(async () => {
+      await user.type(targetInput, '0');
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/minimum 1 target/i)).toBeInTheDocument();
     });
 
     // Test maximum
-    await user.clear(targetInput);
-    await user.type(targetInput, '21');
-    await user.tab();
+    await act(async () => {
+      await user.clear(targetInput);
+      await user.type(targetInput, '21');
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/maximum 20 targets/i)).toBeInTheDocument();
@@ -177,9 +191,11 @@ describe('TournamentForm validation dates', () => {
     const endTimeInput = screen.getByLabelText(/end time/i);
 
     // Set end time before start time
-    await user.type(startTimeInput, '2026-03-15T14:00');
-    await user.type(endTimeInput, '2026-03-15T10:00');
-    await user.tab();
+    await act(async () => {
+      await user.type(startTimeInput, '2026-03-15T14:00');
+      await user.type(endTimeInput, '2026-03-15T10:00');
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/end time must be after start time/i)).toBeInTheDocument();
@@ -197,8 +213,10 @@ describe('TournamentForm validation dates', () => {
     pastDate.setDate(pastDate.getDate() - 1);
     const pastDateString = pastDate.toISOString().slice(0, 16);
 
-    await user.type(startTimeInput, pastDateString);
-    await user.tab();
+    await act(async () => {
+      await user.type(startTimeInput, pastDateString);
+      await user.tab();
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/start time cannot be in the past/i)).toBeInTheDocument();

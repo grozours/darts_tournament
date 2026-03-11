@@ -99,13 +99,7 @@ const toErrorMessage = (error: unknown): string => {
   }
 };
 
-const authenticateSocket = async (socket: Socket): Promise<boolean> => {
-  if (!config.auth.enabled) {
-    return true;
-  }
-
-  const authorizationHeader = resolveHandshakeAuthorization(socket);
-
+const buildSocketAuthRequest = (socket: Socket, authorizationHeader: string | undefined): Request => {
   const requestHeaders: Record<string, unknown> = {
     ...socket.handshake.headers,
     ...(authorizationHeader ? { authorization: authorizationHeader } : {}),
@@ -114,7 +108,7 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
     ? socket.handshake.url
     : '/socket.io';
 
-  const request = {
+  return {
     headers: requestHeaders,
     method: 'GET',
     url: handshakeUrl,
@@ -140,15 +134,26 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
       return false;
     },
   } as unknown as Request;
+};
 
+const createSocketAuthResponse = (): Response => {
   const response = {
     status: () => response,
     json: () => response,
     setHeader: () => response,
     removeHeader: () => response,
-  } as unknown as Response;
+  };
 
+  return response as unknown as Response;
+};
+
+const runSocketAuth = async (
+  socket: Socket,
+  request: Request,
+  response: Response
+): Promise<{ isAuthenticated: boolean; failureReason: string | undefined }> => {
   let authFailureReason: string | undefined;
+
   const isAuthenticated = await new Promise<boolean>((resolve) => {
     try {
       requireAuth(request, response, (error?: unknown) => {
@@ -170,14 +175,36 @@ const authenticateSocket = async (socket: Socket): Promise<boolean> => {
     }
   });
 
+  return { isAuthenticated, failureReason: authFailureReason };
+};
+
+const updateSocketAuthState = (
+  socket: Socket,
+  request: Request,
+  isAuthenticated: boolean,
+  failureReason: string | undefined
+): void => {
   if (isAuthenticated) {
     socket.data.authPayload = request.auth?.payload;
     socket.data.authFailureReason = undefined;
-  } else {
-    socket.data.authFailureReason = authFailureReason;
+    return;
   }
 
-  return isAuthenticated;
+  socket.data.authFailureReason = failureReason;
+};
+
+const authenticateSocket = async (socket: Socket): Promise<boolean> => {
+  if (!config.auth.enabled) {
+    return true;
+  }
+
+  const authorizationHeader = resolveHandshakeAuthorization(socket);
+  const request = buildSocketAuthRequest(socket, authorizationHeader);
+  const response = createSocketAuthResponse();
+  const authResult = await runSocketAuth(socket, request, response);
+  updateSocketAuthState(socket, request, authResult.isAuthenticated, authResult.failureReason);
+
+  return authResult.isAuthenticated;
 };
 
 const onJoinTournament = (socket: Socket) => async (tournamentId: string) => {

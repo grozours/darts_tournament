@@ -118,4 +118,40 @@ describe('useTournamentEditActions', () => {
 
     expect(props.setEditError).toHaveBeenCalledWith('edit.error.failedMoveToSignature');
   });
+
+  it('keeps edit page on success for registration/signature transitions', async () => {
+    updateTournamentStatus.mockResolvedValue(undefined);
+    const props = buildProperties({
+      isEditPage: true,
+      editingTournament: { id: 't1', status: 'OPEN' },
+    });
+
+    const { result } = renderHook(() => useTournamentEditActions(props as never));
+
+    await act(async () => {
+      await result.current.moveToSignature();
+    });
+
+    expect(updateTournamentStatus).toHaveBeenCalledWith('t1', 'SIGNATURE', 'token');
+    expect(props.closeEdit).not.toHaveBeenCalled();
+    expect(props.fetchTournaments).not.toHaveBeenCalled();
+  });
+
+  it('prevents duplicate registration opening and invalid signature transition', async () => {
+    const alreadyOpen = buildProperties({ editingTournament: { id: 't1', status: 'OPEN' } });
+    const { result: openResult } = renderHook(() => useTournamentEditActions(alreadyOpen as never));
+
+    await act(async () => {
+      await openResult.current.openRegistration();
+    });
+    expect(alreadyOpen.setEditError).toHaveBeenCalledWith('edit.error.registrationAlreadyOpen');
+
+    const notOpen = buildProperties({ editingTournament: { id: 't1', status: 'DRAFT' } });
+    const { result: signatureResult } = renderHook(() => useTournamentEditActions(notOpen as never));
+
+    await act(async () => {
+      await signatureResult.current.moveToSignature();
+    });
+    expect(notOpen.setEditError).toHaveBeenCalledWith('edit.error.mustBeOpenToSignature');
+  });
 });

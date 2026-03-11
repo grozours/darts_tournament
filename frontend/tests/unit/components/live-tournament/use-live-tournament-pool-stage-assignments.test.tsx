@@ -99,6 +99,30 @@ describe('useLiveTournamentPoolStageAssignments', () => {
     });
   });
 
+  it('uses explicit error message when opening assignments throws Error and defaults playersPerPool to 0', async () => {
+    fetchTournamentPlayers.mockRejectedValue(new Error('load failed'));
+    fetchPoolStagePools.mockResolvedValue([]);
+    const setError = vi.fn();
+
+    const { result } = renderHook(() => useLiveTournamentPoolStageAssignments({
+      t: (key: string) => key,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      reloadLiveViews: vi.fn(async () => undefined),
+      setError,
+    }));
+
+    await act(async () => {
+      await result.current.openPoolStageAssignments('t1', {
+        id: 'stage-1',
+        name: 'Stage 1',
+      } as never);
+    });
+
+    expect(setError).toHaveBeenCalledWith(undefined);
+    expect(result.current.editingPoolStage?.playersPerPool).toBe(0);
+    expect(result.current.poolStageEditError).toBe('load failed');
+  });
+
   it('does nothing when save is called without editing context', async () => {
     const { result } = renderHook(() => useLiveTournamentPoolStageAssignments({
       t: (key: string) => key,
@@ -147,5 +171,44 @@ describe('useLiveTournamentPoolStageAssignments', () => {
     await waitFor(() => {
       expect(result.current.poolStageEditError).toBe('edit.error.failedUpdatePoolAssignments');
     });
+  });
+
+  it('filters empty assignment slots and uses explicit Error message on save failure', async () => {
+    fetchTournamentPlayers.mockResolvedValue([{ playerId: 'p1', name: 'Player 1' }]);
+    fetchPoolStagePools.mockResolvedValue([
+      { id: 'pool-1', name: 'Pool 1', assignments: [{ playerId: 'p1' }] },
+    ]);
+    updatePoolAssignments.mockRejectedValue(new Error('save failed'));
+
+    const { result } = renderHook(() => useLiveTournamentPoolStageAssignments({
+      t: (key: string) => key,
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      reloadLiveViews: vi.fn(async () => undefined),
+      setError: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.openPoolStageAssignments('t1', {
+        id: 'stage-1',
+        name: 'Stage 1',
+        playersPerPool: 2,
+      } as never);
+    });
+
+    act(() => {
+      result.current.updatePoolStageAssignment('pool-1', 1, '');
+    });
+
+    await act(async () => {
+      await result.current.savePoolStageAssignments();
+    });
+
+    expect(updatePoolAssignments).toHaveBeenCalledWith(
+      't1',
+      'stage-1',
+      [{ poolId: 'pool-1', playerId: 'p1', assignmentType: 'RANDOM', seedNumber: 1 }],
+      'token'
+    );
+    expect(result.current.poolStageEditError).toBe('save failed');
   });
 });

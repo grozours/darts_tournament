@@ -17,9 +17,9 @@ type BracketsEditorProperties = {
   showBracketStatusControl?: boolean;
   showSaveTargetsButton?: boolean;
   brackets: BracketConfig[];
-  bracketsError?: string | undefined;
+  bracketsError?: string;
   targets: Array<{ id: string; targetNumber: number }>;
-  targetsError?: string | undefined;
+  targetsError?: string;
   isAddingBracket: boolean;
   newBracket: BracketDraft;
   onLoadBrackets: () => void;

@@ -11,13 +11,13 @@ type RegistrationSectionProperties = {
   };
   players: TournamentPlayer[];
   playersLoading: boolean;
-  playersError?: string | undefined;
+  playersError?: string;
   playerForm: CreatePlayerPayload;
-  editingPlayerId?: string | undefined;
+  editingPlayerId?: string;
   playerActionLabel: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
-  autoFillProgress?: { current: number; total: number } | undefined;
+  autoFillProgress?: { current: number; total: number };
   skillLevelOptions: Array<{ value: string; label: string }>;
   onPlayerFormChange: (next: CreatePlayerPayload) => void;
   onStartEditPlayer: (player: TournamentPlayer) => void;
@@ -46,11 +46,11 @@ type RegistrationFormFieldsProperties = {
 
 type RegistrationActionsProperties = {
   t: Translator;
-  editingPlayerId?: string | undefined;
+  editingPlayerId?: string;
   playerActionLabel: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
-  autoFillProgress?: { current: number; total: number } | undefined;
+  autoFillProgress?: { current: number; total: number };
   onCancelEditPlayer: () => void;
   onAutoFillPlayers: () => void;
   onSubmitPlayer: () => void;

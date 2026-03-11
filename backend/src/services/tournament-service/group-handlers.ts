@@ -452,7 +452,6 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
     const isAdmin = context.isAdminAction();
     const actorPlayer = isAdmin ? undefined : await getActorPlayer(context, tournamentId);
-    const actorPlayerId = actorPlayer?.id;
     const captainPlayerId = resolveCaptainPlayerId(
       isAdmin,
       actorPlayer?.id,

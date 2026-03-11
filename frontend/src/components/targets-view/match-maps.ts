@@ -34,15 +34,24 @@ const updateTargetMatchInfo = (
   }
 };
 
-const addMatchInfo = (
-  byTargetId: Map<string, TargetMatchInfo>,
-  byId: Map<string, TargetMatchInfo>,
-  match: LiveViewMatch,
-  label: string,
-  tournamentId: string,
-  tournamentName: string,
-  groupNameByPlayerId?: Map<string, string>
-) => {
+const addMatchInfo = (properties: {
+  byTargetId: Map<string, TargetMatchInfo>;
+  byId: Map<string, TargetMatchInfo>;
+  match: LiveViewMatch;
+  label: string;
+  tournamentId: string;
+  tournamentName: string;
+  groupNameByPlayerId?: Map<string, string>;
+}) => {
+  const {
+    byTargetId,
+    byId,
+    match,
+    label,
+    tournamentId,
+    tournamentName,
+    groupNameByPlayerId,
+  } = properties;
   const info = buildMatchInfo(match, label, tournamentId, tournamentName, groupNameByPlayerId);
   const targetId = match.target?.id ?? match.targetId;
   updateTargetMatchInfo(byTargetId, targetId, info);
@@ -63,10 +72,58 @@ const createMatchRegistrar = (
 ) => {
   matchDetailsById.set(match.id, match);
   matchTournamentById.set(match.id, { tournamentId, tournamentName });
-  addMatchInfo(byTargetId, byId, match, label, tournamentId, tournamentName, groupNameByPlayerId);
+  addMatchInfo({
+    byTargetId,
+    byId,
+    match,
+    label,
+    tournamentId,
+    tournamentName,
+    ...(groupNameByPlayerId ? { groupNameByPlayerId } : {}),
+  });
 };
 
-export const buildMatchMaps = ( // NOSONAR
+const registerPoolStageMatches = (
+  view: LiveViewData,
+  registerMatch: ReturnType<typeof createMatchRegistrar>,
+  poolLabels: { stageLabel: string; poolLabel: string; matchLabel: string },
+  groupNameByPlayerId: Map<string, string> | undefined
+): void => {
+  for (const stage of view.poolStages ?? []) {
+    for (const pool of stage.pools ?? []) {
+      for (const match of pool.matches ?? []) {
+        registerMatch(
+          match,
+          `${poolLabels.stageLabel} ${stage.stageNumber} · ${poolLabels.poolLabel} ${pool.poolNumber} · ${poolLabels.matchLabel} ${match.matchNumber}`,
+          view.id,
+          view.name,
+          groupNameByPlayerId
+        );
+      }
+    }
+  }
+};
+
+const registerBracketMatches = (
+  view: LiveViewData,
+  registerMatch: ReturnType<typeof createMatchRegistrar>,
+  bracketLabels: { bracketLabel: string; matchLabel: string },
+  groupNameByPlayerId: Map<string, string> | undefined
+): void => {
+  for (const bracket of view.brackets ?? []) {
+    for (const match of bracket.matches ?? []) {
+      registerMatch(
+        match,
+        `${bracketLabels.bracketLabel} ${bracket.name} · ${bracketLabels.matchLabel} ${match.matchNumber}`,
+        view.id,
+        view.name,
+        groupNameByPlayerId
+      );
+    }
+  }
+};
+
+export const buildMatchMaps = (
   views: LiveViewData[],
   t: Translator,
   groupNameByPlayerIdByTournament?: Map<string, Map<string, string>>
@@ -89,31 +146,8 @@ export const buildMatchMaps = ( // NOSONAR
 
   for (const view of views) {
     const groupNameByPlayerId = groupNameByPlayerIdByTournament?.get(view.id);
-    for (const stage of view.poolStages ?? []) {
-      for (const pool of stage.pools ?? []) {
-        for (const match of pool.matches ?? []) {
-          registerMatch(
-            match,
-            `${poolLabels.stageLabel} ${stage.stageNumber} · ${poolLabels.poolLabel} ${pool.poolNumber} · ${poolLabels.matchLabel} ${match.matchNumber}`,
-            view.id,
-            view.name,
-            groupNameByPlayerId
-          );
-        }
-      }
-    }
-
-    for (const bracket of view.brackets ?? []) {
-      for (const match of bracket.matches ?? []) {
-        registerMatch(
-          match,
-          `${bracketLabels.bracketLabel} ${bracket.name} · ${bracketLabels.matchLabel} ${match.matchNumber}`,
-          view.id,
-          view.name,
-          groupNameByPlayerId
-        );
-      }
-    }
+    registerPoolStageMatches(view, registerMatch, poolLabels, groupNameByPlayerId);
+    registerBracketMatches(view, registerMatch, bracketLabels, groupNameByPlayerId);
   }
 
   return { matchByTargetId: byTargetId, matchById: byId, matchDetailsById, matchTournamentById };

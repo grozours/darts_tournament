@@ -5,8 +5,8 @@ import type { EditFormState, Tournament } from './types';
 
 type UseTournamentEditLoaderProperties = {
   isEditPage: boolean;
-  editTournamentId?: string | null | undefined;
-  editingTournamentId?: string | undefined;
+  editTournamentId?: string | null;
+  editingTournamentId?: string;
   toLocalInput: (value?: string) => string;
   getSafeAccessToken: () => Promise<string | undefined>;
   clearPlayers: () => void;

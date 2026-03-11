@@ -88,4 +88,53 @@ describe('useLiveTournamentPlayerIds', () => {
       expect(result.current.playerIdByTournament).toEqual({});
     });
   });
+
+  it('does not fetch when no email or no live views are available', async () => {
+    const getSafeAccessToken = vi.fn(async () => 'token');
+
+    const { result, rerender } = renderHook((properties: { liveViews: Array<{ id: string; name: string; status: string }>; user?: { email?: string } }) => useLiveTournamentPlayerIds({
+      liveViews: properties.liveViews,
+      isAuthenticated: true,
+      user: properties.user,
+      getSafeAccessToken,
+    }), {
+      initialProps: {
+        liveViews: [],
+        user: { email: 'player@example.com' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.playerIdByTournament).toEqual({});
+    });
+
+    rerender({
+      liveViews: buildLiveViews(),
+      user: {},
+    });
+
+    await waitFor(() => {
+      expect(result.current.playerIdByTournament).toEqual({});
+    });
+
+    expect(getSafeAccessToken).not.toHaveBeenCalled();
+    expect(fetchTournamentPlayers).not.toHaveBeenCalled();
+  });
+
+  it('matches players case-insensitively', async () => {
+    fetchTournamentPlayers.mockResolvedValue([
+      { playerId: 'p9', name: 'Player Nine', email: 'PLAYER@EXAMPLE.COM' },
+    ]);
+
+    const { result } = renderHook(() => useLiveTournamentPlayerIds({
+      liveViews: buildLiveViews(),
+      isAuthenticated: true,
+      user: { email: 'player@example.com' },
+      getSafeAccessToken: vi.fn(async () => 'token'),
+    }));
+
+    await waitFor(() => {
+      expect(result.current.playerIdByTournament).toEqual({ t1: 'p9' });
+    });
+  });
 });

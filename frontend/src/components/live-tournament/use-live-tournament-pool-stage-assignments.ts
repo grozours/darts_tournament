@@ -26,12 +26,12 @@ type UseLiveTournamentPoolStageAssignmentsProperties = {
 };
 
 type UseLiveTournamentPoolStageAssignmentsResult = {
-  editingTournamentId?: string | undefined;
-  editingPoolStage?: EditablePoolStage | undefined;
+  editingTournamentId?: string;
+  editingPoolStage?: EditablePoolStage;
   poolStagePools: PoolStagePool[];
   poolStagePlayers: TournamentPlayer[];
   poolStageAssignments: Record<string, string[]>;
-  poolStageEditError?: string | undefined;
+  poolStageEditError?: string;
   isSavingAssignments: boolean;
   openPoolStageAssignments: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   closePoolStageAssignments: () => void;

@@ -3,33 +3,34 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import useTournamentEditLoader from '../../../../src/components/tournament-list/use-tournament-edit-loader';
 
+const getSafeAccessToken = vi.fn();
+
+const baseProperties = () => ({
+  isEditPage: true,
+  editTournamentId: undefined,
+  editingTournamentId: undefined,
+  toLocalInput: vi.fn((value?: string) => `local:${value ?? ''}`),
+  getSafeAccessToken,
+  clearPlayers: vi.fn(),
+  clearPlayersError: vi.fn(),
+  fetchPlayers: vi.fn(async () => undefined),
+  fetchTournamentDetails: vi.fn(async () => undefined),
+  loadPoolStages: vi.fn(async () => undefined),
+  loadBrackets: vi.fn(async () => undefined),
+  loadTargets: vi.fn(async () => undefined),
+  setEditingTournament: vi.fn(),
+  setEditForm: vi.fn(),
+  setEditError: vi.fn(),
+  setEditLoading: vi.fn(),
+  setEditLoadError: vi.fn(),
+});
+
+beforeEach(() => {
+  getSafeAccessToken.mockReset();
+  globalThis.fetch = vi.fn();
+});
+
 describe('use-tournament-edit-loader', () => {
-  const getSafeAccessToken = vi.fn();
-
-  const baseProperties = () => ({
-    isEditPage: true,
-    editTournamentId: undefined,
-    editingTournamentId: undefined,
-    toLocalInput: vi.fn((value?: string) => `local:${value ?? ''}`),
-    getSafeAccessToken,
-    clearPlayers: vi.fn(),
-    clearPlayersError: vi.fn(),
-    fetchPlayers: vi.fn(async () => undefined),
-    fetchTournamentDetails: vi.fn(async () => undefined),
-    loadPoolStages: vi.fn(async () => undefined),
-    loadBrackets: vi.fn(async () => undefined),
-    loadTargets: vi.fn(async () => undefined),
-    setEditingTournament: vi.fn(),
-    setEditForm: vi.fn(),
-    setEditError: vi.fn(),
-    setEditLoading: vi.fn(),
-    setEditLoadError: vi.fn(),
-  });
-
-  beforeEach(() => {
-    getSafeAccessToken.mockReset();
-    globalThis.fetch = vi.fn();
-  });
 
   it('navigates to edit page when not already on edit page', () => {
     const assign = vi.fn();
@@ -92,6 +93,9 @@ describe('use-tournament-edit-loader', () => {
     expect(properties.loadTargets).toHaveBeenCalledWith('live-id');
   });
 
+});
+
+describe('use-tournament-edit-loader - loading', () => {
   it('loads tournament data with bearer token and maps snake_case fields', async () => {
     const properties = baseProperties();
     properties.editTournamentId = 'abc';

@@ -49,6 +49,72 @@ const sortPoolMatches = (queue: PoolQueue) => {
   });
 };
 
+const shouldQueueMatch = (
+  match: LiveViewMatch,
+  isMatchBlocked: (match: LiveViewMatch) => boolean
+): boolean => {
+  const isFinalStatus = match.status === 'COMPLETED' || match.status === 'CANCELLED';
+  if (isFinalStatus) {
+    return false;
+  }
+  return !isMatchBlocked(match);
+};
+
+const createQueueItem = (
+  view: LiveViewData,
+  stage: LiveViewPoolStage,
+  pool: LiveViewPool,
+  match: LiveViewMatch,
+  isSingleTournament: boolean
+): MatchQueueItem => {
+  const players = (match.playerMatches ?? [])
+    .map((pm) => getQueuePlayerLabel(pm.player, isSingleTournament))
+    .filter(Boolean);
+  const targetCode = match.target?.targetCode;
+  const targetNumber = match.target?.targetNumber;
+
+  return {
+    tournamentId: view.id,
+    tournamentName: view.name,
+    stageId: stage.id,
+    stageName: stage.name,
+    stageNumber: stage.stageNumber,
+    poolId: pool.id,
+    poolName: pool.name,
+    poolNumber: pool.poolNumber,
+    matchId: match.id,
+    matchNumber: match.matchNumber,
+    roundNumber: match.roundNumber,
+    status: match.status,
+    ...(targetCode ? { targetCode } : {}),
+    ...(typeof targetNumber === 'number' ? { targetNumber } : {}),
+    players,
+    match,
+  };
+};
+
+const buildPoolItems = (
+  view: LiveViewData,
+  stage: LiveViewPoolStage,
+  pool: LiveViewPool,
+  poolQueue: PoolQueue | undefined,
+  isMatchBlocked: (match: LiveViewMatch) => boolean,
+  isSingleTournament: boolean
+): MatchQueueItem[] => {
+  const poolItems: MatchQueueItem[] = [];
+  for (const match of pool.matches ?? []) {
+    if (!shouldQueueMatch(match, isMatchBlocked)) {
+      continue;
+    }
+    const nextItem = createQueueItem(view, stage, pool, match, isSingleTournament);
+    poolItems.push(nextItem);
+    if (poolQueue) {
+      poolQueue.matches.push(nextItem);
+    }
+  }
+  return poolItems;
+};
+
 const buildQueueItems = ( // NOSONAR
   view: LiveViewData,
   poolStages: LiveViewPoolStage[],
@@ -56,62 +122,12 @@ const buildQueueItems = ( // NOSONAR
   isMatchBlocked: (match: LiveViewMatch) => boolean,
   isSingleTournament: boolean
 ) => {
-  const shouldQueueMatch = (match: LiveViewMatch) => {
-    const isFinalStatus = match.status === 'COMPLETED' || match.status === 'CANCELLED';
-    if (isFinalStatus) return false;
-    return !isMatchBlocked(match);
-  };
-
-  const createQueueItem = (stage: LiveViewPoolStage, pool: LiveViewPool, match: LiveViewMatch) => {
-    const players = (match.playerMatches ?? [])
-      .map((pm) => getQueuePlayerLabel(pm.player, isSingleTournament))
-      .filter(Boolean);
-    const targetCode = match.target?.targetCode;
-    const targetNumber = match.target?.targetNumber;
-
-    return {
-      tournamentId: view.id,
-      tournamentName: view.name,
-      stageId: stage.id,
-      stageName: stage.name,
-      stageNumber: stage.stageNumber,
-      poolId: pool.id,
-      poolName: pool.name,
-      poolNumber: pool.poolNumber,
-      matchId: match.id,
-      matchNumber: match.matchNumber,
-      roundNumber: match.roundNumber,
-      status: match.status,
-      ...(targetCode ? { targetCode } : {}),
-      ...(typeof targetNumber === 'number' ? { targetNumber } : {}),
-      players,
-      match,
-    };
-  };
-
-  const buildPoolItems = (stage: LiveViewPoolStage, pool: LiveViewPool, poolQueue?: PoolQueue) => {
-    const poolItems: MatchQueueItem[] = [];
-    for (const match of pool.matches ?? []) {
-      if (!shouldQueueMatch(match)) {
-        continue;
-      }
-      const nextItem = createQueueItem(stage, pool, match);
-      poolItems.push(nextItem);
-      if (poolQueue) {
-        poolQueue.matches.push(nextItem);
-      }
-    }
-    return poolItems;
-  };
-
   const items: MatchQueueItem[] = [];
-  for (const stage of poolStages) {
-    if (stage.status !== 'IN_PROGRESS') {
-      continue;
-    }
+  const inProgressStages = poolStages.filter((stage) => stage.status === 'IN_PROGRESS');
+  for (const stage of inProgressStages) {
     for (const pool of stage.pools ?? []) {
       const poolQueue = poolQueues.find((queue) => queue.poolId === pool.id);
-      items.push(...buildPoolItems(stage, pool, poolQueue));
+      items.push(...buildPoolItems(view, stage, pool, poolQueue, isMatchBlocked, isSingleTournament));
     }
   }
   return items;
@@ -159,6 +175,18 @@ export const buildMatchQueue = (view: LiveViewData, poolStages: LiveViewPoolStag
     }
   };
 
+  const collectBracketActivePlayers = () => {
+    for (const bracket of view.brackets ?? []) {
+      collectActiveFromMatches(bracket.matches ?? [], isInProgress, collectActivePlayers);
+    }
+  };
+
+  const sortPoolQueues = () => {
+    for (const queue of poolQueues) {
+      sortPoolMatches(queue);
+    }
+  };
+
   const poolQueues: PoolQueue[] = buildPoolQueues<LiveViewPoolStage, LiveViewPool, LiveViewMatch, MatchQueueItem>({
     stages: poolStages,
     getPools: (stage) => stage.pools,
@@ -171,16 +199,12 @@ export const buildMatchQueue = (view: LiveViewData, poolStages: LiveViewPoolStag
     onInProgressMatch: collectActivePlayers,
   });
 
-  for (const bracket of view.brackets ?? []) {
-    collectActiveFromMatches(bracket.matches ?? [], isInProgress, collectActivePlayers);
-  }
+  collectBracketActivePlayers();
 
   const isMatchBlocked = buildBlockedMatcher(activePlayerIds, activePlayerLabels);
 
   const items = buildQueueItems(view, poolStages, poolQueues, isMatchBlocked, isSingleTournament);
-  for (const queue of poolQueues) {
-    sortPoolMatches(queue);
-  }
+  sortPoolQueues();
   const ordered = orderPoolQueuesByParallelStageGroups(poolStages, poolQueues);
   return ordered.length > 0 ? ordered : items;
 };

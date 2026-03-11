@@ -352,6 +352,70 @@ const selectScorePair = (scoredPlayers: ScoredNotificationPlayer[]) => {
   return { first, second };
 };
 
+const attachMatchSocketHandlers = (
+  socket: ReturnType<typeof io>,
+  joinedTournaments: string[],
+  scheduleRefreshTrackedState: () => void,
+  appendNotificationEntry: (payload: MatchNotificationPayload) => void,
+  maybeShowBrowserNotification: (payload: MatchNotificationPayload) => void,
+  shouldNotifyPlayer: (payload: MatchNotificationPayload) => boolean
+) => {
+  socket.on('connect', () => {
+    for (const tournamentId of joinedTournaments) {
+      socket.emit('join-tournament', tournamentId);
+    }
+  });
+
+  socket.on('tournament:updated', (payload: { status?: string }) => {
+    const status = (payload.status ?? '').toUpperCase();
+    if (status === 'OPEN' || status === 'SIGNATURE' || status === 'LIVE') {
+      scheduleRefreshTrackedState();
+    }
+  });
+
+  const notify = (payload: MatchNotificationPayload) => {
+    if (!shouldNotifyPlayer(payload)) {
+      return;
+    }
+    appendNotificationEntry(payload);
+    maybeShowBrowserNotification(payload);
+  };
+
+  socket.on('match:started', (payload: Omit<MatchStartedPayload, 'event'>) => {
+    notify({ ...payload, event: 'started' as const });
+  });
+
+  socket.on('match:finished', (payload: MatchFinishedPayload) => {
+    notify(payload);
+  });
+
+  socket.on('match:format-changed', (payload: MatchFormatChangedPayload) => {
+    notify(payload);
+  });
+};
+
+const openMatchSocket = async (
+  getSafeAccessToken: () => Promise<string | undefined>,
+  joinedTournaments: string[],
+  onMissingToken: () => void,
+  onConnected: (socket: ReturnType<typeof io>) => void
+): Promise<void> => {
+  const token = await getSafeAccessToken();
+  if (!token) {
+    onMissingToken();
+    return;
+  }
+
+  const socket = io(globalThis.window?.location.origin ?? '', {
+    path: '/socket.io',
+    transports: ['websocket'],
+    withCredentials: true,
+    auth: { token },
+  });
+
+  onConnected(socket);
+};
+
 const useMatchStartedNotifications = () => {
   const { t } = useI18n();
   const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
@@ -560,68 +624,41 @@ const useMatchStartedNotifications = () => {
     let socket: ReturnType<typeof io> | undefined;
     let tokenRetryTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    const openSocket = async () => {
-      const token = await getSafeAccessToken();
-      if (isDisposed) {
-        return;
-      }
-
-      if (!token) {
-        tokenRetryTimeout = globalThis.window?.setTimeout(() => {
-          if (!isDisposed) {
-            void openSocket();
-          }
-        }, 4_000);
-        return;
-      }
-
-      socket = io(globalThis.window?.location.origin ?? '', {
-        path: '/socket.io',
-        transports: ['websocket'],
-        withCredentials: true,
-        auth: { token },
-      });
-
-      socket.on('connect', () => {
-        for (const tournamentId of joinedTournaments) {
-          socket?.emit('join-tournament', tournamentId);
+    const scheduleRetry = () => {
+      tokenRetryTimeout = globalThis.window?.setTimeout(() => {
+        if (!isDisposed) {
+          void tryConnect();
         }
-      });
-
-      socket.on('tournament:updated', (payload: { status?: string }) => {
-        const status = (payload.status ?? '').toUpperCase();
-        if (status === 'OPEN' || status === 'SIGNATURE' || status === 'LIVE') {
-          scheduleRefreshTrackedState();
-        }
-      });
-
-      socket.on('match:started', (payload: Omit<MatchStartedPayload, 'event'>) => {
-        const enriched = { ...payload, event: 'started' as const };
-        if (!shouldNotifyPlayer(enriched)) {
-          return;
-        }
-        appendNotification(enriched);
-        maybeShowBrowserNotification(enriched);
-      });
-
-      socket.on('match:finished', (payload: MatchFinishedPayload) => {
-        if (!shouldNotifyPlayer(payload)) {
-          return;
-        }
-        appendNotification(payload);
-        maybeShowBrowserNotification(payload);
-      });
-
-      socket.on('match:format-changed', (payload: MatchFormatChangedPayload) => {
-        if (!shouldNotifyPlayer(payload)) {
-          return;
-        }
-        appendNotification(payload);
-        maybeShowBrowserNotification(payload);
-      });
+      }, 4_000);
     };
 
-    void openSocket();
+    const handleConnectedSocket = (connectedSocket: ReturnType<typeof io>) => {
+      if (isDisposed) {
+        connectedSocket.disconnect();
+        return;
+      }
+
+      socket = connectedSocket;
+      attachMatchSocketHandlers(
+        connectedSocket,
+        joinedTournaments,
+        scheduleRefreshTrackedState,
+        appendNotification,
+        maybeShowBrowserNotification,
+        shouldNotifyPlayer
+      );
+    };
+
+    const tryConnect = async () => {
+      await openMatchSocket(
+        getSafeAccessToken,
+        joinedTournaments,
+        scheduleRetry,
+        handleConnectedSocket
+      );
+    };
+
+    void tryConnect();
 
     return () => {
       isDisposed = true;

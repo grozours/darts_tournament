@@ -12,23 +12,23 @@ export type Translator = ReturnType<typeof useI18n>['t'];
 export type Tournament = {
   id: string;
   name: string;
-  location?: string | undefined;
-  logoUrl?: string | undefined;
+  location?: string;
+  logoUrl?: string;
   format: string;
   totalParticipants: number;
-  currentParticipants?: number | undefined;
+  currentParticipants?: number;
   status: string;
-  durationType?: string | undefined;
-  startTime?: string | undefined;
-  endTime?: string | undefined;
-  targetCount?: number | undefined;
-  targetStartNumber?: number | undefined;
-  shareTargets?: boolean | undefined;
-  createdAt?: string | undefined;
-  completedAt?: string | undefined;
-  historicalFlag?: boolean | undefined;
-  doubleStageEnabled?: boolean | undefined;
-  hasLiveBrackets?: boolean | undefined;
+  durationType?: string;
+  startTime?: string;
+  endTime?: string;
+  targetCount?: number;
+  targetStartNumber?: number;
+  shareTargets?: boolean;
+  createdAt?: string;
+  completedAt?: string;
+  historicalFlag?: boolean;
+  doubleStageEnabled?: boolean;
+  hasLiveBrackets?: boolean;
 };
 
 export type EditFormState = {
@@ -52,7 +52,7 @@ export type TournamentListGroup = {
 };
 
 export type UserTournamentGroupStatus = {
-  groupId: string | undefined;
+  groupId?: string;
   hasGroup: boolean;
   isGroupCaptain: boolean;
   isGroupComplete: boolean;
@@ -69,15 +69,15 @@ export type TournamentListSharedProperties = {
 };
 
 export type TournamentEditState = {
-  editingTournament: Tournament | undefined;
-  editForm: EditFormState | undefined;
-  editError: string | undefined;
+  editingTournament?: Tournament;
+  editForm?: EditFormState;
+  editError?: string;
   isSaving: boolean;
   isEditPage: boolean;
-  logoFile: File | undefined;
+  logoFile?: File;
   isUploadingLogo: boolean;
   poolStages: PoolStageConfig[];
-  poolStagesError: string | undefined;
+  poolStagesError?: string;
   newPoolStage: {
     stageNumber: number;
     name: string;
@@ -89,7 +89,7 @@ export type TournamentEditState = {
   };
   isAddingPoolStage: boolean;
   brackets: BracketConfig[];
-  bracketsError: string | undefined;
+  bracketsError?: string;
   newBracket: {
     name: string;
     bracketType: string;
@@ -100,23 +100,23 @@ export type TournamentEditState = {
   isBracketRoundsAuto: boolean;
   players: TournamentPlayer[];
   playersLoading: boolean;
-  playersError: string | undefined;
+  playersError?: string;
   playerForm: PlayerFormState;
-  editingPlayerId: string | undefined;
+  editingPlayerId?: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
-  checkingInPlayerId: string | undefined;
+  checkingInPlayerId?: string;
   skillLevelOptions: Array<{ value: string; label: string }>;
   formatOptions: Array<{ value: string; label: string }>;
   durationOptions: Array<{ value: string; label: string }>;
 };
 
 export type PoolStageAssignmentsModalState = {
-  editingPoolStage: PoolStageConfig | undefined;
+  editingPoolStage?: PoolStageConfig;
   poolStagePools: PoolStagePool[];
   poolStagePlayers: TournamentPlayer[];
   poolStageAssignments: PoolStageAssignmentsState;
-  poolStageEditError: string | undefined;
+  poolStageEditError?: string;
   isSavingAssignments: boolean;
 };

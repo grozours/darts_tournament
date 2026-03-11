@@ -12,13 +12,13 @@ type LiveTournamentGateProperties = {
   authLoading: boolean;
   authEnabled: boolean;
   isAuthenticated: boolean;
-  authError?: Error | undefined;
-  viewMode?: string | undefined;
-  viewStatus?: string | undefined;
-  tournamentId?: string | undefined;
+  authError?: Error;
+  viewMode?: string;
+  viewStatus?: string;
+  tournamentId?: string;
   requireTournamentId: boolean;
   loading: boolean;
-  error?: string | undefined;
+  error?: string;
   onRetry: () => void;
   t: Translator;
 };

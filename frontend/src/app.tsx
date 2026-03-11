@@ -1,17 +1,17 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import { fetchLiveTournamentSummary, fetchMatchFormatPresets } from './services/tournament-service';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import { fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
 import { useI18n } from './i18n';
 import { useOptionalAuth } from './auth/optional-auth';
 import { useAdminStatus } from './auth/use-admin-status';
+import useScreenRotation from './hooks/use-screen-rotation';
 const AppHeader = lazy(() => import('./components/app-header'));
 
 const TournamentList = lazy(() => import('./components/tournament-list'));
 const RegistrationPlayers = lazy(() => import('./components/registration-players'));
 const PlayersView = lazy(() => import('./components/players-view'));
-const LiveTournament = lazy(() => import('./components/live-tournament'));
+const LiveTournament = lazy(() => import('./components/live-tournament-page'));
 const TargetsView = lazy(() => import('./components/targets-view'));
 const NotificationsView = lazy(() => import('./components/notifications-view'));
 const CreateTournamentPage = lazy(() => import('./components/tournaments/create-tournament-page'));
@@ -25,107 +25,6 @@ const DocsView = lazy(() => import('./components/docs-view'));
 const OpenSourceView = lazy(() => import('./components/open-source-view'));
 const TournamentSnapshotsView = lazy(() => import('./components/tournament-snapshots-view'));
 
-type LiveViewPoolStageSummary = {
-  id: string;
-  status?: string;
-  pools?: Array<{ assignments?: Array<{ player?: { id?: string } }> }>;
-  poolCount?: number;
-};
-
-type LiveViewBracketSummary = {
-  id: string;
-  status?: string;
-  entries?: Array<{ player?: { id?: string } }>;
-};
-
-type LiveViewSummary = {
-  id: string;
-  poolStages?: LiveViewPoolStageSummary[];
-  brackets?: LiveViewBracketSummary[];
-};
-
-type ScreenRotationItem = {
-  view: 'pool-stages' | 'brackets' | 'targets';
-  tournamentId?: string;
-  stageId?: string;
-  bracketId?: string;
-};
-
-const loadLiveView = async (tournamentId: string): Promise<LiveViewSummary | undefined> => {
-  const response = await fetch(`/api/tournaments/${tournamentId}/live`);
-  if (!response.ok) {
-    return undefined;
-  }
-  return response.json();
-};
-
-const isLivePoolStage = (stage: LiveViewPoolStageSummary) => (
-  stage.status === 'IN_PROGRESS'
-  && ((stage.pools?.length ?? stage.poolCount ?? 0) > 0)
-  && (stage.pools || []).some((pool) => (pool.assignments || []).some((assignment) => Boolean(assignment?.player?.id)))
-);
-
-const isLiveBracket = (bracket: LiveViewBracketSummary) => (
-  bracket.status === 'IN_PROGRESS'
-  && (bracket.entries || []).some((entry) => Boolean(entry?.player?.id))
-);
-
-const toRotationItems = (data: LiveViewSummary, fallbackTournamentId?: string): ScreenRotationItem[] => {
-  const resolvedTournamentId = fallbackTournamentId || data.id;
-  const poolStageItems = (data.poolStages || [])
-    .filter(isLivePoolStage)
-    .map((stage) => ({
-      view: 'pool-stages' as const,
-      tournamentId: resolvedTournamentId,
-      stageId: stage.id,
-    }));
-  const bracketItems = (data.brackets || [])
-    .filter(isLiveBracket)
-    .map((bracket) => ({
-      view: 'brackets' as const,
-      tournamentId: resolvedTournamentId,
-      bracketId: bracket.id,
-    }));
-
-  return [...poolStageItems, ...bracketItems];
-};
-
-const resolveScreenRotationItems = async (tournamentId?: string): Promise<ScreenRotationItem[] | undefined> => {
-  if (tournamentId) {
-    const data = await loadLiveView(tournamentId);
-    if (!data) {
-      return undefined;
-    }
-    const items = toRotationItems(data, tournamentId);
-    return [...items, { view: 'targets', tournamentId }];
-  }
-
-  const tournaments = await fetchLiveTournamentSummary(['LIVE']) as LiveViewSummary[];
-  const items: ScreenRotationItem[] = [];
-  for (const tournament of tournaments) {
-    if (!tournament?.id) {
-      continue;
-    }
-    items.push(...toRotationItems(tournament, tournament.id));
-  }
-
-  return [...items, { view: 'targets' }];
-};
-
-const resolveSocketAccessToken = async (
-  authEnabled: boolean,
-  isAuthenticated: boolean,
-  getAccessTokenSilently: () => Promise<string>
-): Promise<string | undefined> => {
-  if (!authEnabled || !isAuthenticated) {
-    return undefined;
-  }
-  try {
-    return await getAccessTokenSilently();
-  } catch {
-    return undefined;
-  }
-};
 
 const renderAdminOnly = (isAdmin: boolean, t: (key: string) => string, content: JSX.Element) => (
   isAdmin
@@ -213,6 +112,63 @@ const resolveMainContent = (
   }
 };
 
+type AppRouteState = {
+  view: string | undefined;
+  status: string | undefined;
+  normalizedStatus: string | undefined;
+  tournamentId: string | undefined;
+  stageId: string | undefined;
+  bracketId: string | undefined;
+  screenMode: boolean;
+  debugEnabled: boolean;
+  docsAccountTypeOverride: 'anonymous' | 'player' | 'admin' | undefined;
+};
+
+const parseAppRouteState = (locationSearch: string): AppRouteState => {
+  const parameters = new URLSearchParams(locationSearch);
+  const view = parameters.get('view') ?? undefined;
+  const status = parameters.get('status') ?? undefined;
+  const screenParam = parameters.get('screen') ?? undefined;
+  const docsProfileParam = parameters.get('docProfile') ?? undefined;
+
+  return {
+    view,
+    status,
+    normalizedStatus: status?.toLowerCase(),
+    tournamentId: parameters.get('tournamentId') ?? undefined,
+    stageId: parameters.get('stageId') ?? undefined,
+    bracketId: parameters.get('bracketId') ?? undefined,
+    screenMode: screenParam === '1' || screenParam === 'true' || screenParam === 'screen',
+    debugEnabled: parameters.get('debug') === '1',
+    docsAccountTypeOverride:
+      docsProfileParam === 'admin' || docsProfileParam === 'player' || docsProfileParam === 'anonymous'
+        ? docsProfileParam
+        : undefined,
+  };
+};
+
+const deriveHeaderAuthState = (
+  screenMode: boolean,
+  isAdmin: boolean,
+  isAuthenticated: boolean,
+  adminUserId: string | undefined
+): {
+  headerIsAdmin: boolean;
+  headerIsAuthenticated: boolean;
+  docsIsAuthenticated: boolean;
+} => {
+  const headerIsAdmin = screenMode ? false : isAdmin;
+  const headerIsAuthenticated = screenMode ? false : isAuthenticated;
+  const docsHasSession = isAuthenticated || Boolean(adminUserId);
+  const docsIsAuthenticated = screenMode ? false : docsHasSession;
+
+  return {
+    headerIsAdmin,
+    headerIsAuthenticated,
+    docsIsAuthenticated,
+  };
+};
+
 function App() {
   const { lang, setLanguage, t } = useI18n();
   const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
@@ -258,24 +214,22 @@ function App() {
     };
   }, []);
 
-  const parameters = new URLSearchParams(locationSearch);
-  const view = parameters.get('view') ?? undefined;
-  const docsProfileParam = parameters.get('docProfile') ?? undefined;
-  const docsAccountTypeOverride = docsProfileParam === 'admin' || docsProfileParam === 'player' || docsProfileParam === 'anonymous'
-    ? docsProfileParam
-    : undefined;
-  const status = parameters.get('status') ?? undefined;
-  const tournamentId = parameters.get('tournamentId') ?? undefined;
-  const stageId = parameters.get('stageId') ?? undefined;
-  const bracketId = parameters.get('bracketId') ?? undefined;
-  const screenParam = parameters.get('screen') ?? undefined;
-  const screenMode = screenParam === '1' || screenParam === 'true' || screenParam === 'screen';
-  const normalizedStatus = status?.toLowerCase();
-  const headerIsAdmin = screenMode ? false : isAdmin;
-  const headerIsAuthenticated = screenMode ? false : isAuthenticated;
-  const docsHasSession = isAuthenticated || Boolean(adminUser?.id);
-  const docsIsAuthenticated = screenMode ? false : docsHasSession;
-  const debugEnabled = parameters.get('debug') === '1';
+  const {
+    view,
+    status,
+    normalizedStatus,
+    tournamentId,
+    stageId,
+    bracketId,
+    screenMode,
+    debugEnabled,
+    docsAccountTypeOverride,
+  } = parseAppRouteState(locationSearch);
+  const {
+    headerIsAdmin,
+    headerIsAuthenticated,
+    docsIsAuthenticated,
+  } = deriveHeaderAuthState(screenMode, isAdmin, isAuthenticated, adminUser?.id);
   const buildId = import.meta.env.VITE_BUILD_ID
     || import.meta.env.VITE_COMMIT_SHA
     || import.meta.env.VITE_APP_VERSION
@@ -290,150 +244,17 @@ function App() {
     t
   );
 
-  const [screenRotationItems, setScreenRotationItems] = useState<ScreenRotationItem[]>([
-    { view: 'pool-stages', ...(tournamentId ? { tournamentId } : {}) },
-    { view: 'brackets', ...(tournamentId ? { tournamentId } : {}) },
-    { view: 'targets', ...(tournamentId ? { tournamentId } : {}) },
-  ]);
-  const [screenRotationReady, setScreenRotationReady] = useState(!screenMode);
-
-  const resolveScreenViews = useCallback(async () => {
-    if (!screenMode) {
-      return;
-    }
-    try {
-      const items = await resolveScreenRotationItems(tournamentId ?? undefined);
-      if (!items || items.length === 0) {
-        setScreenRotationReady(true);
-        return;
-      }
-      setScreenRotationItems(items);
-    } catch {
-      void 0;
-    } finally {
-      setScreenRotationReady(true);
-    }
-  }, [screenMode, tournamentId]);
-
-  useEffect(() => {
-    if (!screenMode) {
-      setScreenRotationItems([
-        { view: 'pool-stages' },
-        { view: 'brackets' },
-        { view: 'targets' },
-      ]);
-      setScreenRotationReady(true);
-      return undefined;
-    }
-    setScreenRotationReady(false);
-    void resolveScreenViews();
-    const intervalId = globalThis.window?.setInterval(resolveScreenViews, 300_000);
-    return () => {
-      if (intervalId) {
-        globalThis.window?.clearInterval(intervalId);
-      }
-    };
-  }, [screenMode, resolveScreenViews]);
-
-  useEffect(() => {
-    if (!screenMode || !tournamentId) {
-      return undefined;
-    }
-
-    let isDisposed = false;
-    let socket: ReturnType<typeof io> | undefined;
-
-    const openSocket = async () => {
-      const token = await resolveSocketAccessToken(authEnabled, isAuthenticated, getAccessTokenSilently);
-
-      if (isDisposed) {
-        return;
-      }
-
-      socket = io(globalThis.window?.location.origin ?? '', {
-        path: '/socket.io',
-        transports: ['websocket'],
-        withCredentials: true,
-        ...(token ? { auth: { token } } : {}),
-      });
-
-      socket.on('connect', () => {
-        socket?.emit('join-tournament', tournamentId);
-      });
-
-      socket.on('match:finished', (payload: { match?: { source?: string } }) => {
-        if (payload?.match?.source === 'bracket') {
-          void resolveScreenViews();
-        }
-      });
-    };
-
-    void openSocket();
-
-    return () => {
-      isDisposed = true;
-      socket?.removeAllListeners();
-      socket?.disconnect();
-    };
-  }, [authEnabled, getAccessTokenSilently, isAuthenticated, screenMode, tournamentId, resolveScreenViews]);
-
-  useEffect(() => {
-    if (!screenMode) {
-      return undefined;
-    }
-    if (!screenRotationReady) {
-      return undefined;
-    }
-    if (screenRotationItems.length === 0) {
-      return undefined;
-    }
-    const windowReference = globalThis.window;
-    if (!windowReference) {
-      return undefined;
-    }
-
-    const currentIndex = screenRotationItems.findIndex((item) => {
-      if (item.view !== view) return false;
-      if ((item.tournamentId ?? '') !== (tournamentId ?? '')) return false;
-      if ((item.stageId ?? '') !== (stageId ?? '')) return false;
-      if ((item.bracketId ?? '') !== (bracketId ?? '')) return false;
-      return true;
-    });
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % screenRotationItems.length;
-    const nextItem = screenRotationItems[nextIndex] ?? { view: 'targets' as const };
-    const delayMs = 10_000;
-
-    const timeoutId = windowReference.setTimeout(() => {
-      const url = new URL(windowReference.location.href);
-      url.searchParams.set('view', nextItem.view);
-      url.searchParams.set('screen', '1');
-      if (nextItem.tournamentId) {
-        url.searchParams.set('tournamentId', nextItem.tournamentId);
-      } else {
-        url.searchParams.delete('tournamentId');
-      }
-      if (nextItem.stageId) {
-        url.searchParams.set('stageId', nextItem.stageId);
-      } else {
-        url.searchParams.delete('stageId');
-      }
-      if (nextItem.bracketId) {
-        url.searchParams.set('bracketId', nextItem.bracketId);
-      } else {
-        url.searchParams.delete('bracketId');
-      }
-      if (status) {
-        url.searchParams.set('status', status);
-      } else {
-        url.searchParams.delete('status');
-      }
-      windowReference.location.assign(`${url.pathname}${url.search}`);
-    }, delayMs);
-
-    return () => {
-      windowReference.clearTimeout(timeoutId);
-    };
-  }, [bracketId, screenMode, screenRotationItems, screenRotationReady, stageId, status, tournamentId, view]);
+  useScreenRotation({
+    screenMode,
+    tournamentId,
+    stageId,
+    bracketId,
+    view,
+    status,
+    authEnabled,
+    isAuthenticated,
+    getAccessTokenSilently: async () => getAccessTokenSilently(),
+  });
 
 
   return (

@@ -22,9 +22,9 @@ type BracketsSectionProperties = {
   isAdmin: boolean;
   isBracketsReadonly: boolean;
   updatingMatchId: string | undefined;
-  editingMatchId?: string | undefined;
-  updatingRoundKey?: string | undefined;
-  resettingBracketId?: string | undefined;
+  editingMatchId?: string;
+  updatingRoundKey?: string;
+  resettingBracketId?: string;
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
@@ -45,7 +45,7 @@ type BracketsSectionProperties = {
   onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketId: string;
-  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string } | undefined) => string;
+  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string }) => string;
 };
 
 const FALLBACK_MATCH_DURATION_MINUTES = 12;
@@ -107,6 +107,27 @@ const BRACKET_MATCH_STATUS_PRIORITY: Record<string, number> = {
   CANCELLED: 3,
 };
 
+const getBracketMatchPriority = (match: LiveViewBracket['matches'][number]) => (
+  BRACKET_MATCH_STATUS_PRIORITY[(match.status ?? '').toUpperCase()] ?? 99
+);
+
+const compareBracketMatchCandidates = (
+  left: { match: LiveViewBracket['matches'][number] },
+  right: { match: LiveViewBracket['matches'][number] }
+) => {
+  const leftPriority = getBracketMatchPriority(left.match);
+  const rightPriority = getBracketMatchPriority(right.match);
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority;
+  }
+  const leftRound = left.match.roundNumber ?? 0;
+  const rightRound = right.match.roundNumber ?? 0;
+  if (leftRound !== rightRound) {
+    return leftRound - rightRound;
+  }
+  return (left.match.matchNumber ?? 0) - (right.match.matchNumber ?? 0);
+};
+
 const getPreferredPlayerMatchCandidate = (
   brackets: LiveViewBracket[],
   preferredPlayerId: string | undefined
@@ -115,25 +136,234 @@ const getPreferredPlayerMatchCandidate = (
     return undefined;
   }
 
-  return brackets
-    .flatMap((bracket) => (
-      (bracket.matches ?? []).map((match) => ({ bracket, match }))
-    ))
-    .filter(({ match }) => (
-      (match.playerMatches ?? []).some((playerMatch) => playerMatch.player?.id === preferredPlayerId)
-    ))
-    .sort((left, right) => {
-      const leftPriority = BRACKET_MATCH_STATUS_PRIORITY[(left.match.status ?? '').toUpperCase()] ?? 99;
-      const rightPriority = BRACKET_MATCH_STATUS_PRIORITY[(right.match.status ?? '').toUpperCase()] ?? 99;
-      if (leftPriority !== rightPriority) {
-        return leftPriority - rightPriority;
+  const candidates: Array<{ bracket: LiveViewBracket; match: NonNullable<LiveViewBracket['matches']>[number] }> = [];
+  for (const bracket of brackets) {
+    for (const match of bracket.matches ?? []) {
+      const hasPreferredPlayer = (match.playerMatches ?? [])
+        .some((playerMatch) => playerMatch.player?.id === preferredPlayerId);
+      if (hasPreferredPlayer) {
+        candidates.push({ bracket, match });
       }
-      if ((left.match.roundNumber ?? 0) !== (right.match.roundNumber ?? 0)) {
-        return (left.match.roundNumber ?? 0) - (right.match.roundNumber ?? 0);
-      }
-      return (left.match.matchNumber ?? 0) - (right.match.matchNumber ?? 0);
-    })[0];
+    }
+  }
+
+  candidates.sort(compareBracketMatchCandidates);
+  return candidates[0];
 };
+
+const applyHashBracketSelection = ({
+  tournamentId,
+  brackets,
+  activeBracketId,
+  onSelectBracket,
+}: {
+  tournamentId: string;
+  brackets: LiveViewBracket[];
+  activeBracketId?: string;
+  onSelectBracket: BracketsSectionProperties['onSelectBracket'];
+}) => {
+  const hashBracketId = getHashTargetBracketId(tournamentId);
+  if (!hashBracketId) {
+    return;
+  }
+
+  const targetBracket = brackets.find((bracket) => bracket.id === hashBracketId);
+  if (!targetBracket || activeBracketId === targetBracket.id) {
+    return;
+  }
+
+  onSelectBracket(tournamentId, targetBracket.id);
+};
+
+const syncPreferredPlayerBracketSelection = ({
+  tournamentId,
+  brackets,
+  preferredPlayerId,
+  activeBracketId,
+  onSelectBracket,
+}: {
+  tournamentId: string;
+  brackets: LiveViewBracket[];
+  preferredPlayerId?: string;
+  activeBracketId?: string;
+  onSelectBracket: BracketsSectionProperties['onSelectBracket'];
+}) => {
+  if (typeof window === 'undefined' || brackets.length === 0 || !preferredPlayerId) {
+    return;
+  }
+
+  if (window.location.hash.replace(/^#/, '').startsWith(`match-${tournamentId}-`)) {
+    return;
+  }
+
+  const candidate = getPreferredPlayerMatchCandidate(brackets, preferredPlayerId);
+  if (!candidate) {
+    return;
+  }
+
+  if (activeBracketId !== candidate.bracket.id) {
+    onSelectBracket(tournamentId, candidate.bracket.id);
+  }
+
+  const nextHash = getBracketMatchAnchorId(tournamentId, candidate.bracket.id, candidate.match.id);
+  if (window.location.hash.replace(/^#/, '') !== nextHash) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${nextHash}`);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  }
+};
+
+type ActiveBracketContext = {
+  activeBracket: LiveViewBracket;
+  isUpdatingRound: boolean;
+  isResettingBracket: boolean;
+  canManageBrackets: boolean;
+  canManageActiveBracketActions: boolean;
+  activeBracketTargetIds: string[];
+  bracketForecast: ReturnType<typeof getBracketRoundForecast>;
+  reservedTargetIds: string[];
+};
+
+const resolveActiveBracketContext = ({
+  brackets,
+  activeBracketId,
+  tournamentId,
+  updatingRoundKey,
+  resettingBracketId,
+  isAdmin,
+  poolStages,
+  schedulableTargetCount,
+  tournamentStartTime,
+}: {
+  brackets: LiveViewBracket[];
+  activeBracketId: string;
+  tournamentId: string;
+  updatingRoundKey?: string;
+  resettingBracketId?: string;
+  isAdmin: boolean;
+  poolStages: import('./types').LiveViewPoolStage[];
+  schedulableTargetCount: number;
+  tournamentStartTime?: string;
+}): ActiveBracketContext | undefined => {
+  const preferredBracket = brackets.find((bracket) => /winner/i.test(bracket.name)) ?? brackets[0];
+  if (!preferredBracket) {
+    return undefined;
+  }
+
+  const activeBracket = brackets.find((bracket) => bracket.id === activeBracketId) ?? preferredBracket;
+  const activeTargetCount = Math.max(schedulableTargetCount, 1);
+  const bracketStartDateTime = getBracketStartDateTime(
+    activeBracket,
+    tournamentStartTime,
+    poolStages,
+    activeTargetCount
+  );
+
+  return {
+    activeBracket,
+    isUpdatingRound: updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false,
+    isResettingBracket: resettingBracketId === activeBracket.id,
+    canManageBrackets: isAdmin,
+    canManageActiveBracketActions: canManageBracketActions(poolStages, activeBracket.id),
+    activeBracketTargetIds: activeBracket.targetIds
+      ?? activeBracket.bracketTargets?.map((target) => target.targetId)
+      ?? [],
+    bracketForecast: getBracketRoundForecast(activeBracket, bracketStartDateTime),
+    reservedTargetIds: Array.from(
+      new Set(
+        brackets
+          .filter((bracket) => bracket.id !== activeBracket.id)
+          .flatMap((bracket) => bracket.targetIds ?? bracket.bracketTargets?.map((target) => target.targetId) ?? [])
+      )
+    ),
+  };
+};
+
+const renderScreenModeBrackets = ({
+  t,
+  tournamentId,
+  preferredPlayerId,
+  context,
+  properties,
+}: {
+  t: Translator;
+  tournamentId: string;
+  preferredPlayerId?: string;
+  context: ActiveBracketContext;
+  properties: Pick<BracketsSectionProperties,
+    | 'isBracketsReadonly'
+    | 'updatingMatchId'
+    | 'editingMatchId'
+    | 'matchScores'
+    | 'matchTargetSelections'
+    | 'availableTargetsByTournament'
+    | 'getStatusLabel'
+    | 'getMatchKey'
+    | 'getTargetIdForSelection'
+    | 'getTargetLabel'
+    | 'onTargetSelectionChange'
+    | 'onStartMatch'
+    | 'onCompleteMatch'
+    | 'onEditMatch'
+    | 'onSaveMatchScores'
+    | 'onCancelMatch'
+    | 'onCancelMatchEdit'
+    | 'onScoreChange'
+    | 'getParticipantLabel'
+  >;
+}) => (
+  <div className="space-y-3">
+    <p className="text-xs uppercase tracking-[0.3em] text-amber-300/80">{context.activeBracket.name}</p>
+    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-cyan-200">
+        {context.activeBracket.bracketType}
+      </span>
+      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+        <span className="hidden sm:inline">{t('common.status')}: </span>
+        {properties.getStatusLabel('bracket', context.activeBracket.status)}
+      </span>
+      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+        <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
+        {context.bracketForecast.estimatedStartTimeLabel}
+      </span>
+      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+        <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
+        {context.bracketForecast.estimatedEndTimeLabel}
+      </span>
+      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
+        <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
+        {formatDurationClock(context.bracketForecast.estimatedDurationMinutes)}
+      </span>
+    </div>
+    <BracketMatches
+      t={t}
+      tournamentId={tournamentId}
+      bracket={context.activeBracket}
+      {...(preferredPlayerId ? { preferredPlayerId } : {})}
+      roundStartTimeByRound={context.bracketForecast.roundStartTimeByRound}
+      screenMode
+      isBracketsReadonly={properties.isBracketsReadonly}
+      updatingMatchId={properties.updatingMatchId}
+      editingMatchId={properties.editingMatchId}
+      matchScores={properties.matchScores}
+      matchTargetSelections={properties.matchTargetSelections}
+      availableTargetsByTournament={properties.availableTargetsByTournament}
+      reservedTargetIds={context.activeBracketTargetIds.length > 0 ? [] : context.reservedTargetIds}
+      getStatusLabel={properties.getStatusLabel}
+      getMatchKey={properties.getMatchKey}
+      getTargetIdForSelection={properties.getTargetIdForSelection}
+      getTargetLabel={properties.getTargetLabel}
+      onTargetSelectionChange={properties.onTargetSelectionChange}
+      onStartMatch={properties.onStartMatch}
+      onCompleteMatch={properties.onCompleteMatch}
+      onEditMatch={properties.onEditMatch}
+      onSaveMatchScores={properties.onSaveMatchScores}
+      onCancelMatch={properties.onCancelMatch}
+      onCancelMatchEdit={properties.onCancelMatchEdit}
+      onScoreChange={properties.onScoreChange}
+      {...(properties.getParticipantLabel ? { getParticipantLabel: properties.getParticipantLabel } : {})}
+    />
+  </div>
+);
 
 const toValidDate = (value: string | undefined) => {
   if (!value) {
@@ -511,7 +741,7 @@ const BracketSummaryHeader = ({
   </div>
 );
 
-const BracketsSection = ({ // NOSONAR
+const BracketsSection = ({
   t,
   tournamentId,
   tournamentStartTime,
@@ -554,144 +784,78 @@ const BracketsSection = ({ // NOSONAR
       return;
     }
 
-    const applyHashBracketSelection = () => {
-      const hashBracketId = getHashTargetBracketId(tournamentId);
-      if (!hashBracketId) {
-        return;
-      }
+    const runHashSelection = () => applyHashBracketSelection({
+      tournamentId,
+      brackets,
+      activeBracketId,
+      onSelectBracket,
+    });
 
-      const targetBracket = brackets.find((bracket) => bracket.id === hashBracketId);
-      if (!targetBracket) {
-        return;
-      }
-
-      if (activeBracketId !== targetBracket.id) {
-        onSelectBracket(tournamentId, targetBracket.id);
-      }
-    };
-
-    applyHashBracketSelection();
-    window.addEventListener('hashchange', applyHashBracketSelection);
+    runHashSelection();
+    window.addEventListener('hashchange', runHashSelection);
 
     return () => {
-      window.removeEventListener('hashchange', applyHashBracketSelection);
+      window.removeEventListener('hashchange', runHashSelection);
     };
   }, [activeBracketId, brackets, onSelectBracket, tournamentId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || brackets.length === 0 || !preferredPlayerId) {
-      return;
-    }
-
-    if (window.location.hash.replace(/^#/, '').startsWith(`match-${tournamentId}-`)) {
-      return;
-    }
-
-    const candidate = getPreferredPlayerMatchCandidate(brackets, preferredPlayerId);
-    if (!candidate) {
-      return;
-    }
-
-    if (activeBracketId !== candidate.bracket.id) {
-      onSelectBracket(tournamentId, candidate.bracket.id);
-    }
-
-    const nextHash = getBracketMatchAnchorId(tournamentId, candidate.bracket.id, candidate.match.id);
-    if (window.location.hash.replace(/^#/, '') !== nextHash) {
-      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${nextHash}`);
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
-    }
+    syncPreferredPlayerBracketSelection({
+      tournamentId,
+      brackets,
+      preferredPlayerId,
+      activeBracketId,
+      onSelectBracket,
+    });
   }, [activeBracketId, brackets, onSelectBracket, preferredPlayerId, tournamentId]);
 
   if (brackets.length === 0) {
     return <SectionEmptyState title={t('live.bracketStages')} message={t('live.noBrackets')} />;
   }
 
-  const preferredBracket = brackets.find((bracket) => /winner/i.test(bracket.name)) ?? brackets[0];
-  if (!preferredBracket) {
+  const context = resolveActiveBracketContext({
+    brackets,
+    activeBracketId,
+    tournamentId,
+    updatingRoundKey,
+    resettingBracketId,
+    isAdmin,
+    poolStages,
+    schedulableTargetCount,
+    tournamentStartTime,
+  });
+  if (!context) {
     return;
   }
-  const activeBracket = brackets.find((bracket) => bracket.id === activeBracketId) ?? preferredBracket;
-  const isUpdatingRound = updatingRoundKey?.startsWith(`${tournamentId}:${activeBracket.id}:`) ?? false;
-  const isResettingBracket = resettingBracketId === activeBracket.id;
-  const canManageBrackets = isAdmin;
-  const canManageActiveBracketActions = canManageBracketActions(poolStages, activeBracket.id);
-  const activeBracketTargetIds = activeBracket.targetIds
-    ?? activeBracket.bracketTargets?.map((target) => target.targetId)
-    ?? [];
-  const activeTargetCount = Math.max(schedulableTargetCount, 1);
-  const bracketStartDateTime = getBracketStartDateTime(
-    activeBracket,
-    tournamentStartTime,
-    poolStages,
-    activeTargetCount
-  );
-  const bracketForecast = getBracketRoundForecast(activeBracket, bracketStartDateTime);
-  const reservedTargetIds = Array.from(
-    new Set(
-      brackets
-        .filter((bracket) => bracket.id !== activeBracket.id)
-        .flatMap((bracket) => bracket.targetIds ?? bracket.bracketTargets?.map((target) => target.targetId) ?? [])
-    )
-  );
 
   if (screenMode) {
-    return (
-      <div className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.3em] text-amber-300/80">{activeBracket.name}</p>
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-cyan-200">
-            {activeBracket.bracketType}
-          </span>
-          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-            <span className="hidden sm:inline">{t('common.status')}: </span>
-            {getStatusLabel('bracket', activeBracket.status)}
-          </span>
-          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-            <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
-            {bracketForecast.estimatedStartTimeLabel}
-          </span>
-          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-            <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
-            {bracketForecast.estimatedEndTimeLabel}
-          </span>
-          <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-            <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
-            {formatDurationClock(bracketForecast.estimatedDurationMinutes)}
-          </span>
-        </div>
-        <BracketMatches
-          t={t}
-          tournamentId={tournamentId}
-          bracket={activeBracket}
-          {...(preferredPlayerId
-            ? { preferredPlayerId }
-            : {})}
-          roundStartTimeByRound={bracketForecast.roundStartTimeByRound}
-          screenMode
-          isBracketsReadonly={isBracketsReadonly}
-          updatingMatchId={updatingMatchId}
-          editingMatchId={editingMatchId}
-          matchScores={matchScores}
-          matchTargetSelections={matchTargetSelections}
-          availableTargetsByTournament={availableTargetsByTournament}
-          reservedTargetIds={activeBracketTargetIds.length > 0 ? [] : reservedTargetIds}
-          getStatusLabel={getStatusLabel}
-          getMatchKey={getMatchKey}
-          getTargetIdForSelection={getTargetIdForSelection}
-          getTargetLabel={getTargetLabel}
-          onTargetSelectionChange={onTargetSelectionChange}
-          onStartMatch={onStartMatch}
-          onCompleteMatch={onCompleteMatch}
-          onEditMatch={onEditMatch}
-          onSaveMatchScores={onSaveMatchScores}
-          onCancelMatch={onCancelMatch}
-          onCancelMatchEdit={onCancelMatchEdit}
-          onScoreChange={onScoreChange}
-          {...(getParticipantLabel ? { getParticipantLabel } : {})}
-        />
-      </div>
-    );
+    return renderScreenModeBrackets({
+      t,
+      tournamentId,
+      preferredPlayerId,
+      context,
+      properties: {
+        isBracketsReadonly,
+        updatingMatchId,
+        editingMatchId,
+        matchScores,
+        matchTargetSelections,
+        availableTargetsByTournament,
+        getStatusLabel,
+        getMatchKey,
+        getTargetIdForSelection,
+        getTargetLabel,
+        onTargetSelectionChange,
+        onStartMatch,
+        onCompleteMatch,
+        onEditMatch,
+        onSaveMatchScores,
+        onCancelMatch,
+        onCancelMatchEdit,
+        onScoreChange,
+        getParticipantLabel,
+      },
+    });
   }
 
   return (
@@ -700,7 +864,7 @@ const BracketsSection = ({ // NOSONAR
         t={t}
         tournamentId={tournamentId}
         brackets={brackets}
-        activeBracketId={activeBracket.id}
+        activeBracketId={context.activeBracket.id}
         onSelectBracket={onSelectBracket}
       />
 
@@ -708,14 +872,14 @@ const BracketsSection = ({ // NOSONAR
         <BracketSummaryHeader
           t={t}
           tournamentId={tournamentId}
-          bracket={activeBracket}
-          estimatedStartTimeLabel={bracketForecast.estimatedStartTimeLabel}
-          estimatedDurationMinutes={bracketForecast.estimatedDurationMinutes}
-          estimatedEndTimeLabel={bracketForecast.estimatedEndTimeLabel}
+          bracket={context.activeBracket}
+          estimatedStartTimeLabel={context.bracketForecast.estimatedStartTimeLabel}
+          estimatedDurationMinutes={context.bracketForecast.estimatedDurationMinutes}
+          estimatedEndTimeLabel={context.bracketForecast.estimatedEndTimeLabel}
           isBracketsReadonly={isBracketsReadonly}
-          canManageBrackets={canManageBrackets && canManageActiveBracketActions}
-          isUpdatingRound={isUpdatingRound}
-          isResettingBracket={isResettingBracket}
+          canManageBrackets={context.canManageBrackets && context.canManageActiveBracketActions}
+          isUpdatingRound={context.isUpdatingRound}
+          isResettingBracket={context.isResettingBracket}
           getStatusLabel={getStatusLabel}
           onCompleteBracketRound={onCompleteBracketRound}
           onResetBracketMatches={onResetBracketMatches}
@@ -726,11 +890,11 @@ const BracketsSection = ({ // NOSONAR
           <BracketMatches
             t={t}
             tournamentId={tournamentId}
-            bracket={activeBracket}
+            bracket={context.activeBracket}
             {...(preferredPlayerId
               ? { preferredPlayerId }
               : {})}
-            roundStartTimeByRound={bracketForecast.roundStartTimeByRound}
+            roundStartTimeByRound={context.bracketForecast.roundStartTimeByRound}
             screenMode={screenMode}
             isBracketsReadonly={isBracketsReadonly}
             updatingMatchId={updatingMatchId}
@@ -738,7 +902,7 @@ const BracketsSection = ({ // NOSONAR
             matchScores={matchScores}
             matchTargetSelections={matchTargetSelections}
             availableTargetsByTournament={availableTargetsByTournament}
-            reservedTargetIds={activeBracketTargetIds.length > 0 ? [] : reservedTargetIds}
+            reservedTargetIds={context.activeBracketTargetIds.length > 0 ? [] : context.reservedTargetIds}
             getStatusLabel={getStatusLabel}
             getMatchKey={getMatchKey}
             getTargetIdForSelection={getTargetIdForSelection}

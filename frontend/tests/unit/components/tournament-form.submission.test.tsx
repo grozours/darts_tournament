@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import TournamentForm from '../../../src/components/tournaments/tournament-form';
@@ -30,13 +30,15 @@ const validFormData = {
 };
 
 const fillForm = async (user: ReturnType<typeof userEvent.setup>, data = validFormData) => {
-  await user.type(screen.getByLabelText(/tournament name/i), data.name);
-  await user.selectOptions(screen.getByLabelText(/format/i), data.format);
-  await user.selectOptions(screen.getByLabelText(/duration type/i), data.durationType);
-  await user.type(screen.getByLabelText(/start time/i), data.startTime);
-  await user.type(screen.getByLabelText(/end time/i), data.endTime);
-  await user.type(screen.getByLabelText(/total slots/i), data.totalParticipants);
-  await user.type(screen.getByLabelText(/target count/i), data.targetCount);
+  await act(async () => {
+    await user.type(screen.getByLabelText(/tournament name/i), data.name);
+    await user.selectOptions(screen.getByLabelText(/format/i), data.format);
+    await user.selectOptions(screen.getByLabelText(/duration type/i), data.durationType);
+    await user.type(screen.getByLabelText(/start time/i), data.startTime);
+    await user.type(screen.getByLabelText(/end time/i), data.endTime);
+    await user.type(screen.getByLabelText(/total slots/i), data.totalParticipants);
+    await user.type(screen.getByLabelText(/target count/i), data.targetCount);
+  });
 };
 
 beforeEach(() => {
@@ -57,7 +59,9 @@ describe('TournamentForm submission', () => {
     render(<TournamentForm {...defaultProps} onSubmit={mockOnSubmit} />);
 
     await fillForm(user);
-    await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    });
 
     await waitFor(() => {
       const createCall = mockCreateTournament.mock.calls[0] ?? [];
@@ -95,9 +99,13 @@ describe('TournamentForm submission', () => {
 
     const logoInput = screen.getByLabelText(/tournament logo/i);
     const file = new File(['test'], 'logo.png', { type: 'image/png' });
-    await user.upload(logoInput, file);
+    await act(async () => {
+      await user.upload(logoInput, file);
+    });
 
-    await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    });
 
     await waitFor(() => {
       expect(mockCreateTournament).toHaveBeenCalled();
@@ -122,20 +130,26 @@ describe('TournamentForm submission states', () => {
 
     render(<TournamentForm {...defaultProps} />);
 
-    await user.type(screen.getByLabelText(/tournament name/i), 'Test');
-    await user.selectOptions(screen.getByLabelText(/format/i), TournamentFormat.SINGLE);
-    await user.selectOptions(screen.getByLabelText(/duration type/i), DurationType.FULL_DAY);
-    await user.type(screen.getByLabelText(/start time/i), '2026-03-15T10:00');
-    await user.type(screen.getByLabelText(/end time/i), '2026-03-15T18:00');
-    await user.type(screen.getByLabelText(/total slots/i), '8');
-    await user.type(screen.getByLabelText(/target count/i), '2');
+    await act(async () => {
+      await user.type(screen.getByLabelText(/tournament name/i), 'Test');
+      await user.selectOptions(screen.getByLabelText(/format/i), TournamentFormat.SINGLE);
+      await user.selectOptions(screen.getByLabelText(/duration type/i), DurationType.FULL_DAY);
+      await user.type(screen.getByLabelText(/start time/i), '2026-03-15T10:00');
+      await user.type(screen.getByLabelText(/end time/i), '2026-03-15T18:00');
+      await user.type(screen.getByLabelText(/total slots/i), '8');
+      await user.type(screen.getByLabelText(/target count/i), '2');
+    });
 
-    await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    });
 
     expect(screen.getByRole('button', { name: /creating/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /creating/i })).toBeInTheDocument();
 
-    await vi.runAllTimersAsync();
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
     vi.useRealTimers();
   });
 
@@ -147,7 +161,9 @@ describe('TournamentForm submission states', () => {
     render(<TournamentForm {...defaultProps} />);
 
     await fillForm(user);
-    await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    });
 
     await waitFor(() => {
       expect(
@@ -166,7 +182,9 @@ describe('TournamentForm submission states', () => {
     const nameInput = screen.getByLabelText(/tournament name/i);
     await fillForm(user);
 
-    await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /create tournament/i }));
+    });
 
     await waitFor(() => {
       expect(nameInput).toHaveValue('');

@@ -17,7 +17,7 @@ type LiveTournamentMatchActionsResult = {
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
-  editingMatchId?: string | undefined;
+  editingMatchId?: string;
   handleMatchStatusUpdate: (
     matchTournamentId: string,
     matchId: string,

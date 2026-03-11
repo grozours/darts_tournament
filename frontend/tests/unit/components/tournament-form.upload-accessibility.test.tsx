@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import TournamentForm from '../../../src/components/tournaments/tournament-form';
@@ -31,7 +31,9 @@ describe('TournamentForm file uploads', () => {
     const logoInput = screen.getByLabelText(/tournament logo/i);
     const file = new File(['test'], 'logo.png', { type: 'image/png' });
 
-    await user.upload(logoInput, file);
+    await act(async () => {
+      await user.upload(logoInput, file);
+    });
 
     await waitFor(() => {
       const preview = screen.getByRole('img', { name: /logo preview/i });
@@ -47,7 +49,9 @@ describe('TournamentForm file uploads', () => {
     const logoInput = screen.getByLabelText(/tournament logo/i);
     const invalidFile = new File(['test'], 'document.pdf', { type: 'application/pdf' });
 
-    await user.upload(logoInput, invalidFile);
+    await act(async () => {
+      await user.upload(logoInput, invalidFile);
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/only jpeg and png files are allowed/i)).toBeInTheDocument();
@@ -64,7 +68,9 @@ describe('TournamentForm file uploads', () => {
       type: 'image/png',
     });
 
-    await user.upload(logoInput, largeFile);
+    await act(async () => {
+      await user.upload(logoInput, largeFile);
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/file size cannot exceed 5mb/i)).toBeInTheDocument();

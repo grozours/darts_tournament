@@ -3,6 +3,7 @@ import type { TournamentPlayer, CreateTournamentPayload } from '../../services/t
 import { updateTournament, updateTournamentStatus } from '../../services/tournament-service';
 import { normalizeTournamentStatus } from './tournament-status-helpers';
 import { localInputToIso } from './tournament-date-helpers';
+import { navigateWithinApp } from './navigation-helpers';
 import type { EditFormState, Tournament, Translator } from './types';
 
 type UseTournamentEditActionsProperties = {
@@ -146,10 +147,10 @@ const useStatusTransitionAction = (
     await updateTournamentStatus(editingTournament.id, config.targetStatus, token);
     if (isEditPage) {
       if (config.keepEditPageOnSuccess) {
-        globalThis.window?.location.assign(`/?view=edit-tournament&tournamentId=${editingTournament.id}`);
+        navigateWithinApp(`/?view=edit-tournament&tournamentId=${editingTournament.id}`);
         return;
       }
-      globalThis.window?.location.assign(`/?status=${config.redirectStatus}`);
+      navigateWithinApp(`/?status=${config.redirectStatus}`);
       return;
     }
     closeEdit();

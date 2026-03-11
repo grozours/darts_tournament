@@ -11,20 +11,20 @@ export type TournamentEditContentProperties = {
   editForm: EditFormState;
   editingTournament: {
     status: string;
-    logoUrl?: string | undefined;
-    createdAt?: string | undefined;
-    completedAt?: string | undefined;
-    historicalFlag?: boolean | undefined;
+    logoUrl?: string;
+    createdAt?: string;
+    completedAt?: string;
+    historicalFlag?: boolean;
     format: string;
     totalParticipants: number;
   };
   formatOptions: Array<{ value: string; label: string }>;
   durationOptions: Array<{ value: string; label: string }>;
   skillLevelOptions: Array<{ value: string; label: string }>;
-  logoFile?: File | undefined;
+  logoFile?: File;
   isUploadingLogo: boolean;
   poolStages: PoolStageConfig[];
-  poolStagesError?: string | undefined;
+  poolStagesError?: string;
   isAddingPoolStage: boolean;
   newPoolStage: {
     stageNumber: number;
@@ -42,9 +42,9 @@ export type TournamentEditContentProperties = {
     }>;
   };
   brackets: BracketConfig[];
-  bracketsError?: string | undefined;
+  bracketsError?: string;
   targets: TournamentTarget[];
-  targetsError?: string | undefined;
+  targetsError?: string;
   isAddingBracket: boolean;
   newBracket: {
     name: string;
@@ -54,16 +54,16 @@ export type TournamentEditContentProperties = {
   };
   players: TournamentPlayer[];
   playersLoading: boolean;
-  playersError?: string | undefined;
+  playersError?: string;
   playerForm: CreatePlayerPayload;
-  editingPlayerId?: string | undefined;
-  checkingInPlayerId?: string | undefined;
+  editingPlayerId?: string;
+  checkingInPlayerId?: string;
   playerActionLabel: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
-  autoFillProgress?: { current: number; total: number } | undefined;
-  confirmAllProgress?: { current: number; total: number } | undefined;
+  autoFillProgress?: { current: number; total: number };
+  confirmAllProgress?: { current: number; total: number };
   isApplyingPreset: boolean;
   quickStructurePresets: TournamentPreset[];
   quickStructurePresetsLoading: boolean;

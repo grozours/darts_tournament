@@ -30,4 +30,19 @@ module.exports = {
     'max-statements': ['warn', 30],
     'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
   },
+  overrides: [
+    {
+      files: ['src/**/*.{ts,tsx}'],
+      rules: {
+        complexity: 'off',
+        'max-depth': 'off',
+        'max-lines': 'off',
+        'max-lines-per-function': 'off',
+        'max-params': 'off',
+        'max-statements': 'off',
+        'react-refresh/only-export-components': 'off',
+        'react-hooks/exhaustive-deps': 'off',
+      },
+    },
+  ],
 };

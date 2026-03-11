@@ -14,9 +14,9 @@ type UseLiveTournamentBracketActionsProperties = {
 };
 
 type LiveTournamentBracketActionsResult = {
-  updatingRoundKey?: string | undefined;
-  resettingBracketId?: string | undefined;
-  populatingBracketId?: string | undefined;
+  updatingRoundKey?: string;
+  resettingBracketId?: string;
+  populatingBracketId?: string;
   handleCompleteBracketRound: (matchTournamentId: string, bracket: LiveViewBracket) => Promise<void>;
   handleResetBracketMatches: (matchTournamentId: string, bracketId: string) => Promise<void>;
   handlePopulateBracketFromPools: (

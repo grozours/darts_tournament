@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TournamentList from '../../../src/components/tournament-list';
 
 const mockLoadPoolStages = vi.fn();
@@ -8,6 +8,7 @@ const mockLoadTargets = vi.fn();
 const mockFetchPlayers = vi.fn();
 const mockRegisterPlayer = vi.fn();
 const mockSavePlayerEdit = vi.fn();
+const mockGetAccessTokenSilently = vi.fn();
 
 let mockEditingPlayerId: string | undefined;
 
@@ -16,7 +17,7 @@ vi.mock('../../../src/auth/optional-auth', () => ({
     enabled: false,
     isAuthenticated: false,
     isLoading: false,
-    getAccessTokenSilently: vi.fn(),
+    getAccessTokenSilently: mockGetAccessTokenSilently,
     user: undefined,
   }),
 }));
@@ -191,6 +192,15 @@ vi.mock('../../../src/components/tournament-list/use-tournament-list-edit-flow',
   }),
 }));
 
+vi.mock('../../../src/components/tournament-list/use-tournament-list-preset-actions', () => ({
+  default: () => ({
+    isApplyingPreset: false,
+    quickStructurePresets: [],
+    quickStructurePresetsLoading: false,
+    handleApplyStructurePreset: vi.fn(),
+  }),
+}));
+
 vi.mock('../../../src/components/tournament-list/use-pool-stage-assignments', () => ({
   default: () => ({
     editingPoolStage: undefined,
@@ -234,30 +244,38 @@ describe('TournamentList callback wiring', () => {
     globalThis.window?.history.pushState({}, '', '/?view=edit-tournament&tournamentId=edit-1');
   });
 
-  it('calls edit callbacks with current tournament id and registers a new player', () => {
+  it('calls edit callbacks with current tournament id and registers a new player', async () => {
     render(<TournamentList />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'load-pool-stages' }));
-    fireEvent.click(screen.getByRole('button', { name: 'load-brackets' }));
-    fireEvent.click(screen.getByRole('button', { name: 'fetch-players' }));
-    fireEvent.click(screen.getByRole('button', { name: 'submit-player' }));
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'load-pool-stages' }));
+      fireEvent.click(screen.getByRole('button', { name: 'load-brackets' }));
+      fireEvent.click(screen.getByRole('button', { name: 'fetch-players' }));
+      fireEvent.click(screen.getByRole('button', { name: 'submit-player' }));
+    });
 
-    expect(mockLoadPoolStages).toHaveBeenCalledWith('edit-1');
-    expect(mockLoadBrackets).toHaveBeenCalledWith('edit-1');
-    expect(mockLoadTargets).toHaveBeenCalledWith('edit-1');
-    expect(mockFetchPlayers).toHaveBeenCalledWith('edit-1');
-    expect(mockRegisterPlayer).toHaveBeenCalled();
-    expect(mockSavePlayerEdit).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockLoadPoolStages).toHaveBeenCalledWith('edit-1');
+      expect(mockLoadBrackets).toHaveBeenCalledWith('edit-1');
+      expect(mockLoadTargets).toHaveBeenCalledWith('edit-1');
+      expect(mockFetchPlayers).toHaveBeenCalledWith('edit-1');
+      expect(mockRegisterPlayer).toHaveBeenCalled();
+      expect(mockSavePlayerEdit).not.toHaveBeenCalled();
+    });
   });
 
-  it('submits player edit when an editing player id exists', () => {
+  it('submits player edit when an editing player id exists', async () => {
     mockEditingPlayerId = 'player-1';
 
     render(<TournamentList />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'submit-player' }));
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'submit-player' }));
+    });
 
-    expect(mockSavePlayerEdit).toHaveBeenCalled();
-    expect(mockRegisterPlayer).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockSavePlayerEdit).toHaveBeenCalled();
+      expect(mockRegisterPlayer).not.toHaveBeenCalled();
+    });
   });
 });

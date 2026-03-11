@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   LiveViewMatch,
+  PoolLeaderboardRow,
   LiveViewPool,
   LiveViewPoolStage,
   LiveViewTarget,
@@ -15,6 +16,22 @@ type LiveParticipant = {
   id?: string;
   firstName?: string;
   lastName?: string;
+};
+
+const HeadToHeadBonus = ({ row, t }: { row: PoolLeaderboardRow; t: Translator }) => {
+  if (row.matchesPlayed <= 0 || row.headToHeadBonus === undefined) {
+    return null;
+  }
+
+  return (
+    <span
+      className="ml-1 text-amber-300"
+      title={t('live.headToHeadBonusTooltip')}
+      aria-label={t('live.headToHeadBonusTooltip')}
+    >
+      (+{row.headToHeadBonus})
+    </span>
+  );
 };
 
 export const formatScheduledMatchTime = (value: string | undefined) => {
@@ -213,6 +230,66 @@ export const buildPoolAvailabilityByPoolId = (poolQueues: OptimisticPoolQueue[],
   return poolAvailabilityByPoolId;
 };
 
+const buildOptimisticCandidate = (
+  queue: OptimisticPoolQueue,
+  matchIndex: number,
+  match: LiveViewMatch,
+  slot: { bestTargetIndex: number; bestPoolSlotIndex: number; bestStartTimestamp: number },
+  finishTimestamp: number
+): OptimisticCandidate => ({
+  queue,
+  matchIndex,
+  match,
+  bestTargetIndex: slot.bestTargetIndex,
+  bestPoolSlotIndex: slot.bestPoolSlotIndex,
+  startTimestamp: slot.bestStartTimestamp,
+  finishTimestamp,
+});
+
+const shouldReplaceOptimisticCandidate = (
+  nextCandidate: OptimisticCandidate,
+  currentCandidate: OptimisticCandidate
+) => {
+  if (nextCandidate.finishTimestamp !== currentCandidate.finishTimestamp) {
+    return nextCandidate.finishTimestamp < currentCandidate.finishTimestamp;
+  }
+  if (nextCandidate.startTimestamp !== currentCandidate.startTimestamp) {
+    return nextCandidate.startTimestamp < currentCandidate.startTimestamp;
+  }
+  return nextCandidate.queue.poolNumber < currentCandidate.queue.poolNumber;
+};
+
+const findBestOptimisticCandidateInQueues = (
+  candidateQueues: OptimisticPoolQueue[],
+  targetAvailability: number[],
+  poolAvailabilityByPoolId: Map<string, number[]>,
+  playerAvailabilityById: Map<string, number>,
+  nowTimestamp: number,
+  resolveDurationMinutes: (match: LiveViewMatch) => number
+) => {
+  let bestCandidate: OptimisticCandidate | undefined;
+
+  for (const queue of candidateQueues) {
+    const poolAvailability = poolAvailabilityByPoolId.get(queue.poolId) ?? [nowTimestamp];
+    for (const [matchIndex, match] of queue.queuedMatches.entries()) {
+      const matchReadyTimestamp = getMatchReadyTimestampForOptimisticSchedule(
+        match,
+        playerAvailabilityById,
+        nowTimestamp
+      );
+      const slot = getBestTargetAndPoolSlot(targetAvailability, poolAvailability, matchReadyTimestamp);
+      const finishTimestamp = slot.bestStartTimestamp + resolveDurationMinutes(match) * 60_000;
+      const nextCandidate = buildOptimisticCandidate(queue, matchIndex, match, slot, finishTimestamp);
+
+      if (!bestCandidate || shouldReplaceOptimisticCandidate(nextCandidate, bestCandidate)) {
+        bestCandidate = nextCandidate;
+      }
+    }
+  }
+
+  return bestCandidate;
+};
+
 export const findBestOptimisticCandidate = (
   poolQueues: OptimisticPoolQueue[],
   targetAvailability: number[],
@@ -223,59 +300,16 @@ export const findBestOptimisticCandidate = (
   resolveDurationMinutes: (match: LiveViewMatch) => number
 ) => {
   const queuesWithMatches = poolQueues.filter((queue) => queue.queuedMatches.length > 0);
-  const findBestFromQueues = (candidateQueues: OptimisticPoolQueue[]) => {
-    let bestCandidate: OptimisticCandidate | undefined;
-
-    for (const queue of candidateQueues) {
-      const poolAvailability = poolAvailabilityByPoolId.get(queue.poolId) ?? [nowTimestamp];
-      for (const [matchIndex, match] of queue.queuedMatches.entries()) {
-        const matchReadyTimestamp = getMatchReadyTimestampForOptimisticSchedule(
-          match,
-          playerAvailabilityById,
-          nowTimestamp
-        );
-        const slot = getBestTargetAndPoolSlot(targetAvailability, poolAvailability, matchReadyTimestamp);
-        const finishTimestamp = slot.bestStartTimestamp + resolveDurationMinutes(match) * 60_000;
-
-        if (!bestCandidate) {
-          bestCandidate = {
-            queue,
-            matchIndex,
-            match,
-            bestTargetIndex: slot.bestTargetIndex,
-            bestPoolSlotIndex: slot.bestPoolSlotIndex,
-            startTimestamp: slot.bestStartTimestamp,
-            finishTimestamp,
-          };
-          continue;
-        }
-
-        const hasEarlierFinish = finishTimestamp < bestCandidate.finishTimestamp;
-        const hasEarlierStartAtSameFinish = (
-          finishTimestamp === bestCandidate.finishTimestamp
-          && slot.bestStartTimestamp < bestCandidate.startTimestamp
-        );
-        const hasLowerPoolNumberAtSameStartAndFinish = (
-          finishTimestamp === bestCandidate.finishTimestamp
-          && slot.bestStartTimestamp === bestCandidate.startTimestamp
-          && queue.poolNumber < bestCandidate.queue.poolNumber
-        );
-        if (hasEarlierFinish || hasEarlierStartAtSameFinish || hasLowerPoolNumberAtSameStartAndFinish) {
-          bestCandidate = {
-            queue,
-            matchIndex,
-            match,
-            bestTargetIndex: slot.bestTargetIndex,
-            bestPoolSlotIndex: slot.bestPoolSlotIndex,
-            startTimestamp: slot.bestStartTimestamp,
-            finishTimestamp,
-          };
-        }
-      }
-    }
-
-    return bestCandidate;
-  };
+  const findBestFromQueues = (candidateQueues: OptimisticPoolQueue[]) => (
+    findBestOptimisticCandidateInQueues(
+      candidateQueues,
+      targetAvailability,
+      poolAvailabilityByPoolId,
+      playerAvailabilityById,
+      nowTimestamp,
+      resolveDurationMinutes
+    )
+  );
 
   const fairnessQueues = prioritizeLeastProgressedPools
     ? (() => {
@@ -462,7 +496,7 @@ type PoolStageCardProperties = {
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
-  editingMatchId?: string | undefined;
+  editingMatchId?: string;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
   schedulableTargetCount: number;
   optimisticStartTimeByMatchIdOverride?: Map<string, string>;
@@ -493,13 +527,13 @@ type PoolStageCardProperties = {
   onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   canDeleteStage: boolean;
   preferredPlayerId?: string;
-  editingStageId?: string | undefined;
-  updatingStageId?: string | undefined;
+  editingStageId?: string;
+  updatingStageId?: string;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   canManageStageActions?: boolean;
-  getParticipantLabel?: (player: LiveParticipant | undefined) => string;
+  getParticipantLabel?: (player: LiveParticipant) => string;
 };
 
 const PoolStageCard = ({
@@ -854,15 +888,7 @@ const PoolStageCard = ({
                   <td className="px-3 py-2">{row.name}</td>
                   <td className="px-3 py-2 text-right">
                         {row.legsWon}
-                        {row.matchesPlayed > 0 && row.headToHeadBonus !== undefined && (
-                      <span
-                        className="ml-1 text-amber-300"
-                        title={t('live.headToHeadBonusTooltip')}
-                        aria-label={t('live.headToHeadBonusTooltip')}
-                      >
-                        (+{row.headToHeadBonus})
-                      </span>
-                    )}
+                        <HeadToHeadBonus row={row} t={t} />
                   </td>
                   <td className="px-3 py-2 text-right">{row.legsLost}</td>
                 </tr>
@@ -1054,94 +1080,100 @@ const PoolStageCard = ({
     return <span>No players assigned yet.</span>;
   };
 
-  const renderPoolMatches = (matchTournamentId: string, pool: LiveViewPool) => {
+  const getVisiblePoolMatches = (pool: LiveViewPool): LiveViewMatch[] => {
     const matches = pool.matches || [];
     if (matches.length === 0) {
-      return <p className="mt-2 text-xs text-slate-400">{t('live.noMatches')}</p>;
+      return [];
     }
     const showCompletedMatches = showCompletedMatchesByPool[pool.id] ?? false;
-    const visibleMatches = showCompletedMatches
+    return showCompletedMatches
       ? matches
       : matches.filter((match) => match.status !== 'COMPLETED');
+  };
+
+  const renderPoolMatchCard = (matchTournamentId: string, match: LiveViewMatch) => {
+    const scheduledMatchTime = formatScheduledMatchTime(match.scheduledAt);
+    const optimisticMatchTime = optimisticStartTimeByMatchId.get(match.id);
+    const resolvedMatchFormat = match.matchFormatKey ?? stage.matchFormatKey;
+    const matchFormatTooltip = getMatchFormatTooltip(resolvedMatchFormat);
+
+    return (
+      <div key={match.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-slate-200">Match {match.matchNumber} · Round {match.roundNumber}</span>
+          <span className="text-xs text-slate-400">{getStatusLabel('match', match.status)}</span>
+        </div>
+        {resolvedMatchFormat && (
+          <p className="mt-1 text-[11px] text-cyan-200" title={matchFormatTooltip}>
+            {resolvedMatchFormat}
+          </p>
+        )}
+        {match.status === 'SCHEDULED' && (
+          <p className="mt-1 text-xs text-slate-400">
+            {t('live.matchStartTime')}: {optimisticMatchTime ?? scheduledMatchTime ?? t('live.matchStartTimeUnknown')}
+          </p>
+        )}
+        {match.status === 'IN_PROGRESS' && getMatchTargetLabel(match.target) && (
+          <p className="mt-1 text-xs text-slate-400">
+            {t('live.queue.targetLabel')}: {getMatchTargetLabel(match.target)}
+          </p>
+        )}
+        {renderMatchStatusSection(matchTournamentId, match)}
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
+          {renderMatchPlayers(match)}
+        </div>
+        {match.status === 'COMPLETED' && (match.playerMatches?.length ?? 0) > 0 && (
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-widest text-slate-500">
+              {t('live.finalScore')}
+            </p>
+            <div className="mt-2 grid gap-1 text-xs">
+              {(match.playerMatches ?? [])
+                .toSorted((first, second) => first.playerPosition - second.playerPosition)
+                .map((playerMatch) => (
+                  <div
+                    key={`${match.id}-${playerMatch.playerPosition}-score`}
+                    className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1"
+                  >
+                    <span
+                      className={
+                        playerMatch.player?.id === match.winner?.id
+                          ? 'font-semibold text-emerald-200'
+                          : 'text-slate-300'
+                      }
+                    >
+                      {getParticipantLabel
+                        ? getParticipantLabel(playerMatch.player)
+                        : `${playerMatch.player?.firstName ?? ''} ${playerMatch.player?.lastName ?? ''}`.trim()}
+                    </span>
+                    <span className="text-slate-200">
+                      {playerMatch.scoreTotal ?? playerMatch.legsWon ?? '-'}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+        {match.winner && (
+          <p className="mt-2 text-xs text-emerald-300">
+            {t('live.winner')}: {getParticipantLabel
+              ? getParticipantLabel(match.winner)
+              : `${match.winner.firstName} ${match.winner.lastName}`.trim()}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderPoolMatches = (matchTournamentId: string, pool: LiveViewPool) => {
+    const visibleMatches = getVisiblePoolMatches(pool);
     if (visibleMatches.length === 0) {
       return <p className="mt-2 text-xs text-slate-400">{t('live.noMatches')}</p>;
     }
 
     return (
       <div className="mt-2 space-y-2">
-        {visibleMatches.map((match) => {
-          const scheduledMatchTime = formatScheduledMatchTime(match.scheduledAt);
-          const optimisticMatchTime = optimisticStartTimeByMatchId.get(match.id);
-          const resolvedMatchFormat = match.matchFormatKey ?? stage.matchFormatKey;
-          const matchFormatTooltip = getMatchFormatTooltip(resolvedMatchFormat);
-
-          return (
-          <div key={match.id} className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-3 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-slate-200">Match {match.matchNumber} · Round {match.roundNumber}</span>
-              <span className="text-xs text-slate-400">{getStatusLabel('match', match.status)}</span>
-            </div>
-            {resolvedMatchFormat && (
-              <p className="mt-1 text-[11px] text-cyan-200" title={matchFormatTooltip}>
-                {resolvedMatchFormat}
-              </p>
-            )}
-            {match.status === 'SCHEDULED' && (
-              <p className="mt-1 text-xs text-slate-400">
-                {t('live.matchStartTime')}: {optimisticMatchTime ?? scheduledMatchTime ?? t('live.matchStartTimeUnknown')}
-              </p>
-            )}
-            {match.status === 'IN_PROGRESS' && getMatchTargetLabel(match.target) && (
-              <p className="mt-1 text-xs text-slate-400">
-                {t('live.queue.targetLabel')}: {getMatchTargetLabel(match.target)}
-              </p>
-            )}
-            {renderMatchStatusSection(matchTournamentId, match)}
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
-              {renderMatchPlayers(match)}
-            </div>
-            {match.status === 'COMPLETED' && (match.playerMatches?.length ?? 0) > 0 && (
-              <div className="mt-2">
-                <p className="text-[10px] uppercase tracking-widest text-slate-500">
-                  {t('live.finalScore')}
-                </p>
-                <div className="mt-2 grid gap-1 text-xs">
-                  {(match.playerMatches ?? [])
-                    .toSorted((first, second) => first.playerPosition - second.playerPosition)
-                    .map((playerMatch) => (
-                      <div
-                        key={`${match.id}-${playerMatch.playerPosition}-score`}
-                        className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1"
-                      >
-                        <span
-                          className={
-                            playerMatch.player?.id === match.winner?.id
-                              ? 'font-semibold text-emerald-200'
-                              : 'text-slate-300'
-                          }
-                        >
-                          {getParticipantLabel
-                            ? getParticipantLabel(playerMatch.player)
-                            : `${playerMatch.player?.firstName ?? ''} ${playerMatch.player?.lastName ?? ''}`.trim()}
-                        </span>
-                        <span className="text-slate-200">
-                          {playerMatch.scoreTotal ?? playerMatch.legsWon ?? '-'}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-            {match.winner && (
-              <p className="mt-2 text-xs text-emerald-300">
-                {t('live.winner')}: {getParticipantLabel
-                  ? getParticipantLabel(match.winner)
-                  : `${match.winner.firstName} ${match.winner.lastName}`.trim()}
-              </p>
-            )}
-          </div>
-          );
-        })}
+        {visibleMatches.map((match) => renderPoolMatchCard(matchTournamentId, match))}
       </div>
     );
   };
@@ -1269,15 +1301,7 @@ const PoolStageCard = ({
                             <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
                             <span className="w-16 text-right text-slate-300">
                               {row.legsWon}
-                              {row.matchesPlayed > 0 && row.headToHeadBonus !== undefined && (
-                                <span
-                                  className="ml-1 text-amber-300"
-                                  title={t('live.headToHeadBonusTooltip')}
-                                  aria-label={t('live.headToHeadBonusTooltip')}
-                                >
-                                  (+{row.headToHeadBonus})
-                                </span>
-                              )}
+                              <HeadToHeadBonus row={row} t={t} />
                               -{row.legsLost}
                             </span>
                           </div>

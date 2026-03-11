@@ -5,9 +5,9 @@ import type { LiveViewData } from './types';
 
 type UseLiveTournamentLoadersProperties = {
   getSafeAccessToken: () => Promise<string | undefined>;
-  viewMode?: string | undefined;
+  viewMode?: string;
   viewStatus?: LiveViewStatus;
-  tournamentId?: string | undefined;
+  tournamentId?: string;
   isAggregateView: boolean;
 };
 

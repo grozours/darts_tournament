@@ -504,7 +504,7 @@ describe('usePoolStageStructure', () => {
   });
 
   it('updates stage status locally when handlePoolStageStatusChange is called', async () => {
-    fetchPoolStages.mockResolvedValue([{
+    const stage = {
       id: 's1',
       stageNumber: 1,
       name: 'Stage 1',
@@ -517,7 +517,10 @@ describe('usePoolStageStructure', () => {
         { position: 1, destinationType: 'ELIMINATED' },
         { position: 2, destinationType: 'ELIMINATED' },
       ],
-    }]);
+    };
+    fetchPoolStages
+      .mockResolvedValueOnce([stage])
+      .mockResolvedValueOnce([{ ...stage, status: 'IN_PROGRESS' }]);
     updatePoolStage.mockResolvedValue(undefined);
     const { result } = build();
 
@@ -528,6 +531,10 @@ describe('usePoolStageStructure', () => {
     const currentStage = result.current.poolStages[0]!;
     act(() => {
       result.current.handlePoolStageStatusChange(currentStage, 'IN_PROGRESS');
+    });
+
+    await waitFor(() => {
+      expect(updatePoolStage).toHaveBeenCalled();
     });
 
     expect(result.current.poolStages[0]?.status).toBe('IN_PROGRESS');

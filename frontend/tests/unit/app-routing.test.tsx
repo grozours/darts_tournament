@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/app';
 
@@ -8,8 +8,10 @@ const fetchMatchFormatPresetsMock = vi.fn(async () => []);
 const fetchLiveTournamentSummaryMock = vi.fn(async () => []);
 const setMatchFormatPresetsMock = vi.fn();
 const navigateTo = (url: string) => {
-  globalThis.history.pushState({}, '', url);
-  globalThis.dispatchEvent(new PopStateEvent('popstate'));
+  act(() => {
+    globalThis.history.pushState({}, '', url);
+    globalThis.dispatchEvent(new PopStateEvent('popstate'));
+  });
 };
 const toUrl = (input: RequestInfo | URL) => {
   if (input instanceof URL) return input.toString();

@@ -34,6 +34,39 @@ const formatDateTime = (value: string) => {
   }).format(date);
 };
 
+const toUniqueSortedTournaments = (payloads: unknown[]): TournamentSummary[] => {
+  const map = new Map<string, TournamentSummary>();
+
+  for (const payload of payloads) {
+    const items = Array.isArray((payload as { tournaments?: unknown[] })?.tournaments)
+      ? (payload as { tournaments: TournamentSummary[] }).tournaments
+      : [];
+
+    for (const tournament of items) {
+      if (!tournament?.id) {
+        continue;
+      }
+      map.set(tournament.id, tournament);
+    }
+  }
+
+  return [...map.values()].toSorted((first, second) => (first.name || '').localeCompare(second.name || ''));
+};
+
+const fetchTournamentsByStatus = async (token: string | undefined): Promise<unknown[]> => {
+  const responses = await Promise.all(
+    TOURNAMENT_STATUSES.map((status) =>
+      fetch(`/api/tournaments?status=${encodeURIComponent(status)}&limit=100`, token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : undefined)
+    )
+  );
+
+  return Promise.all(
+    responses.map(async (response) => (response.ok ? response.json() : { tournaments: [] }))
+  );
+};
+
 const TournamentSnapshotsView = () => {
   const { t } = useI18n();
   const { enabled: authEnabled, isAuthenticated, getAccessTokenSilently } = useOptionalAuth();
@@ -84,34 +117,8 @@ const TournamentSnapshotsView = () => {
     setError(undefined);
     try {
       const token = await getSafeAccessToken();
-      const responses = await Promise.all(
-        TOURNAMENT_STATUSES.map((status) =>
-          fetch(`/api/tournaments?status=${encodeURIComponent(status)}&limit=100`, token
-            ? { headers: { Authorization: `Bearer ${token}` } }
-            : undefined)
-        )
-      );
-
-      const payloads = await Promise.all(
-        responses.map(async (response) => (response.ok ? response.json() : { tournaments: [] }))
-      );
-
-      const map = new Map<string, TournamentSummary>();
-      for (const payload of payloads) {
-        const items = Array.isArray(payload?.tournaments)
-          ? payload.tournaments as TournamentSummary[]
-          : [];
-        for (const tournament of items) {
-          if (!tournament?.id) {
-            continue;
-          }
-          map.set(tournament.id, tournament);
-        }
-      }
-
-      const nextTournaments = [...map.values()].toSorted((first, second) =>
-        (first.name || '').localeCompare(second.name || '')
-      );
+      const payloads = await fetchTournamentsByStatus(token);
+      const nextTournaments = toUniqueSortedTournaments(payloads);
       setTournaments(nextTournaments);
 
       if (!selectedTournamentId && nextTournaments[0]?.id) {

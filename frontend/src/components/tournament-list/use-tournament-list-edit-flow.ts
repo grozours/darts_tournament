@@ -10,7 +10,7 @@ import type { EditFormState, Tournament, Translator } from './types';
 type UseTournamentListEditFlowProperties = {
   t: Translator;
   isEditPage: boolean;
-  editTournamentId?: string | null | undefined;
+  editTournamentId?: string | null;
   getSafeAccessToken: () => Promise<string | undefined>;
   players: TournamentPlayer[];
   fetchPlayers: (tournamentId: string) => Promise<void>;

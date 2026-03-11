@@ -19,7 +19,7 @@ type UseLiveTournamentStageUpdateProperties = {
 };
 
 type LiveTournamentStageUpdateResult = {
-  updatingStageId?: string | undefined;
+  updatingStageId?: string;
   handleLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;
   handleUpdateStage: (stageTournamentId: string, stage: LiveViewPoolStage) => Promise<void>;

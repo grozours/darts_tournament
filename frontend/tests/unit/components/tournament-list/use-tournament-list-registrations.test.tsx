@@ -19,36 +19,38 @@ vi.mock('../../../../src/services/tournament-service', () => serviceMocks);
 
 const t = (key: string) => key;
 
-describe('useTournamentListRegistrations', () => {
-  const getSafeAccessToken = vi.fn();
-  const baseProperties = {
-    t,
-    tournaments: [{ id: 't1', name: 'Open', status: 'OPEN', format: 'X01', totalParticipants: 8 }],
-    isAuthenticated: true,
-    isAdmin: false,
-    user: { email: 'player@example.com', name: 'Ava Archer' },
-    getSafeAccessToken,
-    refreshTournaments: vi.fn(),
-  };
+const getSafeAccessToken = vi.fn();
+const baseProperties = {
+  t,
+  tournaments: [{ id: 't1', name: 'Open', status: 'OPEN', format: 'X01', totalParticipants: 8 }],
+  isAuthenticated: true,
+  isAdmin: false,
+  user: { email: 'player@example.com', name: 'Ava Archer' },
+  getSafeAccessToken,
+  refreshTournaments: vi.fn(),
+};
 
-  beforeEach(() => {
-    getSafeAccessToken.mockReset();
-    serviceMocks.fetchDoublettes.mockReset();
-    serviceMocks.fetchEquipes.mockReset();
-    serviceMocks.registerTournamentPlayer.mockReset();
-    serviceMocks.registerDoublette.mockReset();
-    serviceMocks.registerEquipe.mockReset();
-    serviceMocks.unregisterTournamentPlayer.mockReset();
-    serviceMocks.unregisterDoublette.mockReset();
-    serviceMocks.unregisterEquipe.mockReset();
-    serviceMocks.fetchTournamentPlayers.mockReset();
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({}),
-    });
-    globalThis.alert = vi.fn();
-    globalThis.confirm = vi.fn();
+const resetRegistrationsMocks = () => {
+  getSafeAccessToken.mockReset();
+  serviceMocks.fetchDoublettes.mockReset();
+  serviceMocks.fetchEquipes.mockReset();
+  serviceMocks.registerTournamentPlayer.mockReset();
+  serviceMocks.registerDoublette.mockReset();
+  serviceMocks.registerEquipe.mockReset();
+  serviceMocks.unregisterTournamentPlayer.mockReset();
+  serviceMocks.unregisterDoublette.mockReset();
+  serviceMocks.unregisterEquipe.mockReset();
+  serviceMocks.fetchTournamentPlayers.mockReset();
+  globalThis.fetch = vi.fn().mockResolvedValue({
+    ok: false,
+    json: async () => ({}),
   });
+  globalThis.alert = vi.fn();
+  globalThis.confirm = vi.fn();
+};
+
+describe('useTournamentListRegistrations - self registration', () => {
+  beforeEach(resetRegistrationsMocks);
 
   it('loads existing registrations for a signed-in user', async () => {
     getSafeAccessToken.mockResolvedValue('token');
@@ -149,6 +151,11 @@ describe('useTournamentListRegistrations', () => {
     expect(serviceMocks.unregisterTournamentPlayer).not.toHaveBeenCalled();
     expect(globalThis.alert).toHaveBeenCalledWith('You are not registered for this tournament');
   });
+
+});
+
+describe('useTournamentListRegistrations - group registration', () => {
+  beforeEach(resetRegistrationsMocks);
 
   it('registers and unregisters doublette group as captain', async () => {
     getSafeAccessToken.mockResolvedValue('token');

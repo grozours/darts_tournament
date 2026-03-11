@@ -71,6 +71,93 @@ export type StageRoutingUpdate = {
   }>;
 };
 
+type RoutingRule = TournamentPresetTemplateConfig['routingRules'][number];
+
+const groupRoutingRulesByStageNumber = (rules: TournamentPresetTemplateConfig['routingRules']) => (
+  rules.reduce((accumulator, rule) => {
+    const stageRules = accumulator.get(rule.stageNumber) ?? [];
+    stageRules.push(rule);
+    accumulator.set(rule.stageNumber, stageRules);
+    return accumulator;
+  }, new Map<number, TournamentPresetTemplateConfig['routingRules']>())
+);
+
+const toPoolStageDestination = (
+  rule: RoutingRule,
+  stageByNumber: Map<number, string>
+) => {
+  const poolStageId = rule.destinationStageNumber
+    ? stageByNumber.get(rule.destinationStageNumber)
+    : undefined;
+  if (!poolStageId) {
+    return undefined;
+  }
+  return {
+    position: rule.position,
+    destinationType: 'POOL_STAGE' as const,
+    poolStageId,
+  };
+};
+
+const toBracketDestination = (
+  rule: RoutingRule,
+  bracketByName: Map<string, string>
+) => {
+  const bracketId = rule.destinationBracketName
+    ? bracketByName.get(rule.destinationBracketName)
+    : undefined;
+  if (!bracketId) {
+    return undefined;
+  }
+  return {
+    position: rule.position,
+    destinationType: 'BRACKET' as const,
+    bracketId,
+  };
+};
+
+const toRankingDestination = (
+  rule: RoutingRule,
+  stageByNumber: Map<number, string>,
+  bracketByName: Map<string, string>
+) => {
+  if (rule.destinationType === 'POOL_STAGE') {
+    return toPoolStageDestination(rule, stageByNumber);
+  }
+
+  if (rule.destinationType === 'BRACKET') {
+    return toBracketDestination(rule, bracketByName);
+  }
+
+  return {
+    position: rule.position,
+    destinationType: 'ELIMINATED' as const,
+  };
+};
+
+const toStageRoutingUpdate = (
+  stageNumber: number,
+  rules: TournamentPresetTemplateConfig['routingRules'],
+  stageByNumber: Map<number, string>,
+  bracketByName: Map<string, string>
+): StageRoutingUpdate | undefined => {
+  const stageId = stageByNumber.get(stageNumber);
+  if (!stageId) {
+    return undefined;
+  }
+
+  const rankingDestinations = rules
+    .toSorted((first, second) => first.position - second.position)
+    .map((rule) => toRankingDestination(rule, stageByNumber, bracketByName))
+    .filter((destination): destination is NonNullable<typeof destination> => destination !== undefined);
+
+  if (rankingDestinations.length === 0) {
+    return undefined;
+  }
+
+  return { stageId, rankingDestinations };
+};
+
 const getPresetPoolCounts = (totalParticipants: number) => {
   const safeParticipants = Number.isFinite(totalParticipants) && totalParticipants > 0
     ? totalParticipants
@@ -229,63 +316,9 @@ export const buildPresetRoutingUpdates = (
 
   const stageByNumber = new Map(stages.map((stage) => [stage.stageNumber, stage.id]));
   const bracketByName = new Map(brackets.map((bracket) => [bracket.name, bracket.id]));
-  const groupedRules = new Map<number, TournamentPresetTemplateConfig['routingRules']>();
+  const groupedRules = groupRoutingRulesByStageNumber(config.routingRules);
 
-  for (const rule of config.routingRules) {
-    const stageRules = groupedRules.get(rule.stageNumber) ?? [];
-    stageRules.push(rule);
-    groupedRules.set(rule.stageNumber, stageRules);
-  }
-
-  const updates: StageRoutingUpdate[] = [];
-  for (const [stageNumber, rules] of groupedRules.entries()) {
-    const stageId = stageByNumber.get(stageNumber);
-    if (!stageId) {
-      continue;
-    }
-
-    const rankingDestinations = rules
-      .toSorted((first, second) => first.position - second.position)
-      .map((rule) => {
-        if (rule.destinationType === 'POOL_STAGE') {
-          const poolStageId = rule.destinationStageNumber
-            ? stageByNumber.get(rule.destinationStageNumber)
-            : undefined;
-          if (!poolStageId) {
-            return undefined;
-          }
-          return {
-            position: rule.position,
-            destinationType: 'POOL_STAGE' as const,
-            poolStageId,
-          };
-        }
-
-        if (rule.destinationType === 'BRACKET') {
-          const bracketId = rule.destinationBracketName
-            ? bracketByName.get(rule.destinationBracketName)
-            : undefined;
-          if (!bracketId) {
-            return undefined;
-          }
-          return {
-            position: rule.position,
-            destinationType: 'BRACKET' as const,
-            bracketId,
-          };
-        }
-
-        return {
-          position: rule.position,
-          destinationType: 'ELIMINATED' as const,
-        };
-      })
-      .filter((destination): destination is NonNullable<typeof destination> => destination !== undefined);
-
-    if (rankingDestinations.length > 0) {
-      updates.push({ stageId, rankingDestinations });
-    }
-  }
-
-  return updates;
+  return [...groupedRules.entries()]
+    .map(([stageNumber, rules]) => toStageRoutingUpdate(stageNumber, rules, stageByNumber, bracketByName))
+    .filter((update): update is StageRoutingUpdate => update !== undefined);
 };

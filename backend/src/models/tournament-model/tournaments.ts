@@ -18,6 +18,152 @@ import {
 type TournamentRecord = Awaited<ReturnType<PrismaClient['tournament']['findUnique']>>;
 type TournamentListRecord = NonNullable<TournamentRecord>;
 type GroupCountRow = { tournamentId: string | null; _count: { _all: number } };
+type TournamentFindAllOptions = {
+  status?: TournamentStatus;
+  format?: TournamentFormat;
+  name?: string;
+  excludeDraft?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: 'name' | 'startTime' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+};
+type TournamentFindAllResult = {
+  tournaments: Array<Tournament & { currentParticipants: number; hasLiveBrackets: boolean }>;
+  total: number;
+  page: number;
+  limit: number;
+};
+
+type TournamentFindWhere = {
+  status?: TournamentStatus | { not: TournamentStatus };
+  format?: TournamentFormat;
+  name?: { contains: string; mode: 'insensitive' };
+};
+
+const toTournamentCountMap = (rows: GroupCountRow[]): Map<string, number> => new Map(
+  rows
+    .filter((entry): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
+    .map((entry) => [entry.tournamentId, entry._count._all] as const)
+);
+
+const buildFindAllWhere = (options: TournamentFindAllOptions): TournamentFindWhere => {
+  const where: TournamentFindWhere = {};
+
+  if (options.status) {
+    where.status = options.status;
+  } else if (options.excludeDraft) {
+    where.status = { not: TournamentStatus.DRAFT };
+  }
+
+  if (options.format) {
+    where.format = options.format;
+  }
+
+  if (options.name) {
+    where.name = {
+      contains: options.name,
+      mode: 'insensitive',
+    };
+  }
+
+  return where;
+};
+
+const loadCountRows = async (
+  prisma: PrismaClient,
+  tournamentIds: string[]
+): Promise<{
+  participantCountByTournament: Map<string, number>;
+  registeredDoubletteCountByTournament: Map<string, number>;
+  registeredEquipeCountByTournament: Map<string, number>;
+  liveBracketCountByTournament: Map<string, number>;
+}> => {
+  if (tournamentIds.length === 0) {
+    return {
+      participantCountByTournament: new Map(),
+      registeredDoubletteCountByTournament: new Map(),
+      registeredEquipeCountByTournament: new Map(),
+      liveBracketCountByTournament: new Map(),
+    };
+  }
+
+  const [participantCounts, registeredDoubletteCounts, registeredEquipeCounts, liveBracketCounts] = await Promise.all([
+    prisma.player.groupBy({
+      by: ['tournamentId'],
+      where: { tournamentId: { in: tournamentIds }, isActive: true },
+      _count: { _all: true },
+    }),
+    prisma.doublette.groupBy({
+      by: ['tournamentId'],
+      where: { tournamentId: { in: tournamentIds }, isRegistered: true },
+      _count: { _all: true },
+    }),
+    prisma.equipe.groupBy({
+      by: ['tournamentId'],
+      where: { tournamentId: { in: tournamentIds }, isRegistered: true },
+      _count: { _all: true },
+    }),
+    prisma.bracket.groupBy({
+      by: ['tournamentId'],
+      where: {
+        tournamentId: { in: tournamentIds },
+        status: BracketStatus.IN_PROGRESS,
+      },
+      _count: { _all: true },
+    }),
+  ]);
+
+  return {
+    participantCountByTournament: toTournamentCountMap(participantCounts),
+    registeredDoubletteCountByTournament: toTournamentCountMap(registeredDoubletteCounts),
+    registeredEquipeCountByTournament: toTournamentCountMap(registeredEquipeCounts),
+    liveBracketCountByTournament: toTournamentCountMap(liveBracketCounts),
+  };
+};
+
+const resolveCurrentParticipants = (
+  tournament: TournamentListRecord,
+  participantCountByTournament: Map<string, number>,
+  registeredDoubletteCountByTournament: Map<string, number>,
+  registeredEquipeCountByTournament: Map<string, number>
+): number => {
+  if (tournament.format === TournamentFormat.DOUBLE) {
+    return registeredDoubletteCountByTournament.get(tournament.id) ?? 0;
+  }
+
+  if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
+    return registeredEquipeCountByTournament.get(tournament.id) ?? 0;
+  }
+
+  return participantCountByTournament.get(tournament.id) ?? 0;
+};
+
+const enrichTournamentList = (
+  tournaments: TournamentListRecord[],
+  maps: {
+    participantCountByTournament: Map<string, number>;
+    registeredDoubletteCountByTournament: Map<string, number>;
+    registeredEquipeCountByTournament: Map<string, number>;
+    liveBracketCountByTournament: Map<string, number>;
+  }
+): Array<Tournament & { currentParticipants: number; hasLiveBrackets: boolean }> => (
+  tournaments.map((tournament) => {
+    const currentParticipants = resolveCurrentParticipants(
+      tournament,
+      maps.participantCountByTournament,
+      maps.registeredDoubletteCountByTournament,
+      maps.registeredEquipeCountByTournament
+    );
+    const liveBracketCount = maps.liveBracketCountByTournament.get(tournament.id);
+
+    return {
+      ...mapToTournament(tournament),
+      currentParticipants,
+      hasLiveBrackets: Number(liveBracketCount ?? 0) > 0,
+    };
+  })
+);
 
 export const createTournamentModelCore = (prisma: PrismaClient) => {
   const updateStatusWithRaw = async (
@@ -76,50 +222,16 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       }
     },
 
-    findAll: async (options?: {
-      status?: TournamentStatus;
-      format?: TournamentFormat;
-      name?: string;
-      excludeDraft?: boolean;
-      page?: number;
-      limit?: number;
-      sortBy?: 'name' | 'startTime' | 'createdAt';
-      sortOrder?: 'asc' | 'desc';
-    }): Promise<{ tournaments: Array<Tournament & { currentParticipants: number; hasLiveBrackets: boolean }>; total: number; page: number; limit: number }> => {
+    findAll: async (options?: TournamentFindAllOptions): Promise<TournamentFindAllResult> => {
       try {
         const {
-          status,
-          format,
-          name,
-          excludeDraft,
           page = 1,
           limit = 10,
           sortBy = 'createdAt',
           sortOrder = 'desc',
         } = options || {};
 
-        const where: {
-          status?: TournamentStatus | { not: TournamentStatus };
-          format?: TournamentFormat;
-          name?: { contains: string; mode: 'insensitive' };
-        } = {};
-
-        if (status) {
-          where.status = status;
-        } else if (excludeDraft) {
-          where.status = { not: TournamentStatus.DRAFT };
-        }
-
-        if (format) {
-          where.format = format;
-        }
-
-        if (name) {
-          where.name = {
-            contains: name,
-            mode: 'insensitive',
-          };
-        }
+        const where = buildFindAllWhere(options ?? {});
 
         const skip = (page - 1) * limit;
 
@@ -133,75 +245,11 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         });
         const total = await prisma.tournament.count({ where });
 
-  const tournamentIds = tournaments.map((tournament: TournamentListRecord) => tournament.id);
-        const participantCounts = tournamentIds.length > 0
-          ? await prisma.player.groupBy({
-            by: ['tournamentId'],
-            where: { tournamentId: { in: tournamentIds }, isActive: true },
-            _count: { _all: true },
-          })
-          : [];
-        const registeredDoubletteCounts = tournamentIds.length > 0
-          ? await prisma.doublette.groupBy({
-            by: ['tournamentId'],
-            where: { tournamentId: { in: tournamentIds }, isRegistered: true },
-            _count: { _all: true },
-          })
-          : [];
-        const registeredEquipeCounts = tournamentIds.length > 0
-          ? await prisma.equipe.groupBy({
-            by: ['tournamentId'],
-            where: { tournamentId: { in: tournamentIds }, isRegistered: true },
-            _count: { _all: true },
-          })
-          : [];
-        const liveBracketCounts = tournamentIds.length > 0
-          ? await prisma.bracket.groupBy({
-            by: ['tournamentId'],
-            where: {
-              tournamentId: { in: tournamentIds },
-              status: BracketStatus.IN_PROGRESS,
-            },
-            _count: { _all: true },
-          })
-          : [];
-        const participantCountByTournament = new Map(
-          participantCounts
-      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
-        );
-        const registeredDoubletteCountByTournament = new Map(
-          registeredDoubletteCounts
-      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
-        );
-        const registeredEquipeCountByTournament = new Map(
-          registeredEquipeCounts
-      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
-        );
-        const liveBracketCountByTournament = new Map(
-          liveBracketCounts
-      .filter((entry: GroupCountRow): entry is GroupCountRow & { tournamentId: string } => Boolean(entry.tournamentId))
-      .map((entry: GroupCountRow & { tournamentId: string }) => [entry.tournamentId, entry._count._all] as const)
-        );
+        const tournamentIds = tournaments.map((tournament: TournamentListRecord) => tournament.id);
+        const maps = await loadCountRows(prisma, tournamentIds);
 
         return {
-          tournaments: tournaments.map((tournament: TournamentListRecord) => {
-            let currentParticipants = participantCountByTournament.get(tournament.id) ?? 0;
-            if (tournament.format === TournamentFormat.DOUBLE) {
-              currentParticipants = registeredDoubletteCountByTournament.get(tournament.id) ?? 0;
-            } else if (tournament.format === TournamentFormat.TEAM_4_PLAYER) {
-              currentParticipants = registeredEquipeCountByTournament.get(tournament.id) ?? 0;
-            }
-
-            const liveBracketCount = liveBracketCountByTournament.get(tournament.id);
-            return {
-              ...mapToTournament(tournament),
-              currentParticipants,
-              hasLiveBrackets: Number(liveBracketCount ?? 0) > 0,
-            };
-          }),
+          tournaments: enrichTournamentList(tournaments as TournamentListRecord[], maps),
           total,
           page,
           limit,

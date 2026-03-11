@@ -1,9 +1,9 @@
 import type { Tournament, Translator } from './types';
 import { normalizeTournamentStatus } from './tournament-status-helpers';
 
-type TournamentListHeaderProperties = {
+export type TournamentListHeaderProperties = {
   isEditPage: boolean;
-  editingTournament?: Tournament | undefined;
+  editingTournament?: Tournament;
   tournamentsCount: number;
   t: Translator;
 };

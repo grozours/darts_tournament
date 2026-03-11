@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useEffect, type ReactNode } from 'react';
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react';
 import type { GetTokenSilentlyOptions, LogoutOptions, RedirectLoginOptions } from '@auth0/auth0-react';

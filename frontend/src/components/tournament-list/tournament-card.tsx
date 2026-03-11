@@ -23,26 +23,26 @@ export type TournamentCardProperties = {
   hideOpenSignatureAction?: boolean;
   showOpenAutoFillAction?: boolean;
   showSignatureAutoConfirmAction?: boolean;
-  registeringTournamentId?: string | undefined;
-  openingRegistrationId?: string | undefined;
-  openingSignatureId?: string | undefined;
-  autoFillingTournamentId?: string | undefined;
-  confirmingTournamentId?: string | undefined;
-  autoFillProgress?: { current: number; total: number } | undefined;
-  confirmAllProgress?: { current: number; total: number } | undefined;
+  registeringTournamentId?: string;
+  openingRegistrationId?: string;
+  openingSignatureId?: string;
+  autoFillingTournamentId?: string;
+  confirmingTournamentId?: string;
+  autoFillProgress?: { current: number; total: number };
+  confirmAllProgress?: { current: number; total: number };
   userRegistrations: Set<string>;
-  userGroupStatus: UserTournamentGroupStatus | undefined;
+  userGroupStatus?: UserTournamentGroupStatus;
 };
 
 type TournamentAdminActionProperties = {
   tournament: Tournament;
   normalizedStatus: string;
-  openingRegistrationId?: string | undefined;
-  openingSignatureId?: string | undefined;
-  autoFillingTournamentId?: string | undefined;
-  confirmingTournamentId?: string | undefined;
-  autoFillProgress?: { current: number; total: number } | undefined;
-  confirmAllProgress?: { current: number; total: number } | undefined;
+  openingRegistrationId?: string;
+  openingSignatureId?: string;
+  autoFillingTournamentId?: string;
+  confirmingTournamentId?: string;
+  autoFillProgress?: { current: number; total: number };
+  confirmAllProgress?: { current: number; total: number };
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -61,8 +61,8 @@ type TournamentRegistrationActionProperties = {
   isAdmin: boolean;
   showRegistrationActions: boolean;
   isRegistered: boolean;
-  userGroupStatus: UserTournamentGroupStatus | undefined;
-  registeringTournamentId?: string | undefined;
+  userGroupStatus?: UserTournamentGroupStatus;
+  registeringTournamentId?: string;
   onRegister: (tournamentId: string) => void;
   onRegisterGroup: (tournamentId: string) => void;
   onUnregisterGroup: (tournamentId: string) => void;
@@ -92,7 +92,7 @@ const getGroupRegisterLabel = ({
   t,
 }: {
   tournamentFormat: 'DOUBLE' | 'TEAM_4_PLAYER';
-  registeringTournamentId: string | undefined;
+  registeringTournamentId?: string;
   tournamentId: string;
   isGroupRegistered: boolean;
   t: Translator;
@@ -119,8 +119,8 @@ const GroupRegistrationAction = ({
   tournamentFormat: 'DOUBLE' | 'TEAM_4_PLAYER';
   tournamentId: string;
   isAdmin: boolean;
-  userGroupStatus: UserTournamentGroupStatus | undefined;
-  registeringTournamentId: string | undefined;
+  userGroupStatus?: UserTournamentGroupStatus;
+  registeringTournamentId?: string;
   onRegisterGroup: (tournamentId: string) => void;
   onUnregisterGroup: (tournamentId: string) => void;
   t: Translator;

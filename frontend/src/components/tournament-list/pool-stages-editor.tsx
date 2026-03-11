@@ -25,7 +25,7 @@ type PoolStagesEditorProperties = {
   isTournamentLive: boolean;
   showStageStatusControl?: boolean;
   showEditPlayersButton?: boolean;
-  poolStagesError?: string | undefined;
+  poolStagesError?: string;
   isAddingPoolStage: boolean;
   newPoolStage: PoolStageDraft;
   onLoadPoolStages: () => void;
