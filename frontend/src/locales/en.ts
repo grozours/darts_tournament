@@ -84,6 +84,7 @@ export const enMessages: Record<string, string> = {
   'groups.create': 'Create',
   'groups.none': 'No group found for this tournament.',
   'groups.join': 'Join',
+  'groups.changePassword': 'Access code',
   'groups.leave': 'Leave',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',
@@ -95,6 +96,9 @@ export const enMessages: Record<string, string> = {
   'groups.registered': 'Registered',
   'groups.notRegistered': 'Not registered',
   'groups.promptName': 'Group name', // NOSONAR - i18n label, not a secret // NOSONAR - i18n label, not a secret // NOSONAR - i18n label, not a secret
+  'groups.promptPassword': 'Group access code', // NOSONAR - i18n label, not a secret
+  'groups.promptJoinPassword': 'Enter group access code', // NOSONAR - i18n label, not a secret
+  'groups.promptNewPassword': 'New group access code', // NOSONAR - i18n label, not a secret
   'groups.promptPlayerSearch': 'Player search (name, surname, team, group name)',
   'groups.promptCaptainSearch': 'Captain search (name, surname, team, group name)',
   'groups.chooseCaptain': 'Choose captain',
