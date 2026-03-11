@@ -1265,7 +1265,7 @@ const LiveTournamentView = ({
     const frameId = globalThis.window?.requestAnimationFrame(() => {
       stageCard.scrollIntoView({
         behavior: 'smooth',
-        block: 'center',
+        block: 'start',
         inline: 'nearest',
       });
     });

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   LiveViewBracket,
   LiveViewMatch,
@@ -75,8 +75,8 @@ const getBracketLayout = (bracket: LiveViewBracket, rounds: BracketRound[], scre
   const totalRounds = rounds.length;
   const finalRound = rounds.at(-1);
   const earlyRounds = rounds.slice(0, -1);
-  const bracketGap = screenMode ? 12 : 40;
-  const bracketCardHeight = screenMode ? 150 : 220;
+  const bracketGap = screenMode ? 18 : 40;
+  const bracketCardHeight = screenMode ? 170 : 220;
   const baseStep = (bracketCardHeight + bracketGap) / 2;
   const columnHeight = (Math.pow(2, totalRounds) - 2) * baseStep + bracketCardHeight;
   const showWinnerColumn = (finalRound?.matches?.length ?? 0) === 1;
@@ -424,7 +424,7 @@ const BracketMatches = ({
         id={getBracketMatchAnchorId(matchTournamentId, bracket.id, match.id)}
         data-match-anchor={getBracketMatchAnchorId(matchTournamentId, bracket.id, match.id)}
         className={`rounded-2xl border text-xs transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${getBracketCardShellClassName(match, options.tone)} ${screenMode ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}
-        style={{ minHeight: screenMode ? 150 : 220, width: 200 }}
+        style={{ minHeight: screenMode ? 170 : 220, width: 200 }}
       >
         {(() => {
           const resolvedMatchFormat = match.matchFormatKey
@@ -541,51 +541,130 @@ const BracketMatches = ({
       );
     };
 
-    return (
-      <div className="mt-6 overflow-x-auto pb-6">
-        <div className={`flex items-start ${screenMode ? 'min-w-[820px] gap-6' : 'min-w-[960px] gap-12'}`}>
-          <div className={`flex ${screenMode ? 'gap-6' : 'gap-12'}`}>
-            {roundsToRender.map((round, index) => renderRoundColumn(round, index))}
-          </div>
-          {showWinnerColumn && (
-            <div className={`flex flex-col items-center gap-3 ${screenMode ? 'min-w-[208px] pt-3' : 'min-w-[220px] pt-6'}`}>
-              <div className="flex items-center gap-2 text-amber-300" style={{ marginLeft: finalLeftOffset }}>
-                <span className="text-[11px] uppercase tracking-[0.4em]">
-                  {getBracketRoundLabel(totalRounds, totalRounds, t)}
-                </span>
-                <span aria-hidden="true">🏆</span>
-              </div>
-              {roundStartTimeByRound?.get(totalRounds) && (
-                <p className="text-[10px] text-slate-400" style={{ marginLeft: finalLeftOffset }}>
-                  {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
-                </p>
-              )}
-              {finalRound?.matches?.[0] && (
-                <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeight) }}>
-                  <div
-                    className="absolute"
-                    style={{
-                      top: (Math.max(screenMode ? 180 : 260, columnHeight) - bracketCardHeight) / 2,
-                      left: finalLeftOffset,
-                    }}
-                  >
-                    {renderBracketCard(matchTournamentId, finalRound.matches[0], {
-                      showConnector: false,
-                      connectorSide: 'right',
-                      tone: getBracketTone(totalRounds - 1, totalRounds),
-                      isFinal: true,
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+    const bracketContent = (
+      <div className={`flex items-start ${screenMode ? 'min-w-[820px] gap-6' : 'min-w-[960px] gap-12'}`}>
+        <div className={`flex ${screenMode ? 'gap-6' : 'gap-12'}`}>
+          {roundsToRender.map((round, index) => renderRoundColumn(round, index))}
         </div>
+        {showWinnerColumn && (
+          <div className={`flex flex-col items-center gap-3 ${screenMode ? 'min-w-[208px] pt-3' : 'min-w-[220px] pt-6'}`}>
+            <div className="flex items-center gap-2 text-amber-300" style={{ marginLeft: finalLeftOffset }}>
+              <span className="text-[11px] uppercase tracking-[0.4em]">
+                {getBracketRoundLabel(totalRounds, totalRounds, t)}
+              </span>
+              <span aria-hidden="true">🏆</span>
+            </div>
+            {roundStartTimeByRound?.get(totalRounds) && (
+              <p className="text-[10px] text-slate-400" style={{ marginLeft: finalLeftOffset }}>
+                {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
+              </p>
+            )}
+            {finalRound?.matches?.[0] && (
+              <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeight) }}>
+                <div
+                  className="absolute"
+                  style={{
+                    top: (Math.max(screenMode ? 180 : 260, columnHeight) - bracketCardHeight) / 2,
+                    left: finalLeftOffset,
+                  }}
+                >
+                  {renderBracketCard(matchTournamentId, finalRound.matches[0], {
+                    showConnector: false,
+                    connectorSide: 'right',
+                    tone: getBracketTone(totalRounds - 1, totalRounds),
+                    isFinal: true,
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+    );
+
+    if (!screenMode) {
+      return (
+        <div className="mt-6 overflow-x-auto pb-6">
+          {bracketContent}
+        </div>
+      );
+    }
+
+    return (
+      <ScreenModeBracketViewport>
+        {bracketContent}
+      </ScreenModeBracketViewport>
     );
   };
 
   return renderBracketMatches(tournamentId);
+};
+
+const ScreenModeBracketViewport = ({ children }: { children: JSX.Element }) => {
+  const viewportReference = useRef<HTMLDivElement | null>(null);
+  const contentReference = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const [scaledSize, setScaledSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    if (!viewportReference.current || !contentReference.current) {
+      return;
+    }
+
+    const measure = () => {
+      if (!viewportReference.current || !contentReference.current) {
+        return;
+      }
+
+      const viewportBounds = viewportReference.current.getBoundingClientRect();
+      const availableWidth = Math.max(0, viewportBounds.width);
+      const availableHeight = Math.max(0, globalThis.window.innerHeight - viewportBounds.top - 16);
+      const contentWidth = Math.max(1, contentReference.current.scrollWidth);
+      const contentHeight = Math.max(1, contentReference.current.scrollHeight);
+
+      const nextScale = Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight);
+      const nextWidth = Math.round(contentWidth * nextScale);
+      const nextHeight = Math.round(contentHeight * nextScale);
+
+      setScale((previousScale) => (Math.abs(previousScale - nextScale) < 0.01 ? previousScale : nextScale));
+      setScaledSize((previousSize) => (
+        previousSize.width === nextWidth && previousSize.height === nextHeight
+          ? previousSize
+          : { width: nextWidth, height: nextHeight }
+      ));
+    };
+
+    const frameId = globalThis.window.requestAnimationFrame(measure);
+    globalThis.window.addEventListener('resize', measure);
+
+    return () => {
+      globalThis.window.cancelAnimationFrame(frameId);
+      globalThis.window.removeEventListener('resize', measure);
+    };
+  }, [children]);
+
+  return (
+    <div ref={viewportReference} className="mt-6 overflow-hidden pb-2">
+      <div
+        className="mx-auto"
+        style={{
+          width: scaledSize.width > 0 ? scaledSize.width : undefined,
+          height: scaledSize.height > 0 ? scaledSize.height : undefined,
+        }}
+      >
+        <div
+          ref={contentReference}
+          style={{
+            width: 'max-content',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default BracketMatches;

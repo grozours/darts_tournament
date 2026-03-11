@@ -411,7 +411,7 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('pools-1')).toBeInTheDocument();
   });
 
-  it('centers active pool stage card in screen mode', async () => {
+  it('aligns active pool stage card near top in screen mode', async () => {
     const scrollIntoView = vi.fn();
     const getElementByIdSpy = vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
       if (id === 'pool-stage-t1-s2') {
@@ -449,7 +449,7 @@ describe('LiveTournamentView', () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith({
       behavior: 'smooth',
-      block: 'center',
+      block: 'start',
       inline: 'nearest',
     });
 
