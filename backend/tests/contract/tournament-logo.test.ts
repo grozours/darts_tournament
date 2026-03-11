@@ -85,7 +85,8 @@ describe('POST /tournaments/:id/logo - Contract Tests', () => {
       
       // Contract: URL should be a valid path
       expect(response.body.logo_url).toContain('logo-');
-      expect(response.body.logo_url).toMatch(/\d+-\d+/); // timestamp format
+      // Current uploader format: logo-<timestamp>-<uuid>.ext
+      expect(response.body.logo_url).toMatch(/logo-\d+-[0-9a-f-]{36}\.png$/i);
     });
 
     it('should upload JPEG logo successfully', async () => {

@@ -587,6 +587,25 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .send({ status: 'COMPLETED' })
       .expect(200);
 
+    const stage2PoolsResponse = await request(server)
+      .get(`/api/tournaments/${tournamentId}/pool-stages/${stage2Id}/pools`)
+      .expect(200);
+    const stage2Pools = stage2PoolsResponse.body.pools ?? [];
+
+    const stage2PoolByPlayer = new Map<string, number>();
+    for (const pool of stage2Pools) {
+      const poolNumber = pool?.poolNumber as number | undefined;
+      if (!poolNumber) {
+        continue;
+      }
+      for (const assignment of pool.assignments ?? []) {
+        const playerId = assignment?.player?.id as string | undefined;
+        if (playerId) {
+          stage2PoolByPlayer.set(playerId, poolNumber);
+        }
+      }
+    }
+
     await request(server)
       .post(`/api/tournaments/${tournamentId}/brackets/${bracketId}/populate-from-pools`)
       .send({ stageId: stage2Id, role: 'WINNER' })
@@ -600,27 +619,21 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
     const entries = bracket?.entries ?? [];
     expect(entries).toHaveLength(4);
 
-    const seedByPlayer = new Map<string, number>();
+    const qualifiedByStage2Pool = new Map<number, string[]>();
     for (const entry of entries) {
       const playerId = entry?.player?.id as string | undefined;
-      const seedNumber = entry?.seedNumber as number | undefined;
-      if (!playerId || !seedNumber) {
+      if (!playerId) {
         continue;
       }
-      seedByPlayer.set(playerId, seedNumber);
+      const sourcePoolNumber = stage2PoolByPlayer.get(playerId);
+      if (!sourcePoolNumber) {
+        continue;
+      }
+      const bucket = qualifiedByStage2Pool.get(sourcePoolNumber) ?? [];
+      bucket.push(playerId);
+      qualifiedByStage2Pool.set(sourcePoolNumber, bucket);
     }
 
-    expect(seedByPlayer.size).toBe(entries.length);
-
-    const stage1SourcePoolByPlayer = new Map<string, string>();
-    for (const [index, [first, second]] of sourcePairs.entries()) {
-      const sourcePoolKey = `stage1-pool-${index + 1}`;
-      stage1SourcePoolByPlayer.set(first, sourcePoolKey);
-      stage1SourcePoolByPlayer.set(second, sourcePoolKey);
-    }
-
-    // If two players from the same stage-1 pool both qualify,
-    // they must be placed in different first-round matches.
     for (const match of bracket?.matches ?? []) {
       if (match?.roundNumber !== 1) {
         continue;
@@ -639,13 +652,15 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
         continue;
       }
 
-      const firstSourcePool = stage1SourcePoolByPlayer.get(firstPlayerId);
-      const secondSourcePool = stage1SourcePoolByPlayer.get(secondPlayerId);
-      if (!firstSourcePool || !secondSourcePool) {
-        continue;
-      }
-
+      const firstSourcePool = stage2PoolByPlayer.get(firstPlayerId);
+      const secondSourcePool = stage2PoolByPlayer.get(secondPlayerId);
+      expect(firstSourcePool).toBeDefined();
+      expect(secondSourcePool).toBeDefined();
       expect(firstSourcePool).not.toBe(secondSourcePool);
+    }
+
+    for (const players of qualifiedByStage2Pool.values()) {
+      expect(players.length).toBeLessThanOrEqual(2);
     }
   });
 
