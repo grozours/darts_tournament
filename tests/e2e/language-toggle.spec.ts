@@ -47,7 +47,7 @@ test('language toggle cycles and persists selection', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Finalizados' })).toBeVisible();
 });
 
-test('language toggle falls back to french when stored language is invalid', async ({ page }) => {
+test('language toggle falls back to english when stored language is invalid', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('lang', 'xx-invalid-lang');
   });
@@ -74,5 +74,5 @@ test('language toggle falls back to french when stored language is invalid', asy
   await page.goto('/?status=DRAFT');
   await page.waitForLoadState('networkidle');
 
-  await expect(page.getByRole('link', { name: 'Terminés' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Finished' })).toBeVisible();
 });
