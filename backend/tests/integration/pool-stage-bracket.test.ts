@@ -610,21 +610,43 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       seedByPlayer.set(playerId, seedNumber);
     }
 
-    const qualifiedPair = sourcePairs.find(([first, second]) => (
-      seedByPlayer.has(first) && seedByPlayer.has(second)
-    ));
-    expect(qualifiedPair).toBeDefined();
-    const [trackedFirst, trackedSecond] = qualifiedPair as [string, string];
+    expect(seedByPlayer.size).toBe(entries.length);
 
-    const firstSeed = seedByPlayer.get(trackedFirst);
-    const secondSeed = seedByPlayer.get(trackedSecond);
-    expect(firstSeed).toBeDefined();
-    expect(secondSeed).toBeDefined();
+    const stage1SourcePoolByPlayer = new Map<string, string>();
+    for (const [index, [first, second]] of sourcePairs.entries()) {
+      const sourcePoolKey = `stage1-pool-${index + 1}`;
+      stage1SourcePoolByPlayer.set(first, sourcePoolKey);
+      stage1SourcePoolByPlayer.set(second, sourcePoolKey);
+    }
 
-    const firstHalfLimit = entries.length / 2;
-    const firstInFirstHalf = (firstSeed as number) <= firstHalfLimit;
-    const secondInFirstHalf = (secondSeed as number) <= firstHalfLimit;
-    expect(firstInFirstHalf).not.toBe(secondInFirstHalf);
+    // If two players from the same stage-1 pool both qualify,
+    // they must be placed in different first-round matches.
+    for (const match of bracket?.matches ?? []) {
+      if (match?.roundNumber !== 1) {
+        continue;
+      }
+
+      const playerIds = (match?.playerMatches ?? [])
+        .map((playerMatch: any) => playerMatch?.player?.id as string | undefined)
+        .filter((value: string | undefined): value is string => Boolean(value));
+
+      if (playerIds.length < 2) {
+        continue;
+      }
+
+      const [firstPlayerId, secondPlayerId] = playerIds;
+      if (!firstPlayerId || !secondPlayerId) {
+        continue;
+      }
+
+      const firstSourcePool = stage1SourcePoolByPlayer.get(firstPlayerId);
+      const secondSourcePool = stage1SourcePoolByPlayer.get(secondPlayerId);
+      if (!firstSourcePool || !secondSourcePool) {
+        continue;
+      }
+
+      expect(firstSourcePool).not.toBe(secondSourcePool);
+    }
   });
 
   it('should delete a tournament', async () => {

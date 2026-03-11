@@ -46,3 +46,33 @@ test('language toggle cycles and persists selection', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('link', { name: 'Finalizados' })).toBeVisible();
 });
+
+test('language toggle falls back to french when stored language is invalid', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('lang', 'xx-invalid-lang');
+  });
+
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        user: { id: 'admin-1', email: 'admin@example.com', name: 'Admin' },
+        isAdmin: true,
+      }),
+    });
+  });
+
+  await page.route(/\/api\/tournaments(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ tournaments: [] }),
+    });
+  });
+
+  await page.goto('/?status=DRAFT');
+  await page.waitForLoadState('networkidle');
+
+  await expect(page.getByRole('link', { name: 'Terminés' })).toBeVisible();
+});
