@@ -26,7 +26,7 @@ const useLiveTournamentToken = ({
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         return await getAccessTokenSilently();
-      } catch (error) {
+      } catch {
         if (attempt < maxAttempts) {
           await wait(400);
           continue;

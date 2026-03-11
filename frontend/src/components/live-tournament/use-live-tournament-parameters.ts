@@ -3,11 +3,11 @@ import type { LiveViewMode } from './types';
 import type { LiveViewStatus } from '../../utils/live-view-helpers';
 
 type LiveTournamentParameters = {
-  viewMode?: LiveViewMode;
-  viewStatus?: LiveViewStatus;
-  tournamentId?: string;
-  stageId?: string;
-  bracketId?: string;
+  viewMode: LiveViewMode | undefined;
+  viewStatus: LiveViewStatus | undefined;
+  tournamentId: string | undefined;
+  stageId: string | undefined;
+  bracketId: string | undefined;
   isAggregateView: boolean;
   screenMode: boolean;
 };

@@ -11,7 +11,7 @@ import useTargetsViewActions from './targets-view/use-targets-view-actions';
 import useTargetsViewData from './targets-view/use-targets-view-data';
 import useTargetsViewDerived from './targets-view/use-targets-view-derived';
 
-const isGroupedTournamentFormat = (format: TournamentFormat | undefined): boolean => (
+const isGroupedTournamentFormat = (format: string | undefined): boolean => (
   format === TournamentFormat.DOUBLE || format === TournamentFormat.TEAM_4_PLAYER
 );
 
@@ -26,7 +26,7 @@ const buildGroupNameByPlayerIdMap = (groups: Array<{ name: string; members: Arra
 };
 
 const loadGroupsForView = async (
-  view: { id: string; format?: TournamentFormat },
+  view: { id: string; format?: string },
   token: string | undefined
 ): Promise<{ viewId: string; byPlayerId: Map<string, string> }> => {
   const groups = view.format === TournamentFormat.DOUBLE

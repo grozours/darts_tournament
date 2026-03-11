@@ -12,12 +12,6 @@ import MatchScoreInputs from './match-score-inputs';
 import MatchTargetSelector from './match-target-selector';
 import { getMatchFormatPresets, getMatchFormatTooltip } from '../../utils/match-format-presets';
 
-type LiveParticipant = {
-  id?: string;
-  firstName?: string;
-  lastName?: string;
-};
-
 const HeadToHeadBonus = ({ row, t }: { row: PoolLeaderboardRow; t: Translator }) => {
   if (row.matchesPlayed <= 0 || row.headToHeadBonus === undefined) {
     return null;
@@ -496,7 +490,7 @@ type PoolStageCardProperties = {
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
-  editingMatchId?: string;
+  editingMatchId: string | undefined;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
   schedulableTargetCount: number;
   optimisticStartTimeByMatchIdOverride?: Map<string, string>;
@@ -527,13 +521,13 @@ type PoolStageCardProperties = {
   onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   canDeleteStage: boolean;
   preferredPlayerId?: string;
-  editingStageId?: string;
-  updatingStageId?: string;
+  editingStageId: string | undefined;
+  updatingStageId: string | undefined;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   canManageStageActions?: boolean;
-  getParticipantLabel?: (player: LiveParticipant) => string;
+  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string; surname?: string; teamName?: string } | undefined) => string;
 };
 
 const PoolStageCard = ({

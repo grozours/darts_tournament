@@ -44,7 +44,7 @@ type LiveTournamentViewProperties = {
   isAdmin: boolean;
   viewMode?: LiveViewMode;
   viewStatus?: LiveViewStatus;
-  stageId?: string;
+  stageId: string | undefined;
   isAggregateView: boolean;
   screenMode: boolean;
   visibleLiveViewsCount: number;
@@ -56,9 +56,9 @@ type LiveTournamentViewProperties = {
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
-  editingMatchId?: string;
-  updatingRoundKey?: string;
-  resettingBracketId?: string;
+  editingMatchId: string | undefined;
+  updatingRoundKey: string | undefined;
+  resettingBracketId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
   getTargetIdForSelection: (matchTournamentId: string, targetNumberValue: string) => string | undefined;
@@ -87,8 +87,8 @@ type LiveTournamentViewProperties = {
   onLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   canDeleteStage: boolean;
-  editingStageId?: string;
-  updatingStageId?: string;
+  editingStageId: string | undefined;
+  updatingStageId: string | undefined;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;

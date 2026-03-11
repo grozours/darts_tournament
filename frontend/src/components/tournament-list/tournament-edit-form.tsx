@@ -15,7 +15,7 @@ type TournamentEditFormProperties = {
   editingTournament: TournamentDetails;
   formatOptions: Array<{ value: string; label: string }>;
   durationOptions: Array<{ value: string; label: string }>;
-  logoFile?: File;
+  logoFile: File | undefined;
   isUploadingLogo: boolean;
   onEditFormChange: (next: EditFormState) => void;
   onLogoFileChange: (file: File | undefined) => void;
@@ -33,7 +33,7 @@ type EditFormFieldsProperties = {
 type DetailsCardProperties = {
   t: Translator;
   editingTournament: TournamentDetails;
-  logoFile?: File;
+  logoFile: File | undefined;
   isUploadingLogo: boolean;
   onLogoFileChange: (file: File | undefined) => void;
   onUploadLogo: () => void;
@@ -41,8 +41,8 @@ type DetailsCardProperties = {
 
 type LogoSectionProperties = {
   t: Translator;
-  logoUrl?: string;
-  logoFile?: File;
+  logoUrl: string | undefined;
+  logoFile: File | undefined;
   isUploadingLogo: boolean;
   onLogoFileChange: (file: File | undefined) => void;
   onUploadLogo: () => void;

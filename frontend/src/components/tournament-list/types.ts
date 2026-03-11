@@ -52,7 +52,7 @@ export type TournamentListGroup = {
 };
 
 export type UserTournamentGroupStatus = {
-  groupId?: string;
+  groupId: string | undefined;
   hasGroup: boolean;
   isGroupCaptain: boolean;
   isGroupComplete: boolean;

@@ -5,8 +5,8 @@ import type { EditFormState, Tournament } from './types';
 
 type UseTournamentEditLoaderProperties = {
   isEditPage: boolean;
-  editTournamentId?: string | null;
-  editingTournamentId?: string;
+  editTournamentId: string | null | undefined;
+  editingTournamentId: string | undefined;
   toLocalInput: (value?: string) => string;
   getSafeAccessToken: () => Promise<string | undefined>;
   clearPlayers: () => void;
@@ -44,53 +44,64 @@ const fetchEditTournamentData = async (
 const resolveValue = <T>(fallback: T, ...values: Array<T | undefined>) =>
   values.find((value) => value !== undefined) ?? fallback;
 
-const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): Tournament => ({
-  id: resolveValue(fallbackId, data.id as string | undefined),
-  name: resolveValue('', data.name as string | undefined),
-  location: resolveValue(undefined, data.location as string | undefined),
-  logoUrl: resolveValue(undefined, data.logoUrl as string | undefined, data.logo_url as string | undefined),
-  format: resolveValue(TournamentFormat.SINGLE, data.format as string | undefined),
-  totalParticipants: resolveValue(
-    0,
-    data.totalParticipants as number | undefined,
-    data.total_participants as number | undefined
-  ),
-  status: resolveValue('DRAFT', data.status as string | undefined),
-  durationType: resolveValue(
-    DurationType.FULL_DAY,
-    data.durationType as string | undefined,
-    data.duration_type as string | undefined
-  ),
-  startTime: resolveValue(undefined, data.startTime as string | undefined, data.start_time as string | undefined),
-  endTime: resolveValue(undefined, data.endTime as string | undefined, data.end_time as string | undefined),
-  targetCount: resolveValue(
-    0,
-    data.targetCount as number | undefined,
-    data.target_count as number | undefined
-  ),
-  targetStartNumber: resolveValue(
-    1,
-    data.targetStartNumber as number | undefined,
-    data.target_start_number as number | undefined
-  ),
-  shareTargets: resolveValue(
-    true,
-    data.shareTargets as boolean | undefined,
-    data.share_targets as boolean | undefined
-  ),
-  createdAt: resolveValue(undefined, data.createdAt as string | undefined, data.created_at as string | undefined),
-  completedAt: resolveValue(undefined, data.completedAt as string | undefined, data.completed_at as string | undefined),
-  historicalFlag: resolveValue(
+const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): Tournament => {
+  const location = resolveValue(undefined, data.location as string | undefined);
+  const logoUrl = resolveValue(undefined, data.logoUrl as string | undefined, data.logo_url as string | undefined);
+  const startTime = resolveValue(undefined, data.startTime as string | undefined, data.start_time as string | undefined);
+  const endTime = resolveValue(undefined, data.endTime as string | undefined, data.end_time as string | undefined);
+  const createdAt = resolveValue(undefined, data.createdAt as string | undefined, data.created_at as string | undefined);
+  const completedAt = resolveValue(undefined, data.completedAt as string | undefined, data.completed_at as string | undefined);
+  const historicalFlag = resolveValue(
     undefined,
     data.historicalFlag as boolean | undefined,
     data.historical_flag as boolean | undefined
-  ),
-  doubleStageEnabled: resolveValue(
+  );
+  const doubleStageEnabled = resolveValue(
     undefined,
     data.doubleStageEnabled as boolean | undefined,
     data.double_stage_enabled as boolean | undefined
-  ),
-});
+  );
+
+  return {
+    id: resolveValue(fallbackId, data.id as string | undefined),
+    name: resolveValue('', data.name as string | undefined),
+    ...(location !== undefined ? { location } : {}),
+    ...(logoUrl !== undefined ? { logoUrl } : {}),
+    format: resolveValue(TournamentFormat.SINGLE, data.format as string | undefined),
+    totalParticipants: resolveValue(
+      0,
+      data.totalParticipants as number | undefined,
+      data.total_participants as number | undefined
+    ),
+    status: resolveValue('DRAFT', data.status as string | undefined),
+    durationType: resolveValue(
+      DurationType.FULL_DAY,
+      data.durationType as string | undefined,
+      data.duration_type as string | undefined
+    ),
+    ...(startTime !== undefined ? { startTime } : {}),
+    ...(endTime !== undefined ? { endTime } : {}),
+    targetCount: resolveValue(
+      0,
+      data.targetCount as number | undefined,
+      data.target_count as number | undefined
+    ),
+    targetStartNumber: resolveValue(
+      1,
+      data.targetStartNumber as number | undefined,
+      data.target_start_number as number | undefined
+    ),
+    shareTargets: resolveValue(
+      true,
+      data.shareTargets as boolean | undefined,
+      data.share_targets as boolean | undefined
+    ),
+    ...(createdAt !== undefined ? { createdAt } : {}),
+    ...(completedAt !== undefined ? { completedAt } : {}),
+    ...(historicalFlag !== undefined ? { historicalFlag } : {}),
+    ...(doubleStageEnabled !== undefined ? { doubleStageEnabled } : {}),
+  };
+};
 
 const buildEditFormState = (tournament: Tournament, toLocalInput: (value?: string) => string): EditFormState => ({
   name: tournament.name ?? '',

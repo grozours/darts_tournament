@@ -64,7 +64,7 @@ function RegistrationPlayers() { // NOSONAR
     if (!authEnabled) return undefined;
     try {
       return await getAccessTokenSilently();
-    } catch (error_) {
+    } catch {
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);

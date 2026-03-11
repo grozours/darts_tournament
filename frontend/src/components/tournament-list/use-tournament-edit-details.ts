@@ -3,7 +3,7 @@ import { normalizeTournamentStatus } from './tournament-status-helpers';
 import type { Tournament } from './types';
 
 type UseTournamentEditDetailsProperties = {
-  editingTournament?: Tournament;
+  editingTournament: Tournament | undefined;
   getSafeAccessToken: () => Promise<string | undefined>;
   fetchPlayers: (tournamentId: string) => Promise<void>;
   setEditingTournament: Dispatch<SetStateAction<Tournament | undefined>>;

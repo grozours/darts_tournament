@@ -22,9 +22,9 @@ type BracketsSectionProperties = {
   isAdmin: boolean;
   isBracketsReadonly: boolean;
   updatingMatchId: string | undefined;
-  editingMatchId?: string;
-  updatingRoundKey?: string;
-  resettingBracketId?: string;
+  editingMatchId: string | undefined;
+  updatingRoundKey: string | undefined;
+  resettingBracketId: string | undefined;
   matchScores: Record<string, Record<string, string>>;
   matchTargetSelections: Record<string, string>;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
@@ -45,7 +45,7 @@ type BracketsSectionProperties = {
   onResetBracketMatches: (tournamentId: string, bracketId: string) => void;
   onSelectBracket: (tournamentId: string, bracketId: string) => void;
   activeBracketId: string;
-  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string }) => string;
+  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string } | undefined) => string;
 };
 
 const FALLBACK_MATCH_DURATION_MINUTES = 12;
@@ -107,13 +107,13 @@ const BRACKET_MATCH_STATUS_PRIORITY: Record<string, number> = {
   CANCELLED: 3,
 };
 
-const getBracketMatchPriority = (match: LiveViewBracket['matches'][number]) => (
+const getBracketMatchPriority = (match: NonNullable<LiveViewBracket['matches']>[number]) => (
   BRACKET_MATCH_STATUS_PRIORITY[(match.status ?? '').toUpperCase()] ?? 99
 );
 
 const compareBracketMatchCandidates = (
-  left: { match: LiveViewBracket['matches'][number] },
-  right: { match: LiveViewBracket['matches'][number] }
+  left: { match: NonNullable<LiveViewBracket['matches']>[number] },
+  right: { match: NonNullable<LiveViewBracket['matches']>[number] }
 ) => {
   const leftPriority = getBracketMatchPriority(left.match);
   const rightPriority = getBracketMatchPriority(right.match);
@@ -184,8 +184,8 @@ const syncPreferredPlayerBracketSelection = ({
 }: {
   tournamentId: string;
   brackets: LiveViewBracket[];
-  preferredPlayerId?: string;
-  activeBracketId?: string;
+  preferredPlayerId: string | undefined;
+  activeBracketId: string | undefined;
   onSelectBracket: BracketsSectionProperties['onSelectBracket'];
 }) => {
   if (typeof window === 'undefined' || brackets.length === 0 || !preferredPlayerId) {
@@ -237,12 +237,12 @@ const resolveActiveBracketContext = ({
   brackets: LiveViewBracket[];
   activeBracketId: string;
   tournamentId: string;
-  updatingRoundKey?: string;
-  resettingBracketId?: string;
+  updatingRoundKey: string | undefined;
+  resettingBracketId: string | undefined;
   isAdmin: boolean;
   poolStages: import('./types').LiveViewPoolStage[];
   schedulableTargetCount: number;
-  tournamentStartTime?: string;
+  tournamentStartTime: string | undefined;
 }): ActiveBracketContext | undefined => {
   const preferredBracket = brackets.find((bracket) => /winner/i.test(bracket.name)) ?? brackets[0];
   if (!preferredBracket) {
@@ -287,7 +287,7 @@ const renderScreenModeBrackets = ({
 }: {
   t: Translator;
   tournamentId: string;
-  preferredPlayerId?: string;
+  preferredPlayerId: string | undefined;
   context: ActiveBracketContext;
   properties: Pick<BracketsSectionProperties,
     | 'isBracketsReadonly'
@@ -853,7 +853,7 @@ const BracketsSection = ({
         onCancelMatch,
         onCancelMatchEdit,
         onScoreChange,
-        getParticipantLabel,
+        ...(getParticipantLabel ? { getParticipantLabel } : {}),
       },
     });
   }

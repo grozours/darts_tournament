@@ -396,7 +396,6 @@ const attachMatchSocketHandlers = (
 
 const openMatchSocket = async (
   getSafeAccessToken: () => Promise<string | undefined>,
-  joinedTournaments: string[],
   onMissingToken: () => void,
   onConnected: (socket: ReturnType<typeof io>) => void
 ): Promise<void> => {
@@ -652,7 +651,6 @@ const useMatchStartedNotifications = () => {
     const tryConnect = async () => {
       await openMatchSocket(
         getSafeAccessToken,
-        joinedTournaments,
         scheduleRetry,
         handleConnectedSocket
       );

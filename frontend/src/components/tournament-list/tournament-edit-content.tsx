@@ -21,10 +21,10 @@ export type TournamentEditContentProperties = {
   formatOptions: Array<{ value: string; label: string }>;
   durationOptions: Array<{ value: string; label: string }>;
   skillLevelOptions: Array<{ value: string; label: string }>;
-  logoFile?: File;
+  logoFile: File | undefined;
   isUploadingLogo: boolean;
   poolStages: PoolStageConfig[];
-  poolStagesError?: string;
+  poolStagesError: string | undefined;
   isAddingPoolStage: boolean;
   newPoolStage: {
     stageNumber: number;
@@ -42,9 +42,9 @@ export type TournamentEditContentProperties = {
     }>;
   };
   brackets: BracketConfig[];
-  bracketsError?: string;
+  bracketsError: string | undefined;
   targets: TournamentTarget[];
-  targetsError?: string;
+  targetsError: string | undefined;
   isAddingBracket: boolean;
   newBracket: {
     name: string;
@@ -54,16 +54,16 @@ export type TournamentEditContentProperties = {
   };
   players: TournamentPlayer[];
   playersLoading: boolean;
-  playersError?: string;
+  playersError: string | undefined;
   playerForm: CreatePlayerPayload;
-  editingPlayerId?: string;
-  checkingInPlayerId?: string;
+  editingPlayerId: string | undefined;
+  checkingInPlayerId: string | undefined;
   playerActionLabel: string;
   isRegisteringPlayer: boolean;
   isAutoFillingPlayers: boolean;
   isConfirmingAll: boolean;
-  autoFillProgress?: { current: number; total: number };
-  confirmAllProgress?: { current: number; total: number };
+  autoFillProgress: { current: number; total: number } | undefined;
+  confirmAllProgress: { current: number; total: number } | undefined;
   isApplyingPreset: boolean;
   quickStructurePresets: TournamentPreset[];
   quickStructurePresetsLoading: boolean;

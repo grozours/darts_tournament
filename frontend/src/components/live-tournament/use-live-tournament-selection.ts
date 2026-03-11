@@ -3,10 +3,10 @@ import { getVisibleLiveViews, type LiveViewStatus } from '../../utils/live-view-
 import type { LiveViewData, LiveViewMode } from './types';
 
 type UseLiveTournamentSelectionProperties = {
-  viewMode?: LiveViewMode;
-  viewStatus?: LiveViewStatus;
+  viewMode: LiveViewMode;
+  viewStatus: LiveViewStatus | undefined;
   screenMode?: boolean;
-  tournamentId?: string;
+  tournamentId: string | undefined;
   liveViews: LiveViewData[];
   canViewEditionByViewId?: (viewId: string) => boolean;
   allowEmptyPoolsByViewId?: (viewId: string) => boolean;

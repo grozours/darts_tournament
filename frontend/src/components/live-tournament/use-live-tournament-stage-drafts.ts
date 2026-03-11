@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import type { LiveViewPoolStage } from './types';
 
 type LiveTournamentStageDraftsResult = {
-  editingStageId?: string;
+  editingStageId: string | undefined;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;

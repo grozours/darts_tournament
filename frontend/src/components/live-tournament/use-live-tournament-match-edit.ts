@@ -7,7 +7,7 @@ type UseLiveTournamentMatchEditProperties = {
 };
 
 type LiveTournamentMatchEditResult = {
-  editingMatchId?: string;
+  editingMatchId: string | undefined;
   handleEditMatch: (matchTournamentId: string, match: LiveViewMatch) => void;
   cancelMatchEdit: () => void;
 };

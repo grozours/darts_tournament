@@ -203,7 +203,7 @@ type PoolStagesSectionProperties = {
   matchTargetSelections: Record<string, string>;
   updatingMatchId: string | undefined;
   resettingPoolId: string | undefined;
-  editingMatchId?: string;
+  editingMatchId: string | undefined;
   availableTargetsByTournament: Map<string, LiveViewTarget[]>;
   schedulableTargetCount: number;
   getMatchKey: (matchTournamentId: string, matchId: string) => string;
@@ -229,13 +229,13 @@ type PoolStagesSectionProperties = {
   onLaunchStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   onResetStage: (stageTournamentId: string, stage: LiveViewPoolStage) => void;
   canDeleteStage: boolean;
-  editingStageId?: string;
-  updatingStageId?: string;
+  editingStageId: string | undefined;
+  updatingStageId: string | undefined;
   stageStatusDrafts: Record<string, string>;
   stagePoolCountDrafts: Record<string, string>;
   stagePlayersPerPoolDrafts: Record<string, string>;
   playerIdByTournament: Record<string, string>;
-  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string }) => string;
+  getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string } | undefined) => string;
 };
 
 const PoolStagesSection = ({

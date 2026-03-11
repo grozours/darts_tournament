@@ -36,7 +36,7 @@ const useTargetsViewData = ({
     if (!authEnabled) return undefined;
     try {
       return await getAccessTokenSilently();
-    } catch (error_) {
+    } catch {
       return undefined;
     }
   }, [authEnabled, getAccessTokenSilently]);

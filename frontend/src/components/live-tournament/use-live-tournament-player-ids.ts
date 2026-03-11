@@ -37,7 +37,7 @@ const useLiveTournamentPlayerIds = ({
       const players = await fetchTournamentPlayers(viewId, token);
       const matched = players.find((player) => (player.email ?? '').toLowerCase() === userEmail);
       return matched ? ([viewId, matched.playerId] as const) : undefined;
-    } catch (error) {
+    } catch {
       return;
     }
   }, [userEmail]);
