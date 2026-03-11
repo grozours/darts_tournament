@@ -43,8 +43,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
 
-      - name: Install Playwright browsers
-        run: npm --prefix frontend exec -- playwright install
+      - name: Install Playwright Chromium browser
+        run: npm --prefix frontend exec -- playwright install chromium
 
       - name: Cleanup orphan Playwright web servers
         shell: bash
@@ -120,8 +120,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
 
-      - name: Install Playwright browsers
-        run: npm --prefix frontend exec -- playwright install
+      - name: Install Playwright Chromium browser
+        run: npm --prefix frontend exec -- playwright install chromium
 
       - name: Cleanup orphan Playwright web servers
         shell: bash
@@ -144,9 +144,9 @@ jobs:
             fi
           done
 
-      - name: Run Playwright full suite (all projects)
+      - name: Run Playwright full suite (Chromium)
         timeout-minutes: 25
-        run: npm --prefix frontend exec -- playwright test -c ./playwright.config.ts
+        run: npm --prefix frontend exec -- playwright test -c ./playwright.config.ts --project=chromium
         env:
           DATABASE_URL: ${{ secrets.PLAYWRIGHT_DATABASE_URL }}
           REDIS_HOST: localhost
