@@ -180,7 +180,7 @@ describe('BracketsSection rendering and props', () => {
     );
 
     expect(screen.getByText('Winner Bracket')).toBeInTheDocument();
-    expect(screen.getByText(/live\.estimatedStartTime/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/live\.estimatedDuration/)).toBeInTheDocument();
     expect(bracketMatchesCalls).toHaveLength(1);
     expect(bracketMatchesCalls[0]?.screenMode).toBe(true);
   });

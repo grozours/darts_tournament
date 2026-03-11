@@ -75,6 +75,29 @@ const formatDurationClock = (durationMinutes: number) => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
+const buildBracketTimingTooltip = ({
+  t,
+  estimatedDurationMinutes,
+  estimatedStartTimeLabel,
+  estimatedEndTimeLabel,
+}: {
+  t: Translator;
+  estimatedDurationMinutes: number;
+  estimatedStartTimeLabel: string;
+  estimatedEndTimeLabel: string;
+}) => {
+  const lines = [
+    `${t('live.estimatedDuration')}: ${formatDurationClock(estimatedDurationMinutes)}`,
+    `${t('live.estimatedStartTime')}: ${estimatedStartTimeLabel}`,
+    `${t('live.estimatedEndTime')}: ${estimatedEndTimeLabel}`,
+  ];
+
+  return {
+    title: lines.join('\n'),
+    ariaLabel: lines.join('. '),
+  };
+};
+
 const formatHourMinute = (date: Date) => new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
   minute: '2-digit',
@@ -321,18 +344,23 @@ const renderScreenModeBrackets = ({
         <span className="hidden sm:inline">{t('common.status')}: </span>
         {properties.getStatusLabel('bracket', context.activeBracket.status)}
       </span>
-      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-        <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
-        {context.bracketForecast.estimatedStartTimeLabel}
-      </span>
-      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-        <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
-        {context.bracketForecast.estimatedEndTimeLabel}
-      </span>
-      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-slate-300">
-        <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
-        {formatDurationClock(context.bracketForecast.estimatedDurationMinutes)}
-      </span>
+      {(() => {
+        const timingTooltip = buildBracketTimingTooltip({
+          t,
+          estimatedDurationMinutes: context.bracketForecast.estimatedDurationMinutes,
+          estimatedStartTimeLabel: context.bracketForecast.estimatedStartTimeLabel,
+          estimatedEndTimeLabel: context.bracketForecast.estimatedEndTimeLabel,
+        });
+        return (
+          <span
+            className="inline-flex cursor-help select-none items-center rounded-full border border-slate-700 px-2.5 py-1 text-sm text-slate-300"
+            title={timingTooltip.title}
+            aria-label={timingTooltip.ariaLabel}
+          >
+            ⏱️
+          </span>
+        );
+      })()}
     </div>
     <BracketMatches
       t={t}
@@ -680,13 +708,21 @@ const BracketSummaryHeader = ({
   getStatusLabel,
   onCompleteBracketRound,
   onResetBracketMatches,
-}: BracketSummaryProperties) => (
-  <div className="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h4 className="text-lg font-semibold text-white">{bracket.name}</h4>
-    </div>
-    <div className="w-full sm:w-auto flex flex-col items-start sm:items-end gap-2">
-      <div className="flex w-full flex-wrap items-center justify-start sm:justify-end gap-2 text-xs">
+}: BracketSummaryProperties) => {
+  const timingTooltip = buildBracketTimingTooltip({
+    t,
+    estimatedDurationMinutes,
+    estimatedStartTimeLabel,
+    estimatedEndTimeLabel,
+  });
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h4 className="text-lg font-semibold text-white">{bracket.name}</h4>
+      </div>
+      <div className="w-full sm:w-auto flex flex-col items-start sm:items-end gap-2">
+        <div className="flex w-full flex-wrap items-center justify-start sm:justify-end gap-2 text-xs">
         <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-cyan-200">
           {bracket.bracketType}
         </span>
@@ -694,17 +730,12 @@ const BracketSummaryHeader = ({
           <span className="hidden sm:inline">{t('common.status')}: </span>
           {getStatusLabel('bracket', bracket.status)}
         </span>
-        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
-          <span className="hidden sm:inline">{t('live.estimatedDuration')}: </span>
-          {formatDurationClock(estimatedDurationMinutes)}
-        </span>
-        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
-          <span className="hidden sm:inline">{t('live.estimatedStartTime')}: </span>
-          {estimatedStartTimeLabel}
-        </span>
-        <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
-          <span className="hidden sm:inline">{t('live.estimatedEndTime')}: </span>
-          {estimatedEndTimeLabel}
+        <span
+          className="inline-flex cursor-help select-none items-center rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300"
+          title={timingTooltip.title}
+          aria-label={timingTooltip.ariaLabel}
+        >
+          ⏱️
         </span>
         <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
           {bracket.entries?.length || 0} entries
@@ -739,7 +770,8 @@ const BracketSummaryHeader = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 const BracketsSection = ({
   t,
