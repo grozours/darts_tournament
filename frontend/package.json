@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "node --max-old-space-size=6144 ./node_modules/vitest/vitest.mjs",
     "test:e2e": "playwright test -c ./playwright.config.ts",
+    "test:e2e:dev": "bash ../scripts/run_playwright_tests.sh",
     "test:ui": "node --max-old-space-size=6144 ./node_modules/vitest/vitest.mjs --ui",
     "test:coverage:raw": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs run tests/unit --coverage",
     "test:coverage": "node ./scripts/run-coverage-strict.mjs",
