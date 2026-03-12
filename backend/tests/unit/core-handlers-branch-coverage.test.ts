@@ -29,6 +29,8 @@ type ModelMock = {
   setTargetAvailable: ReturnType<typeof jest.fn>;
   getMatchById: ReturnType<typeof jest.fn>;
   getOverallStats: ReturnType<typeof jest.fn>;
+  countRegisteredDoublettes: ReturnType<typeof jest.fn>;
+  countRegisteredEquipes: ReturnType<typeof jest.fn>;
 };
 
 const futureStart = new Date(Date.now() + 2 * 60 * 60 * 1000);
@@ -68,6 +70,8 @@ const build = () => {
     setTargetAvailable: jest.fn(async () => undefined),
     getMatchById: jest.fn(async () => undefined),
     getOverallStats: jest.fn(async () => ({ total: 1 })),
+    countRegisteredDoublettes: jest.fn(async () => 0),
+    countRegisteredEquipes: jest.fn(async () => 0),
   };
 
   const logger = {
@@ -120,6 +124,13 @@ describe('core handlers branch coverage', () => {
     await expect(handlers.createTournament({ ...validCreatePayload(), targetStartNumber: 1.5 as never })).rejects.toBeInstanceOf(AppError);
   });
 
+  it('rejects missing and oversized tournament names', async () => {
+    const { handlers } = build();
+
+    await expect(handlers.createTournament({ ...validCreatePayload(), name: '' })).rejects.toBeInstanceOf(AppError);
+    await expect(handlers.createTournament({ ...validCreatePayload(), name: 'x'.repeat(101) })).rejects.toBeInstanceOf(AppError);
+  });
+
   it('rejects invalid create date windows', async () => {
     const { handlers } = build();
     const past = new Date(Date.now() - 60_000);
@@ -149,6 +160,24 @@ describe('core handlers branch coverage', () => {
     ).rejects.toBeInstanceOf(AppError);
   });
 
+  it('rejects invalid date format in create and update', async () => {
+    const { handlers, model } = build();
+
+    await expect(
+      handlers.createTournament({
+        ...validCreatePayload(),
+        startTime: 'not-a-date',
+      })
+    ).rejects.toBeInstanceOf(AppError);
+
+    model.findById.mockResolvedValueOnce(baseTournament);
+    await expect(
+      handlers.updateTournament(baseTournament.id, {
+        endTime: 'invalid-date',
+      })
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
   it('rejects create on target range conflict', async () => {
     const { handlers, model } = build();
     model.getTargetRanges.mockResolvedValueOnce([
@@ -174,6 +203,20 @@ describe('core handlers branch coverage', () => {
       location: 'Hall',
     }));
     expect(logger.tournamentCreated).toHaveBeenCalled();
+  });
+
+  it('includes location in creation log payload when location is set', async () => {
+    const { handlers, model, logger } = build();
+    const tournamentWithLocation = { ...baseTournament, location: 'Main Hall' };
+    model.create.mockResolvedValueOnce(tournamentWithLocation);
+
+    await handlers.createTournament(validCreatePayload());
+
+    expect(logger.tournamentCreated).toHaveBeenCalledWith(
+      tournamentWithLocation.id,
+      tournamentWithLocation.name,
+      expect.objectContaining({ location: 'Main Hall' })
+    );
   });
 
   it('maps unexpected create errors to service error', async () => {
@@ -282,6 +325,20 @@ describe('core handlers branch coverage', () => {
     });
 
     await expect(handlers.getTournamentLiveView(baseTournament.id)).resolves.toEqual(expect.objectContaining({ status: TournamentStatus.DRAFT }));
+  });
+
+  it('rejects draft live view when canViewDraftLive is false', async () => {
+    const { handlers, model } = build();
+
+    model.findLiveView.mockResolvedValueOnce({
+      ...baseTournament,
+      status: TournamentStatus.DRAFT,
+      targets: [],
+      poolStages: [],
+      brackets: [],
+    });
+
+    await expect(handlers.getTournamentLiveView(baseTournament.id)).rejects.toBeInstanceOf(AppError);
   });
 
   it('supports open live view when pools are configured', async () => {
@@ -450,6 +507,55 @@ describe('core handlers branch coverage', () => {
     expect(model.rebuildTargetsForTournament).not.toHaveBeenCalled();
   });
 
+  it('covers update paths for format, duration, participants and explicit startTime', async () => {
+    const { handlers, model } = build();
+    const signatureTournament = {
+      ...baseTournament,
+      status: TournamentStatus.SIGNATURE,
+      startTime: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      endTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
+    };
+
+    model.findById.mockResolvedValue(signatureTournament);
+    model.update.mockResolvedValueOnce({ ...signatureTournament, format: TournamentFormat.DOUBLE });
+
+    await expect(
+      handlers.updateTournament(baseTournament.id, {
+        format: TournamentFormat.DOUBLE,
+        durationType: DurationType.TWO_DAY,
+        totalParticipants: 24,
+        startTime: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+        endTime: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+      })
+    ).resolves.toEqual(expect.objectContaining({ format: TournamentFormat.DOUBLE }));
+  });
+
+  it('updates non-target fields without querying target ranges', async () => {
+    const { handlers, model } = build();
+    model.findById.mockResolvedValue(baseTournament);
+
+    await expect(
+      handlers.updateTournament(baseTournament.id, { name: 'Updated Name' })
+    ).resolves.toEqual(baseTournament);
+
+    expect(model.getTargetRanges).not.toHaveBeenCalled();
+  });
+
+  it('skips target-range checks when existing tournament has non-positive target count', async () => {
+    const { handlers, model } = build();
+    model.findById.mockResolvedValue({
+      ...baseTournament,
+      targetCount: 0,
+      targetStartNumber: undefined,
+    });
+
+    await expect(
+      handlers.updateTournament(baseTournament.id, { shareTargets: false })
+    ).resolves.toEqual(baseTournament);
+
+    expect(model.getTargetRanges).not.toHaveBeenCalled();
+  });
+
   it('allows overlapping target ranges when both tournaments share targets', async () => {
     const { handlers, model } = build();
     model.getTargetRanges.mockResolvedValueOnce([
@@ -539,6 +645,22 @@ describe('core handlers branch coverage', () => {
 
     model.getOverallStats.mockRejectedValueOnce(new Error('stats-fail'));
     await expect(handlers.getOverallTournamentStats()).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('covers tournament stats participant counts for double and team formats', async () => {
+    const { handlers, model } = build();
+
+    model.findById.mockResolvedValueOnce({ ...baseTournament, format: TournamentFormat.DOUBLE, matches: [] });
+    model.countRegisteredDoublettes.mockResolvedValueOnce(9);
+    await expect(handlers.getTournamentStats(baseTournament.id)).resolves.toEqual(
+      expect.objectContaining({ currentParticipants: 9 })
+    );
+
+    model.findById.mockResolvedValueOnce({ ...baseTournament, format: TournamentFormat.TEAM_4_PLAYER, matches: [] });
+    model.countRegisteredEquipes.mockResolvedValueOnce(5);
+    await expect(handlers.getTournamentStats(baseTournament.id)).resolves.toEqual(
+      expect.objectContaining({ currentParticipants: 5 })
+    );
   });
 
   it('covers name-availability success with excludeId and unknown registration error', async () => {

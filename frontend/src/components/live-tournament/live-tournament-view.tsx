@@ -889,6 +889,51 @@ const getRemainingDurationMinutes = (
   return Math.ceil(millisecondsLeft / 60_000);
 };
 
+const renderStageNavigationLinks = (
+  t: Translator,
+  viewId: string,
+  viewMode: LiveViewMode | undefined,
+  poolStages: LiveViewPoolStage[],
+  brackets: LiveViewBracket[]
+) => {
+  if (viewMode !== 'live' || (poolStages.length === 0 && brackets.length === 0)) {
+    return undefined;
+  }
+
+  return (
+    <div className="flex flex-wrap items-start justify-end gap-3 text-xs text-slate-300">
+      {poolStages.length > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('live.poolStages')}</span>
+          {poolStages.map((stage) => (
+            <a
+              key={stage.id}
+              href={`#pool-stage-${viewId}-${stage.id}`}
+              className="rounded-full border border-slate-700 px-3 py-1 hover:border-cyan-400/70 hover:text-cyan-100"
+            >
+              {stage.name}
+            </a>
+          ))}
+        </div>
+      )}
+      {brackets.length > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('live.bracketStages')}</span>
+          {brackets.map((bracket) => (
+            <a
+              key={bracket.id}
+              href={`/?view=brackets&tournamentId=${viewId}&bracketId=${bracket.id}`}
+              className="rounded-full border border-slate-700 px-3 py-1 hover:border-amber-400/70 hover:text-amber-100"
+            >
+              {bracket.name}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const LiveTournamentViewHeader = ({
   t,
   view,
@@ -985,13 +1030,14 @@ const LiveTournamentViewHeader = ({
 
   const estimatedDurationMinutes = Math.max(remainingEstimatedMinutes, 0);
   const remainingDurationMinutes = getRemainingDurationMinutes(estimatedEndAt, startAt, nowTimestamp);
+  const stageNavigationLinks = renderStageNavigationLinks(t, view.id, viewMode, poolStages, brackets);
   const timingTooltipLines = [
     `${t('live.estimatedDuration')}: ${formatDurationClock(estimatedDurationMinutes)}`,
     startAt ? `${t('live.startTime')}: ${formatDateTime(startAt)}` : undefined,
     estimatedEndAt ? `${t('live.estimatedEndTime')}: ${formatDateTime(estimatedEndAt)}` : undefined,
-    remainingDurationMinutes !== undefined
-      ? `${t('live.remainingDuration')}: ${formatDurationClock(remainingDurationMinutes)}`
-      : undefined,
+    remainingDurationMinutes === undefined
+      ? undefined
+      : `${t('live.remainingDuration')}: ${formatDurationClock(remainingDurationMinutes)}`,
   ].filter((line): line is string => Boolean(line));
   const timingTooltip = timingTooltipLines.join('\n');
 
@@ -1061,38 +1107,7 @@ const LiveTournamentViewHeader = ({
           {t('common.refresh')}
         </button>
       </div>
-      {viewMode === 'live' && (poolStages.length > 0 || brackets.length > 0) && (
-        <div className="flex flex-wrap items-start justify-end gap-3 text-xs text-slate-300">
-          {poolStages.length > 0 && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('live.poolStages')}</span>
-              {poolStages.map((stage) => (
-                <a
-                  key={stage.id}
-                  href={`#pool-stage-${view.id}-${stage.id}`}
-                  className="rounded-full border border-slate-700 px-3 py-1 hover:border-cyan-400/70 hover:text-cyan-100"
-                >
-                  {stage.name}
-                </a>
-              ))}
-            </div>
-          )}
-          {brackets.length > 0 && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('live.bracketStages')}</span>
-              {brackets.map((bracket) => (
-                <a
-                  key={bracket.id}
-                  href={`/?view=brackets&tournamentId=${view.id}&bracketId=${bracket.id}`}
-                  className="rounded-full border border-slate-700 px-3 py-1 hover:border-amber-400/70 hover:text-amber-100"
-                >
-                  {bracket.name}
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {stageNavigationLinks}
     </div>
   </div>
   );

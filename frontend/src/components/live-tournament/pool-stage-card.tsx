@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { JSX as ReactJSX } from 'react';
 import type {
   LiveViewMatch,
   PoolLeaderboardRow,
@@ -1044,7 +1045,7 @@ const PoolStageCard = ({
   const renderMatchStatusSection = (
     matchTournamentId: string,
     match: LiveViewMatch
-  ): JSX.Element | undefined => {
+  ): ReactJSX.Element | undefined => {
     if (isPoolStagesReadonly) {
       return undefined;
     }

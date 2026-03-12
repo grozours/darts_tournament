@@ -235,7 +235,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
 
         const skip = (page - 1) * limit;
 
-        const tournaments = await prisma.tournament.findMany({
+        const tournaments: TournamentListRecord[] = await prisma.tournament.findMany({
           where,
           skip,
           take: limit,
@@ -249,7 +249,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
         const maps = await loadCountRows(prisma, tournamentIds);
 
         return {
-          tournaments: enrichTournamentList(tournaments as TournamentListRecord[], maps),
+          tournaments: enrichTournamentList(tournaments, maps),
           total,
           page,
           limit,

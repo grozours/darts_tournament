@@ -1,4 +1,5 @@
 import type { TournamentPlayer } from '../../services/tournament-service';
+import type { JSX as ReactJSX } from 'react';
 import type { Translator } from './types';
 
 export type PlayerListProperties = {
@@ -21,7 +22,7 @@ type PlayerListBaseProperties = {
   players: TournamentPlayer[];
   playersLoading: boolean;
   t: Translator;
-  renderActions: (player: TournamentPlayer) => JSX.Element;
+  renderActions: (player: TournamentPlayer) => ReactJSX.Element;
 };
 
 const getCheckInLabel = (

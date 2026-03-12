@@ -1259,4 +1259,146 @@ describe('match handlers', () => {
     expect(model.createBracketMatches).not.toHaveBeenCalled();
     expect(model.updateBracket).toHaveBeenCalledWith('bracket-1', { status: BracketStatus.IN_PROGRESS });
   });
+
+  it('resets to scheduled without target release when no target is assigned', async () => {
+    const model = buildModel();
+    model.findById.mockResolvedValue({ id: 'tournament-1', status: TournamentStatus.LIVE });
+    model.getMatchById.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      status: MatchStatus.IN_PROGRESS,
+      targetId: null,
+      bracketId: null,
+    });
+
+    const handlers = createMatchHandlers({
+      tournamentModel: model as never,
+      validateUUID: jest.fn(),
+      transitionTournamentStatus: jest.fn(),
+    });
+
+    await handlers.updateMatchStatus('tournament-1', 'match-1', MatchStatus.SCHEDULED);
+
+    expect(model.resetMatchToScheduled).toHaveBeenCalledWith('match-1', undefined, expect.any(Date));
+  });
+
+  it('rejects match start when live view is missing for player availability checks', async () => {
+    const model = buildModel();
+    model.findById.mockResolvedValue({ id: 'tournament-1', status: TournamentStatus.LIVE });
+    model.getMatchById.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      status: MatchStatus.SCHEDULED,
+      poolId: 'pool-1',
+      targetId: null,
+      bracketId: null,
+    });
+    model.getTargetById.mockResolvedValue({
+      id: 'target-1',
+      tournamentId: 'tournament-1',
+      status: TargetStatus.AVAILABLE,
+      currentMatchId: null,
+    });
+    model.getMatchWithPlayerMatches.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      poolId: 'pool-1',
+      playerMatches: [{ playerId: 'p1' }, { playerId: 'p2' }],
+    });
+    model.findLiveView.mockResolvedValue(undefined);
+
+    const handlers = createMatchHandlers({
+      tournamentModel: model as never,
+      validateUUID: jest.fn(),
+      transitionTournamentStatus: jest.fn(),
+    });
+
+    await expect(handlers.updateMatchStatus('tournament-1', 'match-1', MatchStatus.IN_PROGRESS, 'target-1'))
+      .rejects.toThrow('Tournament not found');
+  });
+
+  it('rejects bracket start when source pool stages are not completed', async () => {
+    const model = buildModel();
+    model.findById.mockResolvedValue({ id: 'tournament-1', status: TournamentStatus.LIVE });
+    model.getMatchById.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      status: MatchStatus.SCHEDULED,
+      poolId: null,
+      targetId: null,
+      bracketId: 'bracket-1',
+    });
+    model.getTargetById.mockResolvedValue({
+      id: 'target-1',
+      tournamentId: 'tournament-1',
+      status: TargetStatus.AVAILABLE,
+      currentMatchId: null,
+    });
+    model.getMatchWithPlayerMatches.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      poolId: null,
+      playerMatches: [{ playerId: 'p1' }, { playerId: 'p2' }],
+    });
+    model.findLiveView.mockResolvedValue({ poolStages: [], brackets: [] });
+    model.getPoolStages.mockResolvedValue([
+      {
+        id: 'stage-1',
+        status: StageStatus.IN_PROGRESS,
+        rankingDestinations: [{ destinationType: 'BRACKET', bracketId: 'bracket-1' }],
+      },
+    ]);
+
+    const handlers = createMatchHandlers({
+      tournamentModel: model as never,
+      validateUUID: jest.fn(),
+      transitionTournamentStatus: jest.fn(),
+    });
+
+    await expect(handlers.updateMatchStatus('tournament-1', 'match-1', MatchStatus.IN_PROGRESS, 'target-1'))
+      .rejects.toThrow('Bracket matches cannot start before source pool stages are completed');
+  });
+
+  it('starts bracket match when no source pool stage references the bracket', async () => {
+    const model = buildModel();
+    model.findById.mockResolvedValue({ id: 'tournament-1', status: TournamentStatus.LIVE });
+    model.getMatchById.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      status: MatchStatus.SCHEDULED,
+      poolId: null,
+      targetId: null,
+      bracketId: 'bracket-1',
+    });
+    model.getTargetById.mockResolvedValue({
+      id: 'target-1',
+      tournamentId: 'tournament-1',
+      status: TargetStatus.AVAILABLE,
+      currentMatchId: null,
+    });
+    model.getMatchWithPlayerMatches.mockResolvedValue({
+      id: 'match-1',
+      tournamentId: 'tournament-1',
+      poolId: null,
+      playerMatches: [{ playerId: 'p1' }, { playerId: 'p2' }],
+    });
+    model.findLiveView.mockResolvedValue({ poolStages: [], brackets: [] });
+    model.getPoolStages.mockResolvedValue([
+      {
+        id: 'stage-1',
+        status: StageStatus.NOT_STARTED,
+        rankingDestinations: [{ destinationType: 'POOL', poolStageId: 'other' }],
+      },
+    ]);
+
+    const handlers = createMatchHandlers({
+      tournamentModel: model as never,
+      validateUUID: jest.fn(),
+      transitionTournamentStatus: jest.fn(),
+    });
+
+    await handlers.updateMatchStatus('tournament-1', 'match-1', MatchStatus.IN_PROGRESS, 'target-1');
+
+    expect(model.startMatchWithTarget).toHaveBeenCalledWith('match-1', 'target-1', expect.any(Date));
+  });
 });

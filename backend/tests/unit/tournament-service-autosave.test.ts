@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
@@ -56,6 +56,23 @@ describe('tournament autosave', () => {
     expect(new Date(content.savedAt).toISOString()).toBe(content.savedAt);
   });
 
+  it('defaults trigger to system when omitted', async () => {
+    const autosave = await loadAutosaveModule(temporaryDir);
+    const tournamentModel = {
+      findLiveView: jest.fn().mockImplementation(async () => ({ id: 't-default-trigger', status: 'OPEN' })),
+    } as unknown as Parameters<typeof autosave.saveTournamentSnapshot>[0];
+
+    await autosave.saveTournamentSnapshot(tournamentModel, 't-default-trigger', {
+      action: 'NO_TRIGGER',
+    });
+
+    const content = JSON.parse(
+      await readFile(path.join(temporaryDir, 't-default-trigger.json'), 'utf8')
+    ) as { trigger: string };
+
+    expect(content.trigger).toBe('system');
+  });
+
   it('does not write snapshot file when tournament is missing', async () => {
     const autosave = await loadAutosaveModule(temporaryDir);
     const tournamentModel = {
@@ -94,6 +111,31 @@ describe('tournament autosave', () => {
 
     const invalid = await autosave.readTournamentSnapshot('t-invalid');
     expect(invalid).toBeUndefined();
+  });
+
+  it('normalizes legacy snapshot payloads when reading latest and by id', async () => {
+    const autosave = await loadAutosaveModule(temporaryDir);
+    const legacyPayload = {
+      schemaVersion: 1,
+      tournamentId: 't-legacy',
+      savedAt: '2026-03-01T10:00:00.000Z',
+      data: { id: 't-legacy' },
+    };
+
+    await writeFile(path.join(temporaryDir, 't-legacy.json'), JSON.stringify(legacyPayload), 'utf8');
+
+    const historyDirectory = path.join(temporaryDir, 't-legacy', 'history');
+    await mkdir(historyDirectory, { recursive: true });
+    await writeFile(path.join(historyDirectory, 'legacy-snap.json'), JSON.stringify(legacyPayload), 'utf8');
+
+    const latest = await autosave.readTournamentSnapshot('t-legacy');
+    const byId = await autosave.readTournamentSnapshotById('t-legacy', 'legacy-snap');
+
+    expect(latest?.snapshotId).toBeTruthy();
+    expect(latest?.action).toBe('LEGACY_SNAPSHOT');
+    expect(latest?.trigger).toBe('system');
+    expect(byId?.snapshotId).toBeTruthy();
+    expect(byId?.action).toBe('LEGACY_SNAPSHOT');
   });
 
   it('restores snapshot file and normalizes id and savedAt', async () => {
@@ -149,6 +191,25 @@ describe('tournament autosave', () => {
     expect(current?.action).toBe('RESTORE_SNAPSHOT');
   });
 
+  it('returns undefined when restoring by unknown snapshot id', async () => {
+    const autosave = await loadAutosaveModule(temporaryDir);
+
+    const restored = await autosave.restoreTournamentSnapshotById('t-missing', 'unknown');
+
+    expect(restored).toBeUndefined();
+  });
+
+  it('returns empty snapshot history when files are invalid json', async () => {
+    const autosave = await loadAutosaveModule(temporaryDir);
+    const historyDirectory = path.join(temporaryDir, 't-bad', 'history');
+    await mkdir(historyDirectory, { recursive: true });
+    await writeFile(path.join(historyDirectory, 'bad.json'), '{invalid-json', 'utf8');
+
+    const snapshots = await autosave.listTournamentSnapshots('t-bad');
+
+    expect(snapshots).toEqual([]);
+  });
+
   it('deletes snapshot file when requested', async () => {
     const autosave = await loadAutosaveModule(temporaryDir);
 
@@ -179,5 +240,22 @@ describe('tournament autosave', () => {
     const historyEntries = await readdir(historyDirectory);
     const jsonHistoryEntries = historyEntries.filter((entry) => entry.endsWith('.json'));
     expect(jsonHistoryEntries).toHaveLength(10);
+  });
+
+  it('honors custom retention limit when environment variable is set', async () => {
+    process.env.TOURNAMENT_SNAPSHOT_RETENTION = '3';
+    const autosave = await loadAutosaveModule(temporaryDir);
+    const tournamentModel = {
+      findLiveView: jest.fn().mockImplementation(async () => ({ id: 't-custom-retention', status: 'OPEN' })),
+    } as unknown as Parameters<typeof autosave.saveTournamentSnapshot>[0];
+
+    for (let index = 0; index < 5; index += 1) {
+      await autosave.saveTournamentSnapshot(tournamentModel, 't-custom-retention', {
+        action: `ACTION_${index}`,
+      });
+    }
+
+    const snapshots = await autosave.listTournamentSnapshots('t-custom-retention');
+    expect(snapshots).toHaveLength(3);
   });
 });

@@ -127,6 +127,56 @@ describe('player handlers', () => {
     expect(model.registerPlayer).toHaveBeenCalledWith('t1', 'p1');
   });
 
+  it('registers player when auth is enabled and deadline is not passed', async () => {
+    const { model, handlers } = buildContext();
+    config.auth.enabled = true;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+      startTime: new Date(Date.now() + 4 * 60 * 60 * 1000),
+    });
+    model.isPlayerRegistered.mockResolvedValue(false);
+    model.getParticipantCount.mockResolvedValue(1);
+
+    await handlers.registerPlayer('t1', 'p1');
+    expect(model.registerPlayer).toHaveBeenCalledWith('t1', 'p1');
+  });
+
+  it('rejects registerPlayer for grouped formats when requester is not admin', async () => {
+    const { model, handlers } = buildContext();
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.TEAM_4_PLAYER,
+    });
+
+    await expect(handlers.registerPlayer('t1', 'p1')).rejects.toThrow('registration must be completed by a doublette/equipe captain');
+  });
+
+  it('logs non-AppError failures during registerPlayer', async () => {
+    const { model, handlers, logger } = buildContext({ isAdminAction: true });
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+    });
+    model.isPlayerRegistered.mockResolvedValue(false);
+    model.getParticipantCount.mockResolvedValue(1);
+    model.registerPlayer.mockRejectedValue(new Error('db boom'));
+
+    await expect(handlers.registerPlayer('t1', 'p1')).rejects.toThrow('db boom');
+    expect(logger.error).toHaveBeenCalled();
+  });
+
   it('rejects registerPlayerDetails for grouped formats when not admin', async () => {
     const { model, handlers } = buildContext();
     config.auth.enabled = false;
@@ -175,6 +225,35 @@ describe('player handlers', () => {
 
     expect(created).toEqual({ id: 'p-created' });
     expect(model.createPlayer).toHaveBeenCalled();
+  });
+
+  it('logs non-AppError failures during registerPlayerDetails', async () => {
+    const { model, handlers, logger } = buildContext({ isAdminAction: true });
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+    });
+    model.getParticipantCount.mockResolvedValue(1);
+    model.findPlayerBySurname.mockResolvedValue(undefined);
+    model.findPlayerByTeamName.mockResolvedValue(undefined);
+    model.findPersonByEmailAndPhone.mockResolvedValue(undefined);
+    model.createPerson.mockResolvedValue({ id: 'person-created' });
+    model.createPlayer.mockRejectedValue(new Error('db boom'));
+
+    await expect(handlers.registerPlayerDetails('t1', {
+      firstName: 'Alice',
+      lastName: 'Doe',
+      surname: 'A-Doe',
+      teamName: 'Team A',
+      email: 'alice@example.com',
+      phone: '123',
+    } as never)).rejects.toThrow('db boom');
+
+    expect(logger.error).toHaveBeenCalled();
   });
 
   it('uses slot-based player capacity for grouped admin registration', async () => {
@@ -260,6 +339,16 @@ describe('player handlers', () => {
       .rejects.toThrow('Cannot unregister from tournament that is live or finished');
   });
 
+  it('unregisters player when tournament is editable and player is registered', async () => {
+    const { model, handlers } = buildContext();
+    model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN });
+    model.isPlayerRegistered.mockResolvedValue(true);
+
+    await handlers.unregisterPlayer('t1', 'p1');
+
+    expect(model.unregisterPlayer).toHaveBeenCalledWith('t1', 'p1');
+  });
+
   it('rejects unregister when player is not registered', async () => {
     const { model, handlers } = buildContext();
     model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN });
@@ -316,6 +405,28 @@ describe('player handlers', () => {
     expect(model.updatePlayer).toHaveBeenCalled();
   });
 
+  it('does not auto-transition when checkedIn is false or counts are insufficient', async () => {
+    const { model, handlers, transitionTournamentStatus } = buildContext();
+    model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.SIGNATURE });
+
+    await handlers.updateTournamentPlayerCheckIn('t1', 'p1', false);
+    expect(transitionTournamentStatus).not.toHaveBeenCalled();
+
+    model.getParticipantCount.mockResolvedValue(4);
+    model.getCheckedInCount.mockResolvedValue(2);
+    await handlers.updateTournamentPlayerCheckIn('t1', 'p1', true);
+    expect(transitionTournamentStatus).not.toHaveBeenCalled();
+  });
+
+  it('returns tournament participants when tournament exists', async () => {
+    const { model, handlers } = buildContext();
+    model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN });
+    model.getParticipants.mockResolvedValue([{ id: 'p1' }]);
+
+    const participants = await handlers.getTournamentParticipants('t1');
+    expect(participants).toEqual([{ id: 'p1' }]);
+  });
+
   it('updates linked person when player has personId', async () => {
     const { model, handlers } = buildContext();
     model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN, format: TournamentFormat.SINGLE });
@@ -332,6 +443,82 @@ describe('player handlers', () => {
 
     expect(model.updatePerson).toHaveBeenCalled();
     expect(model.updatePlayer).toHaveBeenCalled();
+  });
+
+  it('rejects registerPlayerDetails when tournament is missing', async () => {
+    const { model, handlers } = buildContext();
+    model.findById.mockResolvedValue(null);
+
+    await expect(handlers.registerPlayerDetails('t1', {
+      firstName: 'Alice',
+      lastName: 'Doe',
+    } as never)).rejects.toThrow('Tournament not found');
+  });
+
+  it('rejects registerPlayerDetails when auth enabled and deadline is passed', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
+    config.auth.enabled = true;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+      startTime: new Date(Date.now() + 30 * 60 * 1000),
+    });
+
+    await expect(handlers.registerPlayerDetails('t1', {
+      firstName: 'Alice',
+      lastName: 'Doe',
+    } as never)).rejects.toThrow('Registration deadline has passed');
+  });
+
+  it('maps player without optional fields', async () => {
+    const { model, handlers } = buildContext();
+    model.getPlayerById.mockResolvedValueOnce({
+      id: 'p2',
+      tournamentId: 't1',
+      firstName: 'Bob',
+      lastName: 'Doe',
+      registeredAt: new Date('2026-01-01T10:00:00.000Z'),
+      isActive: true,
+      checkedIn: false,
+    });
+
+    const minimal = await handlers.getPlayerById('p2');
+    expect(minimal).toEqual(expect.objectContaining({ id: 'p2', firstName: 'Bob' }));
+    expect(minimal).not.toHaveProperty('personId');
+    expect(minimal).not.toHaveProperty('surname');
+    expect(minimal).not.toHaveProperty('teamName');
+    expect(minimal).not.toHaveProperty('email');
+    expect(minimal).not.toHaveProperty('phone');
+    expect(minimal).not.toHaveProperty('skillLevel');
+  });
+
+  it('rejects updateTournamentPlayer when tournament is missing', async () => {
+    const { model, handlers } = buildContext();
+    model.findById.mockResolvedValue(null);
+
+    await expect(handlers.updateTournamentPlayer('t1', 'p1', {
+      firstName: 'Alice',
+      lastName: 'Doe',
+    })).rejects.toThrow('Tournament not found');
+  });
+
+  it('rejects check-in when tournament is missing', async () => {
+    const { model, handlers } = buildContext();
+    model.findById.mockResolvedValue(null);
+
+    await expect(handlers.updateTournamentPlayerCheckIn('t1', 'p1', true))
+      .rejects.toThrow('Tournament not found');
+  });
+
+  it('rejects unregister when tournament is missing', async () => {
+    const { model, handlers } = buildContext();
+    model.findById.mockResolvedValue(null);
+
+    await expect(handlers.unregisterPlayer('t1', 'p1'))
+      .rejects.toThrow('Tournament not found');
   });
 
   it('rejects getTournamentParticipants when tournament is missing and returns orphan participants', async () => {

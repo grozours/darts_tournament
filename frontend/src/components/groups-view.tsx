@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { JSX as ReactJSX } from 'react';
 import { SkillLevel } from '@shared/types';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
@@ -166,6 +167,20 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   const [tournamentStatusesById, setTournamentStatusesById] = useState<Record<string, string>>({});
   const [activeMemberEditor, setActiveMemberEditor] = useState<MemberEditorState | undefined>();
 
+  const updateActiveMemberEditorField = useCallback((
+    groupId: string,
+    playerId: string,
+    field: keyof Pick<MemberEditorState, 'firstName' | 'lastName' | 'surname' | 'email'>,
+    value: string
+  ) => {
+    setActiveMemberEditor((previous) => {
+      if (previous?.groupId !== groupId || previous?.playerId !== playerId) {
+        return previous;
+      }
+      return { ...previous, [field]: value };
+    });
+  }, []);
+
   const effectiveUserEmail = useMemo(
     () => (user?.email ?? adminUser?.email)?.toLowerCase(),
     [adminUser?.email, user?.email]
@@ -324,7 +339,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
 
   const visibleGroups = groups;
 
-  let content: JSX.Element;
+  let content: ReactJSX.Element;
 
   if (loading) {
     content = <div className="text-sm text-slate-300">{t('common.loading')}</div>;
@@ -522,53 +537,25 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       <div className="mt-2 grid gap-2 sm:grid-cols-4">
                         <input
                           value={activeMemberEditor.firstName}
-                          onChange={(event) => {
-                            setActiveMemberEditor((previous) => {
-                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
-                                return previous;
-                              }
-                              return { ...previous, firstName: event.target.value };
-                            });
-                          }}
+                          onChange={(event) => updateActiveMemberEditorField(group.id, item.playerId, 'firstName', event.target.value)}
                           placeholder={t('edit.firstName')}
                           className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
                         />
                         <input
                           value={activeMemberEditor.lastName}
-                          onChange={(event) => {
-                            setActiveMemberEditor((previous) => {
-                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
-                                return previous;
-                              }
-                              return { ...previous, lastName: event.target.value };
-                            });
-                          }}
+                          onChange={(event) => updateActiveMemberEditorField(group.id, item.playerId, 'lastName', event.target.value)}
                           placeholder={t('edit.lastName')}
                           className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
                         />
                         <input
                           value={activeMemberEditor.surname}
-                          onChange={(event) => {
-                            setActiveMemberEditor((previous) => {
-                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
-                                return previous;
-                              }
-                              return { ...previous, surname: event.target.value };
-                            });
-                          }}
+                          onChange={(event) => updateActiveMemberEditorField(group.id, item.playerId, 'surname', event.target.value)}
                           placeholder={t('edit.surname')}
                           className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
                         />
                         <input
                           value={activeMemberEditor.email}
-                          onChange={(event) => {
-                            setActiveMemberEditor((previous) => {
-                              if (!previous || previous.groupId !== group.id || previous.playerId !== item.playerId) {
-                                return previous;
-                              }
-                              return { ...previous, email: event.target.value };
-                            });
-                          }}
+                          onChange={(event) => updateActiveMemberEditorField(group.id, item.playerId, 'email', event.target.value)}
                           placeholder={t('edit.email')}
                           className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
                         />

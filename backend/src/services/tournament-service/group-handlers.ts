@@ -175,7 +175,7 @@ const mapGroupResponse = <TGroup extends {
 });
 
 const requireCaptain = (
-  captainPlayerId: string | null | undefined,
+  captainPlayerId: CaptainPlayerId,
   actorPlayerId: string,
   code: string,
   message: string
@@ -190,7 +190,7 @@ const requireCaptain = (
 
 const requireCaptainOrAdmin = (
   context: GroupHandlerContext,
-  captainPlayerId: string | null | undefined,
+  captainPlayerId: CaptainPlayerId,
   actorPlayerId: string,
   code: string,
   message: string
@@ -201,13 +201,17 @@ const requireCaptainOrAdmin = (
   requireCaptain(captainPlayerId, actorPlayerId, code, message);
 };
 
+type GroupKind = 'DOUBLETTE' | 'EQUIPE';
+type GroupLifecycleAction = 'register' | 'unregister';
+type CaptainPlayerId = string | null | undefined;
+
 const requireActorCaptainForGroupLifecycle = (
   context: GroupHandlerContext,
   isAdmin: boolean,
   actorPlayerId: string | undefined,
-  captainPlayerId: string | null | undefined,
-  groupKind: 'DOUBLETTE' | 'EQUIPE',
-  action: 'register' | 'unregister'
+  captainPlayerId: CaptainPlayerId,
+  groupKind: GroupKind,
+  action: GroupLifecycleAction
 ) => {
   if (isAdmin) {
     return;
@@ -268,8 +272,8 @@ const loadGroupForLifecycleAction = async <TGroup extends { captainPlayerId?: st
     notFoundCode: string;
     captainMissingMessage: string;
     captainMissingCode: string;
-    groupKind: 'DOUBLETTE' | 'EQUIPE';
-    action: 'register' | 'unregister';
+    groupKind: GroupKind;
+    action: GroupLifecycleAction;
   }
 ): Promise<TGroup> => {
   const {

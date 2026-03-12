@@ -104,11 +104,11 @@ const formatHourMinute = (date: Date) => new Intl.DateTimeFormat(undefined, {
 }).format(date);
 
 const getHashTargetBracketId = (tournamentId: string) => {
-  if (typeof window === 'undefined') {
+  if (globalThis.window === undefined) {
     return undefined;
   }
 
-  const hash = window.location.hash.replace(/^#/, '');
+  const hash = globalThis.window.location.hash.replace(/^#/, '');
   const matchPrefix = `match-${tournamentId}-`;
   if (!hash.startsWith(matchPrefix)) {
     return undefined;
@@ -211,11 +211,11 @@ const syncPreferredPlayerBracketSelection = ({
   activeBracketId: string | undefined;
   onSelectBracket: BracketsSectionProperties['onSelectBracket'];
 }) => {
-  if (typeof window === 'undefined' || brackets.length === 0 || !preferredPlayerId) {
+  if (globalThis.window === undefined || brackets.length === 0 || !preferredPlayerId) {
     return;
   }
 
-  if (window.location.hash.replace(/^#/, '').startsWith(`match-${tournamentId}-`)) {
+  if (globalThis.window.location.hash.replace(/^#/, '').startsWith(`match-${tournamentId}-`)) {
     return;
   }
 
@@ -229,9 +229,13 @@ const syncPreferredPlayerBracketSelection = ({
   }
 
   const nextHash = getBracketMatchAnchorId(tournamentId, candidate.bracket.id, candidate.match.id);
-  if (window.location.hash.replace(/^#/, '') !== nextHash) {
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${nextHash}`);
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  if (globalThis.window.location.hash.replace(/^#/, '') !== nextHash) {
+    globalThis.window.history.replaceState(
+      null,
+      '',
+      `${globalThis.window.location.pathname}${globalThis.window.location.search}#${nextHash}`
+    );
+    globalThis.window.dispatchEvent(new HashChangeEvent('hashchange'));
   }
 };
 
@@ -824,10 +828,10 @@ const BracketsSection = ({
     });
 
     runHashSelection();
-    window.addEventListener('hashchange', runHashSelection);
+    globalThis.window.addEventListener('hashchange', runHashSelection);
 
     return () => {
-      window.removeEventListener('hashchange', runHashSelection);
+      globalThis.window.removeEventListener('hashchange', runHashSelection);
     };
   }, [activeBracketId, brackets, onSelectBracket, tournamentId]);
 

@@ -9,6 +9,8 @@ import {
   errorHandler,
   notFoundHandler,
 } from '../../src/middleware/error-handler';
+import { config } from '../../src/config/environment';
+import logger from '../../src/utils/logger';
 
 jest.mock('../../src/utils/logger', () => ({
   __esModule: true,
@@ -236,6 +238,102 @@ describe('error-handler middleware', () => {
       expect.objectContaining({
         error: expect.objectContaining({
           code: 'UNAUTHORIZED',
+        }),
+      })
+    );
+
+    const responseC = buildResponse();
+    const statusOnlyError = new Error('') as Error & { status?: number };
+    statusOnlyError.status = 401;
+
+    errorHandler(statusOnlyError, request as never, responseC as never, jest.fn());
+    expect(responseC.status).toHaveBeenCalledWith(401);
+    expect(responseC.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Unauthorized',
+        }),
+      })
+    );
+  });
+
+  it('handles multer default and logo-field unexpected file branches', () => {
+    const request = buildRequest();
+    const responseA = buildResponse();
+    const defaultMulterError = new Error('custom upload issue') as Error & { name: string; code?: string };
+    defaultMulterError.name = 'MulterError';
+
+    errorHandler(defaultMulterError, request as never, responseA as never, jest.fn());
+    expect(responseA.status).toHaveBeenCalledWith(400);
+    expect(responseA.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'FILE_UPLOAD_ERROR',
+          message: 'custom upload issue',
+        }),
+      })
+    );
+
+    const responseB = buildResponse();
+    const logoUnexpected = new Error('unexpected') as Error & {
+      name: string;
+      code?: string;
+      field?: string;
+    };
+    logoUnexpected.name = 'MulterError';
+    logoUnexpected.code = 'LIMIT_UNEXPECTED_FILE';
+    logoUnexpected.field = 'logo';
+
+    errorHandler(logoUnexpected, request as never, responseB as never, jest.fn());
+    expect(responseB.status).toHaveBeenCalledWith(400);
+    expect(responseB.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Only a single file is allowed',
+        }),
+      })
+    );
+  });
+
+  it('handles internal errors with 500 response and development stack output', () => {
+    const request = {
+      ...buildRequest(),
+      correlationId: 'corr-1',
+    };
+    const response = buildResponse();
+    const previousDevelopment = config.isDevelopment;
+    (config as { isDevelopment: boolean }).isDevelopment = true;
+
+    const unknownError = new Error('boom');
+    errorHandler(unknownError, request as never, response as never, jest.fn());
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          statusCode: 500,
+          message: 'Internal Server Error',
+          stack: expect.any(String),
+        }),
+      })
+    );
+    expect((logger as unknown as { error: jest.Mock }).error).toHaveBeenCalled();
+
+    (config as { isDevelopment: boolean }).isDevelopment = previousDevelopment;
+  });
+
+  it('includes optional AppError details when provided', () => {
+    const request = buildRequest();
+    const response = buildResponse();
+    const error = new AppError('Bad input', 422, 'BAD_INPUT', { field: 'name' });
+
+    errorHandler(error, request as never, response as never, jest.fn());
+
+    expect(response.status).toHaveBeenCalledWith(422);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          details: { field: 'name' },
         }),
       })
     );

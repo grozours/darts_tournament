@@ -65,8 +65,8 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
   return {
     id: resolveValue(fallbackId, data.id as string | undefined),
     name: resolveValue('', data.name as string | undefined),
-    ...(location !== undefined ? { location } : {}),
-    ...(logoUrl !== undefined ? { logoUrl } : {}),
+    ...(location === undefined ? {} : { location }),
+    ...(logoUrl === undefined ? {} : { logoUrl }),
     format: resolveValue(TournamentFormat.SINGLE, data.format as string | undefined),
     totalParticipants: resolveValue(
       0,
@@ -79,8 +79,8 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
       data.durationType as string | undefined,
       data.duration_type as string | undefined
     ),
-    ...(startTime !== undefined ? { startTime } : {}),
-    ...(endTime !== undefined ? { endTime } : {}),
+    ...(startTime === undefined ? {} : { startTime }),
+    ...(endTime === undefined ? {} : { endTime }),
     targetCount: resolveValue(
       0,
       data.targetCount as number | undefined,
@@ -96,10 +96,10 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
       data.shareTargets as boolean | undefined,
       data.share_targets as boolean | undefined
     ),
-    ...(createdAt !== undefined ? { createdAt } : {}),
-    ...(completedAt !== undefined ? { completedAt } : {}),
-    ...(historicalFlag !== undefined ? { historicalFlag } : {}),
-    ...(doubleStageEnabled !== undefined ? { doubleStageEnabled } : {}),
+    ...(createdAt === undefined ? {} : { createdAt }),
+    ...(completedAt === undefined ? {} : { completedAt }),
+    ...(historicalFlag === undefined ? {} : { historicalFlag }),
+    ...(doubleStageEnabled === undefined ? {} : { doubleStageEnabled }),
   };
 };
 

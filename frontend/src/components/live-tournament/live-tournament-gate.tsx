@@ -1,4 +1,5 @@
 import SignInPanel from '../../auth/sign-in-panel';
+import type { JSX as ReactJSX } from 'react';
 import { ErrorState, LoadingState } from '../shared/async-state';
 import type { Translator } from './types';
 
@@ -56,7 +57,7 @@ const LiveTournamentGate = ({
   error,
   onRetry,
   t,
-}: LiveTournamentGateProperties): JSX.Element | undefined => {
+}: LiveTournamentGateProperties): ReactJSX.Element | undefined => {
   const normalizedStatus = (viewStatus ?? '').toUpperCase();
   const allowAnonymous = viewMode === 'live'
     || viewMode === 'pool-stages'

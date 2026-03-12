@@ -24,6 +24,12 @@ type ComposeTournamentListEditingPropertiesInput = {
   skillLevelOptions: Array<{ value: string; label: string }>;
 };
 
+const wrapAsyncVoid = <TArguments extends unknown[]>(
+  callback: (...arguments_: TArguments) => Promise<unknown>
+) => (...arguments_: TArguments): void => {
+  void callback(...arguments_);
+};
+
 const buildEditSectionProperties = ({
   t,
   isEditPage,
@@ -55,7 +61,7 @@ const buildEditSectionProperties = ({
   onClose: editFlow.closeEdit,
   onEditFormChange: editState.setEditForm,
   onLogoFileChange: editState.setLogoFile,
-  onUploadLogo: editFlow.uploadLogo,
+  onUploadLogo: wrapAsyncVoid(editFlow.uploadLogo),
   poolStages: structure.poolStages,
   poolStagesError: structure.poolStagesError,
   onPoolStageNumberChange: structure.handlePoolStageNumberChange,
@@ -67,9 +73,9 @@ const buildEditSectionProperties = ({
   onPoolStageLosersAdvanceChange: structure.handlePoolStageLosersAdvanceChange,
   onPoolStageRankingDestinationChange: structure.handlePoolStageRankingDestinationChange,
   onPoolStageStatusChange: structure.handlePoolStageStatusChange,
-  onOpenPoolStageAssignments: poolStageAssignments.openPoolStageAssignments,
-  onSavePoolStage: structure.savePoolStage,
-  onRemovePoolStage: structure.removePoolStage,
+  onOpenPoolStageAssignments: wrapAsyncVoid(poolStageAssignments.openPoolStageAssignments),
+  onSavePoolStage: wrapAsyncVoid(structure.savePoolStage),
+  onRemovePoolStage: wrapAsyncVoid(structure.removePoolStage),
   isAddingPoolStage: structure.isAddingPoolStage,
   newPoolStage: structure.newPoolStage,
   onStartAddPoolStage: structure.startAddPoolStage,
@@ -86,7 +92,7 @@ const buildEditSectionProperties = ({
   isApplyingPreset: presets.isApplyingPreset,
   quickStructurePresets: presets.quickStructurePresets,
   quickStructurePresetsLoading: presets.quickStructurePresetsLoading,
-  onApplyStructurePreset: presets.handleApplyStructurePreset,
+  onApplyStructurePreset: wrapAsyncVoid(presets.handleApplyStructurePreset),
   brackets: structure.brackets,
   bracketsError: structure.bracketsError,
   targets: structure.targets,
@@ -97,9 +103,9 @@ const buildEditSectionProperties = ({
   onBracketRoundMatchFormatChange: structure.handleBracketRoundMatchFormatChange,
   onBracketStatusChange: structure.handleBracketStatusChange,
   onBracketTargetToggle: structure.handleBracketTargetToggle,
-  onSaveBracket: structure.saveBracket,
-  onSaveBracketTargets: structure.saveBracketTargets,
-  onRemoveBracket: structure.removeBracket,
+  onSaveBracket: wrapAsyncVoid(structure.saveBracket),
+  onSaveBracketTargets: wrapAsyncVoid(structure.saveBracketTargets),
+  onRemoveBracket: wrapAsyncVoid(structure.removeBracket),
   isAddingBracket: structure.isAddingBracket,
   newBracket: structure.newBracket,
   onStartAddBracket: structure.startAddBracket,
@@ -108,7 +114,7 @@ const buildEditSectionProperties = ({
   onNewBracketTypeChange: structure.handleNewBracketTypeChange,
   onNewBracketRoundsChange: structure.handleNewBracketRoundsChange,
   onNewBracketRoundMatchFormatChange: structure.handleNewBracketRoundMatchFormatChange,
-  onAddBracket: structure.addBracket,
+  onAddBracket: wrapAsyncVoid(structure.addBracket),
   getStatusLabel,
   normalizeStageStatus,
   players: players.players,
@@ -126,14 +132,14 @@ const buildEditSectionProperties = ({
   onPlayerFormChange: players.setPlayerForm,
   onStartEditPlayer: players.startEditPlayer,
   onCancelEditPlayer: players.cancelEditPlayer,
-  onAutoFillPlayers: players.autoFillPlayers,
-  onRemovePlayer: players.removePlayer,
-  onConfirmAllPlayers: players.confirmAllPlayers,
-  onTogglePlayerCheckIn: players.togglePlayerCheckIn,
-  onMoveToSignature: editFlow.moveToSignature,
-  onMoveToLive: editFlow.moveToLive,
-  onOpenRegistration: editFlow.openRegistration,
-  onSaveEdit: handleSaveEdit,
+  onAutoFillPlayers: wrapAsyncVoid(players.autoFillPlayers),
+  onRemovePlayer: wrapAsyncVoid(players.removePlayer),
+  onConfirmAllPlayers: wrapAsyncVoid(players.confirmAllPlayers),
+  onTogglePlayerCheckIn: wrapAsyncVoid(players.togglePlayerCheckIn),
+  onMoveToSignature: wrapAsyncVoid(editFlow.moveToSignature),
+  onMoveToLive: wrapAsyncVoid(editFlow.moveToLive),
+  onOpenRegistration: wrapAsyncVoid(editFlow.openRegistration),
+  onSaveEdit: wrapAsyncVoid(handleSaveEdit),
   loadPoolStages: structure.loadPoolStages,
   loadBrackets: structure.loadBrackets,
   loadTargets: structure.loadTargets,

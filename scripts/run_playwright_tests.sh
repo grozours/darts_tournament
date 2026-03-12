@@ -11,10 +11,17 @@ DEV_HEALTH_TRIES="${PLAYWRIGHT_DEV_HEALTH_TRIES:-20}"
 DEV_HEALTH_DELAY_SECONDS="${PLAYWRIGHT_DEV_HEALTH_DELAY_SECONDS:-2}"
 BACKEND_DEV_COMMAND="${PLAYWRIGHT_BACKEND_DEV_COMMAND:-PORT=3310 RATE_LIMIT_ENABLED=false AUTH_ENABLED=false CORS_ORIGINS=http://localhost:3311 npm --prefix backend run dev}"
 FRONTEND_DEV_COMMAND="${PLAYWRIGHT_FRONTEND_DEV_COMMAND:-npm --prefix frontend run dev -- --host 127.0.0.1 --port 3311}"
+PLAYWRIGHT_PROJECT="${PLAYWRIGHT_PROJECT:-chromium}"
 BACKEND_STARTED_BY_SCRIPT="false"
 FRONTEND_STARTED_BY_SCRIPT="false"
 BACKEND_PID=""
 FRONTEND_PID=""
+
+sanitize_shell_command() {
+  # Replace Unicode spaces that can break command parsing (e.g. non-breaking spaces).
+  local command="$1"
+  printf '%s' "$command" | sed -e 's/\xC2\xA0/ /g' -e 's/\xE2\x80\x89/ /g' -e 's/\xE2\x80\xAF/ /g'
+}
 
 cleanup_started_dev_processes() {
   if [[ "${BACKEND_STARTED_BY_SCRIPT}" == "true" && -n "${BACKEND_PID}" ]]; then
@@ -67,6 +74,9 @@ start_dev_instance_if_enabled() {
     return 0
   fi
 
+  BACKEND_DEV_COMMAND="$(sanitize_shell_command "${BACKEND_DEV_COMMAND}")"
+  FRONTEND_DEV_COMMAND="$(sanitize_shell_command "${FRONTEND_DEV_COMMAND}")"
+
   echo "[playwright] Starting backend dev on 3310..."
   bash -lc "cd \"${ROOT_DIR}\" && ${BACKEND_DEV_COMMAND}" >/tmp/playwright-backend-dev.log 2>&1 &
   BACKEND_PID="$!"
@@ -94,9 +104,14 @@ fi
 # In local IDE sessions, CI can be inherited and force Playwright to refuse
 # reusing existing servers. We explicitly unset it for reliable local runs.
 run_playwright_local() {
+  local project_args=()
+  if [[ -n "${PLAYWRIGHT_PROJECT}" ]]; then
+    project_args+=(--project "${PLAYWRIGHT_PROJECT}")
+  fi
+
   (
     cd "${FRONTEND_DIR}"
-    env -u CI npx playwright test -c ./playwright.config.ts "$@"
+    env -u CI npx playwright test "$@" -c ./playwright.config.ts "${project_args[@]}"
   )
 }
 

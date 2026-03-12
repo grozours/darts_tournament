@@ -151,6 +151,24 @@ describe('tournament-controller', () => {
     );
   });
 
+  it('maps unexpected create errors to internal server error', async () => {
+    const request = buildRequest({ body: {} });
+    const response = buildResponse();
+
+    mockService.createTournament.mockRejectedValue(new Error('boom'));
+
+    await controller.createTournament(request as never, response as never);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'INTERNAL_SERVER_ERROR',
+        }),
+      })
+    );
+  });
+
   it('returns paged tournament lists', async () => {
     const request = buildRequest({
       query: {
@@ -177,6 +195,28 @@ describe('tournament-controller', () => {
       })
     );
     expect(response.json).toHaveBeenCalledWith([{ id: 't-1' }]);
+  });
+
+  it('falls back to default page and limit for non-numeric query values', async () => {
+    const request = buildRequest({
+      query: {
+        page: 'not-a-number',
+        limit: 'still-not-a-number',
+      },
+    });
+    const response = buildResponse();
+
+    isAdminMock.mockReturnValue(true);
+    mockService.getTournaments.mockResolvedValue([]);
+
+    await controller.getTournaments(request as never, response as never);
+
+    expect(mockService.getTournaments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        limit: 10,
+      })
+    );
   });
 
   it('hides drafts for non-admin users', async () => {
@@ -208,6 +248,19 @@ describe('tournament-controller', () => {
     expect(mockService.getTournaments).toHaveBeenCalledWith(
       expect.objectContaining({ excludeDraft: true })
     );
+  });
+
+  it('does not add excludeDraft for admin list queries', async () => {
+    const request = buildRequest({ query: { page: '1' } });
+    const response = buildResponse();
+
+    isAdminMock.mockReturnValue(true);
+    mockService.getTournaments.mockResolvedValue([]);
+
+    await controller.getTournaments(request as never, response as never);
+
+    const filters = mockService.getTournaments.mock.calls[0][0] as Record<string, unknown>;
+    expect(filters.excludeDraft).toBeUndefined();
   });
 
   it('returns tournament live views', async () => {
@@ -571,5 +624,53 @@ describe('tournament-controller', () => {
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ snapshotId: 'snap-restore' })
     );
+  });
+
+  it('creates default presets only when none exist', async () => {
+    const prismaMock = {
+      tournamentPreset: {
+        count: jest.fn(),
+        createMany: jest.fn().mockResolvedValue(undefined),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      matchFormatPreset: {
+        count: jest.fn().mockResolvedValue(1),
+        createMany: jest.fn().mockResolvedValue(undefined),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const localController = new TournamentController(prismaMock as never);
+
+    prismaMock.tournamentPreset.count.mockResolvedValueOnce(0);
+    await (localController as any).ensureDefaultTournamentPresets();
+    expect(prismaMock.tournamentPreset.createMany).toHaveBeenCalledTimes(1);
+
+    prismaMock.tournamentPreset.count.mockResolvedValueOnce(2);
+    await (localController as any).ensureDefaultTournamentPresets();
+    expect(prismaMock.tournamentPreset.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates default match format presets only when none exist', async () => {
+    const prismaMock = {
+      tournamentPreset: {
+        count: jest.fn().mockResolvedValue(1),
+        createMany: jest.fn().mockResolvedValue(undefined),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      matchFormatPreset: {
+        count: jest.fn(),
+        createMany: jest.fn().mockResolvedValue(undefined),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const localController = new TournamentController(prismaMock as never);
+
+    prismaMock.matchFormatPreset.count.mockResolvedValueOnce(0);
+    await (localController as any).ensureDefaultMatchFormatPresets();
+    expect(prismaMock.matchFormatPreset.createMany).toHaveBeenCalledTimes(1);
+
+    prismaMock.matchFormatPreset.count.mockResolvedValueOnce(3);
+    await (localController as any).ensureDefaultMatchFormatPresets();
+    expect(prismaMock.matchFormatPreset.createMany).toHaveBeenCalledTimes(1);
   });
 });

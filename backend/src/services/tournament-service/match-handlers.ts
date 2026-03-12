@@ -220,7 +220,7 @@ export const createMatchHandlers = (context: MatchHandlerContext) => {
   const getMatchPlayerIds = (match: { playerMatches?: Array<{ playerId?: string | null }> | null }): string[] => {
     return (match.playerMatches || [])
       .map((pm) => pm.playerId)
-      .filter(Boolean) as string[];
+      .filter((playerId): playerId is string => Boolean(playerId));
   };
 
   const buildRandomMatchScores = (firstId: string, secondId: string) => {

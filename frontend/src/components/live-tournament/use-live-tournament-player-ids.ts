@@ -15,7 +15,7 @@ type LiveTournamentPlayerIdsResult = {
 };
 
 const buildPlayerIdMap = (entries: Array<readonly [string, string] | undefined>) => {
-  const filtered = entries.filter(Boolean) as Array<readonly [string, string]>;
+  const filtered = entries.filter((entry): entry is readonly [string, string] => Boolean(entry));
   return Object.fromEntries(filtered);
 };
 

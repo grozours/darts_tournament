@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
+import type { JSX as ReactJSX } from 'react';
 import { fetchMatchFormatPresets } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
@@ -26,7 +27,7 @@ const OpenSourceView = lazy(() => import('./components/open-source-view'));
 const TournamentSnapshotsView = lazy(() => import('./components/tournament-snapshots-view'));
 
 
-const renderAdminOnly = (isAdmin: boolean, t: (key: string) => string, content: JSX.Element) => (
+const renderAdminOnly = (isAdmin: boolean, t: (key: string) => string, content: ReactJSX.Element) => (
   isAdmin
     ? content
     : (
@@ -43,7 +44,7 @@ const resolveMainContent = (
   isAuthenticated: boolean,
   docsAccountTypeOverride: 'anonymous' | 'player' | 'admin' | undefined,
   t: (key: string) => string
-): JSX.Element => {
+): ReactJSX.Element => {
   let docsAccountType: 'anonymous' | 'player' | 'admin' = 'anonymous';
   if (isAdmin) {
     docsAccountType = 'admin';

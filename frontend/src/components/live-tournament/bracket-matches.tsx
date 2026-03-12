@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { JSX as ReactJSX } from 'react';
 import type {
   LiveViewBracket,
   LiveViewMatch,
@@ -151,6 +152,313 @@ const renderRoundPairConnectors = (
   })
   .filter(Boolean);
 
+type BracketCardRenderOptions = {
+  showConnector: boolean;
+  connectorSide: 'left' | 'right';
+  tone: BracketTone;
+  isFinal?: boolean;
+  unmirrorCardContent?: boolean;
+  connectorLength?: number;
+};
+
+type RenderBracketCard = (
+  matchTournamentId: string,
+  match: BracketMatchSlot,
+  options: BracketCardRenderOptions
+) => ReactJSX.Element;
+
+type RenderRoundColumnOptions = {
+  unmirrorCardContent?: boolean;
+  forcedColumnHeight?: number;
+  connectorLengthForRound?: (roundNumber: number) => number;
+  unmirrorRoundHeader?: boolean;
+};
+
+type RenderRoundColumnContext = {
+  bracketId: string;
+  screenMode: boolean;
+  totalRounds: number;
+  baseStep: number;
+  columnHeightDefault: number;
+  roundStartTimeByRound?: Map<number, string>;
+  t: Translator;
+  bracketCardHeight: number;
+  renderBracketCard: RenderBracketCard;
+};
+
+const renderBracketRoundColumn = (
+  context: RenderRoundColumnContext,
+  matchTournamentId: string,
+  round: BracketRound,
+  index: number,
+  options?: RenderRoundColumnOptions
+) => {
+  const tone = getBracketTone(index, context.totalRounds);
+  const cardWidth = 200;
+  const connectorGap = 18;
+  const leftOffset = context.screenMode ? 0 : getRoundLeftOffset(round.roundNumber);
+  const connectorX = cardWidth + 6 + leftOffset;
+  const connectorToNext = connectorGap + 8;
+  const positions = getRoundPositions(round.roundNumber, round.matches.length, context.baseStep);
+  const columnHeight = options?.forcedColumnHeight
+    ?? Math.max(context.screenMode ? 180 : 260, context.columnHeightDefault);
+  const headerStyle = options?.unmirrorRoundHeader
+    ? { transform: 'scaleX(-1)' as const }
+    : undefined;
+
+  return (
+    <div key={`${context.bracketId}-round-${round.roundNumber}`} className={context.screenMode ? 'min-w-[208px]' : 'min-w-[220px]'}>
+      <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500" style={headerStyle}>
+        {getBracketRoundLabel(round.roundNumber, context.totalRounds, context.t)}
+      </p>
+      {context.roundStartTimeByRound?.get(round.roundNumber) && (
+        <p className="mt-1 text-[10px] text-slate-400" style={headerStyle}>
+          {context.t('live.matchStartTime')}: {context.roundStartTimeByRound.get(round.roundNumber)}
+        </p>
+      )}
+      <div className="relative mt-5" style={{ height: columnHeight }}>
+        {round.matches.map((match, matchIndex) => {
+          const top = positions[matchIndex] ?? 0;
+          return (
+            <div key={match.id} className="absolute" style={{ top, left: leftOffset }}>
+              {context.renderBracketCard(matchTournamentId, match, {
+                showConnector: true,
+                connectorSide: 'right',
+                tone,
+                isFinal: round.roundNumber === context.totalRounds,
+                ...(options?.unmirrorCardContent ? { unmirrorCardContent: true } : {}),
+                ...(options?.connectorLengthForRound
+                  ? { connectorLength: options.connectorLengthForRound(round.roundNumber) }
+                  : {}),
+              })}
+            </div>
+          );
+        })}
+        {renderRoundLines(positions, round.roundNumber, connectorX, connectorGap, context.bracketCardHeight)}
+        {renderRoundPairConnectors(
+          positions,
+          round.roundNumber,
+          connectorX,
+          connectorGap,
+          connectorToNext,
+          context.bracketCardHeight
+        )}
+      </div>
+    </div>
+  );
+};
+
+type CenteredFinalLayoutParameters = {
+  matchTournamentId: string;
+  roundsToRender: BracketRound[];
+  totalRounds: number;
+  finalRound: BracketRound;
+  baseStep: number;
+  bracketCardHeight: number;
+  screenMode: boolean;
+  t: Translator;
+  roundStartTimeByRound?: Map<number, string>;
+  roundColumnContext: RenderRoundColumnContext;
+  renderBracketCard: RenderBracketCard;
+};
+
+const renderCenteredFinalLayout = ({
+  matchTournamentId,
+  roundsToRender,
+  totalRounds,
+  finalRound,
+  baseStep,
+  bracketCardHeight,
+  screenMode,
+  t,
+  roundStartTimeByRound,
+  roundColumnContext,
+  renderBracketCard,
+}: CenteredFinalLayoutParameters) => {
+  const leftSideRounds = roundsToRender.map((round) => ({
+    roundNumber: round.roundNumber,
+    matches: round.matches.slice(0, Math.ceil(round.matches.length / 2)),
+  }));
+  const rightSideRounds = roundsToRender.map((round) => ({
+    roundNumber: round.roundNumber,
+    matches: round.matches.slice(Math.ceil(round.matches.length / 2)),
+  }));
+
+  const sideTotalRounds = Math.max(1, totalRounds - 1);
+  const sideColumnHeight = Math.max(
+    220,
+    (Math.pow(2, sideTotalRounds) - 2) * baseStep + bracketCardHeight
+  );
+
+  const centeredFinalLayout = (
+    <div className="flex items-start gap-6 min-w-[1180px]">
+      <div className="flex gap-6">
+        {leftSideRounds.map((round, index) => renderBracketRoundColumn(
+          roundColumnContext,
+          matchTournamentId,
+          round,
+          index,
+          {
+            forcedColumnHeight: sideColumnHeight,
+            connectorLengthForRound: (roundNumber) => (roundNumber === totalRounds - 1 ? 96 : 6),
+          }
+        ))}
+      </div>
+
+      <div className="flex flex-col items-center gap-1.5 min-w-[220px] pt-2">
+        <div className="flex items-center gap-2 text-amber-300">
+          <span className="text-[11px] uppercase tracking-[0.4em]">
+            {getBracketRoundLabel(totalRounds, totalRounds, t)}
+          </span>
+          <span aria-hidden="true">🏆</span>
+        </div>
+        {roundStartTimeByRound?.get(totalRounds) && (
+          <p className="text-[10px] text-slate-400">
+            {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
+          </p>
+        )}
+        <div className="relative min-w-[200px]" style={{ height: sideColumnHeight }}>
+          <div
+            className="absolute"
+            style={{
+              top: (sideColumnHeight - bracketCardHeight) / 2,
+              left: -4,
+            }}
+          >
+            {renderBracketCard(matchTournamentId, finalRound.matches[0], {
+              showConnector: false,
+              connectorSide: 'right',
+              tone: getBracketTone(totalRounds - 1, totalRounds),
+              isFinal: true,
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="scale-x-[-1]">
+        <div className="flex gap-6">
+          {rightSideRounds.map((round, index) => (
+            <div key={`right-${round.roundNumber}`}>
+              {renderBracketRoundColumn(roundColumnContext, matchTournamentId, round, index, {
+                forcedColumnHeight: sideColumnHeight,
+                unmirrorCardContent: true,
+                unmirrorRoundHeader: true,
+                connectorLengthForRound: (roundNumber) => (roundNumber === totalRounds - 1 ? 96 : 6),
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!screenMode) {
+    return (
+      <div className="mt-6 overflow-x-auto pb-6">
+        {centeredFinalLayout}
+      </div>
+    );
+  }
+
+  return (
+    <ScreenModeBracketViewport>
+      {centeredFinalLayout}
+    </ScreenModeBracketViewport>
+  );
+};
+
+type StandardBracketLayoutParameters = {
+  matchTournamentId: string;
+  roundsToRender: BracketRound[];
+  showWinnerColumn: boolean;
+  finalLeftOffset: number;
+  totalRounds: number;
+  t: Translator;
+  roundStartTimeByRound?: Map<number, string>;
+  finalRound: BracketRound | undefined;
+  screenMode: boolean;
+  columnHeightDefault: number;
+  bracketCardHeight: number;
+  roundColumnContext: RenderRoundColumnContext;
+  renderBracketCard: RenderBracketCard;
+};
+
+const renderStandardBracketLayout = ({
+  matchTournamentId,
+  roundsToRender,
+  showWinnerColumn,
+  finalLeftOffset,
+  totalRounds,
+  t,
+  roundStartTimeByRound,
+  finalRound,
+  screenMode,
+  columnHeightDefault,
+  bracketCardHeight,
+  roundColumnContext,
+  renderBracketCard,
+}: StandardBracketLayoutParameters) => {
+  const bracketContent = (
+    <div className={`flex items-start ${screenMode ? 'min-w-[820px] gap-6' : 'min-w-[960px] gap-12'}`}>
+      <div className={`flex ${screenMode ? 'gap-6' : 'gap-12'}`}>
+        {roundsToRender.map((round, index) => renderBracketRoundColumn(
+          roundColumnContext,
+          matchTournamentId,
+          round,
+          index
+        ))}
+      </div>
+      {showWinnerColumn && (
+        <div className={`flex flex-col items-center gap-3 ${screenMode ? 'min-w-[208px] pt-3' : 'min-w-[220px] pt-6'}`}>
+          <div className="flex items-center gap-2 text-amber-300" style={{ marginLeft: finalLeftOffset }}>
+            <span className="text-[11px] uppercase tracking-[0.4em]">
+              {getBracketRoundLabel(totalRounds, totalRounds, t)}
+            </span>
+            <span aria-hidden="true">🏆</span>
+          </div>
+          {roundStartTimeByRound?.get(totalRounds) && (
+            <p className="text-[10px] text-slate-400" style={{ marginLeft: finalLeftOffset }}>
+              {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
+            </p>
+          )}
+          {finalRound?.matches?.[0] && (
+            <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeightDefault) }}>
+              <div
+                className="absolute"
+                style={{
+                  top: (Math.max(screenMode ? 180 : 260, columnHeightDefault) - bracketCardHeight) / 2,
+                  left: finalLeftOffset,
+                }}
+              >
+                {renderBracketCard(matchTournamentId, finalRound.matches[0], {
+                  showConnector: false,
+                  connectorSide: 'right',
+                  tone: getBracketTone(totalRounds - 1, totalRounds),
+                  isFinal: true,
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!screenMode) {
+    return (
+      <div className="mt-6 overflow-x-auto pb-6">
+        {bracketContent}
+      </div>
+    );
+  }
+
+  return (
+    <ScreenModeBracketViewport>
+      {bracketContent}
+    </ScreenModeBracketViewport>
+  );
+};
+
 type BracketMatchesProperties = {
   t: Translator;
   tournamentId: string;
@@ -211,12 +519,12 @@ const BracketMatches = ({
 }: BracketMatchesProperties) => {
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (globalThis.window === undefined) {
       return;
     }
 
     const scrollToHashMatch = () => {
-      const hash = window.location.hash.replace(/^#/, '');
+      const hash = globalThis.window.location.hash.replace(/^#/, '');
       if (!hash) {
         return;
       }
@@ -234,10 +542,10 @@ const BracketMatches = ({
     };
 
     scrollToHashMatch();
-    window.addEventListener('hashchange', scrollToHashMatch);
+    globalThis.window.addEventListener('hashchange', scrollToHashMatch);
 
     return () => {
-      window.removeEventListener('hashchange', scrollToHashMatch);
+      globalThis.window.removeEventListener('hashchange', scrollToHashMatch);
     };
   }, [bracket.id, tournamentId]);
 
@@ -412,14 +720,7 @@ const BracketMatches = ({
   const renderBracketCard = (
     matchTournamentId: string,
     match: BracketMatchSlot,
-    options: {
-      showConnector: boolean;
-      connectorSide: 'left' | 'right';
-      tone: BracketTone;
-      isFinal?: boolean;
-      unmirrorCardContent?: boolean;
-      connectorLength?: number;
-    }
+    options: BracketCardRenderOptions
   ) => (
     <div className="relative">
       <div
@@ -500,225 +801,61 @@ const BracketMatches = ({
       roundsToRender,
       bracketCardHeight,
       baseStep,
-      columnHeight,
       showWinnerColumn,
       finalLeftOffset,
     } = getBracketLayout(bracket, rounds, screenMode);
 
-    const renderRoundColumn = (
-      round: { roundNumber: number; matches: BracketMatchSlot[] },
-      index: number,
-      options?: {
-        unmirrorCardContent?: boolean;
-        forcedColumnHeight?: number;
-        connectorLengthForRound?: (roundNumber: number) => number;
-        unmirrorRoundHeader?: boolean;
-      }
-    ) => {
-      const tone = getBracketTone(index, totalRounds);
-      const cardWidth = 200;
-      const connectorGap = 18;
-      const leftOffset = screenMode ? 0 : getRoundLeftOffset(round.roundNumber);
-      const connectorX = cardWidth + 6 + leftOffset;
-      const connectorToNext = connectorGap + 8;
-      const positions = getRoundPositions(round.roundNumber, round.matches.length, baseStep);
-      const columnHeight = options?.forcedColumnHeight ?? Math.max(screenMode ? 180 : 260, columnHeightDefault);
-      const headerStyle = options?.unmirrorRoundHeader
-        ? { transform: 'scaleX(-1)' as const }
-        : undefined;
-      return (
-        <div key={`${bracket.id}-round-${round.roundNumber}`} className={screenMode ? 'min-w-[208px]' : 'min-w-[220px]'}>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500" style={headerStyle}>
-            {getBracketRoundLabel(round.roundNumber, totalRounds, t)}
-          </p>
-          {roundStartTimeByRound?.get(round.roundNumber) && (
-            <p className="mt-1 text-[10px] text-slate-400" style={headerStyle}>
-              {t('live.matchStartTime')}: {roundStartTimeByRound.get(round.roundNumber)}
-            </p>
-          )}
-          <div className="relative mt-5" style={{ height: columnHeight }}>
-            {round.matches.map((match, matchIndex) => {
-              const top = positions[matchIndex] ?? 0;
-              return (
-                <div key={match.id} className="absolute" style={{ top, left: leftOffset }}>
-                  {renderBracketCard(matchTournamentId, match, {
-                    showConnector: true,
-                    connectorSide: 'right',
-                    tone,
-                    isFinal: round.roundNumber === totalRounds,
-                    ...(options?.unmirrorCardContent ? { unmirrorCardContent: true } : {}),
-                    ...(options?.connectorLengthForRound
-                      ? { connectorLength: options.connectorLengthForRound(round.roundNumber) }
-                      : {}),
-                  })}
-                </div>
-              );
-            })}
-            {renderRoundLines(positions, round.roundNumber, connectorX, connectorGap, bracketCardHeight)}
-            {renderRoundPairConnectors(
-              positions,
-              round.roundNumber,
-              connectorX,
-              connectorGap,
-              connectorToNext,
-              bracketCardHeight
-            )}
-          </div>
-        </div>
-      );
+    const columnHeightDefault = (Math.pow(2, totalRounds) - 2) * baseStep + bracketCardHeight;
+    const roundColumnContext: RenderRoundColumnContext = {
+      bracketId: bracket.id,
+      screenMode,
+      totalRounds,
+      baseStep,
+      columnHeightDefault,
+      roundStartTimeByRound,
+      t,
+      bracketCardHeight,
+      renderBracketCard,
     };
 
-    const columnHeightDefault = (Math.pow(2, totalRounds) - 2) * baseStep + bracketCardHeight;
-
     const shouldUseCenteredFinalScreenLayout = screenMode && showWinnerColumn && roundsToRender.length >= 1;
-
     if (shouldUseCenteredFinalScreenLayout && finalRound?.matches?.[0]) {
-      const leftSideRounds = roundsToRender.map((round) => ({
-        roundNumber: round.roundNumber,
-        matches: round.matches.slice(0, Math.ceil(round.matches.length / 2)),
-      }));
-      const rightSideRounds = roundsToRender.map((round) => ({
-        roundNumber: round.roundNumber,
-        matches: round.matches.slice(Math.ceil(round.matches.length / 2)),
-      }));
-
-      const sideTotalRounds = Math.max(1, totalRounds - 1);
-      const sideColumnHeight = Math.max(
-        220,
-        (Math.pow(2, sideTotalRounds) - 2) * baseStep + bracketCardHeight
-      );
-
-      const centeredFinalLayout = (
-        <div className="flex items-start gap-6 min-w-[1180px]">
-          <div className="flex gap-6">
-            {leftSideRounds.map((round, index) => renderRoundColumn(round, index, {
-              forcedColumnHeight: sideColumnHeight,
-              connectorLengthForRound: (roundNumber) => (roundNumber === totalRounds - 1 ? 96 : 6),
-            }))}
-          </div>
-
-          <div className="flex flex-col items-center gap-1.5 min-w-[220px] pt-2">
-            <div className="flex items-center gap-2 text-amber-300">
-              <span className="text-[11px] uppercase tracking-[0.4em]">
-                {getBracketRoundLabel(totalRounds, totalRounds, t)}
-              </span>
-              <span aria-hidden="true">🏆</span>
-            </div>
-            {roundStartTimeByRound?.get(totalRounds) && (
-              <p className="text-[10px] text-slate-400">
-                {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
-              </p>
-            )}
-            <div className="relative min-w-[200px]" style={{ height: sideColumnHeight }}>
-              <div
-                className="absolute"
-                style={{
-                  top: (sideColumnHeight - bracketCardHeight) / 2,
-                  left: -4,
-                }}
-              >
-                {renderBracketCard(matchTournamentId, finalRound.matches[0], {
-                  showConnector: false,
-                  connectorSide: 'right',
-                  tone: getBracketTone(totalRounds - 1, totalRounds),
-                  isFinal: true,
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="scale-x-[-1]">
-            <div className="flex gap-6">
-              {rightSideRounds.map((round, index) => (
-                <div key={`right-${round.roundNumber}`}>
-                  {renderRoundColumn(round, index, {
-                    forcedColumnHeight: sideColumnHeight,
-                    unmirrorCardContent: true,
-                    unmirrorRoundHeader: true,
-                    connectorLengthForRound: (roundNumber) => (roundNumber === totalRounds - 1 ? 96 : 6),
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-
-      if (!screenMode) {
-        return (
-          <div className="mt-6 overflow-x-auto pb-6">
-            {centeredFinalLayout}
-          </div>
-        );
-      }
-
-      return (
-        <ScreenModeBracketViewport>
-          {centeredFinalLayout}
-        </ScreenModeBracketViewport>
-      );
+      return renderCenteredFinalLayout({
+        matchTournamentId,
+        roundsToRender,
+        totalRounds,
+        finalRound,
+        baseStep,
+        bracketCardHeight,
+        screenMode,
+        t,
+        roundStartTimeByRound,
+        roundColumnContext,
+        renderBracketCard,
+      });
     }
 
-    const bracketContent = (
-      <div className={`flex items-start ${screenMode ? 'min-w-[820px] gap-6' : 'min-w-[960px] gap-12'}`}>
-        <div className={`flex ${screenMode ? 'gap-6' : 'gap-12'}`}>
-          {roundsToRender.map((round, index) => renderRoundColumn(round, index))}
-        </div>
-        {showWinnerColumn && (
-          <div className={`flex flex-col items-center gap-3 ${screenMode ? 'min-w-[208px] pt-3' : 'min-w-[220px] pt-6'}`}>
-            <div className="flex items-center gap-2 text-amber-300" style={{ marginLeft: finalLeftOffset }}>
-              <span className="text-[11px] uppercase tracking-[0.4em]">
-                {getBracketRoundLabel(totalRounds, totalRounds, t)}
-              </span>
-              <span aria-hidden="true">🏆</span>
-            </div>
-            {roundStartTimeByRound?.get(totalRounds) && (
-              <p className="text-[10px] text-slate-400" style={{ marginLeft: finalLeftOffset }}>
-                {t('live.matchStartTime')}: {roundStartTimeByRound.get(totalRounds)}
-              </p>
-            )}
-            {finalRound?.matches?.[0] && (
-                <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeightDefault) }}>
-                <div
-                  className="absolute"
-                  style={{
-                      top: (Math.max(screenMode ? 180 : 260, columnHeightDefault) - bracketCardHeight) / 2,
-                    left: finalLeftOffset,
-                  }}
-                >
-                  {renderBracketCard(matchTournamentId, finalRound.matches[0], {
-                    showConnector: false,
-                    connectorSide: 'right',
-                    tone: getBracketTone(totalRounds - 1, totalRounds),
-                    isFinal: true,
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-
-    if (!screenMode) {
-      return (
-        <div className="mt-6 overflow-x-auto pb-6">
-          {bracketContent}
-        </div>
-      );
-    }
-
-    return (
-      <ScreenModeBracketViewport>
-        {bracketContent}
-      </ScreenModeBracketViewport>
-    );
+    return renderStandardBracketLayout({
+      matchTournamentId,
+      roundsToRender,
+      showWinnerColumn,
+      finalLeftOffset,
+      totalRounds,
+      t,
+      roundStartTimeByRound,
+      finalRound,
+      screenMode,
+      columnHeightDefault,
+      bracketCardHeight,
+      roundColumnContext,
+      renderBracketCard,
+    });
   };
 
   return renderBracketMatches(tournamentId);
 };
 
-const ScreenModeBracketViewport = ({ children }: { children: JSX.Element }) => {
+const ScreenModeBracketViewport = ({ children }: { children: ReactJSX.Element }) => {
   const viewportReference = useRef<HTMLDivElement | null>(null);
   const contentReference = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
