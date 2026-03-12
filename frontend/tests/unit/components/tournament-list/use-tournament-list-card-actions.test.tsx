@@ -29,7 +29,13 @@ describe('useTournamentListCardActions', () => {
   const buildHook = (override: Record<string, unknown> = {}) => {
     const fetchTournaments = vi.fn(async () => undefined);
     const getSafeAccessToken = vi.fn(async () => 'token');
-    const visibleTournaments = [{ id: 't1', name: 'Cup' }];
+    const visibleTournaments = [{
+      id: 't1',
+      name: 'Cup',
+      status: 'OPEN',
+      totalParticipants: 16,
+      currentParticipants: 0,
+    }];
     const t = (key: string) => key;
     const { result } = renderHook(() => useTournamentListCardActions({
       t,
@@ -90,6 +96,39 @@ describe('useTournamentListCardActions', () => {
     expect(fetchTournamentPlayers).not.toHaveBeenCalled();
     expect(autoFillTournamentPlayers).not.toHaveBeenCalled();
     expect(confirmAllTournamentPlayers).not.toHaveBeenCalled();
+  });
+
+  it('returns early for autofill when tournament is not OPEN or already full', async () => {
+    const { result: closedResult } = buildHook({
+      visibleTournaments: [{
+        id: 't1',
+        name: 'Cup',
+        status: 'DRAFT',
+        totalParticipants: 16,
+        currentParticipants: 0,
+      }],
+    });
+
+    await act(async () => {
+      await closedResult.current.autoFillTournamentFromCard('t1');
+    });
+
+    const { result: fullResult } = buildHook({
+      visibleTournaments: [{
+        id: 't1',
+        name: 'Cup',
+        status: 'OPEN',
+        totalParticipants: 16,
+        currentParticipants: 16,
+      }],
+    });
+
+    await act(async () => {
+      await fullResult.current.autoFillTournamentFromCard('t1');
+    });
+
+    expect(fetchTournamentPlayers).not.toHaveBeenCalled();
+    expect(autoFillTournamentPlayers).not.toHaveBeenCalled();
   });
 
   it('handles autofill and confirm-all progress, then clears it', async () => {

@@ -211,6 +211,7 @@ const TournamentAdminActions = ({
 }: TournamentAdminActionProperties) => {
   const isAutoFillingCurrent = autoFillingTournamentId === tournament.id;
   const isConfirmingCurrent = confirmingTournamentId === tournament.id;
+  const hasAvailableSpots = (tournament.currentParticipants ?? 0) < tournament.totalParticipants;
 
   let autoFillLabel = t('edit.autoFillPlayers');
   if (isAutoFillingCurrent) {
@@ -241,7 +242,7 @@ const TournamentAdminActions = ({
           : t('tournaments.openRegistration')}
       </button>
     )}
-    {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && showOpenAutoFillAction && (
+    {normalizedStatus === 'OPEN' && hasAvailableSpots && !hideOpenSignatureAction && showOpenAutoFillAction && (
       <button
         onClick={() => onAutoFillPlayers(tournament.id)}
         disabled={isAutoFillingCurrent}

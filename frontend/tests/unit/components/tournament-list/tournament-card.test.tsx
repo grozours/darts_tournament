@@ -9,6 +9,7 @@ describe('TournamentCard', () => {
     name: 'Cup',
     format: 'SINGLE',
     totalParticipants: 16,
+    currentParticipants: 0,
     status: 'OPEN',
   };
 
@@ -227,6 +228,20 @@ describe('TournamentCard', () => {
 
     fireEvent.click(screen.getByText('edit.autoFillPlayers'));
     expect(onAutoFillPlayers).toHaveBeenCalledWith('t1');
+  });
+
+  it('hides auto-fill action when OPEN tournament is already full', () => {
+    render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="OPEN"
+        showOpenAutoFillAction
+        tournament={{ ...baseTournament, currentParticipants: 16 } as never}
+      />
+    );
+
+    expect(screen.queryByText('edit.autoFillPlayers')).not.toBeInTheDocument();
   });
 
   it('renders signature auto action for SIGNATURE admin tournaments', () => {

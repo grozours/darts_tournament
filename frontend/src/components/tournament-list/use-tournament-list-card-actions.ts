@@ -75,6 +75,12 @@ const useTournamentListCardActions = ({
       return;
     }
 
+    const normalizedStatus = tournament.status.trim().toUpperCase();
+    const hasAvailableSpots = (tournament.currentParticipants ?? 0) < tournament.totalParticipants;
+    if (normalizedStatus !== 'OPEN' || !hasAvailableSpots) {
+      return;
+    }
+
     setAutoFillingTournamentId(tournamentId);
     try {
       const token = await getSafeAccessToken();
