@@ -231,106 +231,117 @@ const TournamentAdminActions = ({
 
   return (
     <>
-    {normalizedStatus === 'DRAFT' && (
-      <button
-        onClick={() => onOpenRegistration(tournament.id)}
-        disabled={openingRegistrationId === tournament.id}
-        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        {openingRegistrationId === tournament.id
-          ? t('common.loading')
-          : t('tournaments.openRegistration')}
-      </button>
-    )}
-    {normalizedStatus === 'OPEN' && hasAvailableSpots && !hideOpenSignatureAction && showOpenAutoFillAction && (
-      <button
-        onClick={() => onAutoFillPlayers(tournament.id)}
-        disabled={isAutoFillingCurrent}
-        className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        {autoFillLabel}
-      </button>
-    )}
-    {normalizedStatus === 'OPEN' && (
-      <button
-        onClick={() => onOpenDraft(tournament.id)}
-        disabled={openingDraftId === tournament.id}
-        className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <BackEmoji />
-          <span>
-        {openingDraftId === tournament.id
-          ? t('common.loading')
-          : t('tournaments.backToDraft')}
-          </span>
-        </span>
-      </button>
-    )}
-    {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && (
-      <button
-        onClick={() => onOpenSignature(tournament.id)}
-        disabled={openingSignatureId === tournament.id}
-        className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        {openingSignatureId === tournament.id
-          ? t('common.loading')
-          : t('tournaments.openSignature')}
-      </button>
-    )}
-    {normalizedStatus === 'SIGNATURE' && (
-      <button
-        onClick={() => onOpenRegistration(tournament.id)}
-        disabled={openingRegistrationId === tournament.id}
-        className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <BackEmoji />
-          <span>
-        {openingRegistrationId === tournament.id
-          ? t('common.loading')
-          : t('tournaments.backToOpen')}
-          </span>
-        </span>
-      </button>
-    )}
-    {normalizedStatus === 'SIGNATURE' && showSignatureAutoConfirmAction && (
-      <button
-        onClick={() => onConfirmAllPlayers(tournament.id)}
-        disabled={isConfirmingCurrent}
-        className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        {autoConfirmLabel}
-      </button>
-    )}
-    {normalizedStatus === 'LIVE' && (
-      <button
-        onClick={() => onOpenSignature(tournament.id)}
-        disabled={openingSignatureId === tournament.id}
-        className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <BackEmoji />
-          <span>
-        {openingSignatureId === tournament.id
-          ? t('common.loading')
-          : t('tournaments.backToRegistration')}
-          </span>
-        </span>
-      </button>
-    )}
-    <button
-      onClick={() => onEdit(tournament)}
-      className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
-    >
-      {t('tournaments.edit')}
-    </button>
-    <button
-      onClick={() => onDelete(tournament.id)}
-      className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
-    >
-      {t('tournaments.delete')}
-    </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          onClick={() => onEdit(tournament)}
+          className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
+        >
+          {t('tournaments.edit')}
+        </button>
+        <button
+          onClick={() => onDelete(tournament.id)}
+          className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
+        >
+          {t('tournaments.delete')}
+        </button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {normalizedStatus === 'OPEN' && (
+          <button
+            onClick={() => onOpenDraft(tournament.id)}
+            disabled={openingDraftId === tournament.id}
+            className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <BackEmoji />
+              <span>
+                {openingDraftId === tournament.id
+                  ? t('common.loading')
+                  : t('tournaments.backToDraft')}
+              </span>
+            </span>
+          </button>
+        )}
+
+        {normalizedStatus === 'SIGNATURE' && (
+          <button
+            onClick={() => onOpenRegistration(tournament.id)}
+            disabled={openingRegistrationId === tournament.id}
+            className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <BackEmoji />
+              <span>
+                {openingRegistrationId === tournament.id
+                  ? t('common.loading')
+                  : t('tournaments.backToOpen')}
+              </span>
+            </span>
+          </button>
+        )}
+
+        {normalizedStatus === 'LIVE' && (
+          <button
+            onClick={() => onOpenSignature(tournament.id)}
+            disabled={openingSignatureId === tournament.id}
+            className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <BackEmoji />
+              <span>
+                {openingSignatureId === tournament.id
+                  ? t('common.loading')
+                  : t('tournaments.backToRegistration')}
+              </span>
+            </span>
+          </button>
+        )}
+
+        {normalizedStatus === 'DRAFT' && (
+          <button
+            onClick={() => onOpenRegistration(tournament.id)}
+            disabled={openingRegistrationId === tournament.id}
+            className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            {openingRegistrationId === tournament.id
+              ? t('common.loading')
+              : t('tournaments.openRegistration')}
+          </button>
+        )}
+
+        {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && (
+          <button
+            onClick={() => onOpenSignature(tournament.id)}
+            disabled={openingSignatureId === tournament.id}
+            className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            {openingSignatureId === tournament.id
+              ? t('common.loading')
+              : t('tournaments.openSignature')}
+          </button>
+        )}
+
+        {normalizedStatus === 'SIGNATURE' && showSignatureAutoConfirmAction && (
+          <button
+            onClick={() => onConfirmAllPlayers(tournament.id)}
+            disabled={isConfirmingCurrent}
+            className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            {autoConfirmLabel}
+          </button>
+        )}
+
+        {normalizedStatus === 'OPEN' && hasAvailableSpots && !hideOpenSignatureAction && showOpenAutoFillAction && (
+          <button
+            onClick={() => onAutoFillPlayers(tournament.id)}
+            disabled={isAutoFillingCurrent}
+            className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            {autoFillLabel}
+          </button>
+        )}
+      </div>
     </>
   );
 };
@@ -541,22 +552,8 @@ const TournamentCard = ({
       </div>
     </div>
 
-    <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-        <p className="text-xs uppercase tracking-widest text-slate-500">{participantLabel}</p>
-        <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
-        <p className="mt-1 text-xs text-slate-400">
-          {t('tournaments.registered')}: {tournament.currentParticipants ?? 0}
-        </p>
-      </div>
-      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-        <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
-        <p className="mt-2 text-lg font-semibold text-white">{statusLabel}</p>
-      </div>
-    </div>
-
     {!showWaitingSignature && (
-      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+      <div className="mt-5 flex flex-wrap gap-2">
         <a
           href={registeredViewHref}
           className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 sm:w-auto"
@@ -577,6 +574,43 @@ const TournamentCard = ({
             {t('nav.bracketsShort')}
           </a>
         )}
+      </div>
+    )}
+
+    <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+        <p className="text-xs uppercase tracking-widest text-slate-500">{participantLabel}</p>
+        <p className="mt-2 text-lg font-semibold text-white">{tournament.totalParticipants}</p>
+        <p className="mt-1 text-xs text-slate-400">
+          {t('tournaments.registered')}: {tournament.currentParticipants ?? 0}
+        </p>
+        {!showWaitingSignature && (
+          <div className="mt-3">
+            <TournamentRegistrationActions
+              tournamentFormat={tournament.format}
+              tournamentId={tournamentId}
+              isAdmin={isAdmin}
+              registeringTournamentId={registeringTournamentId}
+              showRegistrationActions={showRegistrationActions}
+              isRegistered={isRegistered}
+              userGroupStatus={userGroupStatus}
+              onRegister={onRegister}
+              onRegisterGroup={onRegisterGroup}
+              onUnregisterGroup={onUnregisterGroup}
+              onUnregister={onUnregister}
+              t={t}
+            />
+          </div>
+        )}
+      </div>
+      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+        <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
+        <p className="mt-2 text-lg font-semibold text-white">{statusLabel}</p>
+      </div>
+    </div>
+
+    {!showWaitingSignature && (
+      <div className="mt-3">
         {normalizedStatus === 'LIVE' && (
           <a
             href={liveViewPath}
@@ -616,20 +650,6 @@ const TournamentCard = ({
             {t('tournaments.delete')}
           </button>
         )}
-        <TournamentRegistrationActions
-          tournamentFormat={tournament.format}
-          tournamentId={tournamentId}
-            isAdmin={isAdmin}
-          registeringTournamentId={registeringTournamentId}
-          showRegistrationActions={showRegistrationActions}
-          isRegistered={isRegistered}
-          userGroupStatus={userGroupStatus}
-          onRegister={onRegister}
-          onRegisterGroup={onRegisterGroup}
-            onUnregisterGroup={onUnregisterGroup}
-          onUnregister={onUnregister}
-          t={t}
-        />
       </div>
     )}
   </div>
