@@ -337,6 +337,12 @@ const readFeedbackPreference = (key: string, fallbackValue: boolean): boolean =>
     if (raw === null || raw === undefined) {
       return fallbackValue;
     }
+    if (raw === 'true') {
+      return true;
+    }
+    if (raw === 'false') {
+      return false;
+    }
     return raw === '1';
   } catch {
     return fallbackValue;
@@ -347,6 +353,52 @@ const playNotificationTone = async () => {
   await playBellNotificationTone();
 };
 
+type VibrationCapableNavigator = Navigator & {
+  webkitVibrate?: (pattern: number | number[]) => boolean;
+};
+
+const triggerDeviceVibration = () => {
+  const navigatorReference = globalThis.navigator as VibrationCapableNavigator | undefined;
+  if (!navigatorReference) {
+    return;
+  }
+
+  let vibrate: ((pattern: number | number[]) => boolean) | undefined;
+  if (typeof navigatorReference.vibrate === 'function') {
+    vibrate = navigatorReference.vibrate.bind(navigatorReference);
+  } else if (typeof navigatorReference.webkitVibrate === 'function') {
+    vibrate = navigatorReference.webkitVibrate.bind(navigatorReference);
+  }
+
+  if (!vibrate) {
+    return;
+  }
+
+  try {
+    const didStart = vibrate([260, 90, 260]);
+    if (!didStart) {
+      globalThis.window?.setTimeout(() => {
+        try {
+          vibrate(320);
+        } catch {
+          void 0;
+        }
+      }, 140);
+      return;
+    }
+
+    globalThis.window?.setTimeout(() => {
+      try {
+        vibrate(120);
+      } catch {
+        void 0;
+      }
+    }, 430);
+  } catch {
+    void 0;
+  }
+};
+
 const triggerNotificationFeedback = () => {
   const audioEnabled = readFeedbackPreference(NOTIFICATIONS_AUDIO_ENABLED_KEY, true);
   if (audioEnabled) {
@@ -354,8 +406,8 @@ const triggerNotificationFeedback = () => {
   }
 
   const vibrationEnabled = readFeedbackPreference(NOTIFICATIONS_VIBRATION_ENABLED_KEY, false);
-  if (vibrationEnabled && typeof globalThis.navigator?.vibrate === 'function') {
-    globalThis.navigator.vibrate([110, 50, 110]);
+  if (vibrationEnabled) {
+    triggerDeviceVibration();
   }
 };
 
@@ -522,13 +574,18 @@ const useMatchStartedNotifications = () => {
     if (!canShowBrowserNotifications()) {
       return;
     }
+    const vibrationEnabled = readFeedbackPreference(NOTIFICATIONS_VIBRATION_ENABLED_KEY, false);
     const targetLabel = formatTargetLabel(payload);
     const matchLabel = buildMatchLabel(payload);
     const scoreSummary = buildScoreSummary(payload);
     const title = buildBrowserNotificationTitle(payload, targetLabel, t);
     const body = buildBrowserNotificationBody(payload, matchLabel, scoreSummary, t);
     try {
-      new Notification(title, { body });
+      const options: NotificationOptions = {
+        body,
+        ...(vibrationEnabled ? { vibrate: [110, 50, 110] } : {}),
+      };
+      new Notification(title, options);
     } catch {
       void 0;
     }

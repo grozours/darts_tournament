@@ -34,6 +34,12 @@ const readAlertPreference = (key: string, fallbackValue: boolean): boolean => {
     if (raw === null || raw === undefined) {
       return fallbackValue;
     }
+    if (raw === 'true') {
+      return true;
+    }
+    if (raw === 'false') {
+      return false;
+    }
     return raw === '1';
   } catch {
     return fallbackValue;
@@ -50,6 +56,52 @@ const writeAlertPreference = (key: string, enabled: boolean) => {
 
 const unlockAudioOutput = async (): Promise<void> => {
   await playBellNotificationTone({ preview: true });
+};
+
+type VibrationCapableNavigator = Navigator & {
+  webkitVibrate?: (pattern: number | number[]) => boolean;
+};
+
+const triggerDeviceVibration = () => {
+  const navigatorReference = globalThis.navigator as VibrationCapableNavigator | undefined;
+  if (!navigatorReference) {
+    return;
+  }
+
+  let vibrate: ((pattern: number | number[]) => boolean) | undefined;
+  if (typeof navigatorReference.vibrate === 'function') {
+    vibrate = navigatorReference.vibrate.bind(navigatorReference);
+  } else if (typeof navigatorReference.webkitVibrate === 'function') {
+    vibrate = navigatorReference.webkitVibrate.bind(navigatorReference);
+  }
+
+  if (!vibrate) {
+    return;
+  }
+
+  try {
+    const didStart = vibrate([260, 90, 260]);
+    if (!didStart) {
+      globalThis.window?.setTimeout(() => {
+        try {
+          vibrate(320);
+        } catch {
+          void 0;
+        }
+      }, 140);
+      return;
+    }
+
+    globalThis.window?.setTimeout(() => {
+      try {
+        vibrate(120);
+      } catch {
+        void 0;
+      }
+    }, 430);
+  } catch {
+    void 0;
+  }
 };
 
 type TournamentSummary = {
@@ -298,7 +350,7 @@ function NotificationsView() {
     setVibrationAlertsEnabled(next);
     writeAlertPreference(NOTIFICATIONS_VIBRATION_ENABLED_KEY, next);
     if (next && vibrationSupported) {
-      globalThis.navigator.vibrate(80);
+      triggerDeviceVibration();
     }
   }, [vibrationAlertsEnabled, vibrationSupported]);
 
