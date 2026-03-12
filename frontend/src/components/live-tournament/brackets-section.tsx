@@ -335,8 +335,8 @@ const renderScreenModeBrackets = ({
   >;
 }) => (
   <div className="space-y-3">
-    <p className="text-xs uppercase tracking-[0.3em] text-amber-300/80">{context.activeBracket.name}</p>
-    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+    <p className="w-full text-sm uppercase tracking-[0.26em] text-amber-300/90 text-center">{context.activeBracket.name}</p>
+    <div className="flex w-full flex-wrap items-center justify-center gap-1.5 text-[11px]">
       <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-cyan-200">
         {context.activeBracket.bracketType}
       </span>
