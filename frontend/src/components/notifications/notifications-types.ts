@@ -65,4 +65,6 @@ export type NotificationItem = {
 };
 
 export const NOTIFICATIONS_STORAGE_KEY = 'notifications:match-started';
+export const NOTIFICATIONS_AUDIO_ENABLED_KEY = 'notifications:audio-enabled';
+export const NOTIFICATIONS_VIBRATION_ENABLED_KEY = 'notifications:vibration-enabled';
 export const STORAGE_LIMIT = 50;

@@ -7,9 +7,12 @@ import {
   type MatchFinishedPayload,
   type MatchNotificationPayload,
   type MatchStartedPayload,
+  NOTIFICATIONS_AUDIO_ENABLED_KEY,
   NOTIFICATIONS_STORAGE_KEY,
+  NOTIFICATIONS_VIBRATION_ENABLED_KEY,
   STORAGE_LIMIT,
 } from './notifications-types';
+import { playBellNotificationTone } from '../../utils/notification-audio';
 
 type TournamentSummary = {
   id: string;
@@ -298,6 +301,34 @@ const canShowBrowserNotifications = () => (
   && Notification.permission === 'granted'
 );
 
+const readFeedbackPreference = (key: string, fallbackValue: boolean): boolean => {
+  try {
+    const raw = globalThis.window?.localStorage.getItem(key);
+    if (raw === null || raw === undefined) {
+      return fallbackValue;
+    }
+    return raw === '1';
+  } catch {
+    return fallbackValue;
+  }
+};
+
+const playNotificationTone = async () => {
+  await playBellNotificationTone();
+};
+
+const triggerNotificationFeedback = () => {
+  const audioEnabled = readFeedbackPreference(NOTIFICATIONS_AUDIO_ENABLED_KEY, true);
+  if (audioEnabled) {
+    void playNotificationTone();
+  }
+
+  const vibrationEnabled = readFeedbackPreference(NOTIFICATIONS_VIBRATION_ENABLED_KEY, false);
+  if (vibrationEnabled && typeof globalThis.navigator?.vibrate === 'function') {
+    globalThis.navigator.vibrate([110, 50, 110]);
+  }
+};
+
 const buildBrowserNotificationTitle = (
   payload: MatchNotificationPayload,
   targetLabel: string,
@@ -378,6 +409,7 @@ const attachMatchSocketHandlers = (
       return;
     }
     appendNotificationEntry(payload);
+    triggerNotificationFeedback();
     maybeShowBrowserNotification(payload);
   };
 

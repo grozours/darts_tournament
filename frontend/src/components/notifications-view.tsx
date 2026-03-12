@@ -3,7 +3,12 @@ import SignInPanel from '../auth/sign-in-panel';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useI18n } from '../i18n';
 import type { MatchNotificationPayload, NotificationItem } from './notifications/notifications-types';
-import { NOTIFICATIONS_STORAGE_KEY } from './notifications/notifications-types';
+import {
+  NOTIFICATIONS_AUDIO_ENABLED_KEY,
+  NOTIFICATIONS_STORAGE_KEY,
+  NOTIFICATIONS_VIBRATION_ENABLED_KEY,
+} from './notifications/notifications-types';
+import { playBellNotificationTone } from '../utils/notification-audio';
 
 const NOTIFICATION_PERMISSION_REQUESTED_KEY = 'notifications:permission-requested';
 
@@ -21,6 +26,30 @@ const markNotificationPermissionAsRequested = () => {
   } catch {
     void 0;
   }
+};
+
+const readAlertPreference = (key: string, fallbackValue: boolean): boolean => {
+  try {
+    const raw = globalThis.window?.localStorage.getItem(key);
+    if (raw === null || raw === undefined) {
+      return fallbackValue;
+    }
+    return raw === '1';
+  } catch {
+    return fallbackValue;
+  }
+};
+
+const writeAlertPreference = (key: string, enabled: boolean) => {
+  try {
+    globalThis.window?.localStorage.setItem(key, enabled ? '1' : '0');
+  } catch {
+    void 0;
+  }
+};
+
+const unlockAudioOutput = async (): Promise<void> => {
+  await playBellNotificationTone({ preview: true });
 };
 
 type TournamentSummary = {
@@ -133,7 +162,14 @@ function NotificationsView() {
   const connected = authEnabled && isAuthenticated;
   const [notificationPermission, setNotificationPermission] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [joinedTournaments, setJoinedTournaments] = useState<string[]>([]);
+  const [audioAlertsEnabled, setAudioAlertsEnabled] = useState<boolean>(() =>
+    readAlertPreference(NOTIFICATIONS_AUDIO_ENABLED_KEY, true)
+  );
+  const [vibrationAlertsEnabled, setVibrationAlertsEnabled] = useState<boolean>(() =>
+    readAlertPreference(NOTIFICATIONS_VIBRATION_ENABLED_KEY, false)
+  );
   const permissionReference = useRef<'default' | 'granted' | 'denied' | 'unsupported'>('default');
+  const vibrationSupported = typeof globalThis.navigator?.vibrate === 'function';
 
   const persistNotifications = useCallback((items: NotificationItem[]) => {
     try {
@@ -225,6 +261,9 @@ function NotificationsView() {
 
   const requestBrowserNotifications = useCallback(async () => {
     markNotificationPermissionAsRequested();
+    writeAlertPreference(NOTIFICATIONS_AUDIO_ENABLED_KEY, true);
+    setAudioAlertsEnabled(true);
+    await unlockAudioOutput();
 
     if (!('Notification' in globalThis.window)) {
       setNotificationPermission('unsupported');
@@ -244,6 +283,24 @@ function NotificationsView() {
       void 0;
     }
   }, []);
+
+  const toggleAudioAlerts = useCallback(async () => {
+    const next = !audioAlertsEnabled;
+    setAudioAlertsEnabled(next);
+    writeAlertPreference(NOTIFICATIONS_AUDIO_ENABLED_KEY, next);
+    if (next) {
+      await unlockAudioOutput();
+    }
+  }, [audioAlertsEnabled]);
+
+  const toggleVibrationAlerts = useCallback(() => {
+    const next = !vibrationAlertsEnabled;
+    setVibrationAlertsEnabled(next);
+    writeAlertPreference(NOTIFICATIONS_VIBRATION_ENABLED_KEY, next);
+    if (next && vibrationSupported) {
+      globalThis.navigator.vibrate(80);
+    }
+  }, [vibrationAlertsEnabled, vibrationSupported]);
 
   useEffect(() => {
     const updateNotifications = () => {
@@ -437,6 +494,32 @@ function NotificationsView() {
               <p className="mt-1 text-xs text-slate-400">
                 {permissionMessage}
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-300">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={audioAlertsEnabled}
+                    onChange={() => {
+                      void toggleAudioAlerts();
+                    }}
+                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+                  />
+                  {t('notifications.audioAlertsLabel')}
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={vibrationAlertsEnabled}
+                    disabled={!vibrationSupported}
+                    onChange={toggleVibrationAlerts}
+                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 disabled:opacity-50"
+                  />
+                  {t('notifications.vibrationAlertsLabel')}
+                </label>
+                {!vibrationSupported && (
+                  <span className="text-slate-500">{t('notifications.vibrationUnsupported')}</span>
+                )}
+              </div>
             </div>
             {canRequestPermission && (
               <button
