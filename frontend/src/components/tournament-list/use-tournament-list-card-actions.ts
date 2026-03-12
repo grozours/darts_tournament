@@ -19,12 +19,27 @@ const useTournamentListCardActions = ({
   getSafeAccessToken,
   fetchTournaments,
 }: UseTournamentListCardActionsProperties) => {
+  const [openingDraftId, setOpeningDraftId] = useState<string | undefined>();
   const [openingRegistrationId, setOpeningRegistrationId] = useState<string | undefined>();
   const [openingSignatureId, setOpeningSignatureId] = useState<string | undefined>();
   const [autoFillingTournamentId, setAutoFillingTournamentId] = useState<string | undefined>();
   const [confirmingTournamentId, setConfirmingTournamentId] = useState<string | undefined>();
   const [autoFillProgressByTournament, setAutoFillProgressByTournament] = useState<ProgressState>({});
   const [confirmAllProgressByTournament, setConfirmAllProgressByTournament] = useState<ProgressState>({});
+
+  const openDraftFromCard = useCallback(async (tournamentId: string) => {
+    setOpeningDraftId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      await updateTournamentStatus(tournamentId, 'DRAFT', token);
+      navigateWithinApp('/?status=DRAFT');
+      await fetchTournaments();
+    } catch (error_) {
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedMoveToDraft'));
+    } finally {
+      setOpeningDraftId(undefined);
+    }
+  }, [fetchTournaments, getSafeAccessToken, t]);
 
   const openRegistrationFromCard = useCallback(async (tournamentId: string) => {
     setOpeningRegistrationId(tournamentId);
@@ -121,12 +136,14 @@ const useTournamentListCardActions = ({
   }, [fetchTournaments, getSafeAccessToken, t, visibleTournaments]);
 
   return {
+    openingDraftId,
     openingRegistrationId,
     openingSignatureId,
     autoFillingTournamentId,
     confirmingTournamentId,
     autoFillProgressByTournament,
     confirmAllProgressByTournament,
+    openDraftFromCard,
     openRegistrationFromCard,
     openSignatureFromCard,
     autoFillTournamentFromCard,

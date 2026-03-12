@@ -147,6 +147,24 @@ describe('status-handlers', () => {
     expect(logger.tournamentStatusChanged).toHaveBeenCalled();
   });
 
+  it('allows transition from LIVE back to SIGNATURE', async () => {
+    const { handlers, tournamentModel, logger } = buildContext();
+    tournamentModel.findById.mockResolvedValue({ ...baseTournament, status: TournamentStatus.LIVE });
+    tournamentModel.updateStatus.mockResolvedValue({ ...baseTournament, status: TournamentStatus.SIGNATURE });
+
+    await expect(handlers.transitionTournamentStatus('t1', TournamentStatus.SIGNATURE)).resolves.toMatchObject({
+      status: TournamentStatus.SIGNATURE,
+    });
+
+    expect(tournamentModel.updateStatus).toHaveBeenCalledWith('t1', TournamentStatus.SIGNATURE, undefined);
+    expect(logger.tournamentStatusChanged).toHaveBeenCalledWith(
+      't1',
+      'Tournament',
+      TournamentStatus.LIVE,
+      TournamentStatus.SIGNATURE
+    );
+  });
+
   it('logs and rethrows unexpected errors', async () => {
     const { handlers, tournamentModel, logger } = buildContext();
     tournamentModel.findById.mockResolvedValue({

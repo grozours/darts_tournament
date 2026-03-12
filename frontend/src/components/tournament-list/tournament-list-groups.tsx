@@ -18,12 +18,14 @@ type TournamentListGroupsProperties = {
   showOpenAutoFillAction?: boolean;
   showSignatureAutoConfirmAction?: boolean;
   registeringTournamentId: string | undefined;
+  openingDraftId: string | undefined;
   openingRegistrationId: string | undefined;
   openingSignatureId: string | undefined;
   autoFillingTournamentId: string | undefined;
   confirmingTournamentId: string | undefined;
   autoFillProgressByTournament: Partial<Record<string, { current: number; total: number }>> | undefined;
   confirmAllProgressByTournament: Partial<Record<string, { current: number; total: number }>> | undefined;
+  onOpenDraft: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -48,6 +50,7 @@ const TournamentListGroups = ({
   showOpenAutoFillAction = false,
   showSignatureAutoConfirmAction = false,
   registeringTournamentId,
+  openingDraftId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
@@ -60,6 +63,7 @@ const TournamentListGroups = ({
   onRegisterGroup,
   onUnregisterGroup,
   onUnregister,
+  onOpenDraft,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -104,6 +108,7 @@ const TournamentListGroups = ({
                   onRegisterGroup={onRegisterGroup}
                   onUnregisterGroup={onUnregisterGroup}
                   onUnregister={onUnregister}
+                  onOpenDraft={onOpenDraft}
                   onOpenRegistration={onOpenRegistration}
                   onOpenSignature={onOpenSignature}
                   onAutoFillPlayers={onAutoFillPlayers}
@@ -112,6 +117,7 @@ const TournamentListGroups = ({
                   showOpenAutoFillAction={showOpenAutoFillAction}
                   showSignatureAutoConfirmAction={showSignatureAutoConfirmAction}
                   registeringTournamentId={registeringTournamentId}
+                  openingDraftId={openingDraftId}
                   openingRegistrationId={openingRegistrationId}
                   openingSignatureId={openingSignatureId}
                   autoFillingTournamentId={autoFillingTournamentId}

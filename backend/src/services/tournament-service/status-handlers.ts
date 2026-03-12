@@ -34,7 +34,7 @@ export const createStatusHandlers = (context: StatusHandlerContext) => {
       [TournamentStatus.DRAFT]: [TournamentStatus.OPEN],
       [TournamentStatus.OPEN]: [TournamentStatus.SIGNATURE, TournamentStatus.DRAFT],
       [TournamentStatus.SIGNATURE]: [TournamentStatus.LIVE, TournamentStatus.OPEN],
-      [TournamentStatus.LIVE]: [TournamentStatus.FINISHED],
+      [TournamentStatus.LIVE]: [TournamentStatus.FINISHED, TournamentStatus.SIGNATURE],
       [TournamentStatus.FINISHED]: [],
     };
 

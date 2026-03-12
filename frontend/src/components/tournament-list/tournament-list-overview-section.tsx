@@ -23,6 +23,7 @@ export type TournamentListOverviewSectionProperties = {
   onRegisterGroup: (tournamentId: string) => Promise<void>;
   onUnregisterGroup: (tournamentId: string) => Promise<void>;
   onUnregister: (tournamentId: string) => Promise<void>;
+  onOpenDraft: (tournamentId: string) => Promise<void>;
   onOpenRegistration: (tournamentId: string) => Promise<void>;
   onOpenSignature: (tournamentId: string) => Promise<void>;
   onAutoFillPlayers: (tournamentId: string) => Promise<void>;
@@ -30,6 +31,7 @@ export type TournamentListOverviewSectionProperties = {
   hideOpenSignatureAction: boolean;
   showOpenAutoFillAction: boolean;
   showSignatureAutoConfirmAction: boolean;
+  openingDraftId: string | undefined;
   openingRegistrationId: string | undefined;
   openingSignatureId: string | undefined;
   autoFillingTournamentId: string | undefined;
@@ -54,6 +56,7 @@ const TournamentListOverviewSection = ({
   onRegisterGroup,
   onUnregisterGroup,
   onUnregister,
+  onOpenDraft,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -61,6 +64,7 @@ const TournamentListOverviewSection = ({
   hideOpenSignatureAction,
   showOpenAutoFillAction,
   showSignatureAutoConfirmAction,
+  openingDraftId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
@@ -97,6 +101,7 @@ const TournamentListOverviewSection = ({
       onRegisterGroup={onRegisterGroup}
       onUnregisterGroup={onUnregisterGroup}
       onUnregister={onUnregister}
+      onOpenDraft={onOpenDraft}
       onOpenRegistration={onOpenRegistration}
       onOpenSignature={onOpenSignature}
       onAutoFillPlayers={onAutoFillPlayers}
@@ -104,6 +109,7 @@ const TournamentListOverviewSection = ({
       hideOpenSignatureAction={hideOpenSignatureAction}
       showOpenAutoFillAction={showOpenAutoFillAction}
       showSignatureAutoConfirmAction={showSignatureAutoConfirmAction}
+      openingDraftId={openingDraftId}
       openingRegistrationId={openingRegistrationId}
       openingSignatureId={openingSignatureId}
       autoFillingTournamentId={autoFillingTournamentId}

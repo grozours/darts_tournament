@@ -26,10 +26,18 @@ describe('TournamentCard', () => {
     onRegisterGroup: vi.fn(),
     onUnregisterGroup: vi.fn(),
     onUnregister: vi.fn(),
+    onOpenDraft: vi.fn(),
     onOpenRegistration: vi.fn(),
     onOpenSignature: vi.fn(),
     onAutoFillPlayers: vi.fn(),
     onConfirmAllPlayers: vi.fn(),
+    openingDraftId: undefined,
+    openingRegistrationId: undefined,
+    openingSignatureId: undefined,
+    autoFillingTournamentId: undefined,
+    confirmingTournamentId: undefined,
+    autoFillProgress: undefined,
+    confirmAllProgress: undefined,
     userRegistrations: new Set<string>(),
     userGroupStatus: undefined,
   };
@@ -57,6 +65,47 @@ describe('TournamentCard', () => {
     expect(onOpenRegistration).toHaveBeenCalledWith('t1');
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledWith('t1');
+  });
+
+  it('renders rollback status actions for admin on OPEN, SIGNATURE and LIVE cards', () => {
+    const onOpenDraft = vi.fn();
+    const onOpenRegistration = vi.fn();
+    const onOpenSignature = vi.fn();
+    const { rerender } = render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="OPEN"
+        onOpenDraft={onOpenDraft}
+      />
+    );
+
+    fireEvent.click(screen.getByText('tournaments.backToDraft'));
+    expect(onOpenDraft).toHaveBeenCalledWith('t1');
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="SIGNATURE"
+        onOpenRegistration={onOpenRegistration}
+      />
+    );
+
+    fireEvent.click(screen.getByText('tournaments.backToOpen'));
+    expect(onOpenRegistration).toHaveBeenCalledWith('t1');
+
+    rerender(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        normalizedStatus="LIVE"
+        onOpenSignature={onOpenSignature}
+      />
+    );
+
+    fireEvent.click(screen.getByText('tournaments.backToRegistration'));
+    expect(onOpenSignature).toHaveBeenCalledWith('t1');
   });
 
   it('renders unregister action for authenticated registered player', () => {

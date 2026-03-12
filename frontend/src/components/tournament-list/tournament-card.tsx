@@ -16,6 +16,7 @@ export type TournamentCardProperties = {
   onRegisterGroup: (tournamentId: string) => void;
   onUnregisterGroup: (tournamentId: string) => void;
   onUnregister: (tournamentId: string) => void;
+  onOpenDraft: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -24,6 +25,7 @@ export type TournamentCardProperties = {
   showOpenAutoFillAction?: boolean;
   showSignatureAutoConfirmAction?: boolean;
   registeringTournamentId: string | undefined;
+  openingDraftId: string | undefined;
   openingRegistrationId: string | undefined;
   openingSignatureId: string | undefined;
   autoFillingTournamentId: string | undefined;
@@ -37,12 +39,14 @@ export type TournamentCardProperties = {
 type TournamentAdminActionProperties = {
   tournament: Tournament;
   normalizedStatus: string;
+  openingDraftId: string | undefined;
   openingRegistrationId: string | undefined;
   openingSignatureId: string | undefined;
   autoFillingTournamentId: string | undefined;
   confirmingTournamentId: string | undefined;
   autoFillProgress: { current: number; total: number } | undefined;
   confirmAllProgress: { current: number; total: number } | undefined;
+  onOpenDraft: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -105,6 +109,17 @@ const getGroupRegisterLabel = ({
   }
   return tournamentFormat === 'DOUBLE' ? t('groups.registerDoublette') : t('groups.registerEquipe');
 };
+
+const BACK_EMOJI_DATA_URI = 'data:image/png;base64,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';
+
+const BackEmoji = () => (
+  <img
+    src={BACK_EMOJI_DATA_URI}
+    alt=""
+    aria-hidden="true"
+    className="h-4 w-4"
+  />
+);
 
 const GroupRegistrationAction = ({
   tournamentFormat,
@@ -175,12 +190,14 @@ const GroupRegistrationAction = ({
 const TournamentAdminActions = ({
   tournament,
   normalizedStatus,
+  openingDraftId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
   confirmingTournamentId,
   autoFillProgress,
   confirmAllProgress,
+  onOpenDraft,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -233,6 +250,22 @@ const TournamentAdminActions = ({
         {autoFillLabel}
       </button>
     )}
+    {normalizedStatus === 'OPEN' && (
+      <button
+        onClick={() => onOpenDraft(tournament.id)}
+        disabled={openingDraftId === tournament.id}
+        className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <BackEmoji />
+          <span>
+        {openingDraftId === tournament.id
+          ? t('common.loading')
+          : t('tournaments.backToDraft')}
+          </span>
+        </span>
+      </button>
+    )}
     {normalizedStatus === 'OPEN' && !hideOpenSignatureAction && (
       <button
         onClick={() => onOpenSignature(tournament.id)}
@@ -244,6 +277,22 @@ const TournamentAdminActions = ({
           : t('tournaments.openSignature')}
       </button>
     )}
+    {normalizedStatus === 'SIGNATURE' && (
+      <button
+        onClick={() => onOpenRegistration(tournament.id)}
+        disabled={openingRegistrationId === tournament.id}
+        className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <BackEmoji />
+          <span>
+        {openingRegistrationId === tournament.id
+          ? t('common.loading')
+          : t('tournaments.backToOpen')}
+          </span>
+        </span>
+      </button>
+    )}
     {normalizedStatus === 'SIGNATURE' && showSignatureAutoConfirmAction && (
       <button
         onClick={() => onConfirmAllPlayers(tournament.id)}
@@ -251,6 +300,22 @@ const TournamentAdminActions = ({
         className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         {autoConfirmLabel}
+      </button>
+    )}
+    {normalizedStatus === 'LIVE' && (
+      <button
+        onClick={() => onOpenSignature(tournament.id)}
+        disabled={openingSignatureId === tournament.id}
+        className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <BackEmoji />
+          <span>
+        {openingSignatureId === tournament.id
+          ? t('common.loading')
+          : t('tournaments.backToRegistration')}
+          </span>
+        </span>
       </button>
     )}
     <button
@@ -343,6 +408,7 @@ const TournamentCard = ({
   onRegisterGroup,
   onUnregisterGroup,
   onUnregister,
+  onOpenDraft,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -351,6 +417,7 @@ const TournamentCard = ({
   showOpenAutoFillAction = false,
   showSignatureAutoConfirmAction = false,
   registeringTournamentId,
+  openingDraftId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
@@ -526,6 +593,7 @@ const TournamentCard = ({
             autoFillingTournamentId={autoFillingTournamentId}
             autoFillProgress={autoFillProgress}
             confirmAllProgress={confirmAllProgress}
+            onOpenDraft={onOpenDraft}
             onOpenRegistration={onOpenRegistration}
             onOpenSignature={onOpenSignature}
             onAutoFillPlayers={onAutoFillPlayers}

@@ -42,33 +42,41 @@ describe('useTournamentListCardActions', () => {
     return { result, fetchTournaments, getSafeAccessToken };
   };
 
-  it('opens registration and signature from card', async () => {
+  it('opens draft, registration and signature from card', async () => {
     updateTournamentStatus.mockResolvedValue(undefined);
     const { result, fetchTournaments } = buildHook();
 
     await act(async () => {
+      await result.current.openDraftFromCard('t1');
       await result.current.openRegistrationFromCard('t1');
       await result.current.openSignatureFromCard('t1');
     });
 
-    expect(updateTournamentStatus).toHaveBeenNthCalledWith(1, 't1', 'OPEN', 'token');
-    expect(updateTournamentStatus).toHaveBeenNthCalledWith(2, 't1', 'SIGNATURE', 'token');
-    expect(fetchTournaments).toHaveBeenCalledTimes(2);
+    expect(updateTournamentStatus).toHaveBeenNthCalledWith(1, 't1', 'DRAFT', 'token');
+    expect(updateTournamentStatus).toHaveBeenNthCalledWith(2, 't1', 'OPEN', 'token');
+    expect(updateTournamentStatus).toHaveBeenNthCalledWith(3, 't1', 'SIGNATURE', 'token');
+    expect(fetchTournaments).toHaveBeenCalledTimes(3);
+    expect(result.current.openingDraftId).toBeUndefined();
     expect(result.current.openingRegistrationId).toBeUndefined();
     expect(result.current.openingSignatureId).toBeUndefined();
   });
 
   it('shows translated fallback alerts for non-Error failures', async () => {
-    updateTournamentStatus.mockRejectedValueOnce('boom').mockRejectedValueOnce('boom');
+    updateTournamentStatus
+      .mockRejectedValueOnce('boom')
+      .mockRejectedValueOnce('boom')
+      .mockRejectedValueOnce('boom');
     const { result } = buildHook();
 
     await act(async () => {
+      await result.current.openDraftFromCard('t1');
       await result.current.openRegistrationFromCard('t1');
       await result.current.openSignatureFromCard('t1');
     });
 
-    expect(globalThis.alert).toHaveBeenNthCalledWith(1, 'edit.error.failedOpenRegistration');
-    expect(globalThis.alert).toHaveBeenNthCalledWith(2, 'edit.error.failedMoveToSignature');
+    expect(globalThis.alert).toHaveBeenNthCalledWith(1, 'edit.error.failedMoveToDraft');
+    expect(globalThis.alert).toHaveBeenNthCalledWith(2, 'edit.error.failedOpenRegistration');
+    expect(globalThis.alert).toHaveBeenNthCalledWith(3, 'edit.error.failedMoveToSignature');
   });
 
   it('returns early when tournament is not visible', async () => {
