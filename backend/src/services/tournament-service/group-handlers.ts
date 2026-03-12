@@ -717,16 +717,20 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(doubletteId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
+    const isAdmin = context.isAdminAction();
     const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!doublette) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
     }
 
+    const actorPlayerId = isAdmin
+      ? (doublette.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     requireCaptainOrAdmin(
       context,
       doublette.captainPlayerId,
-      actorPlayer.id,
+      actorPlayerId,
       'DOUBLETTE_CAPTAIN_REQUIRED',
       'Only the captain can delete this doublette'
     );
@@ -842,6 +846,15 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     }
 
     await context.tournamentModel.removeDoubletteMember(doubletteId, playerId);
+
+    const remainingDoubletteMembership = await context.tournamentModel.findDoubletteMembershipByPlayer(
+      tournamentId,
+      playerId
+    );
+    if (!remainingDoubletteMembership) {
+      await context.tournamentModel.unregisterPlayer(tournamentId, playerId);
+    }
+
     const updated = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!updated) {
       throw new AppError('Doublette not found', 404, 'DOUBLETTE_NOT_FOUND');
@@ -1149,16 +1162,20 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(equipeId);
 
-    const actorPlayer = await getActorPlayer(context, tournamentId);
+    const isAdmin = context.isAdminAction();
     const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!equipe) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');
     }
 
+    const actorPlayerId = isAdmin
+      ? (equipe.captainPlayerId ?? '')
+      : (await getActorPlayer(context, tournamentId)).id;
+
     requireCaptainOrAdmin(
       context,
       equipe.captainPlayerId,
-      actorPlayer.id,
+      actorPlayerId,
       'EQUIPE_CAPTAIN_REQUIRED',
       'Only the captain can delete this equipe'
     );
@@ -1269,6 +1286,15 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     }
 
     await context.tournamentModel.removeEquipeMember(equipeId, playerId);
+
+    const remainingEquipeMembership = await context.tournamentModel.findEquipeMembershipByPlayer(
+      tournamentId,
+      playerId
+    );
+    if (!remainingEquipeMembership) {
+      await context.tournamentModel.unregisterPlayer(tournamentId, playerId);
+    }
+
     const updated = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!updated) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');

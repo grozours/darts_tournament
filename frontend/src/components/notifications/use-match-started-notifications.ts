@@ -34,6 +34,30 @@ type TournamentGroupResponse = {
   }>;
 };
 
+type TournamentGroupCollectionResponse = {
+  doublettes?: TournamentGroupResponse[];
+  equipes?: TournamentGroupResponse[];
+};
+
+export const parseTournamentGroupPayload = (
+  payload: unknown,
+  path: 'doublettes' | 'equipes'
+): TournamentGroupResponse[] => {
+  if (Array.isArray(payload)) {
+    return payload as TournamentGroupResponse[];
+  }
+
+  const collectionPayload = payload as TournamentGroupCollectionResponse;
+  if (path === 'doublettes' && Array.isArray(collectionPayload.doublettes)) {
+    return collectionPayload.doublettes;
+  }
+  if (path === 'equipes' && Array.isArray(collectionPayload.equipes)) {
+    return collectionPayload.equipes;
+  }
+
+  return [];
+};
+
 type PoolStageSummary = {
   id: string;
 };
@@ -187,7 +211,7 @@ const fetchTournamentGroups = async (
   }
 
   const payload = await response.json();
-  return Array.isArray(payload) ? (payload as TournamentGroupResponse[]) : [];
+  return parseTournamentGroupPayload(payload, path);
 };
 
 const getGroupMembers = (group: TournamentGroupResponse) => (
@@ -202,10 +226,15 @@ const isMemberMatchingEmail = (
 const collectGroupMemberIdsIfUserPresent = (
   group: TournamentGroupResponse,
   email: string,
+  ownPlayerIds: Set<string>,
   collector: Set<string>
 ) => {
   const members = getGroupMembers(group);
-  if (!members.some((member) => isMemberMatchingEmail(member, email))) {
+  const userIsMember = members.some((member) => (
+    isMemberMatchingEmail(member, email)
+    || (member.playerId !== undefined && ownPlayerIds.has(member.playerId))
+  ));
+  if (!userIsMember) {
     return;
   }
 
@@ -219,7 +248,8 @@ const collectGroupMemberIdsIfUserPresent = (
 const fetchTeammatePlayerIdsForEmail = async (
   token: string,
   tournaments: TournamentSummary[],
-  email: string
+  email: string,
+  ownPlayerIds: Set<string>
 ) => {
   const teammatePlayerIds = new Set<string>();
 
@@ -230,7 +260,7 @@ const fetchTeammatePlayerIdsForEmail = async (
     ]);
 
     for (const group of [...doublettes, ...equipes]) {
-      collectGroupMemberIdsIfUserPresent(group, email, teammatePlayerIds);
+      collectGroupMemberIdsIfUserPresent(group, email, ownPlayerIds, teammatePlayerIds);
     }
   }
 
@@ -568,7 +598,7 @@ const useMatchStartedNotifications = () => {
         data.tournamentsToJoin
       );
 
-      const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email);
+      const teammatePlayerIds = await fetchTeammatePlayerIdsForEmail(token, tournaments, email, data.playerIds);
       for (const teammatePlayerId of teammatePlayerIds) {
         data.playerIds.add(teammatePlayerId);
       }

@@ -33,6 +33,7 @@ const buildContext = () => {
     findById: jest.fn(),
     findPlayerByEmail: jest.fn(),
     getParticipantCount: jest.fn().mockImplementation(async () => 1),
+    unregisterPlayer: jest.fn().mockImplementation(async () => undefined),
     countRegisteredDoublettes: jest.fn().mockImplementation(async () => 0),
     countRegisteredEquipes: jest.fn().mockImplementation(async () => 0),
     createPlayer: jest.fn().mockImplementation(async () => ({ id: 'actor-1', email: 'actor@example.com' })),
@@ -332,6 +333,25 @@ describe('group-handlers', () => {
     expect(tournamentModel.deleteDoublette).toHaveBeenCalledWith('d1');
   });
 
+  it('allows admin to delete doublette when tournament is full without creating admin player profile', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.findById.mockResolvedValue({ ...buildTournament(TournamentFormat.DOUBLE), totalParticipants: 1 });
+    tournamentModel.getParticipantCount.mockResolvedValue(2);
+    tournamentModel.findPlayerByEmail.mockResolvedValue(null);
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2')],
+    });
+
+    await handlers.deleteDoublette('t1', 'd1');
+
+    expect(tournamentModel.deleteDoublette).toHaveBeenCalledWith('d1');
+    expect(tournamentModel.createPlayer).not.toHaveBeenCalled();
+  });
+
   it('updates doublette password as captain', async () => {
     const { handlers, tournamentModel } = buildContext();
     tournamentModel.findPlayerByEmail.mockImplementation(async () => ({ id: 'captain-1', email: 'actor@example.com' }));
@@ -384,6 +404,34 @@ describe('group-handlers', () => {
 
     const removed = await handlers.removeDoubletteMember('t1', 'd1', 'p2');
     expect(removed.memberCount).toBe(1);
+    expect(tournamentModel.unregisterPlayer).toHaveBeenCalledWith('t1', 'p2');
+  });
+
+  it('keeps player registered when removed doublette member still belongs to another doublette', async () => {
+    const { handlers, tournamentModel } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getDoubletteById
+      .mockResolvedValueOnce({
+        id: 'd1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'd1',
+        name: 'D1',
+        captainPlayerId: 'captain-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('captain-1')],
+      });
+    tournamentModel.findDoubletteMembershipByPlayer.mockResolvedValueOnce({ doubletteId: 'other-d' });
+
+    const removed = await handlers.removeDoubletteMember('t1', 'd1', 'p2');
+
+    expect(removed.memberCount).toBe(1);
+    expect(tournamentModel.unregisterPlayer).not.toHaveBeenCalled();
   });
 
   it('sets first added member as captain when admin adds member to empty doublette', async () => {
@@ -502,6 +550,25 @@ describe('group-handlers', () => {
 
     await handlers.deleteEquipe('t1', 'e1');
     expect(tournamentModel.deleteEquipe).toHaveBeenCalledWith('e1');
+  });
+
+  it('allows admin to delete equipe when tournament is full without creating admin player profile', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.findById.mockResolvedValue({ ...buildTournament(TournamentFormat.TEAM_4_PLAYER), totalParticipants: 1 });
+    tournamentModel.getParticipantCount.mockResolvedValue(4);
+    tournamentModel.findPlayerByEmail.mockResolvedValue(null);
+    tournamentModel.getEquipeById.mockResolvedValue({
+      id: 'e1',
+      isRegistered: true,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1'), member('p2'), member('p3'), member('p4')],
+    });
+
+    await handlers.deleteEquipe('t1', 'e1');
+
+    expect(tournamentModel.deleteEquipe).toHaveBeenCalledWith('e1');
+    expect(tournamentModel.createPlayer).not.toHaveBeenCalled();
   });
 
   it('handles leaveEquipe delete branch for last captain member', async () => {
@@ -1523,6 +1590,36 @@ describe('group-handlers', () => {
       });
     const removed = await handlers.removeEquipeMember('t1', 'e1', 'p2');
     expect(removed.memberCount).toBe(1);
+    expect(tournamentModel.unregisterPlayer).toHaveBeenCalledWith('t1', 'p2');
+  });
+
+  it('keeps player registered when removed equipe member still belongs to another equipe', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: false,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'e1',
+        name: 'E1',
+        captainPlayerId: 'captain-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('captain-1')],
+      });
+    tournamentModel.findEquipeMembershipByPlayer.mockResolvedValueOnce({ equipeId: 'other-e' });
+
+    const removed = await handlers.removeEquipeMember('t1', 'e1', 'p2');
+
+    expect(removed.memberCount).toBe(1);
+    expect(tournamentModel.unregisterPlayer).not.toHaveBeenCalled();
   });
 
   it('covers addEquipe/removeEquipe not-found early branches', async () => {
