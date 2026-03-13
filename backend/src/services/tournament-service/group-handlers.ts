@@ -847,6 +847,10 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
     await context.tournamentModel.removeDoubletteMember(doubletteId, playerId);
 
+    if (context.isAdminAction() && doublette.isRegistered) {
+      await context.tournamentModel.markDoubletteUnregistered(doubletteId);
+    }
+
     const remainingDoubletteMembership = await context.tournamentModel.findDoubletteMembershipByPlayer(
       tournamentId,
       playerId
@@ -1286,6 +1290,10 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     }
 
     await context.tournamentModel.removeEquipeMember(equipeId, playerId);
+
+    if (context.isAdminAction() && equipe.isRegistered) {
+      await context.tournamentModel.markEquipeUnregistered(equipeId);
+    }
 
     const remainingEquipeMembership = await context.tournamentModel.findEquipeMembershipByPlayer(
       tournamentId,

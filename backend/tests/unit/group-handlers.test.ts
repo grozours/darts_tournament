@@ -1385,6 +1385,32 @@ describe('group-handlers', () => {
     expect(tournamentModel.createPlayer).not.toHaveBeenCalled();
   });
 
+  it('unregisters doublette when admin removes a member from a registered group', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.getDoubletteById
+      .mockResolvedValueOnce({
+        id: 'd1',
+        isRegistered: true,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'd1',
+        name: 'D1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1')],
+      });
+
+    await handlers.removeDoubletteMember('t1', 'd1', 'p2');
+
+    expect(tournamentModel.removeDoubletteMember).toHaveBeenCalledWith('d1', 'p2');
+    expect(tournamentModel.markDoubletteUnregistered).toHaveBeenCalledWith('d1');
+  });
+
   it('rejects listEquipes on format mismatch', async () => {
     const { handlers, tournamentModel } = buildContext();
     tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.SINGLE));
@@ -1622,6 +1648,32 @@ describe('group-handlers', () => {
     expect(tournamentModel.unregisterPlayer).not.toHaveBeenCalled();
   });
 
+  it('unregisters equipe when admin removes a member from a registered group', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+    tournamentModel.getEquipeById
+      .mockResolvedValueOnce({
+        id: 'e1',
+        isRegistered: true,
+        captainPlayerId: 'captain-1',
+        members: [member('captain-1'), member('p2')],
+      })
+      .mockResolvedValueOnce({
+        id: 'e1',
+        name: 'E1',
+        captainPlayerId: 'captain-1',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('captain-1')],
+      });
+
+    await handlers.removeEquipeMember('t1', 'e1', 'p2');
+
+    expect(tournamentModel.removeEquipeMember).toHaveBeenCalledWith('e1', 'p2');
+    expect(tournamentModel.markEquipeUnregistered).toHaveBeenCalledWith('e1');
+  });
+
   it('covers addEquipe/removeEquipe not-found early branches', async () => {
     const { handlers, tournamentModel } = buildContext();
     tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
@@ -1704,11 +1756,12 @@ describe('group-handlers', () => {
   it('rejects joinDoublette when stored password hash has invalid shape', async () => {
     const { handlers, tournamentModel } = buildContext();
     config.auth.enabled = false;
+    const malformedStoredHash = passwordHash(GROUP_CODE_OK).replace(':', '');
     tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
     tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
     tournamentModel.getDoubletteById.mockResolvedValue({
       id: 'd1',
-      passwordHash: 'invalid-hash-without-salt-separator',
+      passwordHash: malformedStoredHash,
       isRegistered: false,
       captainPlayerId: 'p1',
       members: [member('p1')],
@@ -1721,11 +1774,13 @@ describe('group-handlers', () => {
   it('rejects joinDoublette when stored hash length does not match candidate hash length', async () => {
     const { handlers, tournamentModel } = buildContext();
     config.auth.enabled = false;
+    const [saltPart, hashPart] = passwordHash(GROUP_CODE_OK).split(':');
+    const shortStoredHash = `${saltPart ?? 'salt'}:${(hashPart ?? '').slice(0, 4)}`;
     tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
     tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'actor-1', email: 'actor@example.com' });
     tournamentModel.getDoubletteById.mockResolvedValue({
       id: 'd1',
-      passwordHash: 'salt-fixed:abcd',
+      passwordHash: shortStoredHash,
       isRegistered: false,
       captainPlayerId: 'p1',
       members: [member('p1')],
