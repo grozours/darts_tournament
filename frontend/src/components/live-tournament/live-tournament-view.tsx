@@ -1436,6 +1436,7 @@ const LiveTournamentView = ({
     stagePlayersPerPoolDrafts,
     playerIdByTournament,
     isAdmin,
+    screenMode,
     getParticipantLabel,
   };
 

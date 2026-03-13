@@ -195,6 +195,7 @@ type PoolStagesSectionProperties = {
   doubleStageEnabled: boolean;
   stages: LiveViewPoolStage[];
   isAdmin: boolean;
+  screenMode?: boolean;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   getMatchTargetLabel: (target: LiveViewMatch['target'] | undefined) => string | undefined;
@@ -246,6 +247,7 @@ const PoolStagesSection = ({
   doubleStageEnabled,
   stages,
   isAdmin,
+  screenMode = false,
   playerIdByTournament = {},
   getParticipantLabel,
   ...stageProperties
@@ -302,6 +304,7 @@ const PoolStagesSection = ({
                 stage={stage}
                 estimatedStartOffsetMinutes={estimatedOffsetByStageId.get(stage.id) ?? 0}
                 isAdmin={isAdmin}
+                screenMode={screenMode}
                 {...(getParticipantLabel ? { getParticipantLabel } : {})}
                 {...(optimisticOverride ? { optimisticStartTimeByMatchIdOverride: optimisticOverride } : {})}
                 {...(durationOverride === undefined ? {} : { estimatedDurationMinutesOverride: durationOverride })}

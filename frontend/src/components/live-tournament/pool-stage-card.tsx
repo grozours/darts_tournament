@@ -13,6 +13,45 @@ import MatchScoreInputs from './match-score-inputs';
 import MatchTargetSelector from './match-target-selector';
 import { getMatchFormatPresets, getMatchFormatTooltip } from '../../utils/match-format-presets';
 
+const SKILL_STARS_BY_LEVEL: Record<string, string> = {
+  BEGINNER: '★',
+  INTERMEDIATE: '★★',
+  ADVANCED: '★★',
+  EXPERT: '★★★',
+};
+
+type LeaderboardPlayerContext = {
+  isAdmin: boolean;
+  screenMode: boolean;
+  skillLevel?: string;
+};
+
+export const getSkillStarsByLevel = (skillLevel: string | undefined) => {
+  const normalizedSkill = (skillLevel ?? '').trim().toUpperCase();
+  return SKILL_STARS_BY_LEVEL[normalizedSkill] ?? '';
+};
+
+export const formatLeaderboardPlayerName = (
+  baseName: string,
+  { isAdmin, screenMode, skillLevel }: LeaderboardPlayerContext
+) => {
+  if (!isAdmin || screenMode) {
+    return baseName;
+  }
+
+  const stars = getSkillStarsByLevel(skillLevel);
+  if (!stars) {
+    return baseName;
+  }
+
+  const trimmedName = baseName.trimEnd();
+  if (trimmedName.endsWith(stars)) {
+    return baseName;
+  }
+
+  return `${baseName} ${stars}`;
+};
+
 const HeadToHeadBonus = ({ row, t }: { row: PoolLeaderboardRow; t: Translator }) => {
   if (row.matchesPlayed <= 0 || row.headToHeadBonus === undefined) {
     return null;
@@ -483,6 +522,7 @@ type PoolStageCardProperties = {
   stage: LiveViewPoolStage;
   estimatedStartOffsetMinutes: number;
   isAdmin: boolean;
+  screenMode?: boolean;
   isPoolStagesReadonly: boolean;
   getStatusLabel: (scope: 'pool' | 'match' | 'bracket' | 'stage', status?: string) => string;
   getMatchTargetLabel: (target: LiveViewMatch['target'] | undefined) => string | undefined;
@@ -540,6 +580,7 @@ const PoolStageCard = ({
   stage,
   estimatedStartOffsetMinutes,
   isAdmin,
+  screenMode = false,
   isPoolStagesReadonly,
   getStatusLabel,
   getMatchTargetLabel,
@@ -712,6 +753,20 @@ const PoolStageCard = ({
     }));
   };
 
+  const getPoolPlayerSkillLevel = (pool: LiveViewPool, playerId: string) => {
+    const assignmentSkill = (pool.assignments ?? [])
+      .find((assignment) => assignment.player?.id === playerId)
+      ?.player?.skillLevel;
+    if (assignmentSkill) {
+      return assignmentSkill;
+    }
+
+    return (pool.matches ?? [])
+      .flatMap((match) => match.playerMatches ?? [])
+      .find((playerMatch) => playerMatch.player?.id === playerId)
+      ?.player?.skillLevel;
+  };
+
   const renderStageControls = (stageTournamentId: string) => {
     if (isPoolStagesReadonly) {
       return;
@@ -880,7 +935,11 @@ const PoolStageCard = ({
               {leaderboard.map((row) => (
                 <tr key={row.playerId} className="text-slate-200">
                   <td className="px-2 py-2 text-center font-semibold text-slate-300">#{row.position}</td>
-                  <td className="px-3 py-2">{row.name}</td>
+                  <td className="px-3 py-2">{formatLeaderboardPlayerName(row.name, {
+                    isAdmin,
+                    screenMode,
+                    skillLevel: getPoolPlayerSkillLevel(pool, row.playerId),
+                  })}</td>
                   <td className="px-3 py-2 text-right">
                         {row.legsWon}
                         <HeadToHeadBonus row={row} t={t} />
@@ -1293,7 +1352,11 @@ const PoolStageCard = ({
                             className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/50 px-2 py-1"
                           >
                             <span className="font-semibold text-amber-200">#{row.position}</span>
-                            <span className="flex-1 px-2 text-left text-slate-100">{row.name}</span>
+                            <span className="flex-1 px-2 text-left text-slate-100">{formatLeaderboardPlayerName(row.name, {
+                              isAdmin,
+                              screenMode,
+                              skillLevel: getPoolPlayerSkillLevel(pool, row.playerId),
+                            })}</span>
                             <span className="w-16 text-right text-slate-300">
                               {row.legsWon}
                               <HeadToHeadBonus row={row} t={t} />

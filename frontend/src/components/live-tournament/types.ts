@@ -9,6 +9,7 @@ export interface LiveViewMatchPlayer {
     lastName: string;
     surname?: string;
     teamName?: string;
+    skillLevel?: string;
   };
   playerPosition: number;
   scoreTotal?: number;
@@ -58,6 +59,7 @@ export interface LiveViewPool {
       lastName: string;
       surname?: string;
       teamName?: string;
+      skillLevel?: string;
     };
   }>;
   matches?: LiveViewMatch[];
