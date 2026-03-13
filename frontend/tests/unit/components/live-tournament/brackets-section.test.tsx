@@ -87,7 +87,7 @@ const completedDependentStages = [
 ];
 
 const singleWinnersBracketWithMatches = [
-  { ...singleWinnersBracket[0]!, matches: [] },
+  { ...singleWinnersBracket[0], matches: [] },
 ];
 
 describe('BracketsSection empty and selection', () => {

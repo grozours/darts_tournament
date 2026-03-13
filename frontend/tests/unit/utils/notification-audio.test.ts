@@ -137,7 +137,7 @@ describe('notification-audio', () => {
 
     expect(instances).toHaveLength(1);
 
-    const context = instances[0]!;
+    const context = instances[0];
     expect(context.resume).not.toHaveBeenCalled();
     expect(context.createOscillator).toHaveBeenCalledTimes(9);
     expect(context.createGain).toHaveBeenCalledTimes(10);
@@ -203,7 +203,7 @@ describe('notification-audio', () => {
 
     await playBellNotificationTone({ preview: true });
 
-    const context = instances[0]!;
+    const context = instances[0];
     expect(context.resume).toHaveBeenCalledTimes(1);
 
     const outputGain = context.createGain.mock.results[0]?.value;

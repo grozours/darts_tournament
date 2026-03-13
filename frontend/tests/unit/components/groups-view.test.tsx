@@ -243,7 +243,7 @@ describe('GroupsView', () => {
     render(<GroupsView mode="doublettes" />);
     await screen.findByText('Duo A');
 
-    fireEvent.click(screen.getAllByText('groups.join')[0]!);
+    fireEvent.click(screen.getAllByText('groups.join')[0]);
     const joinPasswordInput = screen.getByPlaceholderText('groups.promptJoinPassword');
     fireEvent.change(joinPasswordInput, { target: { value: 'secret' } });
     const joinToolbar = joinPasswordInput.closest('div');
@@ -309,7 +309,7 @@ describe('GroupsView', () => {
     const duoCard = duoHeading.closest('div.rounded-2xl');
     expect(duoCard).toBeTruthy();
 
-    fireEvent.click(within(duoCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
+    fireEvent.click(within(duoCard as HTMLElement).getAllByText('common.edit')[0]);
     const renameInput = within(duoCard as HTMLElement).getByDisplayValue('CRUD Duo');
     fireEvent.change(renameInput, { target: { value: 'CRUD Duo Updated' } });
     fireEvent.click(within(duoCard as HTMLElement).getByText('common.save'));
@@ -357,7 +357,7 @@ describe('GroupsView', () => {
     const teamCard = teamHeading.closest('div.rounded-2xl');
     expect(teamCard).toBeTruthy();
 
-    fireEvent.click(within(teamCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
+    fireEvent.click(within(teamCard as HTMLElement).getAllByText('common.edit')[0]);
     const renameInput = within(teamCard as HTMLElement).getByDisplayValue('CRUD Team');
     fireEvent.change(renameInput, { target: { value: 'CRUD Team Updated' } });
     fireEvent.click(within(teamCard as HTMLElement).getByText('common.save'));
@@ -394,7 +394,7 @@ describe('GroupsView', () => {
 
     const captainCard = screen.getByText('My Duo').closest('div.rounded-2xl');
     expect(captainCard).toBeTruthy();
-    fireEvent.click(within(captainCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
+    fireEvent.click(within(captainCard as HTMLElement).getAllByText('common.edit')[0]);
     fireEvent.change(screen.getByDisplayValue('My Duo'), { target: { value: 'Renamed Duo' } });
     fireEvent.click(screen.getByText('common.save'));
     await waitFor(() => {
@@ -586,7 +586,7 @@ describe('GroupsView', () => {
 
     const registeredCard = screen.getByText('Registered Duo').closest('div.rounded-2xl');
     expect(registeredCard).toBeTruthy();
-    fireEvent.click(within(registeredCard as HTMLElement).getAllByText('common.edit')[0] as HTMLElement);
+    fireEvent.click(within(registeredCard as HTMLElement).getAllByText('common.edit')[0]);
     expect(screen.getByPlaceholderText('groups.promptPlayerSearch')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('groups.removeMember'));
@@ -851,7 +851,7 @@ describe('GroupsView', () => {
     await screen.findByText('Edit Member Duo');
 
     const editButtons = screen.getAllByRole('button', { name: 'common.edit' });
-    fireEvent.click(editButtons[1] as HTMLElement);
+    fireEvent.click(editButtons[1]);
 
     const firstNameInput = screen.getAllByPlaceholderText('edit.firstName')[0] as HTMLInputElement;
     const lastNameInput = screen.getAllByPlaceholderText('edit.lastName')[0] as HTMLInputElement;

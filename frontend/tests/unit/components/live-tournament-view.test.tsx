@@ -95,7 +95,10 @@ const renderView = async (view: ReactElement) => {
   act(() => {
     vi.runOnlyPendingTimers();
   });
-  return result as ReturnType<typeof render>;
+  if (!result) {
+    throw new Error('Expected render result to be defined');
+  }
+  return result;
 };
 
 const makeView = (overrides?: Partial<LiveViewData>): LiveViewData => ({

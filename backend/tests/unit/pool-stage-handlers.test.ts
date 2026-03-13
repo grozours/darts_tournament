@@ -692,6 +692,72 @@ describe('createPoolStageHandlers', () => {
     expect(expertCountByPool.get('pool-4')).toBe(2);
   });
 
+  it('prioritizes expert dispersion over total skill on first phase assignment', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.OPEN,
+      format: TournamentFormat.SINGLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', stageNumber: 1 },
+    ]));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 4,
+      poolCount: 2,
+      matchFormatKey: null,
+    }));
+    model.updatePoolStage.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 4,
+      poolCount: 2,
+      matchFormatKey: null,
+    }));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([{ id: 'pool-1' }, { id: 'pool-2' }]));
+    model.getPoolAssignmentCountForStage.mockReturnValue(Promise.resolve(0));
+    model.getActivePlayersForTournament.mockReturnValue(Promise.resolve([
+      { id: 'expert-1', skillLevel: 'EXPERT' },
+      { id: 'expert-2', skillLevel: 'EXPERT' },
+      { id: 'advanced-1', skillLevel: 'ADVANCED' },
+      { id: 'advanced-2', skillLevel: 'ADVANCED' },
+      { id: 'advanced-3', skillLevel: 'ADVANCED' },
+      { id: 'advanced-4', skillLevel: 'ADVANCED' },
+      { id: 'beginner-1', skillLevel: 'BEGINNER' },
+      { id: 'beginner-2', skillLevel: 'BEGINNER' },
+    ]));
+
+    const handlers = createHandlers(model);
+
+    await handlers.updatePoolStage('tournament-1', 'stage-1', { name: 'expert-dispersion-priority' });
+
+    const createdAssignments = model.createPoolAssignments.mock.calls[0]?.[0] as Array<{
+      poolId: string;
+      playerId: string;
+    }>;
+
+    const expertCountByPool = new Map<string, number>();
+    for (const assignment of createdAssignments) {
+      if (!assignment.playerId.startsWith('expert-')) {
+        continue;
+      }
+      expertCountByPool.set(
+        assignment.poolId,
+        (expertCountByPool.get(assignment.poolId) ?? 0) + 1
+      );
+    }
+
+    expect(expertCountByPool.get('pool-1')).toBe(1);
+    expect(expertCountByPool.get('pool-2')).toBe(1);
+  });
+
   it('rejects update when pool stage does not belong to tournament', async () => {
     const model = buildModel();
     model.findById.mockReturnValue(Promise.resolve({ id: 'tournament-1', status: TournamentStatus.OPEN }));

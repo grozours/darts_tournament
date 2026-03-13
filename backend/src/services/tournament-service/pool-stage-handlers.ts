@@ -792,12 +792,12 @@ const isBetterStageOnePoolCandidate = (
     projectedExpertCount: number;
   }
 ) => {
-  if (projectedSkillScore !== best.projectedSkillScore) {
-    return projectedSkillScore < best.projectedSkillScore;
-  }
-
   if (projectedExpertCount !== best.projectedExpertCount) {
     return projectedExpertCount < best.projectedExpertCount;
+  }
+
+  if (projectedSkillScore !== best.projectedSkillScore) {
+    return projectedSkillScore < best.projectedSkillScore;
   }
 
   const bestSize = best.state.players.length;

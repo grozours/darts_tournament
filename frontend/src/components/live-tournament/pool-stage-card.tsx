@@ -382,7 +382,7 @@ export const computeOptimisticStartTimes = ({
   resolveDurationMinutes: (match: LiveViewMatch) => number;
 }) => {
   const poolQueues = pools.map((pool) => {
-    return buildOptimisticPoolQueues([pool], stagePlayersPerPool)[0] as OptimisticPoolQueue;
+    return buildOptimisticPoolQueues([pool], stagePlayersPerPool)[0];
   });
   const shouldPrioritizeLeastProgressedPools = prioritizeLeastProgressedPools
     || poolQueues.every((queue) => queue.usesFallbackConcurrency);
