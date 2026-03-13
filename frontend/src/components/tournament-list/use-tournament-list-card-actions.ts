@@ -114,6 +114,9 @@ const useTournamentListCardActions = ({
       return;
     }
 
+    const normalizedStatus = tournament.status.trim().toUpperCase();
+    const shouldRedirectToLive = normalizedStatus === 'SIGNATURE';
+
     setConfirmingTournamentId(tournamentId);
     try {
       const token = await getSafeAccessToken();
@@ -130,6 +133,9 @@ const useTournamentListCardActions = ({
         },
       });
       await fetchTournaments();
+      if (shouldRedirectToLive) {
+        navigateWithinApp(`/?view=live&tournamentId=${tournamentId}`);
+      }
     } catch (error_) {
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedConfirmAllPlayers'));
     } finally {

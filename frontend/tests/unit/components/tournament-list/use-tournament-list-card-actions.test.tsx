@@ -7,6 +7,7 @@ const fetchTournamentPlayers = vi.fn();
 const updateTournamentStatus = vi.fn();
 const autoFillTournamentPlayers = vi.fn();
 const confirmAllTournamentPlayers = vi.fn();
+const navigateWithinApp = vi.fn();
 
 vi.mock('../../../../src/services/tournament-service', () => ({
   fetchTournamentPlayers: (...arguments_: unknown[]) => fetchTournamentPlayers(...arguments_),
@@ -16,6 +17,10 @@ vi.mock('../../../../src/services/tournament-service', () => ({
 vi.mock('../../../../src/components/tournament-list/tournament-players-actions', () => ({
   autoFillTournamentPlayers: (...arguments_: unknown[]) => autoFillTournamentPlayers(...arguments_),
   confirmAllTournamentPlayers: (...arguments_: unknown[]) => confirmAllTournamentPlayers(...arguments_),
+}));
+
+vi.mock('../../../../src/components/tournament-list/navigation-helpers', () => ({
+  navigateWithinApp: (...arguments_: unknown[]) => navigateWithinApp(...arguments_),
 }));
 
 const buildHook = (override: Record<string, unknown> = {}) => {
@@ -46,6 +51,7 @@ const resetMocks = () => {
     updateTournamentStatus.mockReset();
     autoFillTournamentPlayers.mockReset();
     confirmAllTournamentPlayers.mockReset();
+    navigateWithinApp.mockReset();
     vi.stubGlobal('alert', vi.fn());
   });
 };
@@ -162,5 +168,28 @@ describe('useTournamentListCardActions player operations', () => {
     expect(fetchTournaments).toHaveBeenCalledTimes(2);
     expect(result.current.autoFillProgressByTournament.t1).toBeUndefined();
     expect(result.current.confirmAllProgressByTournament.t1).toBeUndefined();
+    expect(navigateWithinApp).not.toHaveBeenCalled();
+  });
+
+  it('redirects to live tournament view after confirm-all when tournament is in SIGNATURE status', async () => {
+    fetchTournamentPlayers.mockResolvedValue([{ playerId: 'p1' }]);
+    confirmAllTournamentPlayers.mockResolvedValue(undefined);
+
+    const { result, fetchTournaments } = buildHook({
+      visibleTournaments: [{
+        id: 't1',
+        name: 'Cup',
+        status: 'SIGNATURE',
+        totalParticipants: 16,
+        currentParticipants: 12,
+      }],
+    });
+
+    await act(async () => {
+      await result.current.confirmAllFromCard('t1');
+    });
+
+    expect(fetchTournaments).toHaveBeenCalledTimes(1);
+    expect(navigateWithinApp).toHaveBeenCalledWith('/?view=live&tournamentId=t1');
   });
 });
