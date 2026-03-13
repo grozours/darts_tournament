@@ -84,32 +84,6 @@ const getGroupViewHref = (format: 'DOUBLE' | 'TEAM_4_PLAYER', tournamentId: stri
     : `/?view=equipes&tournamentId=${tournamentId}`
 );
 
-const getGroupCreateLabelKey = (format: 'DOUBLE' | 'TEAM_4_PLAYER'): string => (
-  format === 'DOUBLE' ? 'tournaments.createOwnDoublette' : 'tournaments.createOwnEquipe'
-);
-
-const getGroupRegisterLabel = ({
-  tournamentFormat,
-  registeringTournamentId,
-  tournamentId,
-  isGroupRegistered,
-  t,
-}: {
-  tournamentFormat: 'DOUBLE' | 'TEAM_4_PLAYER';
-  registeringTournamentId: string | undefined;
-  tournamentId: string;
-  isGroupRegistered: boolean;
-  t: Translator;
-}): string => {
-  if (registeringTournamentId === tournamentId) {
-    return t('common.loading');
-  }
-  if (isGroupRegistered) {
-    return t('tournaments.registered');
-  }
-  return tournamentFormat === 'DOUBLE' ? t('groups.registerDoublette') : t('groups.registerEquipe');
-};
-
 const BACK_EMOJI_DATA_URI = 'https://img.icons8.com/emoji/48/right-curving-left-emoji.png';
 
 const BackEmoji = () => (
@@ -146,7 +120,7 @@ const GroupRegistrationAction = ({
         href={getGroupViewHref(tournamentFormat, tournamentId)}
         className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:w-auto"
       >
-        {t(getGroupCreateLabelKey(tournamentFormat))}
+        {t('tournaments.register')}
       </a>
     );
   }
@@ -176,13 +150,7 @@ const GroupRegistrationAction = ({
       disabled={disabled}
       className="w-full rounded-full border border-emerald-500/60 px-4 py-1.5 text-center text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
     >
-      {getGroupRegisterLabel({
-        tournamentFormat,
-        registeringTournamentId,
-        tournamentId,
-        isGroupRegistered: userGroupStatus.isGroupRegistered,
-        t,
-      })}
+      {registeringTournamentId === tournamentId ? t('common.loading') : t('tournaments.register')}
     </button>
   );
 };
@@ -231,7 +199,7 @@ const TournamentAdminActions = ({
 
   return (
     <>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
         <button
           onClick={() => onEdit(tournament)}
           className="w-full rounded-full border border-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white sm:w-auto"
@@ -246,7 +214,7 @@ const TournamentAdminActions = ({
         </button>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap justify-center gap-2">
         {normalizedStatus === 'OPEN' && (
           <button
             onClick={() => onOpenDraft(tournament.id)}
@@ -553,7 +521,7 @@ const TournamentCard = ({
     </div>
 
     {!showWaitingSignature && (
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
         <a
           href={registeredViewHref}
           className="w-full rounded-full border border-cyan-500/60 px-4 py-1.5 text-center text-xs font-semibold text-cyan-200 transition hover:border-cyan-300 sm:w-auto"
@@ -584,8 +552,10 @@ const TournamentCard = ({
         <p className="mt-1 text-xs text-slate-400">
           {t('tournaments.registered')}: {tournament.currentParticipants ?? 0}
         </p>
-        {!showWaitingSignature && (
-          <div className="mt-3">
+      </div>
+      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
+        {!showWaitingSignature && showRegistrationActions ? (
+          <div className="flex justify-center">
             <TournamentRegistrationActions
               tournamentFormat={tournament.format}
               tournamentId={tournamentId}
@@ -601,16 +571,14 @@ const TournamentCard = ({
               t={t}
             />
           </div>
+        ) : (
+          <p className="text-center text-lg font-semibold text-white">{statusLabel}</p>
         )}
-      </div>
-      <div className="rounded-2xl border border-slate-700/70 bg-slate-950/40 p-4">
-        <p className="text-xs uppercase tracking-widest text-slate-500">{t('common.status')}</p>
-        <p className="mt-2 text-lg font-semibold text-white">{statusLabel}</p>
       </div>
     </div>
 
     {!showWaitingSignature && (
-      <div className="mt-3">
+      <div className="mt-3 flex flex-col items-center">
         {normalizedStatus === 'LIVE' && (
           <a
             href={liveViewPath}

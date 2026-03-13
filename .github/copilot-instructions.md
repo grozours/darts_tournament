@@ -4,22 +4,35 @@ These instructions are mandatory for coverage work in this repository.
 
 ## Coverage Rules
 
+### Backend (Jest)
+
 - Never run full backend coverage unless the user explicitly asks for it.
 - When a file is modified, run coverage only for that file with `--collectCoverageFrom=<file>`.
 - When a file is modified, run tests only for that file's related test scope, never the full repository test suite.
 - When a file is modified, never run repository-wide coverage or repository-wide test commands.
-- Ensure newly added code is covered by tests at a minimum of 90% coverage.
 - Do not use `npm run test:coverage` for routine iteration.
+
+### Frontend (Vitest)
+
+- Never run full frontend coverage unless the user explicitly asks for it.
+- When a file is modified, run coverage only for that file with `--coverage.include=<file>`.
+- When a file is modified, run tests only for that file's related test scope, never the full repository test suite.
+- When a file is modified, never run repository-wide coverage or repository-wide test commands.
+- Do not use `npm --prefix frontend run test:coverage` or `npm --prefix frontend run test:coverage:raw` for routine iteration.
+
+### Shared Coverage Rules
+
+- Ensure newly added code is covered by tests at a minimum of 90% coverage.
 - Before each test/coverage command, state the exact command to execute.
 - After each test/coverage run, report at least:
-  - `Test Suites`
-  - The test file pattern that was run
-  - The exact `--collectCoverageFrom` target
+  - Backend: `Test Suites`, test file pattern, exact `--collectCoverageFrom` target.
+  - Frontend: `Test Files`, test file pattern, exact `--coverage.include` target.
 - If a requested command conflicts with these rules, stop and ask for explicit confirmation.
 
 ## Safety Check Before Running Coverage
 
-- Confirm there is exactly one `--collectCoverageFrom` path.
+- Backend: confirm there is exactly one `--collectCoverageFrom` path.
+- Frontend: confirm there is exactly one `--coverage.include` path.
 - Confirm the test command targets specific test file(s), not the full suite.
 
 ## Code Quality Rules

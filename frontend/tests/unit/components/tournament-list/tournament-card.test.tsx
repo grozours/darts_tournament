@@ -328,7 +328,7 @@ describe('TournamentCard', () => {
     expect(screen.getAllByText('groups.equipes').length).toBeGreaterThan(0);
   });
 
-  it('shows create-own-group links for DOUBLE and TEAM when user has no group', () => {
+  it('shows register links for DOUBLE and TEAM when user has no group', () => {
     const { rerender } = render(
       <TournamentCard
         {...baseProperties}
@@ -336,7 +336,7 @@ describe('TournamentCard', () => {
       />
     );
 
-    const doubleRegisterLink = screen.getByRole('link', { name: 'tournaments.createOwnDoublette' });
+    const doubleRegisterLink = screen.getByRole('link', { name: 'tournaments.register' });
     expect(doubleRegisterLink).toHaveAttribute(
       'href',
       '/?view=doublettes&tournamentId=t1'
@@ -350,7 +350,7 @@ describe('TournamentCard', () => {
       />
     );
 
-    const teamRegisterLink = screen.getByRole('link', { name: 'tournaments.createOwnEquipe' });
+    const teamRegisterLink = screen.getByRole('link', { name: 'tournaments.register' });
     expect(teamRegisterLink).toHaveAttribute(
       'href',
       '/?view=equipes&tournamentId=t1'
