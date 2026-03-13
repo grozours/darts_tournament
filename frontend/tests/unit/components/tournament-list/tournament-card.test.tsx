@@ -244,6 +244,18 @@ describe('TournamentCard', () => {
     expect(screen.queryByText('edit.autoFillPlayers')).not.toBeInTheDocument();
   });
 
+  it('hides register action when tournament is full for admin', () => {
+    render(
+      <TournamentCard
+        {...baseProperties}
+        isAdmin
+        tournament={{ ...baseTournament, currentParticipants: 16 } as never}
+      />
+    );
+
+    expect(screen.queryByText('tournaments.register')).not.toBeInTheDocument();
+  });
+
   it('renders signature auto action for SIGNATURE admin tournaments', () => {
     const onConfirmAllPlayers = vi.fn();
 

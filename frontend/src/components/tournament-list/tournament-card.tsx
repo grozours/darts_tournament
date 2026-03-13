@@ -62,6 +62,8 @@ type TournamentAdminActionProperties = {
 type TournamentRegistrationActionProperties = {
   tournamentFormat: string;
   tournamentId: string;
+  totalParticipants: number;
+  currentParticipants: number;
   isAdmin: boolean;
   showRegistrationActions: boolean;
   isRegistered: boolean;
@@ -317,6 +319,8 @@ const TournamentAdminActions = ({
 const TournamentRegistrationActions = ({
   tournamentFormat,
   tournamentId,
+  totalParticipants,
+  currentParticipants,
   isAdmin,
   showRegistrationActions,
   isRegistered,
@@ -332,7 +336,13 @@ const TournamentRegistrationActions = ({
     return null;
   }
 
+  const isTournamentFull = currentParticipants >= totalParticipants;
+
   if (isGroupFormat(tournamentFormat)) {
+    if (isTournamentFull && !userGroupStatus?.isGroupRegistered) {
+      return null;
+    }
+
     return (
       <GroupRegistrationAction
         tournamentFormat={tournamentFormat}
@@ -345,6 +355,10 @@ const TournamentRegistrationActions = ({
         t={t}
       />
     );
+  }
+
+  if (isTournamentFull && !isRegistered) {
+    return null;
   }
 
   if (isRegistered) {
@@ -559,6 +573,8 @@ const TournamentCard = ({
             <TournamentRegistrationActions
               tournamentFormat={tournament.format}
               tournamentId={tournamentId}
+              totalParticipants={tournament.totalParticipants}
+              currentParticipants={tournament.currentParticipants ?? 0}
               isAdmin={isAdmin}
               registeringTournamentId={registeringTournamentId}
               showRegistrationActions={showRegistrationActions}
