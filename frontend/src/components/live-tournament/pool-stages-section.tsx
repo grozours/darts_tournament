@@ -237,6 +237,7 @@ type PoolStagesSectionProperties = {
   stagePlayersPerPoolDrafts: Record<string, string>;
   playerIdByTournament: Record<string, string>;
   getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string } | undefined) => string;
+  getParticipantSkillLevel?: (playerId: string) => string | undefined;
 };
 
 const PoolStagesSection = ({
@@ -250,6 +251,7 @@ const PoolStagesSection = ({
   screenMode = false,
   playerIdByTournament = {},
   getParticipantLabel,
+  getParticipantSkillLevel,
   ...stageProperties
 }: PoolStagesSectionProperties) => {
   if (stages.length === 0) {
@@ -306,6 +308,7 @@ const PoolStagesSection = ({
                 isAdmin={isAdmin}
                 screenMode={screenMode}
                 {...(getParticipantLabel ? { getParticipantLabel } : {})}
+                {...(getParticipantSkillLevel ? { getParticipantSkillLevel } : {})}
                 {...(optimisticOverride ? { optimisticStartTimeByMatchIdOverride: optimisticOverride } : {})}
                 {...(durationOverride === undefined ? {} : { estimatedDurationMinutesOverride: durationOverride })}
                 {...(startTimestampOverride === undefined

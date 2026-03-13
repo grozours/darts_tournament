@@ -36,4 +36,18 @@ describe('pool-stage-card leaderboard skill stars', () => {
       skillLevel: 'INTERMEDIATE',
     })).toBe('Player One ★★');
   });
+
+  it('supports group skill levels (doublettes/equipes) and still hides in screen mode', () => {
+    expect(formatLeaderboardPlayerName('Team Alpha', {
+      isAdmin: true,
+      screenMode: false,
+      skillLevel: 'EXPERT',
+    })).toBe('Team Alpha ★★★');
+
+    expect(formatLeaderboardPlayerName('Team Alpha', {
+      isAdmin: true,
+      screenMode: true,
+      skillLevel: 'EXPERT',
+    })).toBe('Team Alpha');
+  });
 });

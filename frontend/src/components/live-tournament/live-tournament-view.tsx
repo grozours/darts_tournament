@@ -351,25 +351,44 @@ const addMissingBracketMatchesToRoundWorkload = (
   roundWorkloadByRound.set(roundNumber, current);
 };
 
-const buildGroupedMemberNameMap = (groups: Array<{ name: string; members: Array<{ playerId: string }> }>) => {
-  const nextMap = new Map<string, string>();
-  for (const group of groups) {
-    for (const member of group.members) {
-      nextMap.set(member.playerId, group.name);
-    }
-  }
-  return nextMap;
+type GroupedMemberMaps = {
+  nameByPlayerId: Map<string, string>;
+  skillByPlayerId: Map<string, string>;
 };
 
-const loadGroupedMemberNameMapForView = async (view: LiveViewData): Promise<Map<string, string>> => {
+const buildGroupedMemberMaps = (
+  groups: Array<{ name: string; skillLevel?: string | null; members: Array<{ playerId: string }> }>
+): GroupedMemberMaps => {
+  const nameByPlayerId = new Map<string, string>();
+  const skillByPlayerId = new Map<string, string>();
+
+  for (const group of groups) {
+    for (const member of group.members) {
+      nameByPlayerId.set(member.playerId, group.name);
+      if (group.skillLevel) {
+        skillByPlayerId.set(member.playerId, group.skillLevel);
+      }
+    }
+  }
+
+  return {
+    nameByPlayerId,
+    skillByPlayerId,
+  };
+};
+
+const loadGroupedMemberMapsForView = async (view: LiveViewData): Promise<GroupedMemberMaps> => {
   if (view.format !== TournamentFormat.DOUBLE && view.format !== TournamentFormat.TEAM_4_PLAYER) {
-    return new Map();
+    return {
+      nameByPlayerId: new Map(),
+      skillByPlayerId: new Map(),
+    };
   }
 
   const groups = view.format === TournamentFormat.DOUBLE
     ? await fetchDoublettes(view.id)
     : await fetchEquipes(view.id);
-  return buildGroupedMemberNameMap(groups);
+  return buildGroupedMemberMaps(groups);
 };
 
 const getBracketRoundWorkloads = (
@@ -1224,20 +1243,23 @@ const LiveTournamentView = ({
   onRefresh,
 }: LiveTournamentViewProperties) => {
   const [groupNameByPlayerId, setGroupNameByPlayerId] = useState<Map<string, string>>(new Map());
+  const [groupSkillByPlayerId, setGroupSkillByPlayerId] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     let isCancelled = false;
 
     const loadGroupLabels = async () => {
       try {
-        const nextMap = await loadGroupedMemberNameMapForView(view);
+        const nextMaps = await loadGroupedMemberMapsForView(view);
         if (isCancelled) {
           return;
         }
-        setGroupNameByPlayerId(nextMap);
+        setGroupNameByPlayerId(nextMaps.nameByPlayerId);
+        setGroupSkillByPlayerId(nextMaps.skillByPlayerId);
       } catch {
         if (!isCancelled) {
           setGroupNameByPlayerId(new Map());
+          setGroupSkillByPlayerId(new Map());
         }
       }
     };
@@ -1273,6 +1295,8 @@ const LiveTournamentView = ({
     const fallback = `${player.firstName ?? ''} ${player.lastName ?? ''}`.trim();
     return fallback || 'TBD';
   };
+
+  const getParticipantSkillLevel = (playerId: string) => groupSkillByPlayerId.get(playerId);
   const [showSummary, setShowSummary] = useState(false);
   const handleToggleSummary = () => setShowSummary((value) => !value);
   const filteredPoolStages = filterPoolStagesForView(
@@ -1438,6 +1462,7 @@ const LiveTournamentView = ({
     isAdmin,
     screenMode,
     getParticipantLabel,
+    getParticipantSkillLevel,
   };
 
   const bracketsProperties = {

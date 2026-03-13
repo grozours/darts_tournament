@@ -569,6 +569,7 @@ type PoolStageCardProperties = {
   stagePlayersPerPoolDrafts: Record<string, string>;
   canManageStageActions?: boolean;
   getParticipantLabel?: (player: { id?: string; firstName?: string; lastName?: string; surname?: string; teamName?: string } | undefined) => string;
+  getParticipantSkillLevel?: (playerId: string) => string | undefined;
 };
 
 const PoolStageCard = ({
@@ -627,6 +628,7 @@ const PoolStageCard = ({
   stagePlayersPerPoolDrafts,
   canManageStageActions = true,
   getParticipantLabel,
+  getParticipantSkillLevel,
 }: PoolStageCardProperties) => {
   const [showMatches, setShowMatches] = useState(!isPoolStagesReadonly);
   const [showCompletedMatchesByPool, setShowCompletedMatchesByPool] = useState<Record<string, boolean>>({});
@@ -754,6 +756,11 @@ const PoolStageCard = ({
   };
 
   const getPoolPlayerSkillLevel = (pool: LiveViewPool, playerId: string) => {
+    const participantSkillLevel = getParticipantSkillLevel?.(playerId);
+    if (participantSkillLevel) {
+      return participantSkillLevel;
+    }
+
     const assignmentSkill = (pool.assignments ?? [])
       .find((assignment) => assignment.player?.id === playerId)
       ?.player?.skillLevel;
