@@ -51,6 +51,7 @@ type BracketsSectionProperties = {
 const FALLBACK_MATCH_DURATION_MINUTES = 12;
 const NON_REMAINING_MATCH_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
 const NON_REMAINING_STAGE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+const LIVE_BRACKET_STATUSES = new Set(['IN_PROGRESS', 'LIVE']);
 
 const buildDurationMap = () => new Map(
   getMatchFormatPresets().map((preset) => [preset.key, Math.max(1, preset.durationMinutes)])
@@ -68,6 +69,8 @@ const isRemainingMatch = (status: string | undefined) => (
 const isRemainingStage = (status: string | undefined) => (
   !NON_REMAINING_STAGE_STATUSES.has((status ?? '').toUpperCase())
 );
+
+const isLiveBracket = (status: string | undefined) => LIVE_BRACKET_STATUSES.has((status ?? '').toUpperCase());
 
 const formatDurationClock = (durationMinutes: number) => {
   const hours = Math.floor(durationMinutes / 60);
@@ -814,15 +817,16 @@ const BracketsSection = ({
   getParticipantLabel,
 }: BracketsSectionProperties) => {
   const preferredPlayerId = playerIdByTournament[tournamentId];
+  const selectableBrackets = isAdmin ? brackets : brackets.filter((bracket) => isLiveBracket(bracket.status));
 
   useEffect(() => {
-    if (brackets.length === 0) {
+    if (selectableBrackets.length === 0) {
       return;
     }
 
     const runHashSelection = () => applyHashBracketSelection({
       tournamentId,
-      brackets,
+      brackets: selectableBrackets,
       activeBracketId,
       onSelectBracket,
     });
@@ -833,24 +837,24 @@ const BracketsSection = ({
     return () => {
       globalThis.window.removeEventListener('hashchange', runHashSelection);
     };
-  }, [activeBracketId, brackets, onSelectBracket, tournamentId]);
+  }, [activeBracketId, onSelectBracket, selectableBrackets, tournamentId]);
 
   useEffect(() => {
     syncPreferredPlayerBracketSelection({
       tournamentId,
-      brackets,
+      brackets: selectableBrackets,
       preferredPlayerId,
       activeBracketId,
       onSelectBracket,
     });
-  }, [activeBracketId, brackets, onSelectBracket, preferredPlayerId, tournamentId]);
+  }, [activeBracketId, onSelectBracket, preferredPlayerId, selectableBrackets, tournamentId]);
 
-  if (brackets.length === 0) {
+  if (selectableBrackets.length === 0) {
     return <SectionEmptyState title={t('live.bracketStages')} message={t('live.noBrackets')} />;
   }
 
   const context = resolveActiveBracketContext({
-    brackets,
+    brackets: selectableBrackets,
     activeBracketId,
     tournamentId,
     updatingRoundKey,
@@ -899,7 +903,7 @@ const BracketsSection = ({
       <BracketsHeader
         t={t}
         tournamentId={tournamentId}
-        brackets={brackets}
+        brackets={selectableBrackets}
         activeBracketId={context.activeBracket.id}
         onSelectBracket={onSelectBracket}
       />

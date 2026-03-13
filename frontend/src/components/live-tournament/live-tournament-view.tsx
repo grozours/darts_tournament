@@ -178,12 +178,15 @@ const formatDurationClock = (durationMinutes: number) => {
 const NON_REMAINING_MATCH_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
 const ACTIVE_TARGET_STATUSES = new Set(['AVAILABLE', 'IN_USE']);
 const NON_REMAINING_STAGE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+const LIVE_BRACKET_STATUSES = new Set(['IN_PROGRESS', 'LIVE']);
 
 const isRemainingMatch = (match: LiveViewMatch) =>
   !NON_REMAINING_MATCH_STATUSES.has((match.status ?? '').toUpperCase());
 
 const isRemainingStage = (status: string | undefined) =>
   !NON_REMAINING_STAGE_STATUSES.has((status ?? '').toUpperCase());
+
+const isLiveBracket = (status: string | undefined) => LIVE_BRACKET_STATUSES.has((status ?? '').toUpperCase());
 
 const buildBracketSourceStagesMap = (poolStages: LiveViewPoolStage[] | undefined) => {
   const sourceStageIdsByBracketId = new Map<string, Set<string>>();
@@ -1347,7 +1350,7 @@ const LiveTournamentView = ({
     );
   const headerBrackets = isAdmin
     ? filteredBrackets
-    : filteredBrackets.filter((bracket) => (bracket.entries?.length ?? 0) > 0);
+    : filteredBrackets.filter((bracket) => (bracket.entries?.length ?? 0) > 0 && isLiveBracket(bracket.status));
   const hasLiveBrackets = hasActiveBrackets(view, viewStatus, false, screenMode);
   const hasCompletedPoolStage = displayedPoolStages.some((stage) => stage.status === 'COMPLETED');
   const showBracketsLink = hasCompletedPoolStage && hasLiveBrackets && isPoolStagesView(viewMode);

@@ -110,6 +110,19 @@ describe('BracketsSection empty and selection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Winners' }));
     expect(baseProperties.onSelectBracket).toHaveBeenCalledWith('t1', 'b1');
   });
+
+  it('shows only live bracket buttons for non-admin users', () => {
+    resetBracketMatchesCalls();
+    const brackets = [
+      { id: 'b1', name: 'Live bracket', bracketType: 'SINGLE', status: 'IN_PROGRESS', entries: [] },
+      { id: 'b2', name: 'Draft bracket', bracketType: 'SINGLE', status: 'EDITION', entries: [] },
+    ];
+
+    render(<BracketsSection {...baseProperties} isAdmin={false} brackets={brackets} />);
+
+    expect(screen.getByRole('button', { name: 'Live bracket' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Draft bracket' })).not.toBeInTheDocument();
+  });
 });
 
 describe('BracketsSection rendering and props', () => {

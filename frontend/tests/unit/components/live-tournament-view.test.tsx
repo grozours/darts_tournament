@@ -348,6 +348,49 @@ describe('LiveTournamentView', () => {
     expect(screen.getByText('brackets-1')).toBeInTheDocument();
   });
 
+  it('shows only live bracket links in live header for non-admin users', async () => {
+    await renderView(
+      <LiveTournamentView
+        {...baseProperties}
+        isAdmin={false}
+        viewMode="live"
+        view={makeView({
+          poolStages: [{
+            id: 's1',
+            stageNumber: 1,
+            name: 'Stage 1',
+            status: 'COMPLETED',
+            pools: [{ id: 'p1', poolNumber: 1, name: 'Pool 1', status: 'COMPLETED' }],
+          }],
+          brackets: [
+            {
+              id: 'b1',
+              name: 'Live bracket',
+              bracketType: 'MAIN',
+              status: 'IN_PROGRESS',
+              entries: [{ id: 'e1' }],
+              matches: [{ id: 'm1', matchNumber: 1, roundNumber: 1, status: 'IN_PROGRESS' }],
+            },
+            {
+              id: 'b2',
+              name: 'Draft bracket',
+              bracketType: 'MAIN',
+              status: 'EDITION',
+              entries: [{ id: 'e2' }],
+              matches: [],
+            },
+          ],
+        })}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'Live bracket' })).toHaveAttribute(
+      'href',
+      '/?view=brackets&tournamentId=t1&bracketId=b1'
+    );
+    expect(screen.queryByRole('link', { name: 'Draft bracket' })).not.toBeInTheDocument();
+  });
+
   it('hides pools navigation link in brackets view when no pool stage is displayed', async () => {
     await renderView(
       <LiveTournamentView
