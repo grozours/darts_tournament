@@ -485,6 +485,86 @@ describe('createPoolStageHandlers', () => {
     expect(model.createPoolAssignments).toHaveBeenCalled();
   });
 
+  it('balances expert distribution across pools during stage 1 auto assignment', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.OPEN,
+      format: TournamentFormat.SINGLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 4,
+      poolCount: 4,
+      matchFormatKey: null,
+    }));
+    model.updatePoolStage.mockReturnValue(Promise.resolve({
+      id: 'stage-1',
+      tournamentId: 'tournament-1',
+      stageNumber: 1,
+      status: StageStatus.EDITION,
+      playersPerPool: 4,
+      poolCount: 4,
+      matchFormatKey: null,
+    }));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([
+      { id: 'pool-1' },
+      { id: 'pool-2' },
+      { id: 'pool-3' },
+      { id: 'pool-4' },
+    ]));
+    model.getPoolAssignmentCountForStage.mockReturnValue(Promise.resolve(0));
+    model.getActivePlayersForTournament.mockReturnValue(Promise.resolve([
+      { id: 'expert-1', skillLevel: 'EXPERT' },
+      { id: 'expert-2', skillLevel: 'EXPERT' },
+      { id: 'expert-3', skillLevel: 'EXPERT' },
+      { id: 'expert-4', skillLevel: 'EXPERT' },
+      { id: 'expert-5', skillLevel: 'EXPERT' },
+      { id: 'expert-6', skillLevel: 'EXPERT' },
+      { id: 'expert-7', skillLevel: 'EXPERT' },
+      { id: 'expert-8', skillLevel: 'EXPERT' },
+      { id: 'beginner-1', skillLevel: 'BEGINNER' },
+      { id: 'beginner-2', skillLevel: 'BEGINNER' },
+      { id: 'beginner-3', skillLevel: 'BEGINNER' },
+      { id: 'beginner-4', skillLevel: 'BEGINNER' },
+      { id: 'beginner-5', skillLevel: 'BEGINNER' },
+      { id: 'beginner-6', skillLevel: 'BEGINNER' },
+      { id: 'beginner-7', skillLevel: 'BEGINNER' },
+      { id: 'beginner-8', skillLevel: 'BEGINNER' },
+    ]));
+
+    const handlers = createHandlers(model);
+
+    await handlers.updatePoolStage('tournament-1', 'stage-1', { name: 'rebalance stage 1' });
+
+    const createdAssignments = model.createPoolAssignments.mock.calls[0]?.[0] as Array<{
+      poolId: string;
+      playerId: string;
+    }>;
+    expect(createdAssignments).toBeDefined();
+    expect(createdAssignments).toHaveLength(16);
+
+    const expertCountByPool = new Map<string, number>();
+    for (const assignment of createdAssignments) {
+      if (!assignment.playerId.startsWith('expert-')) {
+        continue;
+      }
+      expertCountByPool.set(
+        assignment.poolId,
+        (expertCountByPool.get(assignment.poolId) ?? 0) + 1
+      );
+    }
+
+    expect(expertCountByPool.get('pool-1')).toBe(2);
+    expect(expertCountByPool.get('pool-2')).toBe(2);
+    expect(expertCountByPool.get('pool-3')).toBe(2);
+    expect(expertCountByPool.get('pool-4')).toBe(2);
+  });
+
   it('redistributes stage>1 assignments using opponent history and tie-break selection', async () => {
     const model = buildModel();
     const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.4);
@@ -1202,8 +1282,9 @@ describe('createPoolStageHandlers', () => {
     expect(seedByPlayer.get('p1')).toBeDefined();
     expect(seedByPlayer.get('p3')).toBeDefined();
     const firstHalfLimit = payload.length / 2;
-    expect((seedByPlayer.get('p1') as number) <= firstHalfLimit)
-      .not.toBe((seedByPlayer.get('p3') as number) <= firstHalfLimit);
+    const p1InFirstHalf = Number(seedByPlayer.get('p1')) <= firstHalfLimit;
+    const p3InFirstHalf = Number(seedByPlayer.get('p3')) <= firstHalfLimit;
+    expect(p1InFirstHalf).not.toBe(p3InFirstHalf);
   });
 
   it('uses head-to-head bonus only within equal legs and keeps higher legsWon ahead', async () => {

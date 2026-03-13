@@ -754,13 +754,13 @@ const notifyPoolStageMatchFormatChanges = async (
   );
 };
 
-const pickPoolForPlayer = (
+const pickPoolForPlayer = <TPoolState extends { pool: { id: string }; players: string[] }>(
   playerId: string,
-  poolState: Array<{ pool: { id: string }; players: string[] }>,
+  poolState: TPoolState[],
   playersPerPool: number,
   opponentMap: Map<string, Set<string>>
 ) => {
-  let best: { state: typeof poolState[number]; conflicts: number } | undefined;
+  let best: { state: TPoolState; conflicts: number } | undefined;
 
   for (const state of poolState) {
     if (state.players.length >= playersPerPool) continue;
@@ -772,6 +772,78 @@ const pickPoolForPlayer = (
   }
 
   return best?.state ?? poolState.find((state) => state.players.length < playersPerPool);
+};
+
+type StageOnePoolState = {
+  pool: { id: string };
+  players: string[];
+  skillScoreTotal: number;
+  expertCount: number;
+};
+
+const isBetterStageOnePoolCandidate = (
+  projectedSkillScore: number,
+  projectedExpertCount: number,
+  size: number,
+  poolId: string,
+  best: {
+    state: StageOnePoolState;
+    projectedSkillScore: number;
+    projectedExpertCount: number;
+  }
+) => {
+  if (projectedSkillScore !== best.projectedSkillScore) {
+    return projectedSkillScore < best.projectedSkillScore;
+  }
+
+  if (projectedExpertCount !== best.projectedExpertCount) {
+    return projectedExpertCount < best.projectedExpertCount;
+  }
+
+  const bestSize = best.state.players.length;
+  if (size !== bestSize) {
+    return size < bestSize;
+  }
+
+  return poolId.localeCompare(best.state.pool.id) < 0;
+};
+
+const pickPoolForStageOnePlayer = (
+  poolState: StageOnePoolState[],
+  playersPerPool: number,
+  playerSkillScore: number,
+  isExpertPlayer: boolean
+) => {
+  let best: {
+    state: StageOnePoolState;
+    projectedSkillScore: number;
+    projectedExpertCount: number;
+  } | undefined;
+
+  for (const state of poolState) {
+    if (state.players.length >= playersPerPool) {
+      continue;
+    }
+
+    const projectedSkillScore = state.skillScoreTotal + playerSkillScore;
+    const projectedExpertCount = state.expertCount + (isExpertPlayer ? 1 : 0);
+
+    if (!best || isBetterStageOnePoolCandidate(
+      projectedSkillScore,
+      projectedExpertCount,
+      state.players.length,
+      state.pool.id,
+      best
+    )) {
+      best = {
+        state,
+        projectedSkillScore,
+        projectedExpertCount,
+      };
+    }
+  }
+
+  return best?.state;
 };
 
 const collectRankingDestinationInfo = (
@@ -1767,19 +1839,37 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const capacity = poolCount * playersPerPool;
     const selected = shuffled.slice(0, capacity);
     const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
-    const poolState = pools.map((pool: (typeof pools)[number]) => ({ pool, players: [] as string[] }));
+    const poolState = pools.map((pool: (typeof pools)[number]) => ({
+      pool,
+      players: [] as string[],
+      skillScoreTotal: 0,
+      expertCount: 0,
+    }));
 
     for (const [index, player] of selected.entries()) {
       if (!player) continue;
-      const chosenPoolState = pickPoolForPlayer(
-        player.id,
-        poolState,
-        playersPerPool,
-        opponentMap
-      );
+      const playerSkillScore = skillScore[player.skillLevel || ''] || 0;
+      const isExpertPlayer = (player.skillLevel ?? '').toUpperCase() === 'EXPERT';
+      const chosenPoolState = stage.stageNumber === 1
+        ? pickPoolForStageOnePlayer(
+          poolState,
+          playersPerPool,
+          playerSkillScore,
+          isExpertPlayer
+        )
+        : pickPoolForPlayer(
+          player.id,
+          poolState,
+          playersPerPool,
+          opponentMap
+        );
       if (!chosenPoolState) continue;
 
       chosenPoolState.players.push(player.id);
+      chosenPoolState.skillScoreTotal += playerSkillScore;
+      if (isExpertPlayer) {
+        chosenPoolState.expertCount += 1;
+      }
       assignments.push({
         poolId: chosenPoolState.pool.id,
         playerId: player.id,
