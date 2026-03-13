@@ -629,6 +629,21 @@ const sortPreviousPoolStages = <T extends { stageNumber: number }>(stages: T[], 
     .sort((left, right) => left.stageNumber - right.stageNumber)
 );
 
+const resolveFirstPoolStageNumber = <T extends { stageNumber: number }>(
+  stages: T[],
+  currentStageNumber: number
+): number => {
+  if (stages.length > 0) {
+    return Math.min(...stages.map((item) => item.stageNumber));
+  }
+
+  if (currentStageNumber <= 1) {
+    return currentStageNumber;
+  }
+
+  return 1;
+};
+
 const collectSourcePlayersFromPools = (
   pools: Array<{ poolNumber: number; assignments?: Array<{ player?: { id?: string } | null } | null> | null }>,
   requested: Set<string>,
@@ -1812,10 +1827,14 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const tournament = await tournamentModel.findById(tournamentId);
     if (!tournament) return;
 
+    const stages = await tournamentModel.getPoolStages(tournamentId);
+    const firstStageNumber = resolveFirstPoolStageNumber(stages, stage.stageNumber);
+    const isFirstPoolStage = stage.stageNumber === firstStageNumber;
+
     const players = await loadActiveTournamentEntries(tournamentModel, tournamentId, tournament.format);
     if (players.length === 0) return;
 
-    const opponentMap = await buildOpponentMap(tournamentId, stage.stageNumber);
+    const opponentMap = await buildOpponentMap(tournamentId, stage.stageNumber, isFirstPoolStage);
 
     const skillScore: Record<string, number> = {
       EXPERT: 4,
@@ -1850,7 +1869,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       if (!player) continue;
       const playerSkillScore = skillScore[player.skillLevel || ''] || 0;
       const isExpertPlayer = (player.skillLevel ?? '').toUpperCase() === 'EXPERT';
-      const chosenPoolState = stage.stageNumber === 1
+      const chosenPoolState = isFirstPoolStage
         ? pickPoolForStageOnePlayer(
           poolState,
           playersPerPool,
@@ -1883,10 +1902,11 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
 
   const buildOpponentMap = async (
     tournamentId: string,
-    stageNumber: number
+    stageNumber: number,
+    isFirstPoolStage: boolean
   ): Promise<Map<string, Set<string>>> => {
     const opponentMap = new Map<string, Set<string>>();
-    if (stageNumber <= 1) {
+    if (isFirstPoolStage) {
       return opponentMap;
     }
 
