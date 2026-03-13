@@ -5,6 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRONTEND_DIR="${ROOT_DIR}/frontend"
 cd "${ROOT_DIR}"
 
+PLAYWRIGHT_USE_DOCKER="${PLAYWRIGHT_USE_DOCKER:-false}"
+PLAYWRIGHT_DOCKER_TARGET="${PLAYWRIGHT_DOCKER_TARGET:-both}"
+PLAYWRIGHT_DOCKER_PROFILE_FLAG="${PLAYWRIGHT_DOCKER_PROFILE_FLAG:--dev}"
+PLAYWRIGHT_DOCKER_RESTART_SCRIPT="${PLAYWRIGHT_DOCKER_RESTART_SCRIPT:-${ROOT_DIR}/restart.sh}"
+PLAYWRIGHT_DOCKER_BACKEND_PORT="${BACKEND_PORT:-3310}"
+PLAYWRIGHT_DOCKER_FRONTEND_PORT="${FRONTEND_PORT:-3311}"
 BACKEND_DEV_URL="${PLAYWRIGHT_DEV_BACKEND_URL:-http://localhost:3310/health}"
 FRONTEND_DEV_URL="${PLAYWRIGHT_DEV_FRONTEND_URL:-http://localhost:3311}"
 DEV_HEALTH_TRIES="${PLAYWRIGHT_DEV_HEALTH_TRIES:-20}"
@@ -16,6 +22,16 @@ BACKEND_STARTED_BY_SCRIPT="false"
 FRONTEND_STARTED_BY_SCRIPT="false"
 BACKEND_PID=""
 FRONTEND_PID=""
+PLAYWRIGHT_RESTORE_STANDARD_DOCKER_ON_EXIT="false"
+
+if [[ "${PLAYWRIGHT_USE_DOCKER}" == "true" ]]; then
+  if [[ -z "${PLAYWRIGHT_DEV_BACKEND_URL:-}" ]]; then
+    BACKEND_DEV_URL="http://localhost:${PLAYWRIGHT_DOCKER_BACKEND_PORT}/health"
+  fi
+  if [[ -z "${PLAYWRIGHT_DEV_FRONTEND_URL:-}" ]]; then
+    FRONTEND_DEV_URL="http://localhost:${PLAYWRIGHT_DOCKER_FRONTEND_PORT}"
+  fi
+fi
 
 sanitize_shell_command() {
   # Replace Unicode spaces that can break command parsing (e.g. non-breaking spaces).
@@ -24,15 +40,62 @@ sanitize_shell_command() {
 }
 
 cleanup_started_dev_processes() {
+  local exit_code=$?
+
   if [[ "${BACKEND_STARTED_BY_SCRIPT}" == "true" && -n "${BACKEND_PID}" ]]; then
     kill "${BACKEND_PID}" >/dev/null 2>&1 || true
   fi
   if [[ "${FRONTEND_STARTED_BY_SCRIPT}" == "true" && -n "${FRONTEND_PID}" ]]; then
     kill "${FRONTEND_PID}" >/dev/null 2>&1 || true
   fi
+
+  if [[ "${PLAYWRIGHT_RESTORE_STANDARD_DOCKER_ON_EXIT}" == "true" ]]; then
+    if ! restore_standard_docker_dev_instance_if_enabled; then
+      echo "[playwright] WARNING: failed to restore standard Docker dev services."
+      if [[ ${exit_code} -eq 0 ]]; then
+        exit_code=1
+      fi
+    fi
+  fi
+
+  exit "${exit_code}"
 }
 
 trap cleanup_started_dev_processes EXIT
+
+start_docker_instance_if_enabled() {
+  if [[ "${PLAYWRIGHT_USE_DOCKER}" != "true" ]]; then
+    return 0
+  fi
+
+  if [[ ! -x "${PLAYWRIGHT_DOCKER_RESTART_SCRIPT}" ]]; then
+    echo "[playwright] ERROR: restart script is not executable: ${PLAYWRIGHT_DOCKER_RESTART_SCRIPT}"
+    return 1
+  fi
+
+  echo "[playwright] Restarting Docker services (${PLAYWRIGHT_DOCKER_TARGET} ${PLAYWRIGHT_DOCKER_PROFILE_FLAG})..."
+  BACKEND_PORT="${PLAYWRIGHT_DOCKER_BACKEND_PORT}" FRONTEND_PORT="${PLAYWRIGHT_DOCKER_FRONTEND_PORT}" \
+    bash "${PLAYWRIGHT_DOCKER_RESTART_SCRIPT}" "${PLAYWRIGHT_DOCKER_TARGET}" "${PLAYWRIGHT_DOCKER_PROFILE_FLAG}"
+  PLAYWRIGHT_RESTORE_STANDARD_DOCKER_ON_EXIT="true"
+
+  echo "[playwright] Docker services ready on backend:${PLAYWRIGHT_DOCKER_BACKEND_PORT} frontend:${PLAYWRIGHT_DOCKER_FRONTEND_PORT}."
+}
+
+restore_standard_docker_dev_instance_if_enabled() {
+  if [[ "${PLAYWRIGHT_USE_DOCKER}" != "true" ]]; then
+    return 0
+  fi
+
+  if [[ ! -x "${PLAYWRIGHT_DOCKER_RESTART_SCRIPT}" ]]; then
+    echo "[playwright] WARNING: restart script is not executable: ${PLAYWRIGHT_DOCKER_RESTART_SCRIPT}"
+    return 0
+  fi
+
+  echo "[playwright] Restoring Docker dev services on standard ports (3000/3001)..."
+  BACKEND_PORT=3000 FRONTEND_PORT=3001 \
+    bash "${PLAYWRIGHT_DOCKER_RESTART_SCRIPT}" both -dev
+  echo "[playwright] Docker dev services restored on backend:3000 frontend:3001."
+}
 
 wait_for_dev_health() {
   local backend_ok="false"
@@ -117,6 +180,7 @@ run_playwright_local() {
 
 EXTRA_ARGS=("$@")
 
+start_docker_instance_if_enabled
 start_dev_instance_if_enabled
 
 echo "[playwright] Running backend E2E suite (tests/e2e)..."

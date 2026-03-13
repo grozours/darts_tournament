@@ -11,7 +11,7 @@
     "test": "node --max-old-space-size=6144 ./node_modules/vitest/vitest.mjs",
     "test:e2e": "playwright test -c ./playwright.config.ts",
     "test:e2e:dev": "bash ../scripts/run_playwright_tests.sh",
-    "test:e2e:docker331x": "BACKEND_PORT=3310 FRONTEND_PORT=3311 bash ../restart.sh both -dev && PLAYWRIGHT_BOOTSTRAP_DEV_INSTANCE=false bash ../scripts/run_playwright_tests.sh",
+    "test:e2e:docker331x": "PLAYWRIGHT_USE_DOCKER=true PLAYWRIGHT_DOCKER_BACKEND_PORT=3310 PLAYWRIGHT_DOCKER_FRONTEND_PORT=3311 PLAYWRIGHT_BOOTSTRAP_DEV_INSTANCE=false bash ../scripts/run_playwright_tests.sh",
     "test:ui": "node --max-old-space-size=6144 ./node_modules/vitest/vitest.mjs --ui",
     "test:coverage:raw": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs run tests/unit --coverage",
     "test:coverage": "node ./scripts/run-coverage-strict.mjs",
