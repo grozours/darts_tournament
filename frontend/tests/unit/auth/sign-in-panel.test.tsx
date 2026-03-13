@@ -32,11 +32,13 @@ describe('SignInPanel', () => {
     globalEnvironment.VITE_AUTH0_CONNECTION_INSTAGRAM = originalEnvironment.VITE_AUTH0_CONNECTION_INSTAGRAM;
   });
 
-  it('triggers default login on primary button', () => {
+  it('renders only social sign-in actions and no generic sign-in button', () => {
     render(<SignInPanel title="Sign in" description="Desc" />);
 
-    fireEvent.click(screen.getByText('auth.signIn'));
-    expect(loginWithRedirect).toHaveBeenCalledWith();
+    expect(screen.queryByText('auth.signIn')).not.toBeInTheDocument();
+    expect(screen.getByText('auth.signInWithGoogle')).toBeInTheDocument();
+    expect(screen.getByText('auth.signInWithFacebook')).toBeInTheDocument();
+    expect(screen.getByText('auth.signInWithDiscord')).toBeInTheDocument();
   });
 
   it('uses default provider connections when env is empty', () => {
@@ -57,5 +59,22 @@ describe('SignInPanel', () => {
     expect(loginWithRedirect).toHaveBeenCalledWith({
       authorizationParams: { connection: 'custom-google' },
     });
+  });
+
+  it('renders one social logo per provider button', () => {
+    const { container } = render(<SignInPanel title="Sign in" description="Desc" />);
+
+    const socialButtons = [
+      screen.getByText('auth.signInWithGoogle').closest('button'),
+      screen.getByText('auth.signInWithFacebook').closest('button'),
+      screen.getByText('auth.signInWithDiscord').closest('button'),
+    ];
+
+    expect(socialButtons.every(Boolean)).toBe(true);
+    for (const button of socialButtons) {
+      expect(button?.querySelector('svg')).toBeTruthy();
+    }
+
+    expect(container.querySelectorAll('button svg').length).toBe(3);
   });
 });
