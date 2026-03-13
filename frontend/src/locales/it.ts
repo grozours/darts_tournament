@@ -87,7 +87,7 @@ export const itMessages: Record<string, string> = {
   'groups.create': 'Crea',
   'groups.none': 'Nessun gruppo trovato per questo torneo.',
   'groups.join': 'Unisciti',
-  'groups.changePassword': 'Codice di accesso',
+  'groups.changeAccessCode': 'Codice di accesso',
   'groups.leave': 'Lascia',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',

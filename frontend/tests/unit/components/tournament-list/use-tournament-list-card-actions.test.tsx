@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import useTournamentListCardActions from '../../../../src/components/tournament-list/use-tournament-list-card-actions';
 
@@ -17,7 +18,29 @@ vi.mock('../../../../src/components/tournament-list/tournament-players-actions',
   confirmAllTournamentPlayers: (...arguments_: unknown[]) => confirmAllTournamentPlayers(...arguments_),
 }));
 
-describe('useTournamentListCardActions', () => {
+const buildHook = (override: Record<string, unknown> = {}) => {
+  const fetchTournaments = vi.fn(async () => undefined);
+  const getSafeAccessToken = vi.fn(async () => 'token');
+  const visibleTournaments = [{
+    id: 't1',
+    name: 'Cup',
+    status: 'OPEN',
+    totalParticipants: 16,
+    currentParticipants: 0,
+  }];
+  const t = (key: string) => key;
+  const { result } = renderHook(() => useTournamentListCardActions({
+    t,
+    visibleTournaments,
+    getSafeAccessToken,
+    fetchTournaments,
+    ...override,
+  } as never));
+
+  return { result, fetchTournaments, getSafeAccessToken };
+};
+
+const resetMocks = () => {
   beforeEach(() => {
     fetchTournamentPlayers.mockReset();
     updateTournamentStatus.mockReset();
@@ -25,28 +48,10 @@ describe('useTournamentListCardActions', () => {
     confirmAllTournamentPlayers.mockReset();
     vi.stubGlobal('alert', vi.fn());
   });
+};
 
-  const buildHook = (override: Record<string, unknown> = {}) => {
-    const fetchTournaments = vi.fn(async () => undefined);
-    const getSafeAccessToken = vi.fn(async () => 'token');
-    const visibleTournaments = [{
-      id: 't1',
-      name: 'Cup',
-      status: 'OPEN',
-      totalParticipants: 16,
-      currentParticipants: 0,
-    }];
-    const t = (key: string) => key;
-    const { result } = renderHook(() => useTournamentListCardActions({
-      t,
-      visibleTournaments,
-      getSafeAccessToken,
-      fetchTournaments,
-      ...override,
-    } as never));
-
-    return { result, fetchTournaments, getSafeAccessToken };
-  };
+describe('useTournamentListCardActions status transitions', () => {
+  resetMocks();
 
   it('opens draft, registration and signature from card', async () => {
     updateTournamentStatus.mockResolvedValue(undefined);
@@ -84,6 +89,10 @@ describe('useTournamentListCardActions', () => {
     expect(globalThis.alert).toHaveBeenNthCalledWith(2, 'edit.error.failedOpenRegistration');
     expect(globalThis.alert).toHaveBeenNthCalledWith(3, 'edit.error.failedMoveToSignature');
   });
+});
+
+describe('useTournamentListCardActions player operations', () => {
+  resetMocks();
 
   it('returns early when tournament is not visible', async () => {
     const { result } = buildHook({ visibleTournaments: [] });

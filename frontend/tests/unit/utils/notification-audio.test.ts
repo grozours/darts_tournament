@@ -106,7 +106,7 @@ describe('notification-audio', () => {
       currentTime = 3;
       play = play;
 
-      constructor(_src: string) {
+      constructor() {
         instances.push(this);
       }
     }
@@ -167,7 +167,7 @@ describe('notification-audio', () => {
       volume = 0;
       currentTime = 0;
 
-      constructor(_src: string) {}
+      constructor() {}
 
       async play(): Promise<void> {
         throw new Error('play failed');

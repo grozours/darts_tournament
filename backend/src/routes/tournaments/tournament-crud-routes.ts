@@ -5,6 +5,7 @@ import { uploadTournamentLogo } from '../../middleware/upload';
 import { validate } from '../../middleware/validation';
 import {
   createTournamentSchema,
+  deleteTournamentLogoSchema,
   snapshotHistoryUuidSchema,
   updateTournamentSchema,
   uuidSchema,
@@ -58,6 +59,23 @@ export const registerTournamentCrudRoutes = (
     validate(uuidSchema),
     uploadTournamentLogo,
     tournamentController.uploadTournamentLogo
+  );
+
+  router.get(
+    '/:id/logos',
+    requireAuth,
+    requireAdmin,
+    validate(uuidSchema),
+    tournamentController.listTournamentLogos
+  );
+
+  router.delete(
+    '/:id/logos',
+    requireAuth,
+    requireAdmin,
+    validate(uuidSchema),
+    validate(deleteTournamentLogoSchema),
+    tournamentController.deleteTournamentLogo
   );
 
   router.get(

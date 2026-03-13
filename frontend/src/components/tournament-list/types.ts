@@ -14,6 +14,7 @@ export type Tournament = {
   name: string;
   location?: string;
   logoUrl?: string;
+  logoUrls?: string[];
   format: string;
   totalParticipants: number;
   currentParticipants?: number;
@@ -74,7 +75,7 @@ export type TournamentEditState = {
   editError: string | undefined;
   isSaving: boolean;
   isEditPage: boolean;
-  logoFile: File | undefined;
+  logoFiles: File[];
   isUploadingLogo: boolean;
   poolStages: PoolStageConfig[];
   poolStagesError: string | undefined;

@@ -87,7 +87,7 @@ export const deMessages: Record<string, string> = {
   'groups.create': 'Erstellen',
   'groups.none': 'Keine Gruppe für dieses Turnier gefunden.',
   'groups.join': 'Beitreten',
-  'groups.changePassword': 'Zugangscode',
+  'groups.changeAccessCode': 'Zugangscode',
   'groups.leave': 'Verlassen',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',

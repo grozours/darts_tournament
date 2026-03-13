@@ -591,6 +591,7 @@ const TournamentCard = ({
           <TournamentAdminActions
             tournament={tournament}
             normalizedStatus={normalizedStatus}
+            openingDraftId={openingDraftId}
             openingRegistrationId={openingRegistrationId}
             openingSignatureId={openingSignatureId}
             autoFillingTournamentId={autoFillingTournamentId}

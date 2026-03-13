@@ -473,7 +473,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                       }}
                       className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
                     >
-                      {t('groups.changePassword')}
+                      {t('groups.changeAccessCode')}
                     </button>
                   )}
                   {canDelete && (

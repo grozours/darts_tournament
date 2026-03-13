@@ -139,6 +139,15 @@ export const updateTournamentSchema = {
   }),
 };
 
+export const deleteTournamentLogoSchema = {
+  body: z.object({
+    logoUrl: z.string().trim().min(1, 'Logo URL is required').optional(),
+    logo_url: z.string().trim().min(1, 'Logo URL is required').optional(),
+  }).refine((value) => Boolean(value.logoUrl ?? value.logo_url), {
+    message: 'Logo URL is required',
+  }),
+};
+
 const tournamentPresetTypeSchema = z.enum(['single-pool-stage', 'three-pool-stages', 'custom']);
 const presetMatchFormatSchema = z.string().trim().min(1).max(20);
 const presetParallelReferenceSchema = z.string().trim().min(1).max(140);

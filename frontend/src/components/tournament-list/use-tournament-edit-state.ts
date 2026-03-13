@@ -8,7 +8,7 @@ type TournamentEditState = {
   editLoading: boolean;
   editLoadError: string | undefined;
   isSaving: boolean;
-  logoFile: File | undefined;
+  logoFiles: File[];
   isUploadingLogo: boolean;
 };
 
@@ -19,7 +19,7 @@ type TournamentEditStateSetters = {
   setEditLoading: Dispatch<SetStateAction<boolean>>;
   setEditLoadError: Dispatch<SetStateAction<string | undefined>>;
   setIsSaving: Dispatch<SetStateAction<boolean>>;
-  setLogoFile: Dispatch<SetStateAction<File | undefined>>;
+  setLogoFiles: Dispatch<SetStateAction<File[]>>;
   setIsUploadingLogo: Dispatch<SetStateAction<boolean>>;
 };
 
@@ -32,7 +32,7 @@ const useTournamentEditState = (): TournamentEditStateResult => {
   const [editLoading, setEditLoading] = useState(false);
   const [editLoadError, setEditLoadError] = useState<string | undefined>();
   const [isSaving, setIsSaving] = useState(false);
-  const [logoFile, setLogoFile] = useState<File | undefined>();
+  const [logoFiles, setLogoFiles] = useState<File[]>([]);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   return {
@@ -42,7 +42,7 @@ const useTournamentEditState = (): TournamentEditStateResult => {
     editLoading,
     editLoadError,
     isSaving,
-    logoFile,
+    logoFiles,
     isUploadingLogo,
     setEditingTournament,
     setEditForm,
@@ -50,7 +50,7 @@ const useTournamentEditState = (): TournamentEditStateResult => {
     setEditLoading,
     setEditLoadError,
     setIsSaving,
-    setLogoFile,
+    setLogoFiles,
     setIsUploadingLogo,
   };
 };

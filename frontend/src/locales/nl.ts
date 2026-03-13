@@ -87,7 +87,7 @@ export const nlMessages: Record<string, string> = {
   'groups.create': 'Aanmaken',
   'groups.none': 'Geen groep gevonden voor dit toernooi.',
   'groups.join': 'Deelnemen',
-  'groups.changePassword': 'Toegangscode',
+  'groups.changeAccessCode': 'Toegangscode',
   'groups.leave': 'Verlaten',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',

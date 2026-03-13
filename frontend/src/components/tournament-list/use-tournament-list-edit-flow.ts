@@ -24,14 +24,14 @@ type UseTournamentListEditFlowProperties = {
   fetchTournaments: () => void;
   editingTournament: Tournament | undefined;
   editForm: EditFormState | undefined;
-  logoFile: File | undefined;
+  logoFiles: File[];
   setEditingTournament: Dispatch<SetStateAction<Tournament | undefined>>;
   setEditForm: Dispatch<SetStateAction<EditFormState | undefined>>;
   setEditError: Dispatch<SetStateAction<string | undefined>>;
   setEditLoading: Dispatch<SetStateAction<boolean>>;
   setEditLoadError: Dispatch<SetStateAction<string | undefined>>;
   setIsSaving: Dispatch<SetStateAction<boolean>>;
-  setLogoFile: Dispatch<SetStateAction<File | undefined>>;
+  setLogoFiles: Dispatch<SetStateAction<File[]>>;
   setIsUploadingLogo: Dispatch<SetStateAction<boolean>>;
 };
 
@@ -39,6 +39,7 @@ type TournamentListEditFlowResult = {
   openEdit: (tournament: Tournament, options?: { skipNavigation?: boolean }) => void;
   closeEdit: () => void;
   uploadLogo: () => Promise<void>;
+  deleteLogo: (logoUrl: string) => Promise<void>;
   saveEdit: () => Promise<void>;
   openRegistration: () => Promise<void>;
   moveToSignature: () => Promise<void>;
@@ -62,14 +63,14 @@ const useTournamentListEditFlow = ({
   fetchTournaments,
   editingTournament,
   editForm,
-  logoFile,
+  logoFiles,
   setEditingTournament,
   setEditForm,
   setEditError,
   setEditLoading,
   setEditLoadError,
   setIsSaving,
-  setLogoFile,
+  setLogoFiles,
   setIsUploadingLogo,
 }: UseTournamentListEditFlowProperties): TournamentListEditFlowResult => {
   const closeEdit = useCallback(() => {
@@ -78,7 +79,7 @@ const useTournamentListEditFlow = ({
     setEditError(undefined);
     resetPlayersState();
     resetStructureState();
-    setLogoFile(undefined);
+    setLogoFiles([]);
     if (isEditPage) {
       globalThis.window?.location.assign('/');
     }
@@ -89,7 +90,7 @@ const useTournamentListEditFlow = ({
     setEditError,
     setEditForm,
     setEditingTournament,
-    setLogoFile,
+    setLogoFiles,
   ]);
 
   const { fetchTournamentDetails } = useTournamentEditDetails({
@@ -119,15 +120,15 @@ const useTournamentListEditFlow = ({
     setEditLoadError,
   });
 
-  const { uploadLogo } = useTournamentLogoUpload({
+  const { uploadLogo, deleteLogo } = useTournamentLogoUpload({
     t,
     editingTournament,
-    logoFile,
+    logoFiles,
     getSafeAccessToken,
     setEditError,
     setIsUploadingLogo,
     setEditingTournament,
-    setLogoFile,
+    setLogoFiles,
     fetchTournaments,
   });
 
@@ -153,6 +154,7 @@ const useTournamentListEditFlow = ({
     openEdit,
     closeEdit,
     uploadLogo,
+    deleteLogo,
     saveEdit,
     openRegistration,
     moveToSignature,

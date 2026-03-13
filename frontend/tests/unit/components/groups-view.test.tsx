@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import GroupsView from '../../../src/components/groups-view';
 import DoublettesView from '../../../src/components/doublettes-view';
@@ -400,7 +401,7 @@ describe('GroupsView', () => {
       expect(updateDoublette).toHaveBeenCalled();
     });
 
-    fireEvent.click(screen.getByText('groups.changePassword'));
+    fireEvent.click(screen.getByText('groups.changeAccessCode'));
     fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: 'new-pass' } });
     fireEvent.click(screen.getByText('common.save'));
     await waitFor(() => {
@@ -738,15 +739,22 @@ describe('GroupsView', () => {
       },
     ]);
 
+    const updatedAccessCode = `code-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+
     render(<GroupsView mode="doublettes" />);
     await screen.findByText('Live Duo Password');
 
-    fireEvent.click(screen.getByText('groups.changePassword'));
-    fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: 'new-secret' } });
+    fireEvent.click(screen.getByText('groups.changeAccessCode'));
+    fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: updatedAccessCode } });
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
 
     await waitFor(() => {
-      expect(updateDoublettePassword).toHaveBeenCalledWith('t1', 'd-live-password', { password: 'new-secret' }, 'token-1');
+      expect(updateDoublettePassword).toHaveBeenCalledWith(
+        't1',
+        'd-live-password',
+        { password: updatedAccessCode },
+        'token-1'
+      );
     });
 
     fetchSpy.mockRestore();
@@ -777,15 +785,22 @@ describe('GroupsView', () => {
       },
     ]);
 
+    const updatedAccessCode = `team-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+
     render(<GroupsView mode="equipes" />);
     await screen.findByText('Live Team Password');
 
-    fireEvent.click(screen.getByText('groups.changePassword'));
-    fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: 'new-team-secret' } });
+    fireEvent.click(screen.getByText('groups.changeAccessCode'));
+    fireEvent.change(screen.getByPlaceholderText('groups.promptNewPassword'), { target: { value: updatedAccessCode } });
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
 
     await waitFor(() => {
-      expect(updateEquipePassword).toHaveBeenCalledWith('t1', 'e-live-password', { password: 'new-team-secret' }, 'token-1');
+      expect(updateEquipePassword).toHaveBeenCalledWith(
+        't1',
+        'e-live-password',
+        { password: updatedAccessCode },
+        'token-1'
+      );
     });
 
     fetchSpy.mockRestore();

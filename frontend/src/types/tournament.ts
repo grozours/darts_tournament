@@ -25,6 +25,7 @@ export interface Tournament {
   id: string;
   name: string;
   logoUrl?: string;
+  logoUrls?: string[];
   format: TournamentFormat;
   durationType: DurationType;
   startTime: Date;

@@ -87,7 +87,7 @@ export const ptMessages: Record<string, string> = {
   'groups.create': 'Criar',
   'groups.none': 'Nenhum grupo encontrado para este torneio.',
   'groups.join': 'Entrar',
-  'groups.changePassword': 'Código de acesso',
+  'groups.changeAccessCode': 'Código de acesso',
   'groups.leave': 'Sair',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',

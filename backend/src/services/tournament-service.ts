@@ -44,11 +44,13 @@ export class TournamentService {
 
   public createTournament!: TournamentCoreHandlers['createTournament'];
   public getTournamentById!: TournamentCoreHandlers['getTournamentById'];
+  public listTournamentLogos!: TournamentCoreHandlers['listTournamentLogos'];
   public getTournamentLiveView!: TournamentCoreHandlers['getTournamentLiveView'];
   public getTournaments!: TournamentCoreHandlers['getTournaments'];
   public updateTournament!: TournamentCoreHandlers['updateTournament'];
   public deleteTournament!: TournamentCoreHandlers['deleteTournament'];
   public uploadTournamentLogo!: TournamentCoreHandlers['uploadTournamentLogo'];
+  public deleteTournamentLogo!: TournamentCoreHandlers['deleteTournamentLogo'];
   public getTournamentsByDateRange!: TournamentCoreHandlers['getTournamentsByDateRange'];
   public isTournamentNameAvailable!: TournamentCoreHandlers['isTournamentNameAvailable'];
   public getTournamentStats!: TournamentCoreHandlers['getTournamentStats'];
@@ -215,6 +217,7 @@ export class TournamentService {
     this.createTournament = this.wrapCreateWithAutosave(this.createTournament, 'CREATE_TOURNAMENT');
     this.updateTournament = this.wrapMutationWithAutosave(this.updateTournament, extractTournamentId, 'UPDATE_TOURNAMENT');
     this.uploadTournamentLogo = this.wrapMutationWithAutosave(this.uploadTournamentLogo, extractTournamentId, 'UPLOAD_TOURNAMENT_LOGO');
+    this.deleteTournamentLogo = this.wrapMutationWithAutosave(this.deleteTournamentLogo, extractTournamentId, 'DELETE_TOURNAMENT_LOGO');
     this.transitionTournamentStatus = this.wrapMutationWithAutosave(this.transitionTournamentStatus, extractTournamentId, 'TRANSITION_TOURNAMENT_STATUS');
     this.openTournamentRegistration = this.wrapMutationWithAutosave(this.openTournamentRegistration, extractTournamentId, 'OPEN_TOURNAMENT_REGISTRATION');
     this.startTournament = this.wrapMutationWithAutosave(this.startTournament, extractTournamentId, 'START_TOURNAMENT');

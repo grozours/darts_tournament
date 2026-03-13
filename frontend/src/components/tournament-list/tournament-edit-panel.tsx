@@ -20,6 +20,7 @@ export type TournamentEditPanelProperties = {
     id: string;
     name: string;
     logoUrl?: string;
+    logoUrls?: string[];
     format: string;
     totalParticipants: number;
     status: string;
@@ -33,12 +34,13 @@ export type TournamentEditPanelProperties = {
   editError: string | undefined;
   isSaving: boolean;
   isUploadingLogo: boolean;
-  logoFile: File | undefined;
+  logoFiles: File[];
   normalizedStatus: string;
   onClose: () => void;
   onEditFormChange: (next: EditFormState) => void;
-  onLogoFileChange: (file: File | undefined) => void;
+  onLogoFilesChange: (files: File[]) => void;
   onUploadLogo: () => void;
+  onDeleteLogo: (logoUrl: string) => void;
   poolStages: PoolStageConfig[];
   poolStagesError: string | undefined;
   onLoadPoolStages: () => void;
@@ -166,7 +168,7 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   formatOptions: properties.formatOptions,
   durationOptions: properties.durationOptions,
   skillLevelOptions: properties.skillLevelOptions,
-  logoFile: properties.logoFile,
+  logoFiles: properties.logoFiles,
   isUploadingLogo: properties.isUploadingLogo,
   poolStages: properties.poolStages,
   poolStagesError: properties.poolStagesError,
@@ -195,8 +197,9 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   quickStructurePresetsLoading: properties.quickStructurePresetsLoading,
   normalizedStatus: properties.normalizedStatus,
   onEditFormChange: properties.onEditFormChange,
-  onLogoFileChange: properties.onLogoFileChange,
+  onLogoFilesChange: properties.onLogoFilesChange,
   onUploadLogo: properties.onUploadLogo,
+  onDeleteLogo: properties.onDeleteLogo,
   onApplyStructurePreset: properties.onApplyStructurePreset,
   onLoadPoolStages: properties.onLoadPoolStages,
   onPoolStageNumberChange: properties.onPoolStageNumberChange,

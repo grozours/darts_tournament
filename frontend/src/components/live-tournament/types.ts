@@ -117,6 +117,8 @@ export interface LiveViewBracket {
 export interface LiveViewData {
   id: string;
   name: string;
+  logoUrl?: string;
+  logoUrls?: string[];
   format?: string;
   status: string;
   startTime?: string;

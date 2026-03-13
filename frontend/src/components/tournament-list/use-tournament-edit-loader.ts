@@ -47,6 +47,11 @@ const resolveValue = <T>(fallback: T, ...values: Array<T | undefined>) =>
 const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): Tournament => {
   const location = resolveValue(undefined, data.location as string | undefined);
   const logoUrl = resolveValue(undefined, data.logoUrl as string | undefined, data.logo_url as string | undefined);
+  const logoUrls = resolveValue(
+    undefined,
+    data.logoUrls as string[] | undefined,
+    data.logo_urls as string[] | undefined
+  );
   const startTime = resolveValue(undefined, data.startTime as string | undefined, data.start_time as string | undefined);
   const endTime = resolveValue(undefined, data.endTime as string | undefined, data.end_time as string | undefined);
   const createdAt = resolveValue(undefined, data.createdAt as string | undefined, data.created_at as string | undefined);
@@ -67,6 +72,7 @@ const mapEditTournament = (data: Record<string, unknown>, fallbackId: string): T
     name: resolveValue('', data.name as string | undefined),
     ...(location === undefined ? {} : { location }),
     ...(logoUrl === undefined ? {} : { logoUrl }),
+    ...(logoUrls && logoUrls.length > 0 ? { logoUrls } : {}),
     format: resolveValue(TournamentFormat.SINGLE, data.format as string | undefined),
     totalParticipants: resolveValue(
       0,

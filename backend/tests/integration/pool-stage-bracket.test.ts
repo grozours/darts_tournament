@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { randomUUID } from 'node:crypto';
 import { TournamentFormat, DurationType } from '@shared/types';
 
 describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
@@ -42,6 +43,152 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .expect(201);
 
     return response.body.id as string;
+  };
+
+  const updateTournamentStatus = async (tournamentId: string, status: 'OPEN' | 'SIGNATURE' | 'LIVE') => {
+    await request(server)
+      .patch(`/api/tournaments/${tournamentId}/status`)
+      .send({ status })
+      .expect(200);
+  };
+
+  const registerPlayers = async (
+    tournamentId: string,
+    players: Array<{ firstName: string; lastName: string; email: string }>
+  ) => {
+    const playerIds: string[] = [];
+
+    for (const player of players) {
+      const response = await request(server)
+        .post(`/api/tournaments/${tournamentId}/players`)
+        .send(player)
+        .expect(201);
+      if (response.body?.id) {
+        playerIds.push(response.body.id);
+      }
+    }
+
+    return playerIds;
+  };
+
+  const checkInPlayers = async (tournamentId: string, playerIds: string[]) => {
+    for (const playerId of playerIds) {
+      await request(server)
+        .patch(`/api/tournaments/${tournamentId}/players/${playerId}/check-in`)
+        .send({ checkedIn: true })
+        .expect(200);
+    }
+  };
+
+  const getPoolByPlayerIdMap = (pools: any[]): Map<string, number> => {
+    const poolByPlayerId = new Map<string, number>();
+
+    for (const pool of pools) {
+      for (const assignment of pool.assignments ?? []) {
+        const playerId = assignment?.player?.id as string | undefined;
+        const poolNumber = pool.poolNumber as number | undefined;
+        if (playerId && poolNumber) {
+          poolByPlayerId.set(playerId, poolNumber);
+        }
+      }
+    }
+
+    return poolByPlayerId;
+  };
+
+  const getSourcePairsFromPools = (pools: any[]): Array<[string, string]> => {
+    const sourcePairs: Array<[string, string]> = [];
+
+    for (const pool of pools) {
+      const ids = (pool.assignments ?? [])
+        .map((assignment: any) => assignment?.player?.id as string | undefined)
+        .filter((value: string | undefined): value is string => Boolean(value));
+      if (ids.length !== 2) {
+        continue;
+      }
+
+      const first = ids[0];
+      const second = ids[1];
+      if (first && second) {
+        sourcePairs.push([first, second]);
+      }
+    }
+
+    return sourcePairs;
+  };
+
+  const getTargetPoolByPlayerId = (pools: any[]): Map<string, string> => {
+    const targetPoolByPlayerId = new Map<string, string>();
+
+    for (const pool of pools) {
+      for (const assignment of pool.assignments ?? []) {
+        const playerId = assignment?.player?.id as string | undefined;
+        const poolId = pool.id as string | undefined;
+        if (playerId && poolId) {
+          targetPoolByPlayerId.set(playerId, poolId);
+        }
+      }
+    }
+
+    return targetPoolByPlayerId;
+  };
+
+  const assertSourcePairsAreSeparated = (
+    sourcePairs: Array<[string, string]>,
+    targetPoolByPlayerId: Map<string, string>
+  ) => {
+    for (const [first, second] of sourcePairs) {
+      expect(targetPoolByPlayerId.get(first)).toBeDefined();
+      expect(targetPoolByPlayerId.get(second)).toBeDefined();
+      expect(targetPoolByPlayerId.get(first)).not.toBe(targetPoolByPlayerId.get(second));
+    }
+  };
+
+  const getStage2PoolByPlayer = (pools: any[]): Map<string, number> => {
+    const stage2PoolByPlayer = new Map<string, number>();
+
+    for (const pool of pools) {
+      const poolNumber = pool?.poolNumber as number | undefined;
+      if (!poolNumber) {
+        continue;
+      }
+
+      for (const assignment of pool.assignments ?? []) {
+        const playerId = assignment?.player?.id as string | undefined;
+        if (playerId) {
+          stage2PoolByPlayer.set(playerId, poolNumber);
+        }
+      }
+    }
+
+    return stage2PoolByPlayer;
+  };
+
+  const assertRoundOneOppositePools = (matches: any[], stage2PoolByPlayer: Map<string, number>) => {
+    for (const match of matches) {
+      if (match?.roundNumber !== 1) {
+        continue;
+      }
+
+      const playerIds = (match?.playerMatches ?? [])
+        .map((playerMatch: any) => playerMatch?.player?.id as string | undefined)
+        .filter((value: string | undefined): value is string => Boolean(value));
+
+      if (playerIds.length < 2) {
+        continue;
+      }
+
+      const [firstPlayerId, secondPlayerId] = playerIds;
+      if (!firstPlayerId || !secondPlayerId) {
+        continue;
+      }
+
+      const firstSourcePool = stage2PoolByPlayer.get(firstPlayerId);
+      const secondSourcePool = stage2PoolByPlayer.get(secondPlayerId);
+      expect(firstSourcePool).toBeDefined();
+      expect(secondSourcePool).toBeDefined();
+      expect(firstSourcePool).not.toBe(secondSourcePool);
+    }
   };
 
   it('should create, update, and delete a pool stage', async () => {
@@ -211,12 +358,9 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .expect(201);
     const bracketId = createBracketResponse.body.id as string;
 
-    await request(server)
-      .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'OPEN' })
-      .expect(200);
+    await updateTournamentStatus(tournamentId, 'OPEN');
 
-    const emailSuffix = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+    const emailSuffix = `${Date.now()}-${randomUUID()}`;
     const players = [
       { firstName: 'Alpha', lastName: 'One', email: `alpha.one.${emailSuffix}@example.com` },
       { firstName: 'Bravo', lastName: 'One', email: `bravo.one.${emailSuffix}@example.com` },
@@ -228,28 +372,10 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       { firstName: 'Bravo', lastName: 'Four', email: `bravo.four.${emailSuffix}@example.com` },
     ];
 
-    const playerIds: string[] = [];
-    for (const player of players) {
-      const response = await request(server)
-        .post(`/api/tournaments/${tournamentId}/players`)
-        .send(player)
-        .expect(201);
-      if (response.body?.id) {
-        playerIds.push(response.body.id);
-      }
-    }
+    const playerIds = await registerPlayers(tournamentId, players);
 
-    await request(server)
-      .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'SIGNATURE' })
-      .expect(200);
-
-    for (const playerId of playerIds) {
-      await request(server)
-        .patch(`/api/tournaments/${tournamentId}/players/${playerId}/check-in`)
-        .send({ checkedIn: true })
-        .expect(200);
-    }
+    await updateTournamentStatus(tournamentId, 'SIGNATURE');
+    await checkInPlayers(tournamentId, playerIds);
 
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/status`)
@@ -271,16 +397,7 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
 
     const poolStage = (liveBeforeCompletion.body.poolStages ?? []).find((stage: any) => stage.id === stageId);
     const pools = poolStage?.pools ?? [];
-    const poolByPlayerId = new Map<string, number>();
-    for (const pool of pools) {
-      const assignments = pool.assignments ?? [];
-      for (const assignment of assignments) {
-        const playerId = assignment?.player?.id as string | undefined;
-        if (playerId) {
-          poolByPlayerId.set(playerId, pool.poolNumber as number);
-        }
-      }
-    }
+    const poolByPlayerId = getPoolByPlayerIdMap(pools);
 
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/pool-stages/${stageId}`)
@@ -359,12 +476,9 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       })
       .expect(200);
 
-    await request(server)
-      .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'OPEN' })
-      .expect(200);
+    await updateTournamentStatus(tournamentId, 'OPEN');
 
-    const emailSuffix = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+    const emailSuffix = `${Date.now()}-${randomUUID()}`;
     const players = [
       { firstName: 'PoolA', lastName: 'One', email: `poola.one.${emailSuffix}@example.com` },
       { firstName: 'PoolA', lastName: 'Two', email: `poola.two.${emailSuffix}@example.com` },
@@ -376,28 +490,10 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       { firstName: 'PoolD', lastName: 'Two', email: `poold.two.${emailSuffix}@example.com` },
     ];
 
-    const playerIds: string[] = [];
-    for (const player of players) {
-      const response = await request(server)
-        .post(`/api/tournaments/${tournamentId}/players`)
-        .send(player)
-        .expect(201);
-      if (response.body?.id) {
-        playerIds.push(response.body.id);
-      }
-    }
+    const playerIds = await registerPlayers(tournamentId, players);
 
-    await request(server)
-      .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'SIGNATURE' })
-      .expect(200);
-
-    for (const playerId of playerIds) {
-      await request(server)
-        .patch(`/api/tournaments/${tournamentId}/players/${playerId}/check-in`)
-        .send({ checkedIn: true })
-        .expect(200);
-    }
+    await updateTournamentStatus(tournamentId, 'SIGNATURE');
+    await checkInPlayers(tournamentId, playerIds);
 
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/status`)
@@ -413,19 +509,7 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .expect(200);
     const stage1Pools = stage1PoolsResponse.body.pools ?? [];
 
-    const sourcePairs: Array<[string, string]> = [];
-    for (const pool of stage1Pools) {
-      const ids = (pool.assignments ?? [])
-        .map((assignment: any) => assignment?.player?.id as string | undefined)
-        .filter((value: string | undefined): value is string => Boolean(value));
-      if (ids.length === 2) {
-        const first = ids[0];
-        const second = ids[1];
-        if (first && second) {
-          sourcePairs.push([first, second]);
-        }
-      }
-    }
+    const sourcePairs = getSourcePairsFromPools(stage1Pools);
     expect(sourcePairs).toHaveLength(4);
 
     await request(server)
@@ -438,22 +522,8 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .expect(200);
     const stage2Pools = stage2PoolsResponse.body.pools ?? [];
 
-    const targetPoolByPlayerId = new Map<string, string>();
-    for (const pool of stage2Pools) {
-      for (const assignment of pool.assignments ?? []) {
-        const playerId = assignment?.player?.id as string | undefined;
-        if (!playerId) {
-          continue;
-        }
-        targetPoolByPlayerId.set(playerId, pool.id as string);
-      }
-    }
-
-    for (const [first, second] of sourcePairs) {
-      expect(targetPoolByPlayerId.get(first)).toBeDefined();
-      expect(targetPoolByPlayerId.get(second)).toBeDefined();
-      expect(targetPoolByPlayerId.get(first)).not.toBe(targetPoolByPlayerId.get(second));
-    }
+    const targetPoolByPlayerId = getTargetPoolByPlayerId(stage2Pools);
+    assertSourcePairsAreSeparated(sourcePairs, targetPoolByPlayerId);
   });
 
   it('should keep stage-1 pool mates on opposite bracket halves after multi-stage pools', async () => {
@@ -503,12 +573,9 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       })
       .expect(200);
 
-    await request(server)
-      .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'OPEN' })
-      .expect(200);
+    await updateTournamentStatus(tournamentId, 'OPEN');
 
-    const emailSuffix = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+    const emailSuffix = `${Date.now()}-${randomUUID()}`;
     const players = [
       { firstName: 'Alpha', lastName: '01', email: `a01.${emailSuffix}@example.com` },
       { firstName: 'Alpha', lastName: '02', email: `a02.${emailSuffix}@example.com` },
@@ -520,28 +587,10 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       { firstName: 'Delta', lastName: '02', email: `d02.${emailSuffix}@example.com` },
     ];
 
-    const playerIds: string[] = [];
-    for (const player of players) {
-      const response = await request(server)
-        .post(`/api/tournaments/${tournamentId}/players`)
-        .send(player)
-        .expect(201);
-      if (response.body?.id) {
-        playerIds.push(response.body.id);
-      }
-    }
+    const playerIds = await registerPlayers(tournamentId, players);
 
-    await request(server)
-      .patch(`/api/tournaments/${tournamentId}/status`)
-      .send({ status: 'SIGNATURE' })
-      .expect(200);
-
-    for (const playerId of playerIds) {
-      await request(server)
-        .patch(`/api/tournaments/${tournamentId}/players/${playerId}/check-in`)
-        .send({ checkedIn: true })
-        .expect(200);
-    }
+    await updateTournamentStatus(tournamentId, 'SIGNATURE');
+    await checkInPlayers(tournamentId, playerIds);
 
     await request(server)
       .patch(`/api/tournaments/${tournamentId}/status`)
@@ -557,19 +606,7 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .expect(200);
     const stage1Pools = stage1PoolsResponse.body.pools ?? [];
 
-    const sourcePairs: Array<[string, string]> = [];
-    for (const pool of stage1Pools) {
-      const ids = (pool.assignments ?? [])
-        .map((assignment: any) => assignment?.player?.id as string | undefined)
-        .filter((value: string | undefined): value is string => Boolean(value));
-      if (ids.length === 2) {
-        const first = ids[0];
-        const second = ids[1];
-        if (first && second) {
-          sourcePairs.push([first, second]);
-        }
-      }
-    }
+    const sourcePairs = getSourcePairsFromPools(stage1Pools);
     expect(sourcePairs).toHaveLength(4);
 
     await request(server)
@@ -592,19 +629,7 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       .expect(200);
     const stage2Pools = stage2PoolsResponse.body.pools ?? [];
 
-    const stage2PoolByPlayer = new Map<string, number>();
-    for (const pool of stage2Pools) {
-      const poolNumber = pool?.poolNumber as number | undefined;
-      if (!poolNumber) {
-        continue;
-      }
-      for (const assignment of pool.assignments ?? []) {
-        const playerId = assignment?.player?.id as string | undefined;
-        if (playerId) {
-          stage2PoolByPlayer.set(playerId, poolNumber);
-        }
-      }
-    }
+    const stage2PoolByPlayer = getStage2PoolByPlayer(stage2Pools);
 
     await request(server)
       .post(`/api/tournaments/${tournamentId}/brackets/${bracketId}/populate-from-pools`)
@@ -634,30 +659,7 @@ describe('Tournament Pool Stage & Bracket - Integration Tests', () => {
       qualifiedByStage2Pool.set(sourcePoolNumber, bucket);
     }
 
-    for (const match of bracket?.matches ?? []) {
-      if (match?.roundNumber !== 1) {
-        continue;
-      }
-
-      const playerIds = (match?.playerMatches ?? [])
-        .map((playerMatch: any) => playerMatch?.player?.id as string | undefined)
-        .filter((value: string | undefined): value is string => Boolean(value));
-
-      if (playerIds.length < 2) {
-        continue;
-      }
-
-      const [firstPlayerId, secondPlayerId] = playerIds;
-      if (!firstPlayerId || !secondPlayerId) {
-        continue;
-      }
-
-      const firstSourcePool = stage2PoolByPlayer.get(firstPlayerId);
-      const secondSourcePool = stage2PoolByPlayer.get(secondPlayerId);
-      expect(firstSourcePool).toBeDefined();
-      expect(secondSourcePool).toBeDefined();
-      expect(firstSourcePool).not.toBe(secondSourcePool);
-    }
+    assertRoundOneOppositePools(bracket?.matches ?? [], stage2PoolByPlayer);
 
     for (const players of qualifiedByStage2Pool.values()) {
       expect(players.length).toBeLessThanOrEqual(2);

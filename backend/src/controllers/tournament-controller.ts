@@ -86,6 +86,8 @@ export class TournamentController {
   public updateTournament!: (request: Request, response: Response) => Promise<void>;
   public deleteTournament!: (request: Request, response: Response) => Promise<void>;
   public uploadTournamentLogo!: (request: Request, response: Response) => Promise<void>;
+  public listTournamentLogos!: (request: Request, response: Response) => Promise<void>;
+  public deleteTournamentLogo!: (request: Request, response: Response) => Promise<void>;
   public getTournamentsByDateRange!: (request: Request, response: Response) => Promise<void>;
   public getTournamentStats!: (request: Request, response: Response) => Promise<void>;
   public checkTournamentNameAvailability!: (request: Request, response: Response) => Promise<void>;

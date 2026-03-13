@@ -530,7 +530,7 @@ export const createTournamentModelCore = (prisma: PrismaClient) => {
       }
     },
 
-    updateLogo: async (id: string, logoUrl: string): Promise<Tournament> => {
+    updateLogo: async (id: string, logoUrl: string | null): Promise<Tournament> => {
       try {
         const tournament = await prisma.tournament.update({
           where: { id },

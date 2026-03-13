@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TournamentFormat } from '@shared/types';
 import type { LiveViewStatus } from '../../utils/live-view-helpers';
 import { hasActiveBrackets, isBracketsView, isPoolStagesView } from '../../utils/live-view-helpers';
@@ -12,6 +12,7 @@ import {
 } from './conflict-aware-estimator';
 import MatchQueueSection from './match-queue-section';
 import PoolStagesSection from './pool-stages-section';
+import TournamentLogoRotator from './tournament-logo-rotator';
 import { buildMatchQueue } from './queue-utilities';
 import type {
   LiveViewBracket,
@@ -103,6 +104,7 @@ type LiveTournamentViewProperties = {
 type LiveTournamentViewHeaderProperties = {
   t: Translator;
   view: LiveViewData;
+  tournamentLogoUrls: string[];
   schedulableTargetCount: number;
   isAdmin: boolean;
   screenMode: boolean;
@@ -120,6 +122,28 @@ type LiveTournamentPoolSummaryProperties = {
   t: Translator;
   stats: PoolStats;
   hasLoserBracket: boolean;
+};
+
+const resolveTournamentLogoUrls = (view: LiveViewData): string[] => {
+  const rawLogoUrls = [
+    ...(view.logoUrls ?? []),
+    ...(view.logoUrl ? [view.logoUrl] : []),
+  ];
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const logoUrl of rawLogoUrls) {
+    const value = logoUrl.trim();
+    if (value.length === 0 || seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    normalized.push(value);
+  }
+
+  return normalized;
 };
 
 const toValidDate = (value?: string) => {
@@ -937,6 +961,7 @@ const renderStageNavigationLinks = (
 const LiveTournamentViewHeader = ({
   t,
   view,
+  tournamentLogoUrls,
   schedulableTargetCount,
   isAdmin,
   screenMode,
@@ -957,9 +982,6 @@ const LiveTournamentViewHeader = ({
     ? 'text-lg font-semibold text-white mt-0.5'
     : 'text-xl font-semibold text-white mt-1';
   const idClass = screenMode ? 'mt-0 text-[11px] text-slate-500' : 'mt-0.5 text-xs text-slate-500';
-  const infoBadgeClass = screenMode
-    ? 'rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300'
-    : 'rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300';
   const actionsGap = screenMode ? 'gap-1.5' : 'gap-2';
   const actionButtonClass = screenMode
     ? 'rounded-full border border-slate-700/70 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white'
@@ -1063,12 +1085,6 @@ const LiveTournamentViewHeader = ({
     </div>
     <div className={`w-full sm:w-auto flex flex-col items-start sm:items-end ${actionsGap}`}>
       <div className={`flex w-full flex-wrap items-center justify-start sm:justify-end ${actionsGap}`}>
-        <span className={infoBadgeClass} title={`${t('common.status')}: ${view.status}`}>
-          <span className="hidden sm:inline">{t('common.status')}: </span>
-          {view.status}
-        </span>
-      </div>
-      <div className={`flex w-full flex-wrap items-center justify-start sm:justify-end ${actionsGap}`}>
         {isAdmin && !screenMode && (
           <a
             href={`/?view=edit-tournament&tournamentId=${view.id}`}
@@ -1106,6 +1122,13 @@ const LiveTournamentViewHeader = ({
         >
           {t('common.refresh')}
         </button>
+        <div className="ml-auto">
+          <TournamentLogoRotator
+            tournamentName={view.name}
+            logoUrls={tournamentLogoUrls}
+            className="h-36 w-36 rounded-2xl border border-amber-400/30 bg-slate-950/70 object-contain p-3"
+          />
+        </div>
       </div>
       {stageNavigationLinks}
     </div>
@@ -1343,6 +1366,7 @@ const LiveTournamentView = ({
     && (isAdmin || viewMode === 'brackets' || !hasRunningPoolStages);
   const showViewHeader = !(screenMode && isBracketsView(viewMode));
   const schedulableTargetCount = schedulableTargetCountByTournament.get(view.id) ?? 1;
+  const tournamentLogoUrls = useMemo(() => resolveTournamentLogoUrls(view), [view.logoUrl, view.logoUrls]);
 
   const queueProperties = {
     t,
@@ -1455,6 +1479,7 @@ const LiveTournamentView = ({
         <LiveTournamentViewHeader
           t={t}
           view={view}
+          tournamentLogoUrls={tournamentLogoUrls}
           schedulableTargetCount={schedulableTargetCount}
           isAdmin={isAdmin}
           screenMode={screenMode}

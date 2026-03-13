@@ -6,6 +6,7 @@ import useTournamentListEditFlow from '../../../../src/components/tournament-lis
 const fetchTournamentDetails = vi.fn();
 const openEdit = vi.fn();
 const uploadLogo = vi.fn(async () => undefined);
+const deleteLogo = vi.fn(async () => undefined);
 const saveEdit = vi.fn(async () => undefined);
 const openRegistration = vi.fn(async () => undefined);
 const moveToSignature = vi.fn(async () => undefined);
@@ -20,7 +21,7 @@ vi.mock('../../../../src/components/tournament-list/use-tournament-edit-loader',
 }));
 
 vi.mock('../../../../src/components/tournament-list/use-tournament-logo-upload', () => ({
-  default: () => ({ uploadLogo }),
+  default: () => ({ uploadLogo, deleteLogo }),
 }));
 
 vi.mock('../../../../src/components/tournament-list/use-tournament-edit-actions', () => ({
@@ -49,14 +50,14 @@ describe('useTournamentListEditFlow', () => {
     fetchTournaments: vi.fn(),
     editingTournament: { id: 't1', name: 'Cup' },
     editForm: undefined,
-    logoFile: undefined,
+    logoFiles: [],
     setEditingTournament: vi.fn(),
     setEditForm: vi.fn(),
     setEditError: vi.fn(),
     setEditLoading: vi.fn(),
     setEditLoadError: vi.fn(),
     setIsSaving: vi.fn(),
-    setLogoFile: vi.fn(),
+    setLogoFiles: vi.fn(),
     setIsUploadingLogo: vi.fn(),
   };
 
@@ -71,6 +72,7 @@ describe('useTournamentListEditFlow', () => {
 
     await act(async () => {
       await result.current.uploadLogo();
+      await result.current.deleteLogo('/uploads/logo.png');
       await result.current.saveEdit();
       await result.current.openRegistration();
       await result.current.moveToSignature();
@@ -83,6 +85,7 @@ describe('useTournamentListEditFlow', () => {
     expect(props.resetPlayersState).toHaveBeenCalledTimes(1);
     expect(props.resetStructureState).toHaveBeenCalledTimes(1);
     expect(uploadLogo).toHaveBeenCalledTimes(1);
+    expect(deleteLogo).toHaveBeenCalledWith('/uploads/logo.png');
     expect(saveEdit).toHaveBeenCalledTimes(1);
     expect(openRegistration).toHaveBeenCalledTimes(1);
     expect(moveToSignature).toHaveBeenCalledTimes(1);
@@ -105,7 +108,7 @@ describe('useTournamentListEditFlow', () => {
     expect(props.setEditingTournament).toHaveBeenCalledWith(undefined);
     expect(props.setEditForm).toHaveBeenCalledWith(undefined);
     expect(props.setEditError).toHaveBeenCalledWith(undefined);
-    expect(props.setLogoFile).toHaveBeenCalledWith(undefined);
+    expect(props.setLogoFiles).toHaveBeenCalledWith([]);
   });
 
 });

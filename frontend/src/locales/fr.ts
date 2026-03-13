@@ -93,7 +93,7 @@ export const frMessages: Record<string, string> = {
   'groups.registerEquipe': 'Inscrire l\'équipe',
   'groups.registerDoubletteError': 'Échec de l\'inscription de la doublette',
   'groups.registerEquipeError': 'Échec de l\'inscription de l\'équipe',
-  'groups.changePassword': 'Code d\'acces', // NOSONAR - i18n label, not a secret
+  'groups.changeAccessCode': 'Code d\'acces', // NOSONAR - i18n label, not a secret
   'groups.delete': 'Supprimer',
   'groups.captain': 'Capitaine',
   'groups.registered': 'Inscrit',

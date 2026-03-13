@@ -57,14 +57,14 @@ const buildEditFlowInput = ({
   fetchTournaments: refreshTournaments,
   editingTournament: editState.editingTournament,
   editForm: editState.editForm,
-  logoFile: editState.logoFile,
+  logoFiles: editState.logoFiles,
   setEditingTournament: editState.setEditingTournament,
   setEditForm: editState.setEditForm,
   setEditError: editState.setEditError,
   setEditLoading: editState.setEditLoading,
   setEditLoadError: editState.setEditLoadError,
   setIsSaving: editState.setIsSaving,
-  setLogoFile: editState.setLogoFile,
+  setLogoFiles: editState.setLogoFiles,
   setIsUploadingLogo: editState.setIsUploadingLogo,
 });
 

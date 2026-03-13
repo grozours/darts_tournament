@@ -373,13 +373,14 @@ const triggerDeviceVibration = () => {
   if (!vibrate) {
     return;
   }
+  const vibrateFunction = vibrate;
 
   try {
-    const didStart = vibrate([260, 90, 260]);
+    const didStart = vibrateFunction([260, 90, 260]);
     if (!didStart) {
       globalThis.window?.setTimeout(() => {
         try {
-          vibrate(320);
+          vibrateFunction(320);
         } catch {
           void 0;
         }
@@ -389,7 +390,7 @@ const triggerDeviceVibration = () => {
 
     globalThis.window?.setTimeout(() => {
       try {
-        vibrate(120);
+        vibrateFunction(120);
       } catch {
         void 0;
       }

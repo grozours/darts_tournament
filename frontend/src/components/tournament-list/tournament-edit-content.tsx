@@ -12,6 +12,7 @@ export type TournamentEditContentProperties = {
   editingTournament: {
     status: string;
     logoUrl?: string;
+    logoUrls?: string[];
     createdAt?: string;
     completedAt?: string;
     historicalFlag?: boolean;
@@ -21,7 +22,7 @@ export type TournamentEditContentProperties = {
   formatOptions: Array<{ value: string; label: string }>;
   durationOptions: Array<{ value: string; label: string }>;
   skillLevelOptions: Array<{ value: string; label: string }>;
-  logoFile: File | undefined;
+  logoFiles: File[];
   isUploadingLogo: boolean;
   poolStages: PoolStageConfig[];
   poolStagesError: string | undefined;
@@ -69,8 +70,9 @@ export type TournamentEditContentProperties = {
   quickStructurePresetsLoading: boolean;
   normalizedStatus: string;
   onEditFormChange: (next: EditFormState) => void;
-  onLogoFileChange: (file: File | undefined) => void;
+  onLogoFilesChange: (files: File[]) => void;
   onUploadLogo: () => void;
+  onDeleteLogo: (logoUrl: string) => void;
   onApplyStructurePreset: (preset: Pick<TournamentPreset, 'name' | 'presetType' | 'templateConfig'>) => void;
   onLoadPoolStages: () => void;
   onPoolStageNumberChange: (id: string, value: number) => void;
@@ -141,7 +143,7 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
     editingTournament,
     formatOptions,
     durationOptions,
-    logoFile,
+    logoFiles,
     isUploadingLogo,
     poolStages,
     poolStagesError,
@@ -170,8 +172,9 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
     quickStructurePresetsLoading,
     normalizedStatus,
     onEditFormChange,
-    onLogoFileChange,
+    onLogoFilesChange,
     onUploadLogo,
+    onDeleteLogo,
     onApplyStructurePreset,
     onLoadPoolStages,
     onPoolStageNumberChange,
@@ -239,11 +242,12 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
         editingTournament={editingTournament}
         formatOptions={formatOptions}
         durationOptions={durationOptions}
-        logoFile={logoFile}
+        logoFiles={logoFiles}
         isUploadingLogo={isUploadingLogo}
         onEditFormChange={onEditFormChange}
-        onLogoFileChange={onLogoFileChange}
+        onLogoFilesChange={onLogoFilesChange}
         onUploadLogo={onUploadLogo}
+        onDeleteLogo={onDeleteLogo}
       />
       <section className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

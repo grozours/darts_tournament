@@ -316,7 +316,7 @@ export async function uploadTournamentLogo(
   tournamentId: string,
   file: File,
   token?: string
-): Promise<{ logo_url: string } | void> {
+): Promise<{ logo_url: string; logo_urls?: string[]; logoUrl?: string; logoUrls?: string[] } | void> {
   const formData = new FormData();
   formData.append('logo', file);
 
@@ -331,6 +331,70 @@ export async function uploadTournamentLogo(
   }
 
   return response.json();
+}
+
+export async function fetchTournamentLogos(
+  tournamentId: string,
+  token?: string
+): Promise<{ logoUrls: string[]; logoUrl?: string }> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/logos`, buildAuthRequestOptions(token));
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch tournament logos');
+  }
+
+  const data = await response.json();
+  const logoUrls = [
+    ...((data.logoUrls as string[] | undefined) ?? []),
+    ...((data.logo_urls as string[] | undefined) ?? []),
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  let rawPrimaryLogoUrl: string | undefined;
+  if (typeof data.logoUrl === 'string') {
+    rawPrimaryLogoUrl = data.logoUrl;
+  } else if (typeof data.logo_url === 'string') {
+    rawPrimaryLogoUrl = data.logo_url;
+  }
+
+  return {
+    logoUrls: Array.from(new Set(logoUrls)),
+    ...(rawPrimaryLogoUrl ? { logoUrl: rawPrimaryLogoUrl } : {}),
+  };
+}
+
+export async function deleteTournamentLogo(
+  tournamentId: string,
+  logoUrl: string,
+  token?: string
+): Promise<{ logoUrls: string[]; logoUrl?: string }> {
+  const response = await fetch(`/api/tournaments/${tournamentId}/logos`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ logoUrl }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete tournament logo');
+  }
+
+  const data = await response.json();
+  const logoUrls = [
+    ...((data.logoUrls as string[] | undefined) ?? []),
+    ...((data.logo_urls as string[] | undefined) ?? []),
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  let rawPrimaryLogoUrl: string | undefined;
+  if (typeof data.logoUrl === 'string') {
+    rawPrimaryLogoUrl = data.logoUrl;
+  } else if (typeof data.logo_url === 'string') {
+    rawPrimaryLogoUrl = data.logo_url;
+  }
+
+  return {
+    logoUrls: Array.from(new Set(logoUrls)),
+    ...(rawPrimaryLogoUrl ? { logoUrl: rawPrimaryLogoUrl } : {}),
+  };
 }
 
 export async function updateTournament(

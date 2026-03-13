@@ -87,7 +87,7 @@ export const enMessages: Record<string, string> = {
   'groups.create': 'Create',
   'groups.none': 'No group found for this tournament.',
   'groups.join': 'Join',
-  'groups.changePassword': 'Access code',
+  'groups.changeAccessCode': 'Access code',
   'groups.leave': 'Leave',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',

@@ -87,7 +87,7 @@ export const esMessages: Record<string, string> = {
   'groups.create': 'Crear',
   'groups.none': 'No se encontró ningún grupo para este torneo.',
   'groups.join': 'Unirse',
-  'groups.changePassword': 'Código de acceso',
+  'groups.changeAccessCode': 'Código de acceso',
   'groups.leave': 'Salir',
   'groups.registerGroup': 'Register group',
   'groups.registerDoublette': 'Register doublette',

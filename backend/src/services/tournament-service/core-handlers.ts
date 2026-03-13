@@ -11,6 +11,10 @@ import {
   TargetStatus,
 } from '../../../../shared/src/types';
 import { AppError } from '../../middleware/error-handler';
+import {
+  getTournamentLogoUrls,
+  removeTournamentLogoUrl,
+} from '../../utils/tournament-logo-urls';
 
 export interface CreateTournamentData {
   name: string;
@@ -562,10 +566,32 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
         throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
       }
 
-      return tournament;
+      const logoUrls = await getTournamentLogoUrls(id, tournament.logoUrl ?? undefined);
+
+      return {
+        ...tournament,
+        ...(logoUrls.length > 0 ? { logoUrls } : {}),
+      };
     },
 
-    getTournamentLiveView: async (tournamentId: string): Promise<TournamentLiveView> => {
+    listTournamentLogos: async (id: string): Promise<{ logoUrl?: string; logoUrls: string[] }> => {
+      validateUUID(id);
+
+      const tournament = await tournamentModel.findById(id);
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      const logoUrls = await getTournamentLogoUrls(id, tournament.logoUrl ?? undefined);
+      return {
+        ...(tournament.logoUrl ? { logoUrl: tournament.logoUrl } : {}),
+        logoUrls,
+      };
+    },
+
+    getTournamentLiveView: async (
+      tournamentId: string
+    ): Promise<TournamentLiveView & { logoUrls?: string[] }> => {
       validateUUID(tournamentId);
 
       const tournament = await liveComputationCache.getOrLoadLiveView(
@@ -587,7 +613,12 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
 
       normalizeDoubleStageFlag(tournament);
 
-      return tournament;
+      const logoUrls = await getTournamentLogoUrls(tournamentId, tournament.logoUrl ?? undefined);
+
+      return {
+        ...tournament,
+        ...(logoUrls.length > 0 ? { logoUrls } : {}),
+      };
     },
 
     getTournaments: async (filters: TournamentFilters = {}) => {
@@ -661,6 +692,31 @@ export const createTournamentCoreHandlers = (context: TournamentCoreContext) => 
       }
 
       return await tournamentModel.updateLogo(id, logoUrl);
+    },
+
+    deleteTournamentLogo: async (
+      id: string,
+      logoUrl: string
+    ): Promise<{ logoUrl?: string; logoUrls: string[] }> => {
+      validateUUID(id);
+
+      const tournament = await tournamentModel.findById(id);
+      if (!tournament) {
+        throw new AppError('Tournament not found', 404, 'TOURNAMENT_NOT_FOUND');
+      }
+
+      const logoUrls = await removeTournamentLogoUrl(id, logoUrl);
+      const shouldUpdatePrimaryLogo = (tournament.logoUrl ?? '') === logoUrl;
+      const nextPrimaryLogo = shouldUpdatePrimaryLogo ? logoUrls[0] : tournament.logoUrl;
+
+      if (nextPrimaryLogo !== tournament.logoUrl) {
+        await tournamentModel.updateLogo(id, nextPrimaryLogo ?? null);
+      }
+
+      return {
+        ...(nextPrimaryLogo ? { logoUrl: nextPrimaryLogo } : {}),
+        logoUrls,
+      };
     },
 
     getTournamentsByDateRange: async (startDate: string, endDate: string): Promise<Tournament[]> => {

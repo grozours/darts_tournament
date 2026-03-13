@@ -14,6 +14,7 @@ import {
   type TournamentSnapshot,
 } from '../../services/tournament-service/autosave';
 import { restoreTournamentStateFromSnapshot } from '../../services/tournament-service/snapshot-restore';
+import { appendTournamentLogoUrl } from '../../utils/tournament-logo-urls';
 
 type CoreHandlerContext = {
   prisma: PrismaClient;
@@ -500,11 +501,51 @@ export const createCoreHandlers = (context: CoreHandlerContext) => ({
 
       const logoUrl = `/uploads/${request.file.filename}`;
       const tournament = await context.getTournamentService(request).uploadTournamentLogo(id, logoUrl);
+      const logoUrls = await appendTournamentLogoUrl(id, logoUrl);
 
       response.json({
         logo_url: logoUrl,
         logoUrl,
+        logo_urls: logoUrls,
+        logoUrls,
         tournament,
+      });
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  listTournamentLogos: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const result = await context.getTournamentService(request).listTournamentLogos(id);
+
+      response.json({
+        ...(result.logoUrl ? { logo_url: result.logoUrl, logoUrl: result.logoUrl } : {}),
+        logo_urls: result.logoUrls,
+        logoUrls: result.logoUrls,
+      });
+    } catch (error) {
+      handleAppError(response, error);
+    }
+  },
+
+  deleteTournamentLogo: async (request: Request, response: Response): Promise<void> => {
+    try {
+      const { id } = request.params as { id: string };
+      const logoUrl = (request.body as { logoUrl?: string; logo_url?: string }).logoUrl
+        ?? (request.body as { logoUrl?: string; logo_url?: string }).logo_url;
+
+      if (!logoUrl || typeof logoUrl !== 'string') {
+        throw new AppError('Invalid logo URL', 400, 'INVALID_LOGO_URL');
+      }
+
+      const result = await context.getTournamentService(request).deleteTournamentLogo(id, logoUrl);
+
+      response.json({
+        ...(result.logoUrl ? { logo_url: result.logoUrl, logoUrl: result.logoUrl } : {}),
+        logo_urls: result.logoUrls,
+        logoUrls: result.logoUrls,
       });
     } catch (error) {
       handleAppError(response, error);

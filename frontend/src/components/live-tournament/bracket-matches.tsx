@@ -289,6 +289,7 @@ const renderCenteredFinalLayout = ({
     220,
     (Math.pow(2, sideTotalRounds) - 2) * baseStep + bracketCardHeight
   );
+  const finalMatch = finalRound.matches[0];
 
   const centeredFinalLayout = (
     <div className="flex items-start gap-6 min-w-[1180px]">
@@ -325,7 +326,7 @@ const renderCenteredFinalLayout = ({
               left: -4,
             }}
           >
-            {renderBracketCard(matchTournamentId, finalRound.matches[0], {
+            {finalMatch && renderBracketCard(matchTournamentId, finalMatch, {
               showConnector: false,
               connectorSide: 'right',
               tone: getBracketTone(totalRounds - 1, totalRounds),
@@ -812,10 +813,10 @@ const BracketMatches = ({
       totalRounds,
       baseStep,
       columnHeightDefault,
-      roundStartTimeByRound,
       t,
       bracketCardHeight,
       renderBracketCard,
+      ...(roundStartTimeByRound ? { roundStartTimeByRound } : {}),
     };
 
     const shouldUseCenteredFinalScreenLayout = screenMode && showWinnerColumn && roundsToRender.length >= 1;
@@ -829,9 +830,9 @@ const BracketMatches = ({
         bracketCardHeight,
         screenMode,
         t,
-        roundStartTimeByRound,
         roundColumnContext,
         renderBracketCard,
+        ...(roundStartTimeByRound ? { roundStartTimeByRound } : {}),
       });
     }
 
@@ -842,13 +843,13 @@ const BracketMatches = ({
       finalLeftOffset,
       totalRounds,
       t,
-      roundStartTimeByRound,
       finalRound,
       screenMode,
       columnHeightDefault,
       bracketCardHeight,
       roundColumnContext,
       renderBracketCard,
+      ...(roundStartTimeByRound ? { roundStartTimeByRound } : {}),
     });
   };
 

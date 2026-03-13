@@ -40,9 +40,20 @@ const useTournamentListData = (
       const data = await response.json();
       const normalizedTournaments = (data.tournaments || []).map((item: Tournament) => {
         const fallbackLogoUrl = (item as Tournament & { logo_url?: string }).logo_url;
+        const fallbackLogoUrls = (item as Tournament & { logo_urls?: string[] }).logo_urls;
+        const rawLogoUrls = [
+          ...(item.logoUrls ?? fallbackLogoUrls ?? []),
+          ...(item.logoUrl ? [item.logoUrl] : []),
+          ...(fallbackLogoUrl ? [fallbackLogoUrl] : []),
+        ];
+        const normalizedLogoUrls = Array.from(new Set(rawLogoUrls.filter((value): value is string => (
+          typeof value === 'string' && value.trim().length > 0
+        ))));
+
         return {
           ...item,
           logoUrl: item.logoUrl ?? fallbackLogoUrl,
+          ...(normalizedLogoUrls.length > 0 ? { logoUrls: normalizedLogoUrls } : {}),
         };
       });
       if (requestId === latestFetchRequestId.current) {
