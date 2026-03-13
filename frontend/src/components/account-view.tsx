@@ -157,6 +157,8 @@ function AccountView() {
         <SignInPanel
           title={t('auth.signIn')}
           description={t('auth.protectedContinue')}
+          showTitle={false}
+          showProviderSeparator={false}
         />
       </div>
     );

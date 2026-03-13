@@ -60,6 +60,8 @@ describe('AccountView', () => {
     render(<AccountView />);
 
     expect(screen.getByText('account.signInRequired')).toBeInTheDocument();
+    expect(screen.queryByText('auth.signIn')).not.toBeInTheDocument();
+    expect(screen.queryByText('auth.orContinueWith')).not.toBeInTheDocument();
   });
 
   it('renders user details and triggers logout', () => {

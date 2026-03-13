@@ -5,6 +5,8 @@ import { useI18n } from '../i18n';
 type SignInPanelProperties = Readonly<{
   title: string;
   description: string;
+  showTitle?: boolean;
+  showProviderSeparator?: boolean;
 }>;
 
 type ProviderConfig = {
@@ -52,7 +54,12 @@ const getConnection = (value: string | undefined, fallback: string) => {
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
 };
 
-function SignInPanel({ title, description }: SignInPanelProperties) {
+function SignInPanel({
+  title,
+  description,
+  showTitle = true,
+  showProviderSeparator = true,
+}: SignInPanelProperties) {
   const { t } = useI18n();
   const { loginWithRedirect } = useOptionalAuth();
 
@@ -97,14 +104,16 @@ function SignInPanel({ title, description }: SignInPanelProperties) {
 
   return (
     <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-      <h3 className="text-xl font-semibold text-white">{title}</h3>
-      <p className="mt-2 text-sm text-slate-300">{description}</p>
+      {showTitle ? <h3 className="text-xl font-semibold text-white">{title}</h3> : null}
+      <p className={`${showTitle ? 'mt-2' : ''} text-sm text-slate-300`}>{description}</p>
       <div className="mt-6 flex flex-col items-center gap-4">
-        <div className="flex w-full items-center justify-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-500">
-          <span className="h-px w-12 bg-slate-800" />
-          <span>{t('auth.orContinueWith')}</span>
-          <span className="h-px w-12 bg-slate-800" />
-        </div>
+        {showProviderSeparator ? (
+          <div className="flex w-full items-center justify-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-500">
+            <span className="h-px w-12 bg-slate-800" />
+            <span>{t('auth.orContinueWith')}</span>
+            <span className="h-px w-12 bg-slate-800" />
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-center gap-3">
           {providers.map((provider) => (
             <button
