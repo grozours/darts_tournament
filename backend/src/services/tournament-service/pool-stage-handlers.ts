@@ -629,21 +629,6 @@ const sortPreviousPoolStages = <T extends { stageNumber: number }>(stages: T[], 
     .sort((left, right) => left.stageNumber - right.stageNumber)
 );
 
-const resolveFirstPoolStageNumber = <T extends { stageNumber: number }>(
-  stages: T[],
-  currentStageNumber: number
-): number => {
-  if (stages.length > 0) {
-    return Math.min(...stages.map((item) => item.stageNumber));
-  }
-
-  if (currentStageNumber <= 1) {
-    return currentStageNumber;
-  }
-
-  return 1;
-};
-
 const collectSourcePlayersFromPools = (
   pools: Array<{ poolNumber: number; assignments?: Array<{ player?: { id?: string } | null } | null> | null }>,
   requested: Set<string>,
@@ -1828,8 +1813,8 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     if (!tournament) return;
 
     const stages = await tournamentModel.getPoolStages(tournamentId);
-    const firstStageNumber = resolveFirstPoolStageNumber(stages, stage.stageNumber);
-    const isFirstPoolStage = stage.stageNumber === firstStageNumber;
+    const previousStages = sortPreviousPoolStages(stages, stage.stageNumber);
+    const isFirstPoolStage = previousStages.length === 0;
 
     const players = await loadActiveTournamentEntries(tournamentModel, tournamentId, tournament.format);
     if (players.length === 0) return;

@@ -569,6 +569,10 @@ describe('createPoolStageHandlers', () => {
     const model = buildModel();
     const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.4);
     model.findById.mockReturnValue(Promise.resolve({ id: 'tournament-1', status: TournamentStatus.OPEN }));
+    model.getPoolStages.mockReturnValue(Promise.resolve([
+      { id: 'stage-1', stageNumber: 1 },
+      { id: 'stage-2', stageNumber: 2 },
+    ]));
     model.getPoolStageById.mockReturnValue(Promise.resolve({
       id: 'stage-2',
       tournamentId: 'tournament-1',
@@ -605,6 +609,87 @@ describe('createPoolStageHandlers', () => {
     expect(model.getOpponentPairsBeforeStage).toHaveBeenCalledWith('tournament-1', 2);
     expect(model.createPoolAssignments).toHaveBeenCalled();
     randomSpy.mockRestore();
+  });
+
+  it('treats stage number 2 as first phase when no previous pool stage exists', async () => {
+    const model = buildModel();
+    model.findById.mockReturnValue(Promise.resolve({
+      id: 'tournament-1',
+      status: TournamentStatus.OPEN,
+      format: TournamentFormat.SINGLE,
+      doubleStageEnabled: false,
+    }));
+    model.getPoolStages.mockReturnValue(Promise.resolve([]));
+    model.getPoolStageById.mockReturnValue(Promise.resolve({
+      id: 'stage-2',
+      tournamentId: 'tournament-1',
+      stageNumber: 2,
+      status: StageStatus.EDITION,
+      playersPerPool: 4,
+      poolCount: 4,
+      matchFormatKey: null,
+    }));
+    model.updatePoolStage.mockReturnValue(Promise.resolve({
+      id: 'stage-2',
+      tournamentId: 'tournament-1',
+      stageNumber: 2,
+      status: StageStatus.EDITION,
+      playersPerPool: 4,
+      poolCount: 4,
+      matchFormatKey: null,
+    }));
+    model.getPoolsForStage.mockReturnValue(Promise.resolve([
+      { id: 'pool-1' },
+      { id: 'pool-2' },
+      { id: 'pool-3' },
+      { id: 'pool-4' },
+    ]));
+    model.getPoolAssignmentCountForStage.mockReturnValue(Promise.resolve(0));
+    model.getActivePlayersForTournament.mockReturnValue(Promise.resolve([
+      { id: 'expert-1', skillLevel: 'EXPERT' },
+      { id: 'expert-2', skillLevel: 'EXPERT' },
+      { id: 'expert-3', skillLevel: 'EXPERT' },
+      { id: 'expert-4', skillLevel: 'EXPERT' },
+      { id: 'expert-5', skillLevel: 'EXPERT' },
+      { id: 'expert-6', skillLevel: 'EXPERT' },
+      { id: 'expert-7', skillLevel: 'EXPERT' },
+      { id: 'expert-8', skillLevel: 'EXPERT' },
+      { id: 'beginner-1', skillLevel: 'BEGINNER' },
+      { id: 'beginner-2', skillLevel: 'BEGINNER' },
+      { id: 'beginner-3', skillLevel: 'BEGINNER' },
+      { id: 'beginner-4', skillLevel: 'BEGINNER' },
+      { id: 'beginner-5', skillLevel: 'BEGINNER' },
+      { id: 'beginner-6', skillLevel: 'BEGINNER' },
+      { id: 'beginner-7', skillLevel: 'BEGINNER' },
+      { id: 'beginner-8', skillLevel: 'BEGINNER' },
+    ]));
+
+    const handlers = createHandlers(model);
+
+    await handlers.updatePoolStage('tournament-1', 'stage-2', { name: 'rebalance non-1 first stage' });
+
+    expect(model.getOpponentPairsBeforeStage).not.toHaveBeenCalled();
+
+    const createdAssignments = model.createPoolAssignments.mock.calls[0]?.[0] as Array<{
+      poolId: string;
+      playerId: string;
+    }>;
+
+    const expertCountByPool = new Map<string, number>();
+    for (const assignment of createdAssignments) {
+      if (!assignment.playerId.startsWith('expert-')) {
+        continue;
+      }
+      expertCountByPool.set(
+        assignment.poolId,
+        (expertCountByPool.get(assignment.poolId) ?? 0) + 1
+      );
+    }
+
+    expect(expertCountByPool.get('pool-1')).toBe(2);
+    expect(expertCountByPool.get('pool-2')).toBe(2);
+    expect(expertCountByPool.get('pool-3')).toBe(2);
+    expect(expertCountByPool.get('pool-4')).toBe(2);
   });
 
   it('rejects update when pool stage does not belong to tournament', async () => {
