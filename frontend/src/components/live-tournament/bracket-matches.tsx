@@ -72,12 +72,14 @@ const getRoundPositions = (roundNumber: number, matchCount: number, baseStep: nu
   ));
 };
 
+const getBracketCardLayoutHeight = (screenMode: boolean) => (screenMode ? 200 : 320);
+
 const getBracketLayout = (bracket: LiveViewBracket, rounds: BracketRound[], screenMode = false) => {
   const totalRounds = rounds.length;
   const finalRound = rounds.at(-1);
   const earlyRounds = rounds.slice(0, -1);
   const bracketGap = screenMode ? 18 : 40;
-  const bracketCardHeight = screenMode ? 170 : 220;
+  const bracketCardHeight = getBracketCardLayoutHeight(screenMode);
   const baseStep = (bracketCardHeight + bracketGap) / 2;
   const columnHeight = (Math.pow(2, totalRounds) - 2) * baseStep + bracketCardHeight;
   const showWinnerColumn = (finalRound?.matches?.length ?? 0) === 1;
@@ -286,7 +288,7 @@ const renderCenteredFinalLayout = ({
 
   const sideTotalRounds = Math.max(1, totalRounds - 1);
   const sideColumnHeight = Math.max(
-    220,
+    bracketCardHeight,
     (Math.pow(2, sideTotalRounds) - 2) * baseStep + bracketCardHeight
   );
   const finalMatch = finalRound.matches[0];
@@ -423,11 +425,11 @@ const renderStandardBracketLayout = ({
             </p>
           )}
           {finalRound?.matches?.[0] && (
-            <div className="relative min-w-[200px]" style={{ height: Math.max(screenMode ? 180 : 260, columnHeightDefault) }}>
+            <div className="relative min-w-[200px]" style={{ height: Math.max(bracketCardHeight, columnHeightDefault) }}>
               <div
                 className="absolute"
                 style={{
-                  top: (Math.max(screenMode ? 180 : 260, columnHeightDefault) - bracketCardHeight) / 2,
+                  top: (Math.max(bracketCardHeight, columnHeightDefault) - bracketCardHeight) / 2,
                   left: finalLeftOffset,
                 }}
               >
@@ -729,7 +731,7 @@ const BracketMatches = ({
         data-match-anchor={getBracketMatchAnchorId(matchTournamentId, bracket.id, match.id)}
         className={`rounded-2xl border text-xs transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 shadow-[0_12px_24px_-16px_rgba(0,0,0,0.6)] ${getBracketCardShellClassName(match, options.tone)} ${screenMode ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}
         style={{
-          minHeight: screenMode ? 170 : 220,
+          minHeight: getBracketCardLayoutHeight(screenMode),
           width: 200,
           ...(options.unmirrorCardContent ? { transform: 'scaleX(-1)' } : {}),
         }}

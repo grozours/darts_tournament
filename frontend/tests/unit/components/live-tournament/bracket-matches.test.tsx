@@ -224,4 +224,18 @@ describe('BracketMatches', () => {
     expect(truncatingLabels.length).toBeGreaterThan(0);
     expect(truncatingLabels[0]?.getAttribute('title')).toContain('AutoDoubletteNom');
   });
+
+  it('keeps a tall desktop card min-height to prevent action overlap', () => {
+    const { container } = render(<BracketMatches {...baseMatchProperties} bracket={bracket} />);
+
+    const matchCard = container.querySelector(`#${getBracketMatchAnchorId('t1', 'b1', 'm3')}`);
+    expect(matchCard).toHaveStyle({ minHeight: '320px' });
+  });
+
+  it('uses compact card min-height in screen mode', () => {
+    const { container } = render(<BracketMatches {...baseMatchProperties} bracket={bracket} screenMode />);
+
+    const matchCard = container.querySelector(`#${getBracketMatchAnchorId('t1', 'b1', 'm3')}`);
+    expect(matchCard).toHaveStyle({ minHeight: '200px' });
+  });
 });
