@@ -209,7 +209,7 @@ function PlayersView() {
       if (form.surname.trim()) payload.surname = form.surname.trim();
       if (form.teamName.trim()) payload.teamName = form.teamName.trim();
       if (form.email.trim()) payload.email = form.email.trim();
-      if (isAdmin && form.skillLevel) payload.skillLevel = form.skillLevel;
+      if (form.skillLevel) payload.skillLevel = form.skillLevel;
 
       await updateTournamentPlayer(player.tournamentId, player.playerId, payload, token);
       await loadPlayers();
@@ -444,21 +444,19 @@ function PlayersView() {
                         className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                       />
                     </label>
-                    {isAdmin && (
-                      <label className="text-xs text-slate-400 md:col-span-2">
-                        {t('edit.skillLevel')}
-                        <select
-                          value={form.skillLevel}
-                          onChange={(event_) => setForm({ ...form, skillLevel: event_.target.value as SkillLevel })}
-                          className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                        >
-                          <option value="">{t('edit.selectSkillLevelOptional')}</option>
-                          <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
-                          <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
-                          <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
-                        </select>
-                      </label>
-                    )}
+                    <label className="text-xs text-slate-400 md:col-span-2">
+                      {t('edit.skillLevel')}
+                      <select
+                        value={form.skillLevel}
+                        onChange={(event_) => setForm({ ...form, skillLevel: event_.target.value as SkillLevel })}
+                        className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                      >
+                        <option value="">{t('edit.selectSkillLevelOptional')}</option>
+                        <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
+                        <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
+                        <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
+                      </select>
+                    </label>
                     <div className="md:col-span-2 mt-2 space-y-2">
                       <button
                         onClick={cancelEdit}

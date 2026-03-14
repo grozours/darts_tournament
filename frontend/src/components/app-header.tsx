@@ -311,9 +311,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
                     {t('nav.userAccounts')}
                   </a>
                 )}
-                <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=single">
-                  {t('nav.players')}
-                </a>
+                {isAdmin && (
+                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=single">
+                    {t('nav.players')}
+                  </a>
+                )}
                 {showDoublettesLink && (
                   <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=doublettes">
                     {t('groups.doublettes')}

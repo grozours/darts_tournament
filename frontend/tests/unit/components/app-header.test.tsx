@@ -100,7 +100,7 @@ describe('AppHeader', () => {
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'nav.userAccounts' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'nav.signUp' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'nav.players' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'nav.players' })).not.toBeInTheDocument();
 
     globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
     globalThis.dispatchEvent(new Event('notifications:updated'));

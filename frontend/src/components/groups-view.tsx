@@ -384,7 +384,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
           const normalizedTournamentStatus = tournamentStatusesById[group.tournamentId] ?? '';
           const isLiveOrArchivedTournament = normalizedTournamentStatus === 'LIVE' || normalizedTournamentStatus === 'FINISHED';
           const canRegister = (isCaptain || isAdmin) && !group.isRegistered && group.memberCount === requiredMembers;
-          const canUnregister = effectiveIsAuthenticated && group.isRegistered && (isAdmin || isCaptain) && !isLiveOrArchivedTournament;
+          const canUnregister = group.isRegistered && (isAdmin || isCaptain) && !isLiveOrArchivedTournament;
           const canLeave = isMember && !group.isRegistered;
           const canDelete = isAdmin || (canManageGroup && !group.isRegistered);
           const canChangePassword = isAdmin || (canManageGroup && !group.isRegistered);
@@ -403,7 +403,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                   <p className="text-xs text-slate-400">
                     {group.memberCount}/{requiredMembers} · {group.isRegistered ? t('groups.registered') : t('groups.notRegistered')}
                   </p>
-                  {isAdmin && group.skillLevel && (
+                  {group.skillLevel && (
                     <p className="text-xs text-slate-400">{t('edit.skillLevel')}: {toSkillLevelLabel(group.skillLevel, t)}</p>
                   )}
                   {!selectedTournamentId && group.tournamentName && (
