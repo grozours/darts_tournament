@@ -236,4 +236,35 @@ describe('AppHeader', () => {
       expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();
     });
   });
+
+  it('falls back to hiding registration format links when tournaments fetch fails', async () => {
+    fetchMock.mockRestore();
+    fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = resolveRequestUrl(input);
+      if (url.includes('/api/tournaments?limit=100')) {
+        return { ok: false, json: async () => ({}) } as Response;
+      }
+      if (url.includes('/api/auth/dev-autologin')) {
+        return { ok: false, json: async () => ({}) } as Response;
+      }
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+
+    render(
+      <AppHeader
+        t={t}
+        isAdmin={false}
+        isAuthenticated={false}
+        lang="fr"
+        setLanguage={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByRole('link', { name: 'groups.doublettes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'groups.equipes' })).not.toBeInTheDocument();
+  });
 });

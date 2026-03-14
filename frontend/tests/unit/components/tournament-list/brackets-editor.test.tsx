@@ -72,4 +72,28 @@ describe('BracketsEditor', () => {
     expect(checkboxes.some((checkbox) => (checkbox as HTMLInputElement).disabled)).toBe(true);
     expect(onBracketTargetToggle).not.toHaveBeenCalled();
   });
+
+  it('disables bracket controls when bracket has started matches', () => {
+    render(
+      <BracketsEditor
+        {...base}
+        brackets={[
+          {
+            id: 'b1',
+            name: 'Locked bracket',
+            bracketType: 'SINGLE_ELIMINATION',
+            totalRounds: 2,
+            status: 'IN_PROGRESS',
+            hasStartedMatches: true,
+            targetIds: [],
+          },
+        ] as never}
+      />
+    );
+
+    expect(screen.getByDisplayValue('Locked bracket')).toBeDisabled();
+    expect(screen.getByText('common.save')).toBeDisabled();
+    expect(screen.getByText('edit.saveTargets')).toBeDisabled();
+    expect(screen.getByText('common.delete')).toBeDisabled();
+  });
 });

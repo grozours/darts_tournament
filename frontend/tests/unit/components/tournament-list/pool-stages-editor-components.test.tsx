@@ -242,4 +242,35 @@ describe('pool-stages-editor-components', () => {
     fireEvent.click(screen.getByText('edit.addStage'));
     expect(onAddPoolStage).toHaveBeenCalledTimes(1);
   });
+
+  it('hides optional stage controls when disabled through props', () => {
+    render(
+      <PoolStageItem
+        t={translate}
+        stage={{ ...baseStage, status: StageStatus.EDITION } as never}
+        brackets={[baseBracket] as never}
+        poolStages={[baseStage] as never}
+        isTournamentLive={false}
+        showStageStatusControl={false}
+        showEditPlayersButton={false}
+        onPoolStageNumberChange={vi.fn()}
+        onPoolStageNameChange={vi.fn()}
+        onPoolStagePoolCountChange={vi.fn()}
+        onPoolStagePlayersPerPoolChange={vi.fn()}
+        onPoolStageAdvanceCountChange={vi.fn()}
+        onPoolStageMatchFormatChange={vi.fn()}
+        onPoolStageLosersAdvanceChange={vi.fn()}
+        onPoolStageRankingDestinationChange={vi.fn()}
+        onPoolStageStatusChange={vi.fn()}
+        onOpenPoolStageAssignments={vi.fn()}
+        onSavePoolStage={vi.fn()}
+        onRemovePoolStage={vi.fn()}
+        getStatusLabel={(_kind, status) => status}
+        normalizeStageStatus={(status) => status ?? StageStatus.NOT_STARTED}
+      />
+    );
+
+    expect(screen.queryByText('edit.editPlayers')).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: StageStatus.IN_PROGRESS })).not.toBeInTheDocument();
+  });
 });

@@ -1,6 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import useMatchStartedNotifications from '../../../../src/components/notifications/use-match-started-notifications';
+import useMatchStartedNotifications, {
+  parseTournamentGroupPayload,
+} from '../../../../src/components/notifications/use-match-started-notifications';
 import { NOTIFICATIONS_STORAGE_KEY } from '../../../../src/components/notifications/notifications-types';
 
 const authState = {
@@ -547,5 +549,24 @@ describe('useMatchStartedNotifications', () => {
     });
 
     expect(notificationSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('parses group payload from both array and wrapped object formats', () => {
+    const directArray = parseTournamentGroupPayload(
+      [{ members: [{ playerId: 'p1' }] }],
+      'doublettes'
+    );
+    const wrappedDoublettes = parseTournamentGroupPayload(
+      { doublettes: [{ members: [{ playerId: 'p2' }] }] },
+      'doublettes'
+    );
+    const wrappedEquipes = parseTournamentGroupPayload(
+      { equipes: [{ members: [{ playerId: 'p3' }] }] },
+      'equipes'
+    );
+
+    expect(directArray).toHaveLength(1);
+    expect(wrappedDoublettes).toHaveLength(1);
+    expect(wrappedEquipes).toHaveLength(1);
   });
 });

@@ -224,6 +224,33 @@ describe('BracketsSection rendering and props', () => {
     expect(bracketMatchesCalls[0]?.reservedTargetIds).toEqual(['target-2']);
   });
 
+  it('does not pass reserved targets when active bracket already owns targets', () => {
+    resetBracketMatchesCalls();
+    const brackets = [
+      {
+        id: 'active',
+        name: 'Winners',
+        bracketType: 'SINGLE',
+        status: 'IN_PROGRESS',
+        entries: [],
+        matches: [],
+        targetIds: ['target-1'],
+      },
+      {
+        id: 'other',
+        name: 'Losers',
+        bracketType: 'SINGLE',
+        status: 'IN_PROGRESS',
+        entries: [],
+        matches: [],
+        targetIds: ['target-2'],
+      },
+    ];
+
+    render(<BracketsSection {...baseProperties} brackets={brackets} activeBracketId="active" />);
+    expect(bracketMatchesCalls[0]?.reservedTargetIds).toEqual([]);
+  });
+
   it('passes preferredPlayerId to bracket matches when tournament player is known', () => {
     resetBracketMatchesCalls();
 

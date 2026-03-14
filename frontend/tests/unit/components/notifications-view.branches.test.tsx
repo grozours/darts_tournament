@@ -174,4 +174,24 @@ describe('NotificationsView branches', () => {
       expect(notificationMock.requestPermission).toHaveBeenCalled();
     });
   });
+
+  it('does not show permission CTA when permission was already requested', async () => {
+    globalThis.window.localStorage.setItem('notifications:permission-requested', '1');
+
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.startsWith('/api/auth/me')) {
+        return Promise.resolve({ ok: true, json: async () => ({ user: { email: 'user@example.com' } }) });
+      }
+      if (url.startsWith('/api/tournaments?status=')) {
+        return Promise.resolve({ ok: true, json: async () => ({ tournaments: [] }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ players: [] }) });
+    }));
+
+    render(<NotificationsView />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('notifications.permissionTitle')).not.toBeInTheDocument();
+    });
+  });
 });
