@@ -187,6 +187,7 @@ model Person {
   lastName   String   @map("last_name") @db.VarChar(50)
   surname    String?  @db.VarChar(50)
   email      String?  @unique @db.VarChar(255)
+  skillLevel SkillLevel? @map("skill_level")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 

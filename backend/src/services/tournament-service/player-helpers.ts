@@ -108,7 +108,8 @@ export const buildPlayerPayload = async (
       payload.firstName,
       payload.lastName,
       playerData.surname,
-      playerData.email
+      playerData.email,
+      playerData.skillLevel
     );
 
   if (playerData.surname?.trim()) {
@@ -135,7 +136,8 @@ export const resolvePersonId = async (
   firstName: string,
   lastName: string,
   surname?: string,
-  email?: string
+  email?: string,
+  skillLevel?: SkillLevel
 ): Promise<string> => {
   const normalizedEmail = email?.trim();
   if (normalizedEmail) {
@@ -144,6 +146,9 @@ export const resolvePersonId = async (
       ''
     );
     if (existingPerson) {
+      if (skillLevel) {
+        await context.tournamentModel.updatePerson(existingPerson.id, { skillLevel });
+      }
       return existingPerson.id;
     }
   }
@@ -153,6 +158,7 @@ export const resolvePersonId = async (
     lastName,
     ...(surname?.trim() ? { surname: surname.trim() } : {}),
     ...(normalizedEmail ? { email: normalizedEmail } : {}),
+    ...(skillLevel ? { skillLevel } : {}),
   });
   return createdPerson.id;
 };
@@ -179,6 +185,7 @@ export const updateLinkedPerson = async (
     lastName: updateData.lastName.trim(),
     ...(updateData.surname?.trim() ? { surname: updateData.surname.trim() } : {}),
     ...(updateData.email?.trim() ? { email: updateData.email.trim() } : {}),
+    ...(updateData.skillLevel ? { skillLevel: updateData.skillLevel } : {}),
   };
   await context.tournamentModel.updatePerson(personId, personUpdate);
 };

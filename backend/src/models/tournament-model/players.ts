@@ -29,7 +29,13 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     }
   },
 
-  createPerson: async (data: { firstName: string; lastName: string; surname?: string; email?: string }) => {
+  createPerson: async (data: {
+    firstName: string;
+    lastName: string;
+    surname?: string;
+    email?: string;
+    skillLevel?: SkillLevel;
+  }) => {
     try {
       return await prisma.person.create({
         data: {
@@ -39,6 +45,8 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
           surname: data.surname ?? null,
           // eslint-disable-next-line unicorn/no-null
           email: data.email ?? null,
+          // eslint-disable-next-line unicorn/no-null
+          ...(data.skillLevel ? { skillLevel: data.skillLevel } : {}),
         },
       });
     } catch (error) {
@@ -49,7 +57,13 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
 
   updatePerson: async (
     personId: string,
-    data: { firstName?: string; lastName?: string; surname?: string; email?: string }
+    data: {
+      firstName?: string;
+      lastName?: string;
+      surname?: string;
+      email?: string;
+      skillLevel?: SkillLevel;
+    }
   ) => {
     try {
       return await prisma.person.update({
@@ -108,6 +122,16 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     }
   ): Promise<Player> => {
     try {
+      if (playerData.personId && playerData.skillLevel !== undefined) {
+        const personSkillLevelUpdate = { skillLevel: playerData.skillLevel } as Record<string, SkillLevel>;
+        await prisma.person.update({
+          where: { id: playerData.personId },
+          data: {
+            ...personSkillLevelUpdate,
+          },
+        });
+      }
+
       const player = await prisma.player.create({
         data: {
           tournamentId,
@@ -381,6 +405,16 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     }
   ): Promise<Player> => {
     try {
+      if (updateData.personId && updateData.skillLevel !== undefined) {
+        const personSkillLevelUpdate = { skillLevel: updateData.skillLevel } as Record<string, SkillLevel>;
+        await prisma.person.update({
+          where: { id: updateData.personId },
+          data: {
+            ...personSkillLevelUpdate,
+          },
+        });
+      }
+
       const player = await prisma.player.update({
         where: { id: playerId },
         data: {

@@ -155,6 +155,7 @@ const hasAdminAccess = (request: Request): boolean => {
 };
 
 const ADMIN_EMAILS_SET = new Set(config.auth.adminEmails.map((email) => email.toLowerCase()));
+const SKILL_LEVEL_CLEAR = '__CLEAR__' as const;
 
 const isAdminEmail = (email: string | null): boolean => {
   if (!email) {
@@ -238,17 +239,20 @@ const applySkillLevelField = (
     return 'Invalid skillLevel';
   }
 
-  updates.skillLevel = skillLevel;
+  // eslint-disable-next-line unicorn/no-null
+  updates.skillLevel = skillLevel === SKILL_LEVEL_CLEAR ? null : skillLevel;
   return undefined;
 };
 
-const parseOptionalSkillLevel = (value: unknown): 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT' | null | undefined => {
+const parseOptionalSkillLevel = (
+  value: unknown
+): 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT' | typeof SKILL_LEVEL_CLEAR | undefined => {
   if (value === undefined) {
     return undefined;
   }
 
   if (value === null || value === '') {
-    return null;
+    return SKILL_LEVEL_CLEAR;
   }
 
   if (typeof value !== 'string') {
@@ -551,20 +555,9 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
         lastName: true,
         surname: true,
         email: true,
+        skillLevel: true,
         createdAt: true,
         updatedAt: true,
-        players: {
-          where: {
-            isActive: true,
-          },
-          select: {
-            skillLevel: true,
-          },
-          orderBy: {
-            registeredAt: 'desc',
-          },
-          take: 1,
-        },
       },
       orderBy: [
         { updatedAt: 'desc' },
@@ -579,6 +572,7 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
         where: {
           personId: { in: personIds },
           isActive: true,
+          // eslint-disable-next-line unicorn/no-null
           tournamentId: { not: null },
         },
         select: {
@@ -605,34 +599,39 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
     const activePlayersByPersonId = new Set(
       activePlayerLinks
         .map((link) => link.personId)
-        .filter((personId): personId is string => Boolean(personId))
+        .filter(Boolean) as string[]
     );
 
-    const tournamentCountByPersonId = tournamentLinks.reduce<Map<string, number>>((accumulator, link) => {
+    const tournamentCountByPersonId = new Map<string, number>();
+    for (const link of tournamentLinks) {
       if (!link.personId || !link.tournamentId) {
-        return accumulator;
+        continue;
       }
 
-      const current = accumulator.get(link.personId) ?? 0;
-      accumulator.set(link.personId, current + 1);
-      return accumulator;
-    }, new Map());
+      const current = tournamentCountByPersonId.get(link.personId) ?? 0;
+      tournamentCountByPersonId.set(link.personId, current + 1);
+    }
 
     response.json({
-      users: users.map((user) => ({
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        surname: user.surname,
-        email: user.email,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        skillLevel: user.players?.[0]?.skillLevel ?? null,
-        tournamentCount: tournamentCountByPersonId.get(user.id) ?? 0,
-        isAdminAccount: isAdminEmail(user.email),
-        activePlayerCount: activePlayersByPersonId.has(user.id) ? 1 : 0,
-        canDelete: !isAdminEmail(user.email) && !activePlayersByPersonId.has(user.id),
-      })),
+      users: users.map((user) => {
+        const adminAccount = isAdminEmail(user.email);
+        const hasActivePlayers = activePlayersByPersonId.has(user.id);
+
+        return {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          surname: user.surname,
+          email: user.email,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          ...(user.skillLevel ? { skillLevel: user.skillLevel } : {}),
+          tournamentCount: tournamentCountByPersonId.get(user.id) ?? 0,
+          isAdminAccount: adminAccount,
+          activePlayerCount: hasActivePlayers ? 1 : 0,
+          canDelete: adminAccount ? false : !hasActivePlayers,
+        };
+      }),
     });
   } catch (error) {
     logger.error('Failed to list user accounts', {
@@ -670,28 +669,33 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
   }
 
   const { updates } = parsedUpdate;
-  if (!updates) {
+  if (updates === undefined) {
     response.status(400).json({ error: 'Bad Request', message: 'No updatable fields provided' });
     return;
   }
 
   try {
     const { skillLevel, ...personUpdates } = updates;
+    const personUpdateData = {
+      ...personUpdates,
+      ...(skillLevel === undefined ? {} : { skillLevel }),
+    };
     const updated = await prisma.person.update({
       where: { id: userId },
-      data: personUpdates,
+      data: personUpdateData,
       select: {
         id: true,
         firstName: true,
         lastName: true,
         surname: true,
         email: true,
+        skillLevel: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
-    let resolvedSkillLevel: string | null = null;
+    let resolvedSkillLevel: string | undefined = updated.skillLevel ?? undefined;
     if (skillLevel !== undefined) {
       await prisma.player.updateMany({
         where: {
@@ -702,24 +706,10 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
           skillLevel,
         },
       });
-      resolvedSkillLevel = skillLevel;
-    } else {
-      const latestPlayer = await prisma.player.findFirst({
-        where: {
-          personId: userId,
-          isActive: true,
-        },
-        select: {
-          skillLevel: true,
-        },
-        orderBy: {
-          registeredAt: 'desc',
-        },
-      });
-      resolvedSkillLevel = latestPlayer?.skillLevel ?? null;
+      resolvedSkillLevel = skillLevel ?? undefined;
     }
 
-    response.json({ user: { ...updated, skillLevel: resolvedSkillLevel } });
+    response.json({ user: { ...updated, ...(resolvedSkillLevel ? { skillLevel: resolvedSkillLevel } : {}) } });
   } catch (error) {
     handleAdminAccountUpdateError(request, response, userId, error);
   }
@@ -750,6 +740,7 @@ router.delete('/users', requireAuth, async (request: Request, response: Response
       where: {
         players: {
           none: {
+            // eslint-disable-next-line unicorn/no-null
             tournamentId: { not: null },
           },
         },
