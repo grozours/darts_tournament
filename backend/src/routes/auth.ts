@@ -753,18 +753,7 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
     });
 
     let resolvedSkillLevel: string | undefined;
-    if (skillLevel !== undefined) {
-      await prisma.player.updateMany({
-        where: {
-          personId: userId,
-          isActive: true,
-        },
-        data: {
-          skillLevel,
-        },
-      });
-      resolvedSkillLevel = skillLevel ?? undefined;
-    } else {
+    if (skillLevel === undefined) {
       const latestActivePlayer = await prisma.player.findFirst({
         where: {
           personId: userId,
@@ -778,6 +767,17 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
         },
       });
       resolvedSkillLevel = latestActivePlayer?.skillLevel ?? undefined;
+    } else {
+      await prisma.player.updateMany({
+        where: {
+          personId: userId,
+          isActive: true,
+        },
+        data: {
+          skillLevel,
+        },
+      });
+      resolvedSkillLevel = skillLevel ?? undefined;
     }
 
     response.json({ user: { ...updated, ...(resolvedSkillLevel ? { skillLevel: resolvedSkillLevel } : {}) } });

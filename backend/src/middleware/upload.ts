@@ -23,8 +23,16 @@ const ensureUploadDirectory = (): void => {
 ensureUploadDirectory();
 
 // Multer configuration
-// Keep a strict hard cap below the 8MB Sonar/OWASP recommendation for upload endpoints.
-const maxUploadSize = 5 * 1024 * 1024;
+// Keep strict caps below Sonar/OWASP recommendations to reduce DoS risk.
+const uploadLimits = {
+  fileSize: 5 * 1024 * 1024,
+  files: 1,
+  fields: 1,
+  parts: 2,
+  fieldSize: 16 * 1024,
+} as const;
+
+const maxUploadSize = uploadLimits.fileSize;
 
 const validateDeclaredContentLength = (request: Request): AppError | undefined => {
   const transferEncoding = request.headers['transfer-encoding'];
@@ -123,11 +131,7 @@ const guardContentLength = (request: Request, _response: Response, next: NextFun
 const upload = multer({
   storage,
   fileFilter,
-  limits: {
-    // Cap content length to a conservative 5MB max (or lower config) to prevent abuse.
-    fileSize: maxUploadSize, // 5MB per constitution
-    files: 1, // Single file upload for tournament logos
-  },
+  limits: uploadLimits,
 });
 
 // Tournament logo upload middleware
