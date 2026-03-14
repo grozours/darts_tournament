@@ -166,6 +166,54 @@ describe('GroupsView', () => {
     });
   });
 
+  it('filters groups by group name and all member names/surnames', async () => {
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd1',
+        name: 'Les Meteores',
+        captainPlayerId: 'p1',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p1', firstName: 'Alice', lastName: 'Martin', surname: 'La Fusee', email: 'alice@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p2', firstName: 'Bruno', lastName: 'Durand', email: 'bruno@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+      {
+        id: 'd2',
+        name: 'Les Cometes',
+        captainPlayerId: 'p3',
+        isRegistered: false,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p3', firstName: 'Chloe', lastName: 'Petit', surname: 'Lynx', email: 'chloe@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p4', firstName: 'David', lastName: 'Roux', email: 'david@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+
+    expect(await screen.findByText('Les Meteores')).toBeInTheDocument();
+    expect(screen.getByText('Les Cometes')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('groups.searchPlaceholder'), { target: { value: 'lynx' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Les Meteores')).not.toBeInTheDocument();
+      expect(screen.getByText('Les Cometes')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('groups.searchPlaceholder'), { target: { value: 'meteores' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Les Meteores')).toBeInTheDocument();
+      expect(screen.queryByText('Les Cometes')).not.toBeInTheDocument();
+    });
+  });
+
   it('ignores tournaments with incompatible format in no-filter mode', async () => {
     globalThis.history.pushState({}, '', '/?view=doublettes');
 

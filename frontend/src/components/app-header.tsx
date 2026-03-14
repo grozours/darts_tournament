@@ -303,6 +303,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
             </button>
             <div className="absolute left-0 top-full z-10 pt-2 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
               <div className="min-w-[12rem] rounded-xl border border-slate-800/70 bg-slate-950/95 p-2 shadow-lg">
+                {isAdmin && (
+                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=user-accounts">
+                    {t('nav.userAccounts')}
+                  </a>
+                )}
                 <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?status=OPEN">
                   {t('nav.signUp')}
                 </a>

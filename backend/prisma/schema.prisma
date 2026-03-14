@@ -82,7 +82,6 @@ model Player {
   surname           String?        @db.VarChar(50)
   teamName          String?        @map("team_name") @db.VarChar(100)
   email             String?        @db.VarChar(255)
-  phone             String?        @db.VarChar(20)
   skillLevel        SkillLevel?    @map("skill_level")
   registeredAt      DateTime       @default(now()) @map("registered_at")
   isActive          Boolean        @default(true) @map("is_active")
@@ -186,14 +185,13 @@ model Person {
   id         String   @id @default(uuid())
   firstName  String   @map("first_name") @db.VarChar(50)
   lastName   String   @map("last_name") @db.VarChar(50)
-  email      String?  @db.VarChar(255)
-  phone      String?  @db.VarChar(20)
+  surname    String?  @db.VarChar(50)
+  email      String?  @unique @db.VarChar(255)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   players    Player[]
 
-  @@unique([email, phone])
   @@map("persons")
 }
 

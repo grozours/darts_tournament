@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import AppHeader from '../../../src/components/app-header';
 
@@ -71,8 +71,11 @@ describe('AppHeader', () => {
     });
 
     expect(screen.getByText('nav.manage')).toBeInTheDocument();
+    const userAccountsLink = screen.getByRole('link', { name: 'nav.userAccounts' });
+    expect(userAccountsLink).toBeInTheDocument();
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     const signUpLink = screen.getByRole('link', { name: 'nav.signUp' });
+    expect(userAccountsLink.compareDocumentPosition(signUpLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('link', { name: 'nav.players' })).toBeInTheDocument();
     const playersLink = screen.getByRole('link', { name: 'nav.players' });
     expect(signUpLink.compareDocumentPosition(playersLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -95,13 +98,12 @@ describe('AppHeader', () => {
     });
 
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'nav.userAccounts' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'nav.signUp' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'nav.players' })).not.toBeInTheDocument();
 
-    await act(async () => {
-      globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
-      globalThis.dispatchEvent(new Event('notifications:updated'));
-    });
+    globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
+    globalThis.dispatchEvent(new Event('notifications:updated'));
 
     return waitFor(() => {
       expect(screen.getByLabelText('2 unread notifications')).toBeInTheDocument();
@@ -128,9 +130,7 @@ describe('AppHeader', () => {
 
     const details = document.querySelector('details');
     details?.setAttribute('open', 'open');
-    await act(async () => {
-      fireEvent.click(screen.getByText('Français'));
-    });
+    fireEvent.click(screen.getByText('Français'));
 
     expect(setLanguage).toHaveBeenCalledWith('fr');
     expect(screen.getByLabelText('live.exitScreenMode')).toBeInTheDocument();

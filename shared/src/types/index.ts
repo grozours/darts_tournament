@@ -98,17 +98,19 @@ export enum SkillLevel {
   EXPERT = 'EXPERT',
 }
 
-export interface Player {
+export interface Person {
   id: string;
-  tournamentId: string | null;
-  personId?: string;
   firstName: string;
   lastName: string;
   surname?: string;
-  teamName?: string;
   email?: string;
-  phone?: string;
   skillLevel?: SkillLevel;
+}
+
+export interface Player extends Person {
+  tournamentId: string | null;
+  personId?: string;
+  teamName?: string;
   registeredAt: Date;
   isActive: boolean;
   checkedIn: boolean;
@@ -314,12 +316,12 @@ export interface CreateTournamentRequest {
 }
 
 export interface CreatePlayerRequest {
+  personId?: string;
   firstName: string;
   lastName: string;
   surname?: string;
   teamName?: string;
   email?: string;
-  phone?: string;
   skillLevel?: SkillLevel;
 }
 

@@ -235,7 +235,6 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
       ...(player.surname ? { surname: player.surname } : {}),
       ...(player.teamName ? { teamName: player.teamName } : {}),
       ...(player.email ? { email: player.email } : {}),
-      ...(player.phone ? { phone: player.phone } : {}),
       ...(player.skillLevel ? { skillLevel: player.skillLevel as SkillLevel } : {}),
     };
   },
@@ -257,13 +256,29 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
     ensureTournamentAllowsPlayerUpdate(tournament);
 
     const player = await context.tournamentModel.getPlayerById(playerId);
-    if (player?.personId) {
+    const requestedPersonId = updateData.personId?.trim();
+    const hasPersonReassignment = Boolean(requestedPersonId && requestedPersonId !== player?.personId);
+
+    if (hasPersonReassignment && !context.isAdminAction()) {
+      throw new AppError('Admin access required to reassign player account', 403, 'PLAYER_REASSIGN_FORBIDDEN');
+    }
+
+    if (requestedPersonId) {
+      const person = await context.tournamentModel.getPersonById(requestedPersonId);
+      if (!person) {
+        throw new AppError('Person not found', 404, 'PERSON_NOT_FOUND');
+      }
+    }
+
+    const targetPersonId = requestedPersonId || player?.personId;
+
+    if (player?.personId && targetPersonId === player.personId) {
       await updateLinkedPerson(context, player.personId, updateData);
     }
 
     await ensureUniquePlayerAttributes(context, tournament, tournamentId, updateData, playerId);
 
-    const playerUpdate = buildPlayerUpdate(updateData, player?.personId);
+    const playerUpdate = buildPlayerUpdate(updateData, targetPersonId);
     return await context.tournamentModel.updatePlayer(tournamentId, playerId, playerUpdate);
   },
 

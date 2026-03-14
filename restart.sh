@@ -18,6 +18,8 @@ FORCE_BUILD=${FORCE_BUILD:-true}
 DEV_SERVICES=(postgres_test redis_test sonarqube sonar_init)
 STATUS_RETRY_COUNT=${STATUS_RETRY_COUNT:-20}
 STATUS_RETRY_DELAY=${STATUS_RETRY_DELAY:-2}
+RESTORE_DB_ON_DEV_BOTH_RESTART=${RESTORE_DB_ON_DEV_BOTH_RESTART:-true}
+IMPORT_PRESETS_ON_RESTART=${IMPORT_PRESETS_ON_RESTART:-false}
 
 # Colors for output
 RED='\033[0;31m'
@@ -229,7 +231,7 @@ stop_dev_services() {
 }
 
 ensure_presets_imported() {
-    local auto_import=${IMPORT_PRESETS_ON_RESTART:-true}
+    local auto_import=${IMPORT_PRESETS_ON_RESTART}
     if [[ "$auto_import" != "true" ]]; then
         print_status "Preset auto-import disabled (IMPORT_PRESETS_ON_RESTART=$auto_import)"
         return 0
@@ -274,7 +276,7 @@ ensure_presets_imported() {
 }
 
 ensure_seed_content_present() {
-    local auto_import=${IMPORT_PRESETS_ON_RESTART:-true}
+    local auto_import=${IMPORT_PRESETS_ON_RESTART}
     if [[ "$auto_import" != "true" ]]; then
         return 0
     fi
@@ -314,6 +316,33 @@ ensure_seed_content_present() {
     fi
 
     print_warning "Unexpected seed check output ('$seed_check_output'), skipping db:seed fallback"
+}
+
+restore_latest_backup_if_requested() {
+    if [[ "${DEV_PROFILE}" != "true" || "${COMMAND}" != "both" ]]; then
+        return 0
+    fi
+
+    if [[ "${RESTORE_DB_ON_DEV_BOTH_RESTART}" != "true" ]]; then
+        print_status "Skipping DB restore (RESTORE_DB_ON_DEV_BOTH_RESTART=${RESTORE_DB_ON_DEV_BOTH_RESTART})"
+        return 0
+    fi
+
+    local backend_container_id
+    backend_container_id="$(${COMPOSE_CMD[@]} ps -q backend 2>/dev/null)"
+    if [[ -z "$backend_container_id" ]]; then
+        print_error "Backend container is not running, cannot restore database"
+        return 1
+    fi
+
+    print_status "Restoring database from latest backup via backend/scripts/db_restore.sh (in backend container)..."
+    if "${COMPOSE_CMD[@]}" exec -T backend sh -lc 'scripts/db_restore.sh'; then
+        print_success "Database restore completed"
+        return 0
+    fi
+
+    print_error "Database restore failed"
+    return 1
 }
 
 # Function to show logs
@@ -460,6 +489,12 @@ case "$COMMAND" in
         echo "  --prune     Run Docker prune before restart (safe: keeps named volumes)"
         echo "  --prune-volumes Run Docker prune including unused volumes"
         echo ""
+        echo "Environment toggles:"
+        echo "  RESTORE_DB_ON_DEV_BOTH_RESTART=true|false"
+        echo "    - In 'both -dev', restore latest backup automatically using backend/scripts/db_restore.sh"
+        echo "  IMPORT_PRESETS_ON_RESTART=true|false"
+        echo "    - Auto-import/check DB presets and run db:seed fallback after restart (default: false)"
+        echo ""
         echo "Examples:"
         echo "  $0                # Restart both services"
         echo "  $0 --prune both   # Restart and reclaim Docker disk space"
@@ -485,6 +520,13 @@ if [[ "$COMMAND" != "logs" && "$COMMAND" != "help" && "$COMMAND" != "-h" && "$CO
     echo ""
     check_status
     status_rc=$?
+
+    restore_latest_backup_if_requested
+    restore_rc=$?
+
+    if [[ $restore_rc -ne 0 ]]; then
+        exit $restore_rc
+    fi
 
     if [[ "$COMMAND" == "backend" || "$COMMAND" == "backend+deps" || "$COMMAND" == "both" ]]; then
         ensure_presets_imported

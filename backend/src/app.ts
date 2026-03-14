@@ -23,6 +23,7 @@ import { setupWebSocketServer } from './websocket/server';
 import logger, { stream } from './utils/logger';
 import tournamentRoutes from './routes/tournaments';
 import authRoutes from './routes/auth';
+import { ensureAdminPersonsExist } from './services/admin-account-bootstrap';
 class App {
   public app: Express;
   public server: HttpServer;
@@ -182,6 +183,17 @@ class App {
       // Connect to databases
       await database.connect();
       await redis.connect();
+
+      // Ensure configured admin emails have Person accounts.
+      try {
+        await ensureAdminPersonsExist();
+      } catch (error) {
+        logger.warn('Admin account bootstrap failed; continuing startup', {
+          metadata: {
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+        });
+      }
 
       // Start server
       this.server.listen(config.port, () => {

@@ -89,7 +89,6 @@ describe('player-helpers', () => {
       surname: '  Alias ',
       teamName: ' Team A ',
       email: ' alice@example.com ',
-      phone: ' 0123 ',
       skillLevel: 'BEGINNER',
     } as never);
 
@@ -100,23 +99,24 @@ describe('player-helpers', () => {
       surname: 'Alias',
       teamName: 'Team A',
       email: 'alice@example.com',
-      phone: '0123',
       skillLevel: 'BEGINNER',
     }));
   });
 
-  it('resolves existing person id when both email and phone are present; otherwise creates person', async () => {
+  it('resolves existing person id when email is present; otherwise creates person', async () => {
     const context = buildContext();
 
     context.tournamentModel.findPersonByEmailAndPhone.mockResolvedValueOnce({ id: 'person-existing' });
-    await expect(resolvePersonId(context as never, 'Alice', 'Doe', ' alice@example.com ', ' 0123 ')).resolves.toBe('person-existing');
+    await expect(resolvePersonId(context as never, 'Alice', 'Doe', ' alice@example.com ')).resolves.toBe('person-existing');
+
+    expect(context.tournamentModel.findPersonByEmailAndPhone).toHaveBeenCalledWith('alice@example.com', '');
 
     context.tournamentModel.findPersonByEmailAndPhone.mockResolvedValueOnce(undefined);
     context.tournamentModel.createPerson.mockResolvedValueOnce({ id: 'person-created' });
-    await expect(resolvePersonId(context as never, 'Alice', 'Doe', ' alice@example.com ', ' 0123 ')).resolves.toBe('person-created');
+    await expect(resolvePersonId(context as never, 'Alice', 'Doe', ' alice@example.com ')).resolves.toBe('person-created');
 
     context.tournamentModel.createPerson.mockResolvedValueOnce({ id: 'person-created-2' });
-    await expect(resolvePersonId(context as never, 'Alice', 'Doe', undefined, ' 0123 ')).resolves.toBe('person-created-2');
+    await expect(resolvePersonId(context as never, 'Alice', 'Doe')).resolves.toBe('person-created-2');
   });
 
   it('validates tournament update status, updates linked person and unique attribute rules', async () => {
@@ -129,12 +129,10 @@ describe('player-helpers', () => {
       firstName: ' Alice ',
       lastName: ' Doe ',
       email: ' ',
-      phone: ' 0123 ',
     } as never);
     expect(context.tournamentModel.updatePerson).toHaveBeenCalledWith('person-1', {
       firstName: 'Alice',
       lastName: 'Doe',
-      phone: '0123',
     });
 
     context.tournamentModel.findPlayerBySurname.mockResolvedValue(undefined);
@@ -172,7 +170,6 @@ describe('player-helpers', () => {
       surname: ' S ',
       teamName: ' T ',
       email: ' e@x.com ',
-      phone: ' 123 ',
       skillLevel: 'ADVANCED',
     } as never, 'person-1')).toEqual(expect.objectContaining({
       personId: 'person-1',
@@ -181,7 +178,6 @@ describe('player-helpers', () => {
       surname: 'S',
       teamName: 'T',
       email: 'e@x.com',
-      phone: '123',
       skillLevel: 'ADVANCED',
     }));
   });

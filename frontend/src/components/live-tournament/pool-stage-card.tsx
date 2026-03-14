@@ -381,8 +381,9 @@ export const computeOptimisticStartTimes = ({
   prioritizeLeastProgressedPools?: boolean;
   resolveDurationMinutes: (match: LiveViewMatch) => number;
 }) => {
-  const poolQueues = pools.map((pool) => {
-    return buildOptimisticPoolQueues([pool], stagePlayersPerPool)[0];
+  const poolQueues = pools.flatMap((pool) => {
+    const [queue] = buildOptimisticPoolQueues([pool], stagePlayersPerPool);
+    return queue ? [queue] : [];
   });
   const shouldPrioritizeLeastProgressedPools = prioritizeLeastProgressedPools
     || poolQueues.every((queue) => queue.usesFallbackConcurrency);
@@ -942,11 +943,14 @@ const PoolStageCard = ({
               {leaderboard.map((row) => (
                 <tr key={row.playerId} className="text-slate-200">
                   <td className="px-2 py-2 text-center font-semibold text-slate-300">#{row.position}</td>
-                  <td className="px-3 py-2">{formatLeaderboardPlayerName(row.name, {
-                    isAdmin,
-                    screenMode,
-                    skillLevel: getPoolPlayerSkillLevel(pool, row.playerId),
-                  })}</td>
+                  <td className="px-3 py-2">{(() => {
+                    const skillLevel = getPoolPlayerSkillLevel(pool, row.playerId);
+                    return formatLeaderboardPlayerName(row.name, {
+                      isAdmin,
+                      screenMode,
+                      ...(skillLevel ? { skillLevel } : {}),
+                    });
+                  })()}</td>
                   <td className="px-3 py-2 text-right">
                         {row.legsWon}
                         <HeadToHeadBonus row={row} t={t} />
@@ -1359,11 +1363,14 @@ const PoolStageCard = ({
                             className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/50 px-2 py-1"
                           >
                             <span className="font-semibold text-amber-200">#{row.position}</span>
-                            <span className="flex-1 px-2 text-left text-slate-100">{formatLeaderboardPlayerName(row.name, {
-                              isAdmin,
-                              screenMode,
-                              skillLevel: getPoolPlayerSkillLevel(pool, row.playerId),
-                            })}</span>
+                            <span className="flex-1 px-2 text-left text-slate-100">{(() => {
+                              const skillLevel = getPoolPlayerSkillLevel(pool, row.playerId);
+                              return formatLeaderboardPlayerName(row.name, {
+                                isAdmin,
+                                screenMode,
+                                ...(skillLevel ? { skillLevel } : {}),
+                              });
+                            })()}</span>
                             <span className="w-16 text-right text-slate-300">
                               {row.legsWon}
                               <HeadToHeadBonus row={row} t={t} />

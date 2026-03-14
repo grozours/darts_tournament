@@ -3,6 +3,7 @@ import { config } from '../../src/config/environment';
 import { createPlayerHandlers } from '../../src/services/tournament-service/player-handlers';
 
 type ModelMock = {
+  getPersonById: jest.Mock;
   findById: jest.Mock;
   isPlayerRegistered: jest.Mock;
   getParticipantCount: jest.Mock;
@@ -25,6 +26,7 @@ type ModelMock = {
 
 const buildContext = (options?: { isAdminAction?: boolean }) => {
   const model: ModelMock = {
+    getPersonById: jest.fn().mockResolvedValue(undefined),
     findById: jest.fn(),
     isPlayerRegistered: jest.fn(),
     getParticipantCount: jest.fn(),
@@ -387,7 +389,6 @@ describe('player handlers', () => {
       surname: 'A-Doe',
       teamName: 'Team A',
       email: 'alice@example.com',
-      phone: '123',
       skillLevel: 'ADVANCED',
     }));
   });
@@ -443,6 +444,48 @@ describe('player handlers', () => {
 
     expect(model.updatePerson).toHaveBeenCalled();
     expect(model.updatePlayer).toHaveBeenCalled();
+  });
+
+  it('reassigns player to another person when admin and target person exists', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
+    model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN, format: TournamentFormat.SINGLE });
+    model.getPlayerById.mockResolvedValue({ id: 'p1', personId: 'person-1' });
+    model.getPersonById.mockResolvedValue({ id: 'person-2' });
+
+    await handlers.updateTournamentPlayer('t1', 'p1', {
+      personId: 'person-2',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    });
+
+    expect(model.getPersonById).toHaveBeenCalledWith('person-2');
+    expect(model.updatePerson).not.toHaveBeenCalled();
+    expect(model.updatePlayer).toHaveBeenCalledWith('t1', 'p1', expect.objectContaining({ personId: 'person-2' }));
+  });
+
+  it('rejects player reassignment when requester is not admin', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: false });
+    model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN, format: TournamentFormat.SINGLE });
+    model.getPlayerById.mockResolvedValue({ id: 'p1', personId: 'person-1' });
+
+    await expect(handlers.updateTournamentPlayer('t1', 'p1', {
+      personId: 'person-2',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    })).rejects.toThrow('Admin access required to reassign player account');
+  });
+
+  it('rejects player reassignment when target person does not exist', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
+    model.findById.mockResolvedValue({ id: 't1', status: TournamentStatus.OPEN, format: TournamentFormat.SINGLE });
+    model.getPlayerById.mockResolvedValue({ id: 'p1', personId: 'person-1' });
+    model.getPersonById.mockResolvedValue(undefined);
+
+    await expect(handlers.updateTournamentPlayer('t1', 'p1', {
+      personId: 'person-missing',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    })).rejects.toThrow('Person not found');
   });
 
   it('rejects registerPlayerDetails when tournament is missing', async () => {

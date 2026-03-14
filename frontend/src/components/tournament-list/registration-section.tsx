@@ -152,15 +152,6 @@ const RegistrationFormFields = ({
         className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
       />
     </label>
-    <label className="text-sm text-slate-300">
-      {t('edit.phone')}
-      <input
-        type="text"
-        value={playerForm.phone || ''}
-        onChange={(event_) => onPlayerFormChange({ ...playerForm, phone: event_.target.value })}
-        className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-      />
-    </label>
     <label className="text-sm text-slate-300 md:col-span-2">
       {t('edit.skillLevel')}
       <select

@@ -49,7 +49,6 @@ function PlayersView() {
     surname: '',
     teamName: '',
     email: '',
-    phone: '',
     skillLevel: '' as SkillLevel | '',
   });
   const [saving, setSaving] = useState(false);
@@ -130,7 +129,6 @@ function PlayersView() {
         player.surname,
         player.teamName,
         player.email,
-        player.phone,
         player.tournamentName,
         player.tournamentFormat,
         player.name,
@@ -169,7 +167,6 @@ function PlayersView() {
       surname: player.surname || '',
       teamName: player.teamName || '',
       email: player.email || '',
-      phone: player.phone || '',
       skillLevel: player.skillLevel || '',
     });
   };
@@ -182,7 +179,6 @@ function PlayersView() {
       surname: '',
       teamName: '',
       email: '',
-      phone: '',
       skillLevel: '',
     });
   };
@@ -204,14 +200,12 @@ function PlayersView() {
         surname?: string;
         teamName?: string;
         email?: string;
-        phone?: string;
         skillLevel?: SkillLevel;
       };
 
       if (form.surname.trim()) payload.surname = form.surname.trim();
       if (form.teamName.trim()) payload.teamName = form.teamName.trim();
       if (form.email.trim()) payload.email = form.email.trim();
-      if (form.phone.trim()) payload.phone = form.phone.trim();
       if (form.skillLevel) payload.skillLevel = form.skillLevel;
 
       await updateTournamentPlayer(player.tournamentId, player.playerId, payload, token);
@@ -430,15 +424,6 @@ function PlayersView() {
                         type="email"
                         value={form.email}
                         onChange={(event_) => setForm({ ...form, email: event_.target.value })}
-                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-                      />
-                    </label>
-                    <label className="text-xs text-slate-400">
-                      {t('edit.phone')}
-                      <input
-                        type="text"
-                        value={form.phone}
-                        onChange={(event_) => setForm({ ...form, phone: event_.target.value })}
                         className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
                       />
                     </label>

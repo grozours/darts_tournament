@@ -44,6 +44,7 @@ export class TournamentModel {
   public updateStatus!: TournamentModelCoreHandlers['updateStatus'];
 
   public findPersonByEmailAndPhone!: TournamentModelPlayerHandlers['findPersonByEmailAndPhone'];
+  public getPersonById!: TournamentModelPlayerHandlers['getPersonById'];
   public createPerson!: TournamentModelPlayerHandlers['createPerson'];
   public updatePerson!: TournamentModelPlayerHandlers['updatePerson'];
   public getPlayerById!: TournamentModelPlayerHandlers['getPlayerById'];

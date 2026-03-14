@@ -3,6 +3,7 @@ import {
   updateTournamentPresetSchema,
   getTournamentsSchema,
   getLiveSummarySchema,
+  updatePlayerSchema,
   updateMatchFormatPresetSchema,
 } from '../../src/routes/tournaments/schemas';
 import { TournamentFormat } from '../../../shared/src/types';
@@ -269,5 +270,25 @@ describe('tournament route schemas', () => {
 
     expect(valid.success).toBe(true);
     expect(invalid.success).toBe(false);
+  });
+
+  it('accepts optional personId in update player payload', () => {
+    const result = updatePlayerSchema.body.safeParse({
+      personId: '11111111-1111-4111-8111-111111111111',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid personId in update player payload', () => {
+    const result = updatePlayerSchema.body.safeParse({
+      personId: 'not-a-uuid',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    });
+
+    expect(result.success).toBe(false);
   });
 });

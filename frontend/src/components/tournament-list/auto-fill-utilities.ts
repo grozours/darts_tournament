@@ -35,14 +35,6 @@ const secureRandomIndex = (maxExclusive: number): number => {
   return value % maxExclusive;
 };
 
-const secureRandomInt = (min: number, max: number): number => {
-  if (max < min) {
-    return min;
-  }
-  const range = max - min + 1;
-  return min + secureRandomIndex(range);
-};
-
 const shuffleArray = <T,>(items: T[]): T[] => {
   const copy = [...items];
   for (let index = copy.length - 1; index > 0; index -= 1) {
@@ -134,7 +126,6 @@ const buildRegistrations = (parameters: {
       firstName: pair.firstName,
       lastName: pair.lastName,
       email: `${pair.firstName.toLowerCase()}.${pair.lastName.toLowerCase()}@example.com`,
-      phone: `0${secureRandomInt(100_000_000, 999_999_999)}`,
     };
     if (surname) {
       payload.surname = surname;

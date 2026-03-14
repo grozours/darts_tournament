@@ -29,7 +29,7 @@ type PrismaMock = {
     groupBy: jest.Mock;
   };
   person: {
-    findUnique: jest.Mock;
+    findFirst: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
   };
@@ -100,7 +100,7 @@ describe('tournament model', () => {
         groupBy: jest.fn(),
       },
       person: {
-        findUnique: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -256,20 +256,20 @@ describe('tournament model', () => {
     );
   });
 
-  it('finds a person by email and phone', async () => {
+  it('finds a person by email (phone ignored)', async () => {
     const person = { id: 'person-1' };
-    prisma.person.findUnique.mockResolvedValue(person);
+    prisma.person.findFirst.mockResolvedValue(person);
 
     const result = await model.findPersonByEmailAndPhone('ada@example.com', '123');
 
-    expect(prisma.person.findUnique).toHaveBeenCalledWith({
-      where: { email_phone: { email: 'ada@example.com', phone: '123' } },
+    expect(prisma.person.findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: 'ada@example.com', mode: 'insensitive' } },
     });
     expect(result).toBe(person);
   });
 
   it('maps person lookup errors', async () => {
-    prisma.person.findUnique.mockRejectedValue(new Error('db'));
+    prisma.person.findFirst.mockRejectedValue(new Error('db'));
 
     await expect(
       model.findPersonByEmailAndPhone('ada@example.com', '123')

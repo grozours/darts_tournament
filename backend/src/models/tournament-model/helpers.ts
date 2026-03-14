@@ -134,7 +134,6 @@ export const mapToPlayer = (prismaResult: NonNullable<PrismaPlayerRecord>): Play
     ...(prismaResult.surname ? { surname: prismaResult.surname } : {}),
     ...(prismaResult.teamName ? { teamName: prismaResult.teamName } : {}),
     ...(prismaResult.email ? { email: prismaResult.email } : {}),
-    ...(prismaResult.phone ? { phone: prismaResult.phone } : {}),
     ...(prismaResult.skillLevel
       ? { skillLevel: prismaResult.skillLevel as SkillLevel }
       : {}),

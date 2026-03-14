@@ -130,7 +130,6 @@ export const commonSchemas = {
     surname: z.string().max(50, 'Surname must be less than 50 characters').optional(),
     teamName: z.string().max(100, 'Team name must be less than 100 characters').optional(),
     email: z.string().email('Invalid email address').max(255).optional(),
-    phone: z.string().max(20, 'Phone number must be less than 20 characters').optional(),
     skillLevel: z.enum(['BEGINNER', 'INTERMEDIATE', 'EXPERT']).optional(),
   }),
 

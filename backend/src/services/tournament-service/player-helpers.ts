@@ -94,7 +94,6 @@ export const buildPlayerPayload = async (
     surname?: string;
     teamName?: string;
     email?: string;
-    phone?: string;
     skillLevel?: SkillLevel;
   } = {
     firstName: playerData.firstName.trim(),
@@ -105,8 +104,8 @@ export const buildPlayerPayload = async (
     context,
     payload.firstName,
     payload.lastName,
-    playerData.email,
-    playerData.phone
+    playerData.surname,
+    playerData.email
   );
 
   if (playerData.surname?.trim()) {
@@ -121,10 +120,6 @@ export const buildPlayerPayload = async (
     payload.email = playerData.email.trim();
   }
 
-  if (playerData.phone?.trim()) {
-    payload.phone = playerData.phone.trim();
-  }
-
   if (playerData.skillLevel) {
     payload.skillLevel = playerData.skillLevel;
   }
@@ -136,15 +131,14 @@ export const resolvePersonId = async (
   context: PlayerHelperContext,
   firstName: string,
   lastName: string,
-  email?: string,
-  phone?: string
+  surname?: string,
+  email?: string
 ): Promise<string> => {
   const normalizedEmail = email?.trim();
-  const normalizedPhone = phone?.trim();
-  if (normalizedEmail && normalizedPhone) {
+  if (normalizedEmail) {
     const existingPerson = await context.tournamentModel.findPersonByEmailAndPhone(
       normalizedEmail,
-      normalizedPhone
+      ''
     );
     if (existingPerson) {
       return existingPerson.id;
@@ -154,8 +148,8 @@ export const resolvePersonId = async (
   const createdPerson = await context.tournamentModel.createPerson({
     firstName,
     lastName,
+    ...(surname?.trim() ? { surname: surname.trim() } : {}),
     ...(normalizedEmail ? { email: normalizedEmail } : {}),
-    ...(normalizedPhone ? { phone: normalizedPhone } : {}),
   });
   return createdPerson.id;
 };
@@ -180,8 +174,8 @@ export const updateLinkedPerson = async (
   const personUpdate = {
     firstName: updateData.firstName.trim(),
     lastName: updateData.lastName.trim(),
+    ...(updateData.surname?.trim() ? { surname: updateData.surname.trim() } : {}),
     ...(updateData.email?.trim() ? { email: updateData.email.trim() } : {}),
-    ...(updateData.phone?.trim() ? { phone: updateData.phone.trim() } : {}),
   };
   await context.tournamentModel.updatePerson(personId, personUpdate);
 };
@@ -212,6 +206,5 @@ export const buildPlayerUpdate = (updateData: CreatePlayerRequest, personId?: st
   ...(updateData.surname?.trim() ? { surname: updateData.surname.trim() } : {}),
   ...(updateData.teamName?.trim() ? { teamName: updateData.teamName.trim() } : {}),
   ...(updateData.email?.trim() ? { email: updateData.email.trim() } : {}),
-  ...(updateData.phone?.trim() ? { phone: updateData.phone.trim() } : {}),
   ...(updateData.skillLevel ? { skillLevel: updateData.skillLevel } : {}),
 });

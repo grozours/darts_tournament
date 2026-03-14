@@ -50,12 +50,12 @@ export interface MatchFormatPresetEntity {
 }
 
 export interface CreatePlayerPayload {
+  personId?: string;
   firstName: string;
   lastName: string;
   surname?: string;
   teamName?: string;
   email?: string;
-  phone?: string;
   skillLevel?: SkillLevel;
 }
 
@@ -68,7 +68,6 @@ export interface TournamentPlayer {
   teamName?: string;
   name: string;
   email?: string;
-  phone?: string;
   skillLevel?: SkillLevel;
   registeredAt?: string;
   checkedIn?: boolean;

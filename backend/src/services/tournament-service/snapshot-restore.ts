@@ -120,7 +120,6 @@ const restorePlayers = async (
       surname: (player.surname as string | undefined) ?? null,
       teamName: (player.teamName as string | undefined) ?? null,
       email: (player.email as string | undefined) ?? null,
-      phone: (player.phone as string | undefined) ?? null,
       skillLevel: player.skillLevel as never,
       registeredAt: player.registeredAt as DateLike,
       isActive: (player.isActive as boolean | undefined) ?? true,

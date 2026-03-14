@@ -18,6 +18,7 @@ import {
   normalizeMatchFormatKey,
 } from './match-format-presets';
 import { emitMatchFormatChangedNotifications } from './match-format-change-notifications';
+import logger from '../../utils/logger';
 
 type PoolStageUpdateData = Partial<{
   stageNumber: number;
@@ -76,6 +77,28 @@ type ActiveTournamentEntry = {
   firstName?: string;
   lastName?: string;
   teamName?: string | null;
+};
+
+const normalizeSkillLevel = (skillLevel?: string | null): string => {
+  const normalized = (skillLevel ?? '').trim().toUpperCase();
+  return normalized;
+};
+
+const isPoolAssignmentDebugEnabled = () => {
+  if (process.env.NODE_ENV !== 'development') {
+    return false;
+  }
+
+  const flag = (process.env.POOL_ASSIGNMENT_DEBUG ?? '').trim().toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on';
+};
+
+const logPoolAssignmentDebug = (message: string, metadata: Record<string, unknown>) => {
+  if (!isPoolAssignmentDebugEnabled()) {
+    return;
+  }
+
+  logger.info(`[POOL_ASSIGN_DEBUG] ${message}`, { metadata });
 };
 
 export type PoolStageHandlerContext = {
@@ -774,76 +797,28 @@ const pickPoolForPlayer = <TPoolState extends { pool: { id: string }; players: s
   return best?.state ?? poolState.find((state) => state.players.length < playersPerPool);
 };
 
-type StageOnePoolState = {
-  pool: { id: string };
-  players: string[];
-  skillScoreTotal: number;
-  expertCount: number;
-};
-
-const isBetterStageOnePoolCandidate = (
-  projectedSkillScore: number,
-  projectedExpertCount: number,
-  size: number,
-  poolId: string,
-  best: {
-    state: StageOnePoolState;
-    projectedSkillScore: number;
-    projectedExpertCount: number;
-  }
-) => {
-  if (projectedExpertCount !== best.projectedExpertCount) {
-    return projectedExpertCount < best.projectedExpertCount;
-  }
-
-  if (projectedSkillScore !== best.projectedSkillScore) {
-    return projectedSkillScore < best.projectedSkillScore;
-  }
-
-  const bestSize = best.state.players.length;
-  if (size !== bestSize) {
-    return size < bestSize;
-  }
-
-  return poolId.localeCompare(best.state.pool.id) < 0;
-};
-
-const pickPoolForStageOnePlayer = (
-  poolState: StageOnePoolState[],
+const pickPoolForStageOnePlayer = <TPoolState extends { players: string[] }>(
+  poolState: TPoolState[],
   playersPerPool: number,
-  playerSkillScore: number,
-  isExpertPlayer: boolean
+  index: number
 ) => {
-  let best: {
-    state: StageOnePoolState;
-    projectedSkillScore: number;
-    projectedExpertCount: number;
-  } | undefined;
+  if (poolState.length === 0) {
+    return undefined;
+  }
 
-  for (const state of poolState) {
-    if (state.players.length >= playersPerPool) {
+  const preferredIndex = index % poolState.length;
+  for (let offset = 0; offset < poolState.length; offset += 1) {
+    const candidateIndex = (preferredIndex + offset) % poolState.length;
+    const candidate = poolState[candidateIndex];
+    if (!candidate) {
       continue;
     }
-
-    const projectedSkillScore = state.skillScoreTotal + playerSkillScore;
-    const projectedExpertCount = state.expertCount + (isExpertPlayer ? 1 : 0);
-
-    if (!best || isBetterStageOnePoolCandidate(
-      projectedSkillScore,
-      projectedExpertCount,
-      state.players.length,
-      state.pool.id,
-      best
-    )) {
-      best = {
-        state,
-        projectedSkillScore,
-        projectedExpertCount,
-      };
+    if (candidate.players.length < playersPerPool) {
+      return candidate;
     }
   }
 
-  return best?.state;
+  return undefined;
 };
 
 const collectRankingDestinationInfo = (
@@ -1828,10 +1803,31 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       BEGINNER: 1,
     };
 
+    const skillDistribution = players.reduce((accumulator: Record<string, number>, player: (typeof players)[number]) => {
+      const normalizedSkill = normalizeSkillLevel(player.skillLevel);
+      const bucket = normalizedSkill || 'UNSET';
+      accumulator[bucket] = (accumulator[bucket] ?? 0) + 1;
+      return accumulator;
+    }, {});
+
+    logPoolAssignmentDebug('Assignment run started', {
+      tournamentId,
+      stageId,
+      stageNumber: stage.stageNumber,
+      isFirstPoolStage,
+      poolCount,
+      playersPerPool,
+      totalEntries: players.length,
+      capacity: poolCount * playersPerPool,
+      skillDistribution,
+      previousStageNumbers: previousStages.map((item: (typeof previousStages)[number]) => item.stageNumber),
+    });
+
     const shuffled = players
       .map((player: (typeof players)[number]) => ({
         player,
-        score: skillScore[player.skillLevel || ''] || 0,
+        normalizedSkill: normalizeSkillLevel(player.skillLevel),
+        score: skillScore[normalizeSkillLevel(player.skillLevel)] || 0,
         tiebreaker: randomInt(0, 1_000_000),
       }))
       .sort((a: { score: number; tiebreaker: number }, b: { score: number; tiebreaker: number }) => {
@@ -1843,23 +1839,20 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     const capacity = poolCount * playersPerPool;
     const selected = shuffled.slice(0, capacity);
     const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
-    const poolState = pools.map((pool: (typeof pools)[number]) => ({
-      pool,
-      players: [] as string[],
-      skillScoreTotal: 0,
-      expertCount: 0,
-    }));
+    const debugDecisions: Array<Record<string, unknown>> = [];
+    const poolState = pools.map((pool: (typeof pools)[number]) => ({ pool, players: [] as string[] }));
 
     for (const [index, player] of selected.entries()) {
       if (!player) continue;
-      const playerSkillScore = skillScore[player.skillLevel || ''] || 0;
-      const isExpertPlayer = (player.skillLevel ?? '').toUpperCase() === 'EXPERT';
+      const normalizedSkill = normalizeSkillLevel(player.skillLevel);
+      const playerSkillScore = skillScore[normalizedSkill] || 0;
+      const preferredPoolIndex = poolState.length > 0 ? index % poolState.length : 0;
+      const preferredPoolId = poolState[preferredPoolIndex]?.pool.id;
       const chosenPoolState = isFirstPoolStage
         ? pickPoolForStageOnePlayer(
           poolState,
           playersPerPool,
-          playerSkillScore,
-          isExpertPlayer
+          index
         )
         : pickPoolForPlayer(
           player.id,
@@ -1869,11 +1862,20 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         );
       if (!chosenPoolState) continue;
 
+      debugDecisions.push({
+        seedNumber: index + 1,
+        sortedListPosition: index + 1,
+        playerId: player.id,
+        rawSkillLevel: player.skillLevel ?? null,
+        normalizedSkillLevel: normalizedSkill || 'UNSET',
+        score: playerSkillScore,
+        preferredPoolIndex,
+        preferredPoolId: preferredPoolId ?? null,
+        chosenPoolId: chosenPoolState.pool.id,
+        chosenPoolSizeBefore: chosenPoolState.players.length,
+      });
+
       chosenPoolState.players.push(player.id);
-      chosenPoolState.skillScoreTotal += playerSkillScore;
-      if (isExpertPlayer) {
-        chosenPoolState.expertCount += 1;
-      }
       assignments.push({
         poolId: chosenPoolState.pool.id,
         playerId: player.id,
@@ -1881,6 +1883,23 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
         seedNumber: index + 1,
       });
     }
+
+    const byPool = poolState.map((state) => ({
+      poolId: state.pool.id,
+      assignedCount: state.players.length,
+      playerIds: state.players,
+    }));
+
+    logPoolAssignmentDebug('Assignment run completed', {
+      tournamentId,
+      stageId,
+      stageNumber: stage.stageNumber,
+      isFirstPoolStage,
+      selectedCount: selected.length,
+      assignmentCount: assignments.length,
+      byPool,
+      decisions: debugDecisions,
+    });
 
     await tournamentModel.createPoolAssignments(assignments);
   };

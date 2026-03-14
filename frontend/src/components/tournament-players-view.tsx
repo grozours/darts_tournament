@@ -15,12 +15,26 @@ import {
 } from '../services/tournament-service';
 
 type TournamentPlayerEditForm = {
+  personId: string;
   firstName: string;
   lastName: string;
   surname: string;
   teamName: string;
   email: string;
-  phone: string;
+};
+
+type UserAccountOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  surname?: string | null;
+};
+
+const formatUserAccountOptionLabel = (user: UserAccountOption): string => {
+  const surname = user.surname?.trim();
+  return [user.lastName, user.firstName, surname]
+    .filter((part): part is string => Boolean(part && part.trim().length > 0))
+    .join(' / ');
 };
 
 const resolvePlayerNames = ({
@@ -47,29 +61,29 @@ const resolvePlayerNames = ({
 
 const buildPlayerUpdatePayload = ({
   isAdmin,
+  personId,
   firstName,
   lastName,
   surname,
   teamName,
   email,
-  phone,
 }: {
   isAdmin: boolean;
+  personId: string;
   firstName: string;
   lastName: string;
   surname: string;
   teamName: string;
   email: string;
-  phone: string;
 }) => (
   isAdmin
     ? {
+        ...(personId ? { personId } : {}),
         firstName,
         lastName,
         ...(surname ? { surname } : {}),
         ...(teamName ? { teamName } : {}),
         ...(email ? { email } : {}),
-        ...(phone ? { phone } : {}),
       }
     : {
         firstName,
@@ -82,22 +96,22 @@ const mergeUpdatedPlayerEntry = ({
   entry,
   isAdmin,
   targetPlayerId,
+  personId,
   firstName,
   lastName,
   surname,
   teamName,
   email,
-  phone,
 }: {
   entry: TournamentPlayer;
   isAdmin: boolean;
   targetPlayerId: string;
+  personId: string;
   firstName: string;
   lastName: string;
   surname: string;
   teamName: string;
   email: string;
-  phone: string;
 }): TournamentPlayer => {
   if (entry.playerId !== targetPlayerId) {
     return entry;
@@ -105,11 +119,11 @@ const mergeUpdatedPlayerEntry = ({
 
   return {
     ...entry,
+    ...(isAdmin && personId ? { personId } : {}),
     ...(isAdmin ? { firstName, lastName } : {}),
     ...(surname ? { surname } : {}),
     ...(isAdmin && teamName ? { teamName } : {}),
     ...(isAdmin && email ? { email } : {}),
-    ...(isAdmin && phone ? { phone } : {}),
   };
 };
 
@@ -138,14 +152,16 @@ function TournamentPlayersView() {
   const [editingPlayerId, setEditingPlayerId] = useState<string | undefined>();
   const [savingPlayerId, setSavingPlayerId] = useState<string | undefined>();
   const [editingPlayerForm, setEditingPlayerForm] = useState({
+    personId: '',
     firstName: '',
     lastName: '',
     surname: '',
     teamName: '',
     email: '',
-    phone: '',
   });
   const [expandedContacts, setExpandedContacts] = useState<Record<string, boolean>>({});
+  const [userAccountOptions, setUserAccountOptions] = useState<UserAccountOption[]>([]);
+  const [userAccountSearch, setUserAccountSearch] = useState('');
   const [search, setSearch] = useState('');
   const [confirmationFilter, setConfirmationFilter] = useState<'ALL' | 'CONFIRMED' | 'UNCONFIRMED'>('ALL');
 
@@ -209,6 +225,40 @@ function TournamentPlayersView() {
       setLoading(false);
     }
   }, [getSafeAccessToken]);
+
+  const fetchUserAccountOptions = useCallback(async (searchTerm?: string) => {
+    if (!isAdmin) {
+      setUserAccountOptions([]);
+      return;
+    }
+
+    try {
+      const token = await getSafeAccessToken();
+      const parameters = new URLSearchParams({ limit: '200' });
+      const normalizedSearchTerm = searchTerm?.trim();
+      if (normalizedSearchTerm) {
+        parameters.set('q', normalizedSearchTerm);
+      }
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/auth/users?${parameters.toString()}`, Object.keys(headers).length > 0
+        ? { headers }
+        : undefined);
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = await response.json() as { users?: UserAccountOption[] };
+      setUserAccountOptions(Array.isArray(payload.users) ? payload.users : []);
+    } catch {
+      // Keep player editing usable even if account list cannot be loaded.
+    }
+  }, [getSafeAccessToken, isAdmin]);
 
   const fetchGroups = useCallback(async (id: string, format: string) => {
     setLoading(true);
@@ -308,26 +358,33 @@ function TournamentPlayersView() {
     }
 
     setEditingPlayerId(player.playerId);
+
+    const linkedAccount = (player.personId
+      ? userAccountOptions.find((account) => account.id === player.personId)
+      : undefined);
+
     setEditingPlayerForm({
+      personId: player.personId ?? '',
       firstName: player.firstName ?? '',
       lastName: player.lastName ?? '',
       surname: player.surname ?? '',
       teamName: player.teamName ?? '',
       email: player.email ?? '',
-      phone: player.phone ?? '',
     });
-  }, [canEditOwnPlayer, isAdmin]);
+    setUserAccountSearch(linkedAccount ? formatUserAccountOptionLabel(linkedAccount) : '');
+  }, [canEditOwnPlayer, isAdmin, userAccountOptions]);
 
   const cancelEditPlayer = useCallback(() => {
     setEditingPlayerId(undefined);
     setEditingPlayerForm({
+      personId: '',
       firstName: '',
       lastName: '',
       surname: '',
       teamName: '',
       email: '',
-      phone: '',
     });
+    setUserAccountSearch('');
   }, []);
 
   const savePlayerEdit = useCallback(async (player: TournamentPlayer) => {
@@ -353,19 +410,19 @@ function TournamentPlayersView() {
         throw new Error(t('auth.signInRequired'));
       }
 
+      const personId = editingPlayerForm.personId.trim();
       const surname = editingPlayerForm.surname.trim();
       const teamName = editingPlayerForm.teamName.trim();
       const email = editingPlayerForm.email.trim();
-      const phone = editingPlayerForm.phone.trim();
 
       const payload = buildPlayerUpdatePayload({
         isAdmin,
+        personId,
         firstName,
         lastName,
         surname,
         teamName,
         email,
-        phone,
       });
 
       await updateTournamentPlayer(
@@ -380,12 +437,12 @@ function TournamentPlayersView() {
         entry,
         isAdmin,
         targetPlayerId,
+        personId,
         firstName,
         lastName,
         surname,
         teamName,
         email,
-        phone,
       })));
       cancelEditPlayer();
     } catch (error_) {
@@ -416,6 +473,28 @@ function TournamentPlayersView() {
 
     void loadData();
   }, [tournamentId, fetchTournamentDetails]);
+
+  useEffect(() => {
+    if (!tournamentId) {
+      return;
+    }
+
+    void fetchUserAccountOptions();
+  }, [fetchUserAccountOptions, tournamentId]);
+
+  useEffect(() => {
+    if (!isAdmin || !editingPlayerId) {
+      return;
+    }
+
+    const timeoutId = globalThis.setTimeout(() => {
+      void fetchUserAccountOptions(userAccountSearch);
+    }, 250);
+
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [editingPlayerId, fetchUserAccountOptions, isAdmin, userAccountSearch]);
 
   useEffect(() => {
     if (!tournamentId || !tournament) {
@@ -500,6 +579,18 @@ function TournamentPlayersView() {
     return t('players.confirmPresence');
   };
 
+  const filteredUserAccountOptions = useMemo(() => {
+    const term = userAccountSearch.trim().toLowerCase();
+    if (!term) {
+      return userAccountOptions;
+    }
+
+    return userAccountOptions.filter((account) => {
+      const label = formatUserAccountOptionLabel(account).toLowerCase();
+      return label.includes(term);
+    });
+  }, [userAccountOptions, userAccountSearch]);
+
   const renderSingleTournamentPlayerCard = (player: TournamentPlayer) => {
     const isEditing = editingPlayerId === player.playerId;
     const canEditThisPlayer = isAdmin || canEditOwnPlayer(player);
@@ -517,6 +608,57 @@ function TournamentPlayersView() {
               <div className="space-y-2">
                 {isAdmin && (
                   <>
+                    <input
+                      value={userAccountSearch}
+                      onChange={(event) => setUserAccountSearch(event.target.value)}
+                      aria-label="Compte associe"
+                      placeholder="Rechercher un compte (nom / prenom / surnom)"
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/50 p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPlayerForm((current) => ({
+                            ...current,
+                            personId: '',
+                          }));
+                          setUserAccountSearch('');
+                        }}
+                        className={`mb-1 w-full rounded-md px-2 py-1 text-left text-xs transition ${
+                          editingPlayerForm.personId === ''
+                            ? 'bg-cyan-500/20 text-cyan-200'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        {t('common.none')}
+                      </button>
+                      {filteredUserAccountOptions.map((userAccount) => {
+                        const label = formatUserAccountOptionLabel(userAccount);
+                        const selected = editingPlayerForm.personId === userAccount.id;
+
+                        return (
+                          <button
+                            type="button"
+                            key={userAccount.id}
+                            onClick={() => {
+                              setEditingPlayerForm((current) => ({
+                                ...current,
+                                personId: userAccount.id,
+                              }));
+                              setUserAccountSearch(label);
+                            }}
+                            className={`mb-1 w-full rounded-md px-2 py-1 text-left text-xs transition ${
+                              selected
+                                ? 'bg-cyan-500/20 text-cyan-200'
+                                : 'text-slate-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <input
                       value={editingPlayerForm.firstName}
                       onChange={(event) => setEditingPlayerForm((current) => ({
@@ -566,15 +708,6 @@ function TournamentPlayersView() {
                       placeholder={t('edit.email')}
                       className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                     />
-                    <input
-                      value={editingPlayerForm.phone}
-                      onChange={(event) => setEditingPlayerForm((current) => ({
-                        ...current,
-                        phone: event.target.value,
-                      }))}
-                      placeholder={t('edit.phone')}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                    />
                   </>
                 )}
               </div>
@@ -599,7 +732,7 @@ function TournamentPlayersView() {
           )}
         </div>
         <div className="mt-3 space-y-1 text-xs text-slate-400">
-          {isAdmin && (player.email || player.phone) && (
+          {isAdmin && player.email && (
             <button
               type="button"
               onClick={() => toggleContactDetails(player.playerId)}
@@ -610,9 +743,6 @@ function TournamentPlayersView() {
           )}
           {isAdmin && isContactExpanded && player.email && (
             <p className="truncate">📧 {player.email}</p>
-          )}
-          {isAdmin && isContactExpanded && player.phone && (
-            <p>📱 {player.phone}</p>
           )}
           {player.skillLevel && (
             <p className="mt-2">

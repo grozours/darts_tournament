@@ -24,6 +24,9 @@ export interface AdminStatusResponse {
     email?: string;
     name?: string;
     picture?: string;
+    firstName?: string;
+    lastName?: string;
+    surname?: string;
   };
   isAdmin: boolean;
 }

@@ -597,11 +597,6 @@ export const createPlayerSchema = {
     surname: z.string().max(50, 'Surname cannot exceed 50 characters').optional(),
     teamName: z.string().max(100, 'Team name cannot exceed 100 characters').optional(),
     email: z.string().email('Invalid email address').optional(),
-    phone: z
-      .string()
-      .min(5, 'Phone number must be at least 5 characters long')
-      .max(20, 'Phone number cannot exceed 20 characters')
-      .optional(),
     skillLevel: skillLevelWithoutAdvancedSchema.optional(),
   }),
 };
@@ -612,6 +607,7 @@ export const updatePlayerSchema = {
     playerId: z.string().uuid('Invalid player ID'),
   }),
   body: z.object({
+    personId: z.string().uuid('Invalid person ID').optional(),
     firstName: z
       .string()
       .min(2, 'First name must be at least 2 characters long')
@@ -625,11 +621,6 @@ export const updatePlayerSchema = {
     surname: z.string().max(50, 'Surname cannot exceed 50 characters').optional(),
     teamName: z.string().max(100, 'Team name cannot exceed 100 characters').optional(),
     email: z.string().email('Invalid email address').optional(),
-    phone: z
-      .string()
-      .min(5, 'Phone number must be at least 5 characters long')
-      .max(20, 'Phone number cannot exceed 20 characters')
-      .optional(),
     skillLevel: skillLevelWithoutAdvancedSchema.optional(),
   }),
 };

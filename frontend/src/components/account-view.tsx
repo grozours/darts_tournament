@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
 import SignInPanel from '../auth/sign-in-panel';
@@ -11,6 +12,9 @@ type AccountUserDetails = {
   email?: string;
   nickname?: string;
   sub?: string;
+  firstName?: string;
+  lastName?: string;
+  surname?: string;
   email_verified?: boolean;
   updated_at?: string;
 };
@@ -21,10 +25,62 @@ type AccountProfileProperties = {
   onSignOut?: () => void;
   showDetails: boolean;
   roleLabel?: string;
+  onSaveProfile?: (values: { firstName: string; lastName: string; surname: string }) => Promise<void>;
+  isSavingProfile?: boolean;
+  profileError?: string;
+  profileSuccess?: string;
 };
 
-const AccountProfile = ({ t, userDetails, onSignOut, showDetails, roleLabel }: AccountProfileProperties) => (
-  <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
+const deriveNames = (userDetails: AccountUserDetails) => {
+  const firstName = (userDetails.firstName ?? '').trim();
+  const lastName = (userDetails.lastName ?? '').trim();
+  const surname = (userDetails.surname ?? '').trim();
+
+  if (firstName && lastName) {
+    return { firstName, lastName, surname };
+  }
+
+  const displayName = (userDetails.name ?? '').trim();
+  if (!displayName) {
+    return { firstName: '', lastName: '', surname };
+  }
+
+  const [firstFromName, ...rest] = displayName.split(/\s+/).filter(Boolean);
+  return {
+    firstName: firstFromName ?? '',
+    lastName: rest.join(' ').trim(),
+    surname,
+  };
+};
+
+const AccountProfile = ({
+  t,
+  userDetails,
+  onSignOut,
+  showDetails,
+  roleLabel,
+  onSaveProfile,
+  isSavingProfile,
+  profileError,
+  profileSuccess,
+}: AccountProfileProperties) => {
+  const [{ firstName, lastName, surname }, setFormValues] = useState(() => deriveNames(userDetails));
+
+  useEffect(() => {
+    setFormValues(deriveNames(userDetails));
+  }, [userDetails.firstName, userDetails.lastName, userDetails.surname, userDetails.name]);
+
+  const submitProfile = async () => {
+    if (!onSaveProfile || isSavingProfile) {
+      return;
+    }
+    await onSaveProfile({ firstName, lastName, surname });
+  };
+
+  const canSaveProfile = Boolean(onSaveProfile);
+
+  return (
+    <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8">
     <div className="flex items-start gap-6">
       {userDetails.picture && (
         <img
@@ -77,6 +133,59 @@ const AccountProfile = ({ t, userDetails, onSignOut, showDetails, roleLabel }: A
       </div>
     )}
 
+    {canSaveProfile && (
+      <div className="mt-6 border-t border-slate-800/70 pt-6">
+        <h4 className="mb-4 text-sm font-semibold text-slate-300">{t('account.accountDetails')}</h4>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-sm text-slate-300">
+            {t('edit.firstName')}
+            <input
+              type="text"
+              value={firstName}
+              onChange={(event_) => setFormValues((current) => ({ ...current, firstName: event_.target.value }))}
+              className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="text-sm text-slate-300">
+            {t('edit.lastName')}
+            <input
+              type="text"
+              value={lastName}
+              onChange={(event_) => setFormValues((current) => ({ ...current, lastName: event_.target.value }))}
+              className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="text-sm text-slate-300 md:col-span-2">
+            {t('edit.surname')}
+            <input
+              type="text"
+              value={surname}
+              onChange={(event_) => setFormValues((current) => ({ ...current, surname: event_.target.value }))}
+              className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            />
+          </label>
+        </div>
+        {profileError && (
+          <p className="mt-3 text-sm text-rose-300">{profileError}</p>
+        )}
+        {profileSuccess && !profileError && (
+          <p className="mt-3 text-sm text-emerald-300">{profileSuccess}</p>
+        )}
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              void submitProfile();
+            }}
+            disabled={isSavingProfile}
+            className="rounded-full bg-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-60"
+          >
+            {isSavingProfile ? t('common.loading') : t('common.save')}
+          </button>
+        </div>
+      </div>
+    )}
+
     {onSignOut && (
       <div className="mt-8 flex justify-end">
         <button
@@ -88,7 +197,8 @@ const AccountProfile = ({ t, userDetails, onSignOut, showDetails, roleLabel }: A
       </div>
     )}
   </div>
-);
+  );
+};
 
 type AccountRawDataProperties = {
   t: Translator;
@@ -104,6 +214,171 @@ const AccountRawData = ({ t, user }: AccountRawDataProperties) => (
   </div>
 );
 
+const patchAccountProfile = async (
+  values: { firstName: string; lastName: string; surname: string },
+  options: {
+    authEnabled: boolean;
+    isAuthenticated: boolean;
+    getAccessTokenSilently: () => Promise<string>;
+  }
+) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (options.authEnabled && options.isAuthenticated) {
+    const token = await options.getAccessTokenSilently();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/auth/me/profile', {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(values),
+  });
+
+  const payload = await response.json().catch(() => undefined);
+
+  return {
+    ok: response.ok,
+    payload,
+  };
+};
+
+const resolveEffectiveUser = (parameters: {
+  isAuthenticated: boolean;
+  user: unknown;
+  adminUser: unknown;
+}) => {
+  const hasAuthSession = parameters.isAuthenticated && Boolean(parameters.user);
+  let effectiveUser = parameters.user;
+
+  if (!hasAuthSession && parameters.adminUser) {
+    effectiveUser = parameters.adminUser;
+  } else if (hasAuthSession && parameters.adminUser) {
+    effectiveUser = {
+      ...(parameters.user as Record<string, unknown> ?? {}),
+      ...(parameters.adminUser as Record<string, unknown>),
+    };
+  }
+
+  return {
+    hasAuthSession,
+    hasAutologinProfile: !hasAuthSession && Boolean(parameters.adminUser),
+    effectiveUser,
+  };
+};
+
+const saveAccountProfile = async (parameters: {
+  values: { firstName: string; lastName: string; surname: string };
+  authEnabled: boolean;
+  isAuthenticated: boolean;
+  getAccessTokenSilently: () => Promise<string>;
+  t: Translator;
+}) => {
+  try {
+    const { ok, payload } = await patchAccountProfile(parameters.values, {
+      authEnabled: parameters.authEnabled,
+      isAuthenticated: parameters.isAuthenticated,
+      getAccessTokenSilently: parameters.getAccessTokenSilently,
+    });
+
+    if (!ok) {
+      return {
+        error: typeof payload?.message === 'string'
+          ? payload.message
+          : parameters.t('account.profileUpdateFailed'),
+      };
+    }
+
+    return {
+      user: payload?.user as AccountUserDetails | undefined,
+    };
+  } catch (error_) {
+    return {
+      error: error_ instanceof Error ? error_.message : parameters.t('account.profileUpdateFailed'),
+    };
+  }
+};
+
+const renderMissingAccountState = (parameters: {
+  authEnabled: boolean;
+  t: Translator;
+}) => {
+  if (!parameters.authEnabled) {
+    return (
+      <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
+        <p className="text-slate-300">{parameters.t('account.notConfigured')}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{parameters.t('account.title')}</p>
+        <h2 className="text-2xl font-semibold text-white mt-2">{parameters.t('account.signInRequired')}</h2>
+      </div>
+      <SignInPanel
+        title={parameters.t('auth.signIn')}
+        description={parameters.t('auth.protectedContinue')}
+        showTitle={false}
+        showProviderSeparator={false}
+      />
+    </div>
+  );
+};
+
+const resolveAutologinRoleLabel = (parameters: {
+  hasAutologinProfile: boolean;
+  isAdmin: boolean;
+  t: Translator;
+}) => {
+  if (!parameters.hasAutologinProfile) {
+    return undefined;
+  }
+
+  return parameters.isAdmin
+    ? parameters.t('account.autologinAdmin')
+    : parameters.t('account.autologinPlayer');
+};
+
+const createSaveProfileHandler = (parameters: {
+  authEnabled: boolean;
+  isAuthenticated: boolean;
+  getAccessTokenSilently: () => Promise<string>;
+  t: Translator;
+  setIsSavingProfile: (value: boolean) => void;
+  setProfileError: (value: string | undefined) => void;
+  setProfileSuccess: (value: string | undefined) => void;
+  setProfileOverride: (value: AccountUserDetails | undefined) => void;
+}) => async (values: { firstName: string; lastName: string; surname: string }) => {
+  parameters.setIsSavingProfile(true);
+  parameters.setProfileError(undefined);
+  parameters.setProfileSuccess(undefined);
+
+  const result = await saveAccountProfile({
+    values,
+    authEnabled: parameters.authEnabled,
+    isAuthenticated: parameters.isAuthenticated,
+    getAccessTokenSilently: parameters.getAccessTokenSilently,
+    t: parameters.t,
+  });
+
+  if (result.error) {
+    parameters.setProfileError(result.error);
+    parameters.setIsSavingProfile(false);
+    return;
+  }
+
+  if (result.user) {
+    parameters.setProfileOverride(result.user);
+  }
+
+  parameters.setProfileSuccess(parameters.t('account.profileUpdateSuccess'));
+  parameters.setIsSavingProfile(false);
+};
+
 function AccountView() {
   const { t } = useI18n();
   const { isAdmin, adminUser } = useAdminStatus();
@@ -113,7 +388,32 @@ function AccountView() {
     isLoading,
     user,
     logout,
+    getAccessTokenSilently,
   } = useOptionalAuth();
+  const [profileError, setProfileError] = useState<string | undefined>();
+  const [profileSuccess, setProfileSuccess] = useState<string | undefined>();
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileOverride, setProfileOverride] = useState<AccountUserDetails | undefined>();
+
+  useEffect(() => {
+    setProfileOverride(undefined);
+    setProfileError(undefined);
+    setProfileSuccess(undefined);
+  }, [isAuthenticated, user, adminUser]);
+
+  useEffect(() => {
+    if (!profileSuccess) {
+      return;
+    }
+
+    const timeoutId = globalThis.setTimeout(() => {
+      setProfileSuccess(undefined);
+    }, 3000);
+
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [profileSuccess]);
 
   if (isLoading) {
     return (
@@ -127,45 +427,36 @@ function AccountView() {
     );
   }
 
-  const hasAuthSession = isAuthenticated && Boolean(user);
-  const hasAutologinProfile = !hasAuthSession && Boolean(adminUser);
-  let effectiveUser = user;
-  if (!hasAuthSession && adminUser) {
-    effectiveUser = adminUser;
-  }
+  const { hasAuthSession, hasAutologinProfile, effectiveUser } = resolveEffectiveUser({
+    isAuthenticated,
+    user,
+    adminUser,
+  });
 
-  let autologinRoleLabel: string | undefined;
-  if (hasAutologinProfile) {
-    autologinRoleLabel = isAdmin ? t('account.autologinAdmin') : t('account.autologinPlayer');
-  }
+  const autologinRoleLabel = resolveAutologinRoleLabel({
+    hasAutologinProfile,
+    isAdmin,
+    t,
+  });
 
   if (!effectiveUser) {
-    if (!authEnabled) {
-      return (
-        <div className="rounded-3xl border border-slate-800/70 bg-slate-900/50 p-8 text-center">
-          <p className="text-slate-300">{t('account.notConfigured')}</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('account.title')}</p>
-          <h2 className="text-2xl font-semibold text-white mt-2">{t('account.signInRequired')}</h2>
-        </div>
-        <SignInPanel
-          title={t('auth.signIn')}
-          description={t('auth.protectedContinue')}
-          showTitle={false}
-          showProviderSeparator={false}
-        />
-      </div>
-    );
+    return renderMissingAccountState({ authEnabled, t });
   }
 
   // Type assertion to access Auth0 user properties
-  const userDetails = effectiveUser as AccountUserDetails;
+  const fallbackUserDetails = effectiveUser as AccountUserDetails;
+  const userDetails = profileOverride ?? fallbackUserDetails;
+
+  const saveProfile = createSaveProfileHandler({
+    authEnabled,
+    isAuthenticated,
+    getAccessTokenSilently,
+    t,
+    setIsSavingProfile,
+    setProfileError,
+    setProfileSuccess,
+    setProfileOverride,
+  });
 
   return (
     <div className="space-y-8">
@@ -179,6 +470,10 @@ function AccountView() {
         userDetails={userDetails}
         showDetails={isAdmin}
         {...(autologinRoleLabel ? { roleLabel: autologinRoleLabel } : {})}
+        onSaveProfile={saveProfile}
+        isSavingProfile={isSavingProfile}
+        {...(profileError ? { profileError } : {})}
+        {...(profileSuccess ? { profileSuccess } : {})}
         {...(hasAuthSession
           ? {
               onSignOut: () => logout({ logoutParams: { returnTo: globalThis.window?.location.origin } }),

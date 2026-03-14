@@ -214,10 +214,10 @@ describe('tournament-players-actions hooks', () => {
       error: undefined,
     });
     fetchTournamentPlayers.mockResolvedValue([
-      { playerId: 'p1' },
-      { playerId: 'p2' },
-      { playerId: 'p3' },
-      { playerId: 'p4' },
+      { playerId: 'p1', skillLevel: 'EXPERT' },
+      { playerId: 'p2', skillLevel: 'EXPERT' },
+      { playerId: 'p3', skillLevel: 'BEGINNER' },
+      { playerId: 'p4', skillLevel: 'BEGINNER' },
     ]);
     createDoublette
       .mockResolvedValueOnce({ id: 'd1' })
@@ -239,6 +239,7 @@ describe('tournament-players-actions hooks', () => {
       expect.objectContaining({
         captainPlayerId: 'p1',
         memberPlayerIds: ['p1', 'p2'],
+        skillLevel: 'EXPERT',
       }),
       'token'
     );
@@ -247,6 +248,7 @@ describe('tournament-players-actions hooks', () => {
       expect.objectContaining({
         captainPlayerId: 'p3',
         memberPlayerIds: ['p3', 'p4'],
+        skillLevel: 'BEGINNER',
       }),
       'token'
     );
@@ -266,10 +268,10 @@ describe('tournament-players-actions hooks', () => {
       error: undefined,
     });
     fetchTournamentPlayers.mockResolvedValue([
-      { playerId: 'p1' },
-      { playerId: 'p2' },
-      { playerId: 'p3' },
-      { playerId: 'p4' },
+      { playerId: 'p1', skillLevel: 'EXPERT' },
+      { playerId: 'p2', skillLevel: 'EXPERT' },
+      { playerId: 'p3', skillLevel: 'BEGINNER' },
+      { playerId: 'p4', skillLevel: 'BEGINNER' },
     ]);
     createEquipe.mockResolvedValue({ id: 'e1' });
 
@@ -289,6 +291,7 @@ describe('tournament-players-actions hooks', () => {
       expect.objectContaining({
         captainPlayerId: 'p1',
         memberPlayerIds: ['p1', 'p2', 'p3', 'p4'],
+        skillLevel: 'INTERMEDIATE',
       }),
       'token'
     );

@@ -35,6 +35,13 @@ type ActionProgress = {
 
 type ProgressCallback = (progress: ActionProgress) => void;
 
+const GROUP_SKILL_SCORE: Record<SkillLevel, number> = {
+  [SkillLevel.BEGINNER]: 1,
+  [SkillLevel.INTERMEDIATE]: 2,
+  [SkillLevel.ADVANCED]: 2,
+  [SkillLevel.EXPERT]: 3,
+};
+
 const SKILL_LEVELS_FOR_AUTOFILL: SkillLevel[] = [
   SkillLevel.BEGINNER,
   SkillLevel.INTERMEDIATE,
@@ -143,8 +150,9 @@ const createAndRegisterGroup = async (parameters: {
   token: string | undefined;
   groupName: string;
   memberIds: string[];
+  skillLevel?: SkillLevel;
 }) => {
-  const { tournament, token, groupName, memberIds } = parameters;
+  const { tournament, token, groupName, memberIds, skillLevel } = parameters;
   const captainPlayerId = memberIds[0];
   if (!captainPlayerId || memberIds.length === 0) {
     throw new Error('Invalid group composition for auto-fill');
@@ -160,6 +168,7 @@ const createAndRegisterGroup = async (parameters: {
         password,
         captainPlayerId,
         memberPlayerIds: memberIds,
+        ...(skillLevel ? { skillLevel } : {}),
       },
       token
     );
@@ -174,10 +183,45 @@ const createAndRegisterGroup = async (parameters: {
       password,
       captainPlayerId,
       memberPlayerIds: memberIds,
+      ...(skillLevel ? { skillLevel } : {}),
     },
     token
   );
   await registerEquipe(tournament.id, created.id, token);
+};
+
+const normalizeSkillForGroup = (skillLevel?: SkillLevel): SkillLevel | undefined => {
+  if (!skillLevel) {
+    return undefined;
+  }
+
+  if (skillLevel === SkillLevel.ADVANCED) {
+    return SkillLevel.INTERMEDIATE;
+  }
+
+  return skillLevel;
+};
+
+const computeGroupSkillLevel = (memberSkills: Array<SkillLevel | undefined>): SkillLevel | undefined => {
+  const normalized = memberSkills
+    .map(normalizeSkillForGroup)
+    .filter((skill): skill is SkillLevel => Boolean(skill));
+
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  const totalScore = normalized.reduce((sum, skill) => sum + GROUP_SKILL_SCORE[skill], 0);
+  const averageScore = totalScore / normalized.length;
+  const roundedScore = Math.round(averageScore);
+
+  if (roundedScore <= 1) {
+    return SkillLevel.BEGINNER;
+  }
+  if (roundedScore >= 3) {
+    return SkillLevel.EXPERT;
+  }
+  return SkillLevel.INTERMEDIATE;
 };
 
 const registerAutoPlayers = async (parameters: {
@@ -186,10 +230,12 @@ const registerAutoPlayers = async (parameters: {
   players: TournamentPlayer[];
   missingPlayersCount: number;
   onStepCompleted?: () => void;
-}) => {
+}): Promise<Map<string, SkillLevel>> => {
   const { tournamentId, token, players, missingPlayersCount, onStepCompleted } = parameters;
+  const autoPlayerSkillById = new Map<string, SkillLevel>();
+
   if (missingPlayersCount <= 0) {
-    return;
+    return autoPlayerSkillById;
   }
 
   const { registrations: autoRegistrations, error } = buildAutoFillRegistrations({
@@ -214,10 +260,16 @@ const registerAutoPlayers = async (parameters: {
     items: decoratedRegistrations,
     concurrency: 6,
     worker: async (registration) => {
-      await registerTournamentPlayer(tournamentId, registration, token);
+      const createdPlayer = await registerTournamentPlayer(tournamentId, registration, token);
+      const playerId = createdPlayer?.id;
+      if (playerId && registration.skillLevel) {
+        autoPlayerSkillById.set(playerId, registration.skillLevel);
+      }
       onStepCompleted?.();
     },
   });
+
+  return autoPlayerSkillById;
 };
 
 const autoFillGroupTournament = async (parameters: {
@@ -270,7 +322,7 @@ const autoFillGroupTournament = async (parameters: {
     onProgress?.({ current: 0, total: totalSteps });
   }
 
-  await registerAutoPlayers({
+  const autoPlayerSkillById = await registerAutoPlayers({
     tournamentId: tournament.id,
     token,
     players,
@@ -279,6 +331,9 @@ const autoFillGroupTournament = async (parameters: {
   });
 
   const refreshedPlayers = await fetchTournamentPlayers(tournament.id, token);
+  const refreshedPlayersById = new Map(
+    refreshedPlayers.map((player) => [player.playerId, player])
+  );
   const availablePlayers = refreshedPlayers.filter((player) => !groupedPlayerIds.has(player.playerId));
 
   if (availablePlayers.length < playersNeeded) {
@@ -286,7 +341,7 @@ const autoFillGroupTournament = async (parameters: {
   }
 
   const autoNameSuffix = Date.now().toString(36).toUpperCase();
-  const groupPlans: Array<{ memberIds: string[]; index: number }> = [];
+  const groupPlans: Array<{ memberIds: string[]; index: number; groupSkillLevel?: SkillLevel }> = [];
   for (let index = 0; index < maxCreatableGroups; index += 1) {
     const start = index * groupConfig.requiredMembers;
     const members = availablePlayers.slice(start, start + groupConfig.requiredMembers);
@@ -294,7 +349,16 @@ const autoFillGroupTournament = async (parameters: {
     if (memberIds.length !== groupConfig.requiredMembers) {
       throw new Error('Failed to build complete groups for auto-fill.');
     }
-    groupPlans.push({ memberIds, index });
+    const memberSkills = memberIds.map((playerId) => {
+      const refreshedSkill = refreshedPlayersById.get(playerId)?.skillLevel;
+      return refreshedSkill ?? autoPlayerSkillById.get(playerId);
+    });
+    const groupSkillLevel = computeGroupSkillLevel(memberSkills);
+    groupPlans.push({
+      memberIds,
+      index,
+      ...(groupSkillLevel ? { groupSkillLevel } : {}),
+    });
   }
 
   await runWithConcurrency({
@@ -306,6 +370,7 @@ const autoFillGroupTournament = async (parameters: {
         token,
         groupName: buildAutoGroupName(tournament.format, plan.index, autoNameSuffix),
         memberIds: plan.memberIds,
+        ...(plan.groupSkillLevel ? { skillLevel: plan.groupSkillLevel } : {}),
       });
       reportStepCompleted();
     },
@@ -430,11 +495,9 @@ const buildPlayerPayload = (playerForm: CreatePlayerPayload): CreatePlayerPayloa
   const surname = playerForm.surname?.trim();
   const teamName = playerForm.teamName?.trim();
   const email = playerForm.email?.trim();
-  const phone = playerForm.phone?.trim();
   if (surname) payload.surname = surname;
   if (teamName) payload.teamName = teamName;
   if (email) payload.email = email;
-  if (phone) payload.phone = phone;
   if (playerForm.skillLevel) payload.skillLevel = playerForm.skillLevel;
   return payload;
 };

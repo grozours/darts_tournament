@@ -37,7 +37,6 @@ const emptyPlayerForm: CreatePlayerPayload = {
   surname: '',
   teamName: '',
   email: '',
-  phone: '',
 };
 
 const usePlayersState = (): PlayersState & PlayersStateSetters & {
@@ -154,7 +153,6 @@ const usePlayersEditHandlers = ({
       surname: player.surname || '',
       teamName: player.teamName || '',
       email: player.email || '',
-      phone: player.phone || '',
     };
     if (player.skillLevel !== undefined) {
       nextForm.skillLevel = player.skillLevel;

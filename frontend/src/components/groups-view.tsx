@@ -337,7 +337,30 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
     void loadGroups();
   }, [loadGroups]);
 
-  const visibleGroups = groups;
+  const visibleGroups = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return groups;
+    }
+
+    return groups.filter((group) => {
+      const groupName = group.name.toLowerCase();
+      if (groupName.includes(normalizedSearch)) {
+        return true;
+      }
+
+      return group.members.some((member) => {
+        const memberHaystack = [
+          member.firstName,
+          member.lastName,
+          member.surname ?? '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        return memberHaystack.includes(normalizedSearch);
+      });
+    });
+  }, [groups, search]);
 
   let content: ReactJSX.Element;
 

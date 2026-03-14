@@ -5,6 +5,7 @@ const build = () => {
   const prisma = {
     person: {
       findUnique: jest.fn() as any,
+      findFirst: jest.fn() as any,
       create: jest.fn() as any,
       update: jest.fn() as any,
     },
@@ -144,6 +145,44 @@ describe('tournament model players branches', () => {
     await expect(model.getOrphanParticipants()).rejects.toMatchObject({ code: 'ORPHAN_PARTICIPANTS_FETCH_FAILED' });
   });
 
+  it('maps orphan participants with optional fields populated', async () => {
+    const { model, prisma } = build();
+    const registeredAt = new Date();
+
+    prisma.player.findMany.mockResolvedValueOnce([
+      {
+        id: 'p-orphan',
+        personId: 'person-9',
+        firstName: 'Orphan',
+        lastName: 'Player',
+        surname: 'Ghost',
+        teamName: 'Lone Team',
+        email: 'orphan@example.com',
+        skillLevel: 'BEGINNER',
+        registeredAt,
+        checkedIn: false,
+      },
+    ]);
+
+    const result = await model.getOrphanParticipants();
+
+    expect(result).toEqual([
+      {
+        playerId: 'p-orphan',
+        personId: 'person-9',
+        firstName: 'Orphan',
+        lastName: 'Player',
+        surname: 'Ghost',
+        teamName: 'Lone Team',
+        name: 'Orphan Player',
+        email: 'orphan@example.com',
+        skillLevel: 'BEGINNER',
+        registeredAt,
+        checkedIn: false,
+      },
+    ]);
+  });
+
   it('deletes orphan participants and maps delete errors', async () => {
     const { model, prisma } = build();
 
@@ -197,10 +236,63 @@ describe('tournament model players branches', () => {
     expect(prisma.player.findFirst).toHaveBeenCalledTimes(4);
   });
 
+  it('finds player by email with case-insensitive lookup', async () => {
+    const { model, prisma } = build();
+    prisma.player.findFirst.mockResolvedValue({ id: 'p-7' });
+
+    const result = await model.findPlayerByEmail('t-1', 'ada@example.com');
+
+    expect(prisma.player.findFirst).toHaveBeenCalledWith({
+      where: {
+        tournamentId: 't-1',
+        email: { equals: 'ada@example.com', mode: 'insensitive' },
+      },
+    });
+    expect(result).toEqual({ id: 'p-7' });
+  });
+
+  it('updates player successfully', async () => {
+    const { model, prisma } = build();
+    const now = new Date();
+    prisma.player.update.mockResolvedValueOnce({
+      id: 'p-2',
+      tournamentId: 't-1',
+      personId: null,
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      surname: null,
+      teamName: null,
+      email: 'ada@example.com',
+      skillLevel: 'EXPERT',
+      registeredAt: now,
+      isActive: true,
+      checkedIn: false,
+    });
+
+    const result = await model.updatePlayer('t-1', 'p-2', {
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'p-2',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.com',
+      skillLevel: 'EXPERT',
+    }));
+  });
+
   it('maps person and player lookup/create/update generic failures', async () => {
     const { model, prisma } = build();
 
+    prisma.person.findUnique.mockResolvedValueOnce({ id: 'person-1' });
+    await expect(model.getPersonById('person-1')).resolves.toEqual({ id: 'person-1' });
+
     prisma.person.findUnique.mockRejectedValueOnce(new Error('x'));
+    await expect(model.getPersonById('person-1')).rejects.toMatchObject({ code: 'PERSON_FETCH_FAILED' });
+
+    prisma.person.findFirst.mockRejectedValueOnce(new Error('x'));
     await expect(model.findPersonByEmailAndPhone('a@b.c', '1')).rejects.toMatchObject({ code: 'PERSON_FETCH_FAILED' });
 
     prisma.person.create.mockRejectedValueOnce(new Error('x'));

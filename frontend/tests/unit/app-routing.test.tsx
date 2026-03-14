@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/app';
 
@@ -8,10 +8,8 @@ const fetchMatchFormatPresetsMock = vi.fn(async () => []);
 const fetchLiveTournamentSummaryMock = vi.fn(async () => []);
 const setMatchFormatPresetsMock = vi.fn();
 const navigateTo = (url: string) => {
-  act(() => {
-    globalThis.history.pushState({}, '', url);
-    globalThis.dispatchEvent(new PopStateEvent('popstate'));
-  });
+  globalThis.history.pushState({}, '', url);
+  globalThis.dispatchEvent(new PopStateEvent('popstate'));
 };
 const toUrl = (input: RequestInfo | URL) => {
   if (input instanceof URL) return input.toString();
@@ -45,6 +43,7 @@ vi.mock('../../src/components/targets-view', () => ({ default: () => <div>TARGET
 vi.mock('../../src/components/notifications-view', () => ({ default: () => <div>NOTIFICATIONS_VIEW</div> }));
 vi.mock('../../src/components/tournaments/create-tournament-page', () => ({ default: () => <div>CREATE_TOURNAMENT</div> }));
 vi.mock('../../src/components/account-view', () => ({ default: () => <div>ACCOUNT_VIEW</div> }));
+vi.mock('../../src/components/user-accounts-view', () => ({ default: () => <div>USER_ACCOUNTS_VIEW</div> }));
 vi.mock('../../src/components/tournament-players-view', () => ({ default: () => <div>TOURNAMENT_PLAYERS</div> }));
 vi.mock('../../src/components/tournament-presets-view', () => ({ default: () => <div>TOURNAMENT_PRESETS</div> }));
 vi.mock('../../src/components/match-formats-view', () => ({ default: () => <div>MATCH_FORMATS</div> }));
@@ -223,6 +222,10 @@ describe('App routing', () => {
     navigateTo('/?view=account');
     rerender(<App />);
     expect(await screen.findByText('ACCOUNT_VIEW')).toBeInTheDocument();
+
+    navigateTo('/?view=user-accounts');
+    rerender(<App />);
+    expect(await screen.findByText('USER_ACCOUNTS_VIEW')).toBeInTheDocument();
 
     navigateTo('/?view=tournament-presets');
     rerender(<App />);

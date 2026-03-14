@@ -4,14 +4,23 @@ import { AppError } from '../../middleware/error-handler';
 import { getPrismaErrorCode, logModelError, mapToPlayer } from './helpers';
 
 export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
-  findPersonByEmailAndPhone: async (email: string, phone: string) => {
+  getPersonById: async (personId: string) => {
     try {
       return await prisma.person.findUnique({
+        where: { id: personId },
+        select: { id: true },
+      });
+    } catch (error) {
+      logModelError('getPersonById', error);
+      throw new AppError('Failed to fetch person', 500, 'PERSON_FETCH_FAILED');
+    }
+  },
+
+  findPersonByEmailAndPhone: async (email: string, _phone: string) => {
+    try {
+      return await prisma.person.findFirst({
         where: {
-          email_phone: {
-            email,
-            phone,
-          },
+          email: { equals: email, mode: 'insensitive' },
         },
       });
     } catch (error) {
@@ -20,16 +29,16 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     }
   },
 
-  createPerson: async (data: { firstName: string; lastName: string; email?: string; phone?: string }) => {
+  createPerson: async (data: { firstName: string; lastName: string; surname?: string; email?: string }) => {
     try {
       return await prisma.person.create({
         data: {
           firstName: data.firstName,
           lastName: data.lastName,
           // eslint-disable-next-line unicorn/no-null
-          email: data.email ?? null,
+          surname: data.surname ?? null,
           // eslint-disable-next-line unicorn/no-null
-          phone: data.phone ?? null,
+          email: data.email ?? null,
         },
       });
     } catch (error) {
@@ -40,7 +49,7 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
 
   updatePerson: async (
     personId: string,
-    data: { firstName?: string; lastName?: string; email?: string; phone?: string }
+    data: { firstName?: string; lastName?: string; surname?: string; email?: string }
   ) => {
     try {
       return await prisma.person.update({
@@ -95,7 +104,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
       surname?: string;
       teamName?: string;
       email?: string;
-      phone?: string;
       skillLevel?: SkillLevel;
     }
   ): Promise<Player> => {
@@ -113,8 +121,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
           teamName: playerData.teamName ?? null,
           // eslint-disable-next-line unicorn/no-null
           email: playerData.email ?? null,
-          // eslint-disable-next-line unicorn/no-null
-          phone: playerData.phone ?? null,
           // eslint-disable-next-line unicorn/no-null
           skillLevel: playerData.skillLevel ?? null,
           registeredAt: new Date(),
@@ -208,7 +214,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     teamName?: string;
     name: string;
     email?: string;
-    phone?: string;
     skillLevel?: SkillLevel;
     registeredAt: Date;
     checkedIn: boolean;
@@ -227,7 +232,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
           surname: true,
           teamName: true,
           email: true,
-          phone: true,
           skillLevel: true,
           registeredAt: true,
           checkedIn: true,
@@ -247,7 +251,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
         ...(player.teamName ? { teamName: player.teamName } : {}),
         name: `${player.firstName} ${player.lastName}`,
         ...(player.email ? { email: player.email } : {}),
-        ...(player.phone ? { phone: player.phone } : {}),
         ...(player.skillLevel ? { skillLevel: player.skillLevel as SkillLevel } : {}),
         registeredAt: player.registeredAt,
         checkedIn: player.checkedIn,
@@ -267,7 +270,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
     teamName?: string;
     name: string;
     email?: string;
-    phone?: string;
     skillLevel?: SkillLevel;
     registeredAt: Date;
     checkedIn: boolean;
@@ -287,7 +289,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
           surname: true,
           teamName: true,
           email: true,
-          phone: true,
           skillLevel: true,
           registeredAt: true,
           checkedIn: true,
@@ -307,7 +308,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
         ...(player.teamName ? { teamName: player.teamName } : {}),
         name: `${player.firstName} ${player.lastName}`,
         ...(player.email ? { email: player.email } : {}),
-        ...(player.phone ? { phone: player.phone } : {}),
         ...(player.skillLevel ? { skillLevel: player.skillLevel as SkillLevel } : {}),
         registeredAt: player.registeredAt,
         checkedIn: player.checkedIn,
@@ -377,7 +377,6 @@ export const createTournamentModelPlayers = (prisma: PrismaClient) => ({
       surname?: string;
       teamName?: string;
       email?: string;
-      phone?: string;
       skillLevel?: SkillLevel;
     }
   ): Promise<Player> => {
