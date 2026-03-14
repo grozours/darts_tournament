@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { SkillLevel, TournamentFormat } from '@shared/types';
 import type { CreatePlayerPayload, TournamentPlayer } from '../../services/tournament-service';
 import type { Translator } from './types';
+import type { UnregisteredAccountOption } from './tournament-players-types';
 import { RegistrationPlayersList } from './player-lists';
 
 type RegistrationSectionProperties = {
@@ -26,6 +28,8 @@ type RegistrationSectionProperties = {
   onAutoFillPlayers: () => void;
   onRemovePlayer: (playerId: string) => void;
   onFetchPlayers: () => void;
+  onSearchUnregisteredAccounts: (searchTerm: string) => Promise<UnregisteredAccountOption[]>;
+  onRegisterPlayerFromAccount: (account: UnregisteredAccountOption) => void;
 };
 
 type RegistrationHeaderProperties = {
@@ -62,6 +66,13 @@ type RegistrationListProperties = {
   playersLoading: boolean;
   onStartEditPlayer: (player: TournamentPlayer) => void;
   onRemovePlayer: (playerId: string) => void;
+};
+
+type AccountQuickAddProperties = {
+  t: Translator;
+  isRegisteringPlayer: boolean;
+  onSearchUnregisteredAccounts: (searchTerm: string) => Promise<UnregisteredAccountOption[]>;
+  onRegisterPlayerFromAccount: (account: UnregisteredAccountOption) => void;
 };
 
 const RegistrationHeader = ({
@@ -241,6 +252,128 @@ const RegistrationList = ({
   </div>
 );
 
+const formatAccountLabel = (account: UnregisteredAccountOption): string => {
+  const surname = account.surname?.trim();
+  const base = [account.lastName, account.firstName]
+    .filter((part) => typeof part === 'string' && part.trim().length > 0)
+    .join(' / ');
+
+  return surname ? `${base} / ${surname}` : base;
+};
+
+const hasValidEmail = (account: UnregisteredAccountOption): boolean => {
+  const email = account.email?.trim();
+  return Boolean(email && email.includes('@'));
+};
+
+const AccountQuickAdd = ({
+  t,
+  isRegisteringPlayer,
+  onSearchUnregisteredAccounts,
+  onRegisterPlayerFromAccount,
+}: AccountQuickAddProperties) => {
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [accounts, setAccounts] = useState<UnregisteredAccountOption[]>([]);
+
+  const runSearch = async () => {
+    const term = search.trim();
+    if (!term) {
+      setAccounts([]);
+      setError(undefined);
+      return;
+    }
+
+    setLoading(true);
+    setError(undefined);
+    try {
+      const results = await onSearchUnregisteredAccounts(term);
+      setAccounts(results);
+    } catch (error_) {
+      setError(error_ instanceof Error ? error_.message : 'Failed to search accounts');
+      setAccounts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-slate-800/70 bg-slate-900/40 p-4">
+      <h5 className="text-sm font-semibold text-slate-200">Ajouter depuis un compte existant</h5>
+      <p className="mt-1 text-xs text-slate-400">
+        Rechercher parmi les comptes non inscrits puis ajouter directement au tournoi.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          value={search}
+          onChange={(event_) => setSearch(event_.target.value)}
+          onKeyDown={(event_) => {
+            if (event_.key === 'Enter') {
+              event_.preventDefault();
+              void runSearch();
+            }
+          }}
+          placeholder="Nom, prenom, surnom, email"
+          aria-label="Rechercher un compte non inscrit"
+          className="min-w-[240px] flex-1 rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            void runSearch();
+          }}
+          disabled={loading || isRegisteringPlayer}
+          className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500 disabled:opacity-60"
+        >
+          {loading ? t('common.loading') : t('common.search')}
+        </button>
+      </div>
+
+      {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
+
+      <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
+        {accounts.length === 0 && !loading && search.trim().length > 0 && (
+          <p className="text-xs text-slate-400">Aucun compte non inscrit trouve</p>
+        )}
+        {accounts.map((account) => (
+          <div
+            key={account.id}
+            className="flex items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate text-xs font-medium text-slate-100">{formatAccountLabel(account)}</p>
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                  Non inscrit
+                </span>
+                {!hasValidEmail(account) && (
+                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+                    Sans email
+                  </span>
+                )}
+              </div>
+              {account.email && (
+                <p className="truncate text-[11px] text-slate-400">{account.email}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onRegisterPlayerFromAccount(account)}
+              disabled={isRegisteringPlayer}
+              className="rounded-full border border-cyan-500/60 px-3 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
+            >
+              Ajouter
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const RegistrationSection = ({
   t,
   editingTournament,
@@ -261,6 +394,8 @@ const RegistrationSection = ({
   onAutoFillPlayers,
   onRemovePlayer,
   onFetchPlayers,
+  onSearchUnregisteredAccounts,
+  onRegisterPlayerFromAccount,
 }: RegistrationSectionProperties) => (
   <div className="mt-8 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-5">
     <RegistrationHeader
@@ -291,6 +426,13 @@ const RegistrationSection = ({
       onCancelEditPlayer={onCancelEditPlayer}
       onAutoFillPlayers={onAutoFillPlayers}
       onSubmitPlayer={onSubmitPlayer}
+    />
+
+    <AccountQuickAdd
+      t={t}
+      isRegisteringPlayer={isRegisteringPlayer}
+      onSearchUnregisteredAccounts={onSearchUnregisteredAccounts}
+      onRegisterPlayerFromAccount={onRegisterPlayerFromAccount}
     />
 
     <RegistrationList

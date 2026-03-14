@@ -139,6 +139,51 @@ const getActorPlayer = async (context: GroupHandlerContext, tournamentId: string
   });
 };
 
+const resolveGroupMemberPlayerId = async (
+  context: GroupHandlerContext,
+  tournamentId: string,
+  candidatePlayerId: string
+) => {
+  const candidate = await context.tournamentModel.getPlayerById(candidatePlayerId);
+  if (!candidate) {
+    throw new AppError('Player not found', 404, 'PLAYER_NOT_FOUND');
+  }
+
+  if (candidate.tournamentId === tournamentId) {
+    return candidate.id;
+  }
+
+  if (!context.isAdminAction()) {
+    throw new AppError('Player is not registered for this tournament', 400, 'PLAYER_NOT_REGISTERED');
+  }
+
+  if (candidate.personId) {
+    const participants = await context.tournamentModel.getParticipants(tournamentId);
+    const linkedParticipant = participants.find((participant) => participant.personId === candidate.personId);
+    if (linkedParticipant) {
+      return linkedParticipant.playerId;
+    }
+  }
+
+  const tournament = await assertTournamentOpenAndCapacity(context, tournamentId);
+  const currentParticipants = await context.tournamentModel.getParticipantCount(tournamentId);
+  const playerCapacity = getPlayerCapacityFromSlots(tournament.totalParticipants, tournament.format);
+  if (currentParticipants >= playerCapacity) {
+    throw new AppError('Tournament is full', 400, 'TOURNAMENT_FULL');
+  }
+
+  const createdPlayer = await context.tournamentModel.createPlayer(tournamentId, {
+    ...(candidate.personId ? { personId: candidate.personId } : {}),
+    firstName: candidate.firstName,
+    lastName: candidate.lastName,
+    ...(candidate.surname ? { surname: candidate.surname } : {}),
+    ...(candidate.teamName ? { teamName: candidate.teamName } : {}),
+    ...(candidate.email ? { email: candidate.email } : {}),
+  });
+
+  return createdPlayer.id;
+};
+
 const mapGroupResponse = <TGroup extends {
   id: string;
   name: string;
@@ -774,6 +819,7 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(doubletteId);
     context.validateUUID(payload.playerId);
+    const memberPlayerId = await resolveGroupMemberPlayerId(context, tournamentId, payload.playerId);
 
     const doublette = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
     if (!doublette) {
@@ -799,16 +845,16 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
     const existingMembership = await context.tournamentModel.findDoubletteMembershipByPlayer(
       tournamentId,
-      payload.playerId
+      memberPlayerId
     );
     if (existingMembership) {
       throw new AppError('Player is already part of a doublette for this tournament', 400, 'PLAYER_ALREADY_IN_DOUBLETTE');
     }
 
-    await context.tournamentModel.addDoubletteMember(doubletteId, payload.playerId);
+    await context.tournamentModel.addDoubletteMember(doubletteId, memberPlayerId);
 
     if (!doublette.captainPlayerId && doublette.members.length === 0) {
-      await context.tournamentModel.updateDoubletteCaptain(doubletteId, payload.playerId);
+      await context.tournamentModel.updateDoubletteCaptain(doubletteId, memberPlayerId);
     }
 
     const updated = await context.tournamentModel.getDoubletteById(tournamentId, doubletteId);
@@ -1223,6 +1269,7 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
     context.validateUUID(tournamentId);
     context.validateUUID(equipeId);
     context.validateUUID(payload.playerId);
+    const memberPlayerId = await resolveGroupMemberPlayerId(context, tournamentId, payload.playerId);
 
     const equipe = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!equipe) {
@@ -1248,13 +1295,13 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
 
     const existingMembership = await context.tournamentModel.findEquipeMembershipByPlayer(
       tournamentId,
-      payload.playerId
+      memberPlayerId
     );
     if (existingMembership) {
       throw new AppError('Player is already part of an equipe for this tournament', 400, 'PLAYER_ALREADY_IN_EQUIPE');
     }
 
-    await context.tournamentModel.addEquipeMember(equipeId, payload.playerId);
+    await context.tournamentModel.addEquipeMember(equipeId, memberPlayerId);
     const updated = await context.tournamentModel.getEquipeById(tournamentId, equipeId);
     if (!updated) {
       throw new AppError('Equipe not found', 404, 'EQUIPE_NOT_FOUND');

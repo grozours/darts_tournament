@@ -2,6 +2,7 @@ import type { CreatePlayerPayload, TournamentPlayer } from '../../services/tourn
 import type { Translator } from './types';
 import RegistrationSection from './registration-section';
 import SignatureSection from './signature-section';
+import type { UnregisteredAccountOption } from './tournament-players-types';
 
 type TournamentStatusSectionsProperties = {
   t: Translator;
@@ -32,6 +33,8 @@ type TournamentStatusSectionsProperties = {
   onFetchPlayers: () => void;
   onConfirmAllPlayers: () => void;
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;
+  onSearchUnregisteredAccounts: (searchTerm: string) => Promise<UnregisteredAccountOption[]>;
+  onRegisterPlayerFromAccount: (account: UnregisteredAccountOption) => void;
 };
 
 const TournamentStatusSections = ({
@@ -60,6 +63,8 @@ const TournamentStatusSections = ({
   onFetchPlayers,
   onConfirmAllPlayers,
   onTogglePlayerCheckIn,
+  onSearchUnregisteredAccounts,
+  onRegisterPlayerFromAccount,
 }: TournamentStatusSectionsProperties) => (
   <>
     {normalizedStatus === 'OPEN' && (
@@ -83,6 +88,8 @@ const TournamentStatusSections = ({
         onAutoFillPlayers={onAutoFillPlayers}
         onRemovePlayer={onRemovePlayer}
         onFetchPlayers={onFetchPlayers}
+        onSearchUnregisteredAccounts={onSearchUnregisteredAccounts}
+        onRegisterPlayerFromAccount={onRegisterPlayerFromAccount}
       />
     )}
     {normalizedStatus === 'SIGNATURE' && (

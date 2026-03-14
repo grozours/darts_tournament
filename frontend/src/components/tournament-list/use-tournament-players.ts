@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { CreatePlayerPayload, TournamentPlayer } from '../../services/tournament-service';
 import { getPlayerActionLabel } from './player-list-utilities';
-import type { TournamentPlayersContext } from './tournament-players-types';
+import type { TournamentPlayersContext, UnregisteredAccountOption } from './tournament-players-types';
 import {
   usePlayersState,
   usePlayersFetch,
@@ -39,6 +39,8 @@ type UseTournamentPlayersResult = {
   togglePlayerCheckIn: (player: TournamentPlayer) => Promise<void>;
   confirmAllPlayers: () => Promise<void>;
   autoFillPlayers: () => Promise<void>;
+  searchUnregisteredAccounts: (searchTerm: string) => Promise<UnregisteredAccountOption[]>;
+  registerPlayerFromAccount: (account: UnregisteredAccountOption) => Promise<void>;
 };
 
 const useTournamentPlayers = ({
@@ -89,12 +91,19 @@ const useTournamentPlayers = ({
     setPlayersError,
   });
 
-  const { registerPlayer, savePlayerEdit, removePlayer } = usePlayerRegistrationMutations({
+  const {
+    registerPlayer,
+    savePlayerEdit,
+    removePlayer,
+    searchUnregisteredAccounts,
+    registerPlayerFromAccount,
+  } = usePlayerRegistrationMutations({
     t,
     editingTournament,
     getSafeAccessToken,
     playerForm,
     editingPlayerId,
+    players,
     fetchPlayers,
     cancelEditPlayer,
     setPlayersError,
@@ -163,6 +172,8 @@ const useTournamentPlayers = ({
     togglePlayerCheckIn,
     confirmAllPlayers,
     autoFillPlayers,
+    searchUnregisteredAccounts,
+    registerPlayerFromAccount,
   };
 };
 

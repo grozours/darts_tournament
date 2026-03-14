@@ -10,6 +10,7 @@ import type { EditFormState, Translator } from './types';
 import TournamentEditHeader from './tournament-edit-header';
 import TournamentEditContent from './tournament-edit-content';
 import TournamentEditFooter from './tournament-edit-footer';
+import type { UnregisteredAccountOption } from './tournament-players-types';
 
 export type TournamentEditPanelProperties = {
   t: Translator;
@@ -142,6 +143,8 @@ export type TournamentEditPanelProperties = {
   onFetchPlayers: () => void;
   onConfirmAllPlayers: () => void;
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;
+  onSearchUnregisteredAccounts: (searchTerm: string) => Promise<UnregisteredAccountOption[]>;
+  onRegisterPlayerFromAccount: (account: UnregisteredAccountOption) => void;
   quickStructurePresets: TournamentPreset[];
   quickStructurePresetsLoading: boolean;
   onApplyStructurePreset: (preset: Pick<TournamentPreset, 'name' | 'presetType' | 'templateConfig'>) => void;
@@ -253,6 +256,8 @@ const getContentProperties = (properties: TournamentEditPanelProperties) => ({
   onFetchPlayers: properties.onFetchPlayers,
   onConfirmAllPlayers: properties.onConfirmAllPlayers,
   onTogglePlayerCheckIn: properties.onTogglePlayerCheckIn,
+  onSearchUnregisteredAccounts: properties.onSearchUnregisteredAccounts,
+  onRegisterPlayerFromAccount: properties.onRegisterPlayerFromAccount,
 });
 
 const getFooterProperties = (properties: TournamentEditPanelProperties) => ({

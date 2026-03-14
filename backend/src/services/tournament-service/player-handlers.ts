@@ -23,6 +23,27 @@ type PlayerHandlerContext = {
   isAdminAction: () => boolean;
 };
 
+const resolveRequestedPersonId = async (
+  context: PlayerHandlerContext,
+  playerData: CreatePlayerRequest
+): Promise<string | undefined> => {
+  const requestedPersonId = playerData.personId?.trim();
+  if (!requestedPersonId) {
+    return undefined;
+  }
+
+  if (!context.isAdminAction()) {
+    throw new AppError('Only admins can assign personId during registration', 403, 'FORBIDDEN');
+  }
+
+  const person = await context.tournamentModel.getPersonById(requestedPersonId);
+  if (!person) {
+    throw new AppError('Target person not found', 404, 'PERSON_NOT_FOUND');
+  }
+
+  return person.id;
+};
+
 const requiresGroupCaptainRegistration = (format: TournamentFormat) =>
   format === TournamentFormat.DOUBLE || format === TournamentFormat.TEAM_4_PLAYER;
 
@@ -131,6 +152,8 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
     }
 
     try {
+        const linkedPersonId = await resolveRequestedPersonId(context, playerData);
+
       if (tournament.status !== TournamentStatus.OPEN) {
         context.logger.validationError(
           'REGISTRATION_NOT_OPEN',
@@ -181,7 +204,7 @@ export const createPlayerHandlers = (context: PlayerHandlerContext) => ({
         await ensureUniqueSurname(context, tournamentId, playerData.surname);
       }
 
-      const playerPayload = await buildPlayerPayload(context, playerData);
+      const playerPayload = await buildPlayerPayload(context, playerData, linkedPersonId);
 
       const player = await context.tournamentModel.createPlayer(tournamentId, playerPayload);
 

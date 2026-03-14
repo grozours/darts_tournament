@@ -7,4 +7,12 @@ type TournamentPlayersContext = {
   refreshTournamentDetails?: (tournamentId: string) => Promise<void>;
 };
 
-export type { TournamentPlayersContext };
+type UnregisteredAccountOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  surname?: string | null;
+  email?: string | null;
+};
+
+export type { TournamentPlayersContext, UnregisteredAccountOption };

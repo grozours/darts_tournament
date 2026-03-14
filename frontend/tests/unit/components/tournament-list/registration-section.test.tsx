@@ -41,6 +41,8 @@ describe('registration-section', () => {
     onAutoFillPlayers: vi.fn(),
     onRemovePlayer: vi.fn(),
     onFetchPlayers: vi.fn(),
+    onSearchUnregisteredAccounts: vi.fn().mockResolvedValue([]),
+    onRegisterPlayerFromAccount: vi.fn(),
   });
 
   it('uses players, doublettes and equipes labels based on format', () => {
@@ -71,6 +73,26 @@ describe('registration-section', () => {
     });
     expect(double.onPlayerFormChange).toHaveBeenCalledWith(expect.objectContaining({ firstName: 'Grace' }));
 
+    fireEvent.change(screen.getByLabelText('edit.lastName'), {
+      target: { value: 'Hopper' },
+    });
+    expect(double.onPlayerFormChange).toHaveBeenCalledWith(expect.objectContaining({ lastName: 'Hopper' }));
+
+    fireEvent.change(screen.getByLabelText('edit.surname'), {
+      target: { value: 'Amazing' },
+    });
+    expect(double.onPlayerFormChange).toHaveBeenCalledWith(expect.objectContaining({ surname: 'Amazing' }));
+
+    fireEvent.change(screen.getByLabelText('edit.teamName'), {
+      target: { value: 'Team Blue' },
+    });
+    expect(double.onPlayerFormChange).toHaveBeenCalledWith(expect.objectContaining({ teamName: 'Team Blue' }));
+
+    fireEvent.change(screen.getByLabelText('edit.email'), {
+      target: { value: 'grace@example.com' },
+    });
+    expect(double.onPlayerFormChange).toHaveBeenCalledWith(expect.objectContaining({ email: 'grace@example.com' }));
+
     fireEvent.change(screen.getByLabelText('edit.skillLevel'), { target: { value: '' } });
     expect(double.onPlayerFormChange).toHaveBeenCalledWith(expect.objectContaining({ skillLevel: undefined }));
   });
@@ -94,5 +116,54 @@ describe('registration-section', () => {
 
     expect(properties.onFetchPlayers).toHaveBeenCalledTimes(1);
     expect(properties.onCancelEditPlayer).toHaveBeenCalledTimes(1);
+  });
+
+  it('searches unregistered accounts and allows adding one', async () => {
+    const properties = baseProperties(TournamentFormat.SINGLE);
+    properties.onSearchUnregisteredAccounts = vi.fn().mockResolvedValue([
+      {
+        id: 'person-2',
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        surname: 'Amazing',
+        email: 'grace@example.com',
+      },
+    ]);
+
+    render(<RegistrationSection {...properties} />);
+
+    fireEvent.change(screen.getByLabelText('Rechercher un compte non inscrit'), {
+      target: { value: 'hop' },
+    });
+    fireEvent.keyDown(screen.getByLabelText('Rechercher un compte non inscrit'), {
+      key: 'Enter',
+      code: 'Enter',
+      charCode: 13,
+    });
+
+    expect(await screen.findByText('Hopper / Grace / Amazing')).toBeInTheDocument();
+    expect(screen.getByText('Non inscrit')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter' }));
+
+    expect(properties.onSearchUnregisteredAccounts).toHaveBeenCalledWith('hop');
+    expect(properties.onRegisterPlayerFromAccount).toHaveBeenCalledWith(expect.objectContaining({ id: 'person-2' }));
+  });
+
+  it('does not search on empty term and shows backend search errors', async () => {
+    const properties = baseProperties(TournamentFormat.SINGLE);
+    properties.onSearchUnregisteredAccounts = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('search failed'));
+
+    render(<RegistrationSection {...properties} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.search' }));
+    expect(properties.onSearchUnregisteredAccounts).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Rechercher un compte non inscrit'), {
+      target: { value: 'none' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'common.search' }));
+    expect(await screen.findByText('search failed')).toBeInTheDocument();
   });
 });

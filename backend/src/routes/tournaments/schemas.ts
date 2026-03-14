@@ -584,6 +584,7 @@ export const createPlayerSchema = {
     id: z.string().uuid('Invalid tournament ID'),
   }),
   body: z.object({
+    personId: z.string().uuid('Invalid person ID').optional(),
     firstName: z
       .string()
       .min(2, 'First name must be at least 2 characters long')

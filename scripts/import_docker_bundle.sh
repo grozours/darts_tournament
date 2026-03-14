@@ -14,6 +14,8 @@ BACKEND_HOST_UPLOADS_DIR="$PROJECT_ROOT/backend/uploads"
 BACKEND_HOST_LOGS_DIR="$PROJECT_ROOT/backend/logs"
 BACKEND_HOST_PRISMA_DIR="$PROJECT_ROOT/backend/prisma"
 BACKEND_HOST_BACKUPS_DIR="$PROJECT_ROOT/backend/backups"
+CURL_CONNECT_TIMEOUT_SECONDS=${CURL_CONNECT_TIMEOUT_SECONDS:-3}
+CURL_MAX_TIME_SECONDS=${CURL_MAX_TIME_SECONDS:-12}
 
 print_info() {
   echo "[INFO] $1"
@@ -36,7 +38,7 @@ wait_for_http_status() {
   local attempt=1
   while [[ "$attempt" -le "$max_attempts" ]]; do
     local status
-    status="$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)"
+    status="$(curl --connect-timeout "$CURL_CONNECT_TIMEOUT_SECONDS" --max-time "$CURL_MAX_TIME_SECONDS" -s -o /dev/null -w '%{http_code}' "$url" || true)"
 
     if [[ "$status" == "$expected_status" ]]; then
       print_success "HTTP check ready: $url returned $status"
@@ -320,6 +322,22 @@ if [[ -z "$BACKEND_CONTAINER_ID" ]]; then
   exit 1
 fi
 
+BACKEND_HOST_PORT="$(
+  cd "$PROJECT_ROOT"
+  IMAGE_TAG="$IMAGE_TAG" docker compose \
+    --env-file "$ROOT_ENV" \
+    -f docker-compose.images.yml \
+    port backend 3000 2>/dev/null | tail -n 1 | awk -F: '{print $NF}'
+)"
+
+if [[ -z "$BACKEND_HOST_PORT" ]]; then
+  print_error "Unable to resolve backend published host port"
+  exit 1
+fi
+
+BACKEND_BASE_URL="http://localhost:${BACKEND_HOST_PORT}"
+print_info "Backend health checks will target: $BACKEND_BASE_URL"
+
 BACKEND_RUNNING_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' "$BACKEND_CONTAINER_ID")"
 BACKEND_RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
 if [[ "$BACKEND_RUNNING_IMAGE_ID" != "$EXPECTED_BACKEND_IMAGE_ID" ]]; then
@@ -418,7 +436,7 @@ for required_file in \
   fi
 done
 
-AUTH_ME_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/auth/me || true)"
+AUTH_ME_STATUS="$(curl --connect-timeout "$CURL_CONNECT_TIMEOUT_SECONDS" --max-time "$CURL_MAX_TIME_SECONDS" -s -o /dev/null -w '%{http_code}' "$BACKEND_BASE_URL/api/auth/me" || true)"
 if [[ "$AUTH_ME_STATUS" == "404" ]]; then
   print_error "Backend auth route missing: GET /api/auth/me returned 404 (expected 401 or 200)."
   print_info "Backend logs (last 120 lines):"
@@ -432,7 +450,7 @@ if [[ "$AUTH_ME_STATUS" == "404" ]]; then
   exit 1
 fi
 
-if ! wait_for_http_status "http://localhost:3000/health" "200" 30 2; then
+if ! wait_for_http_status "$BACKEND_BASE_URL/health" "200" 30 2; then
   print_info "Backend logs (last 120 lines):"
   (
     cd "$PROJECT_ROOT"
@@ -446,7 +464,7 @@ fi
 
 MATCH_FORMATS_STATUS=""
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
-  MATCH_FORMATS_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/tournaments/match-formats || true)"
+  MATCH_FORMATS_STATUS="$(curl --connect-timeout "$CURL_CONNECT_TIMEOUT_SECONDS" --max-time "$CURL_MAX_TIME_SECONDS" -s -o /dev/null -w '%{http_code}' "$BACKEND_BASE_URL/api/tournaments/match-formats" || true)"
   if [[ "$MATCH_FORMATS_STATUS" == "200" ]]; then
     break
   fi

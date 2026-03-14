@@ -654,13 +654,13 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
     try {
       return await groupPrisma.player.findMany({
         where: {
-          tournamentId,
           isActive: true,
           OR: [
             { firstName: { contains: query, mode: 'insensitive' } },
             { lastName: { contains: query, mode: 'insensitive' } },
             { surname: { contains: query, mode: 'insensitive' } },
             { teamName: { contains: query, mode: 'insensitive' } },
+            { email: { contains: query, mode: 'insensitive' } },
             {
               doubletteMemberships: {
                 some: {

@@ -229,6 +229,67 @@ describe('player handlers', () => {
     expect(model.createPlayer).toHaveBeenCalled();
   });
 
+  it('rejects registerPlayerDetails with personId for non-admin users', async () => {
+    const { model, handlers } = buildContext();
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+    });
+
+    await expect(handlers.registerPlayerDetails('t1', {
+      personId: '11111111-1111-4111-8111-111111111111',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('rejects registerPlayerDetails when admin-selected person does not exist', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+    });
+    model.getPersonById.mockResolvedValue(undefined);
+
+    await expect(handlers.registerPlayerDetails('t1', {
+      personId: '11111111-1111-4111-8111-111111111111',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    })).rejects.toMatchObject({ code: 'PERSON_NOT_FOUND' });
+  });
+
+  it('registers player details with an existing personId in admin context', async () => {
+    const { model, handlers } = buildContext({ isAdminAction: true });
+    config.auth.enabled = false;
+    model.findById.mockResolvedValue({
+      id: 't1',
+      name: 'Cup',
+      status: TournamentStatus.OPEN,
+      totalParticipants: 8,
+      format: TournamentFormat.SINGLE,
+    });
+    model.getParticipantCount.mockResolvedValue(1);
+    model.getPersonById.mockResolvedValue({ id: 'person-99' });
+    model.createPlayer.mockResolvedValue({ id: 'p-created' });
+
+    await handlers.registerPlayerDetails('t1', {
+      personId: 'person-99',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    });
+
+    expect(model.createPlayer).toHaveBeenCalledWith('t1', expect.objectContaining({ personId: 'person-99' }));
+    expect(model.createPerson).not.toHaveBeenCalled();
+  });
+
   it('logs non-AppError failures during registerPlayerDetails', async () => {
     const { model, handlers, logger } = buildContext({ isAdminAction: true });
     config.auth.enabled = false;

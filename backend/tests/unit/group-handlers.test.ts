@@ -33,6 +33,18 @@ const buildContext = () => {
     findById: jest.fn(),
     findPlayerByEmail: jest.fn(),
     getParticipantCount: jest.fn().mockImplementation(async () => 1),
+    getParticipants: jest.fn().mockImplementation(async () => []),
+    getPlayerById: jest.fn().mockImplementation(async (playerId: string) => ({
+      id: playerId,
+      tournamentId: 't1',
+      personId: null,
+      firstName: 'A',
+      lastName: 'B',
+      surname: null,
+      teamName: null,
+      email: `${playerId}@mail.dev`,
+      skillLevel: null,
+    })),
     unregisterPlayer: jest.fn().mockImplementation(async () => undefined),
     countRegisteredDoublettes: jest.fn().mockImplementation(async () => 0),
     countRegisteredEquipes: jest.fn().mockImplementation(async () => 0),
@@ -1617,6 +1629,80 @@ describe('group-handlers', () => {
     const removed = await handlers.removeEquipeMember('t1', 'e1', 'p2');
     expect(removed.memberCount).toBe(1);
     expect(tournamentModel.unregisterPlayer).toHaveBeenCalledWith('t1', 'p2');
+  });
+
+  it('creates a local player when admin adds a cross-tournament member', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(true);
+
+    tournamentModel.getPlayerById.mockResolvedValue({
+      id: 'external-p1',
+      tournamentId: 'other-tournament',
+      personId: 'person-1',
+      firstName: 'Ana',
+      lastName: 'Diaz',
+      surname: 'A1',
+      teamName: 'Team A',
+      email: 'ana@example.com',
+      skillLevel: null,
+    });
+    tournamentModel.getParticipants.mockResolvedValue([]);
+    tournamentModel.findById.mockResolvedValue(buildTournament(TournamentFormat.DOUBLE));
+    tournamentModel.getParticipantCount.mockResolvedValue(0);
+    tournamentModel.createPlayer.mockResolvedValue({ id: 'local-created-player' });
+    tournamentModel.getDoubletteById
+      .mockResolvedValueOnce({
+        id: 'd1',
+        isRegistered: false,
+        captainPlayerId: null,
+        members: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'd1',
+        name: 'D1',
+        captainPlayerId: 'local-created-player',
+        isRegistered: false,
+        registeredAt: null,
+        createdAt: new Date(),
+        members: [member('local-created-player')],
+      });
+
+    const updated = await handlers.addDoubletteMember('t1', 'd1', { playerId: 'external-p1' });
+
+    expect(updated.captainPlayerId).toBe('local-created-player');
+    expect(tournamentModel.createPlayer).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({ personId: 'person-1', firstName: 'Ana', lastName: 'Diaz' })
+    );
+    expect(tournamentModel.addDoubletteMember).toHaveBeenCalledWith('d1', 'local-created-player');
+  });
+
+  it('rejects cross-tournament member add for non-admin users', async () => {
+    const { handlers, tournamentModel, context } = buildContext();
+    context.isAdminAction.mockReturnValue(false);
+    tournamentModel.findPlayerByEmail.mockResolvedValue({ id: 'captain-1', email: 'actor@example.com' });
+    tournamentModel.getPlayerById.mockResolvedValue({
+      id: 'external-p1',
+      tournamentId: 'other-tournament',
+      personId: 'person-1',
+      firstName: 'Ana',
+      lastName: 'Diaz',
+      surname: null,
+      teamName: null,
+      email: 'ana@example.com',
+      skillLevel: null,
+    });
+    tournamentModel.getDoubletteById.mockResolvedValue({
+      id: 'd1',
+      isRegistered: false,
+      captainPlayerId: 'captain-1',
+      members: [member('captain-1')],
+    });
+
+    await expect(handlers.addDoubletteMember('t1', 'd1', { playerId: 'external-p1' })).rejects.toThrow(
+      'Player is not registered for this tournament'
+    );
+    expect(tournamentModel.addDoubletteMember).not.toHaveBeenCalled();
   });
 
   it('keeps player registered when removed equipe member still belongs to another equipe', async () => {

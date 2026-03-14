@@ -23,7 +23,7 @@ import {
   sampleTeams,
   teamModifiers,
 } from './auto-fill-constants';
-import type { TournamentPlayersContext } from './tournament-players-types';
+import type { TournamentPlayersContext, UnregisteredAccountOption } from './tournament-players-types';
 import type { Tournament } from './types';
 import type { PlayersStateSetters } from './tournament-players-state';
 import { emptyPlayerForm } from './tournament-players-state';
@@ -502,12 +502,45 @@ const buildPlayerPayload = (playerForm: CreatePlayerPayload): CreatePlayerPayloa
   return payload;
 };
 
+const normalizeSearchTerm = (searchTerm: string): string => searchTerm.trim();
+
+const searchAccounts = async ({
+  searchTerm,
+  token,
+}: {
+  searchTerm: string;
+  token?: string;
+}): Promise<UnregisteredAccountOption[]> => {
+  const term = normalizeSearchTerm(searchTerm);
+  if (!term) {
+    return [];
+  }
+
+  const parameters = new URLSearchParams({ limit: '200', q: term });
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`/api/auth/users?${parameters.toString()}`, Object.keys(headers).length > 0
+    ? { headers }
+    : undefined);
+
+  if (!response.ok) {
+    throw new Error('Failed to search user accounts');
+  }
+
+  const payload = await response.json() as { users?: UnregisteredAccountOption[] };
+  return Array.isArray(payload.users) ? payload.users : [];
+};
+
 const usePlayerRegistrationMutations = ({
   t,
   editingTournament,
   getSafeAccessToken,
   playerForm,
   editingPlayerId,
+  players,
   fetchPlayers,
   cancelEditPlayer,
   setPlayersError,
@@ -519,6 +552,7 @@ const usePlayerRegistrationMutations = ({
   getSafeAccessToken: TournamentPlayersContext['getSafeAccessToken'];
   playerForm: CreatePlayerPayload;
   editingPlayerId: string | undefined;
+  players: TournamentPlayer[];
   fetchPlayers: (tournamentId: string) => Promise<void>;
   cancelEditPlayer: () => void;
   setPlayersError: PlayersStateSetters['setPlayersError'];
@@ -582,10 +616,57 @@ const usePlayerRegistrationMutations = ({
     }
   }, [editingTournament, fetchPlayers, getSafeAccessToken, setPlayersError, t]);
 
+  const searchUnregisteredAccounts = useCallback(async (searchTerm: string): Promise<UnregisteredAccountOption[]> => {
+    const token = await getSafeAccessToken();
+    const users = await searchAccounts({ searchTerm, token });
+
+    const registeredPersonIds = new Set(
+      players
+        .map((player) => player.personId)
+        .filter((personId): personId is string => Boolean(personId && personId.trim().length > 0))
+    );
+
+    return users.filter((user) => {
+      return !registeredPersonIds.has(user.id);
+    });
+  }, [getSafeAccessToken, players]);
+
+  const registerPlayerFromAccount = useCallback(async (account: UnregisteredAccountOption) => {
+    if (!editingTournament) return;
+
+    const firstName = account.firstName?.trim();
+    const lastName = account.lastName?.trim();
+    if (!firstName || !lastName) {
+      setPlayersError('Selected account is missing first name or last name');
+      return;
+    }
+
+    setIsRegisteringPlayer(true);
+    setPlayersError(undefined);
+    try {
+      const token = await getSafeAccessToken();
+      const payload: CreatePlayerPayload = {
+        personId: account.id,
+        firstName,
+        lastName,
+        ...(account.surname?.trim() ? { surname: account.surname.trim() } : {}),
+        ...(account.email?.trim() ? { email: account.email.trim() } : {}),
+      };
+      await registerTournamentPlayer(editingTournament.id, payload, token);
+      await fetchPlayers(editingTournament.id);
+    } catch (error_) {
+      setPlayersError(error_ instanceof Error ? error_.message : t('edit.error.failedRegisterPlayer'));
+    } finally {
+      setIsRegisteringPlayer(false);
+    }
+  }, [editingTournament, fetchPlayers, getSafeAccessToken, setIsRegisteringPlayer, setPlayersError, t]);
+
   return {
     registerPlayer,
     savePlayerEdit,
     removePlayer,
+    searchUnregisteredAccounts,
+    registerPlayerFromAccount,
   };
 };
 

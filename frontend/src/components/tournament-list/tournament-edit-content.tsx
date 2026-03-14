@@ -1,5 +1,6 @@
 import type { BracketConfig, CreatePlayerPayload, PoolStageConfig, TournamentPreset, TournamentPlayer, TournamentTarget } from '../../services/tournament-service';
 import type { EditFormState, Translator } from './types';
+import type { UnregisteredAccountOption } from './tournament-players-types';
 import TournamentEditForm from './tournament-edit-form';
 import PoolStagesEditor from './pool-stages-editor';
 import BracketsEditor from './brackets-editor';
@@ -133,6 +134,8 @@ export type TournamentEditContentProperties = {
   onFetchPlayers: () => void;
   onConfirmAllPlayers: () => void;
   onTogglePlayerCheckIn: (player: TournamentPlayer) => void;
+  onSearchUnregisteredAccounts: (searchTerm: string) => Promise<UnregisteredAccountOption[]>;
+  onRegisterPlayerFromAccount: (account: UnregisteredAccountOption) => void;
 };
 
 const TournamentEditContent = (properties: TournamentEditContentProperties) => {
@@ -228,6 +231,8 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
     onFetchPlayers,
     onConfirmAllPlayers,
     onTogglePlayerCheckIn,
+    onSearchUnregisteredAccounts,
+    onRegisterPlayerFromAccount,
     skillLevelOptions,
   } = properties;
   const hasStartedBracketMatches = brackets.some((bracket) => bracket.hasStartedMatches);
@@ -375,6 +380,8 @@ const TournamentEditContent = (properties: TournamentEditContentProperties) => {
         onFetchPlayers={onFetchPlayers}
         onConfirmAllPlayers={onConfirmAllPlayers}
         onTogglePlayerCheckIn={onTogglePlayerCheckIn}
+        onSearchUnregisteredAccounts={onSearchUnregisteredAccounts}
+        onRegisterPlayerFromAccount={onRegisterPlayerFromAccount}
       />
     </div>
   );

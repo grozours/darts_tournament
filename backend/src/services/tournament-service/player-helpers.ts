@@ -85,7 +85,8 @@ export const ensureUniqueTeamName = async (
 
 export const buildPlayerPayload = async (
   context: PlayerHelperContext,
-  playerData: CreatePlayerRequest
+  playerData: CreatePlayerRequest,
+  personIdOverride?: string
 ) => {
   const payload: {
     personId?: string;
@@ -100,13 +101,15 @@ export const buildPlayerPayload = async (
     lastName: playerData.lastName.trim(),
   };
 
-  payload.personId = await resolvePersonId(
-    context,
-    payload.firstName,
-    payload.lastName,
-    playerData.surname,
-    playerData.email
-  );
+  payload.personId = personIdOverride
+    ? personIdOverride
+    : await resolvePersonId(
+      context,
+      payload.firstName,
+      payload.lastName,
+      playerData.surname,
+      playerData.email
+    );
 
   if (playerData.surname?.trim()) {
     payload.surname = playerData.surname.trim();

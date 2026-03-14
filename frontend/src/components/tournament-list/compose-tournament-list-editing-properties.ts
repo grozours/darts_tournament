@@ -137,6 +137,8 @@ const buildEditSectionProperties = ({
   onRemovePlayer: wrapAsyncVoid(players.removePlayer),
   onConfirmAllPlayers: wrapAsyncVoid(players.confirmAllPlayers),
   onTogglePlayerCheckIn: wrapAsyncVoid(players.togglePlayerCheckIn),
+  onSearchUnregisteredAccounts: players.searchUnregisteredAccounts,
+  onRegisterPlayerFromAccount: wrapAsyncVoid(players.registerPlayerFromAccount),
   onMoveToSignature: wrapAsyncVoid(editFlow.moveToSignature),
   onMoveToLive: wrapAsyncVoid(editFlow.moveToLive),
   onOpenRegistration: wrapAsyncVoid(editFlow.openRegistration),
