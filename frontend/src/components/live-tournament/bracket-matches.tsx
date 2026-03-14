@@ -751,13 +751,17 @@ const BracketMatches = ({
         <div className={screenMode ? 'mt-1.5 space-y-1' : 'mt-3 space-y-2'}>
           {[1, 2].map((position) => {
             const playerMatch = match.playerMatches?.find((item) => item.playerPosition === position) || { playerPosition: position };
+            const playerLabel = getBracketPlayerLabel(playerMatch, getParticipantLabel);
             return (
               <div
                 key={`${match.id}-${position}`}
-                className={`flex items-center justify-between rounded-lg border ${screenMode ? 'px-2 py-1' : 'px-3 py-2'} ${options.tone.row}`}
+                className={`flex min-w-0 items-center justify-between gap-2 rounded-lg border ${screenMode ? 'px-2 py-1' : 'px-3 py-2'} ${options.tone.row}`}
               >
-                <span className={playerMatch.player?.id === match.winner?.id ? options.tone.winner : options.tone.accent}>
-                  {getBracketPlayerLabel(playerMatch, getParticipantLabel)}
+                <span
+                  title={playerLabel}
+                  className={`block min-w-0 flex-1 truncate whitespace-nowrap ${playerMatch.player?.id === match.winner?.id ? options.tone.winner : options.tone.accent}`}
+                >
+                  {playerLabel}
                   {options.isFinal && match.status === 'COMPLETED' && playerMatch.player?.id === match.winner?.id && (
                     <span className="ml-1">🏆</span>
                   )}
@@ -767,7 +771,7 @@ const BracketMatches = ({
                     </span>
                   )}
                 </span>
-                <span className={options.tone.accent}>
+                <span className={`shrink-0 ${options.tone.accent}`}>
                   {playerMatch.scoreTotal ?? playerMatch.legsWon ?? '-'}
                 </span>
               </div>

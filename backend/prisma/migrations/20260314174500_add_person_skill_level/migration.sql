@@ -1,5 +1,5 @@
 ALTER TABLE "persons"
-ADD COLUMN IF NOT EXISTS "skill_level" "SkillLevel";
+ADD COLUMN IF NOT EXISTS "skill_level" "skill_level";
 
 -- Backfill person skill level from the latest active player linked to each person.
 UPDATE "persons" AS p

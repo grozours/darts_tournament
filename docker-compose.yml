@@ -127,7 +127,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: npm run dev
+    command: sh -lc "npm run db:migrate && npm run dev"
 
   frontend:
     build:

@@ -25,4 +25,4 @@ COPY --from=build /app/backend/prisma ./prisma
 COPY --from=build /app/backend/scripts ./scripts
 COPY --from=build /app/backend/package*.json ./
 EXPOSE 3000
-CMD ["sh", "-lc", "if [ -d /app/shared/src ] && [ ! -e /app/backend/shared/src ]; then mkdir -p /app/backend/shared && ln -s /app/shared/src /app/backend/shared/src; fi; if [ -d /app/backend/shared/src ] && [ ! -e /app/shared/src ]; then mkdir -p /app/shared && ln -s /app/backend/shared/src /app/shared/src; fi; npm start"]
+CMD ["sh", "-lc", "if [ -d /app/shared/src ] && [ ! -e /app/backend/shared/src ]; then mkdir -p /app/backend/shared && ln -s /app/shared/src /app/backend/shared/src; fi; if [ -d /app/backend/shared/src ] && [ ! -e /app/shared/src ]; then mkdir -p /app/shared && ln -s /app/backend/shared/src /app/shared/src; fi; npm run db:migrate && npm start"]

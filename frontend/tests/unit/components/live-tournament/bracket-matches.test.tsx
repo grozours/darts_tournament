@@ -186,4 +186,42 @@ describe('BracketMatches', () => {
     expect(screen.getByTestId('available-targets')).toHaveTextContent('target-1');
     expect(screen.getByTestId('available-targets')).not.toHaveTextContent('target-2');
   });
+
+  it('truncates long player labels to avoid card overlap', () => {
+    const longNamesBracket: LiveViewBracket = {
+      ...bracket,
+      matches: [
+        {
+          id: 'm-long',
+          matchNumber: 1,
+          roundNumber: 1,
+          status: 'SCHEDULED',
+          playerMatches: [
+            {
+              playerPosition: 1,
+              player: {
+                id: 'p-long-1',
+                firstName: 'AutoDoubletteNomTresTresLongSansEspaceQuiDeborde',
+                lastName: 'MMQUKO20',
+              },
+            },
+            {
+              playerPosition: 2,
+              player: {
+                id: 'p-long-2',
+                firstName: 'AutoDoubletteNomEncorePlusLongPourVerifierLeTruncate',
+                lastName: 'MMQUKO20',
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const { container } = render(<BracketMatches {...baseMatchProperties} bracket={longNamesBracket} />);
+
+    const truncatingLabels = container.querySelectorAll('span.truncate[title]');
+    expect(truncatingLabels.length).toBeGreaterThan(0);
+    expect(truncatingLabels[0]?.getAttribute('title')).toContain('AutoDoubletteNom');
+  });
 });
