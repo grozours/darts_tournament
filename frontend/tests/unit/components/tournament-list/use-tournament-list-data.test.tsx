@@ -40,6 +40,41 @@ describe('useTournamentListData', () => {
     expect(result.current.error).toContain('Failed to fetch tournaments');
   });
 
+  it('normalizes legacy logo fields without auth token', async () => {
+    getSafeAccessToken.mockResolvedValue(undefined);
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      createResponse({
+        ok: true,
+        json: {
+          tournaments: [
+            {
+              id: 't1',
+              name: 'Cup',
+              logo_url: '/legacy.png',
+              logo_urls: ['/legacy.png', '/legacy.png', ''],
+            },
+          ],
+        },
+      })
+    );
+
+    const { result } = renderHook(() => useTournamentListData({
+      authEnabled: true,
+      isAuthenticated: false,
+      getSafeAccessToken,
+    }));
+
+    await act(async () => {
+      await result.current.fetchTournaments();
+    });
+
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/tournaments', { cache: 'no-store' });
+    expect(result.current.tournaments[0]).toEqual(expect.objectContaining({
+      logoUrl: '/legacy.png',
+      logoUrls: ['/legacy.png'],
+    }));
+  });
+
   it('skips deletion when confirmation is rejected', async () => {
     getSafeAccessToken.mockResolvedValue('token');
     (globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -88,5 +123,23 @@ describe('useTournamentListData', () => {
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/tournaments', expect.objectContaining({
       headers: { Authorization: 'Bearer token' },
     }));
+  });
+
+  it('shows alert when deletion request fails', async () => {
+    getSafeAccessToken.mockResolvedValue('token');
+    (globalThis.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(createResponse({ ok: false }));
+
+    const { result } = renderHook(() => useTournamentListData({
+      authEnabled: true,
+      isAuthenticated: false,
+      getSafeAccessToken,
+    }));
+
+    await act(async () => {
+      await result.current.deleteTournament('t1');
+    });
+
+    expect(globalThis.alert).toHaveBeenCalledWith('Failed to delete tournament');
   });
 });

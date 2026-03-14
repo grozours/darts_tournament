@@ -75,15 +75,15 @@ test('players view renders and filters players', async ({ page }) => {
     });
   });
 
-  await page.goto('/?view=players');
+  await page.goto('/?view=single');
 
   await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
-  await expect(page.getByText('Team Rocket')).toBeVisible();
+  await expect(page.getByText('Team Rocket')).toHaveCount(0);
 
-  await page.getByPlaceholder('Search name, team, email, phone, tournament...').fill('Rocket');
+  await page.getByPlaceholder('Search name, team, email, tournament...').fill('Falcon');
 
-  await expect(page.getByText('Team Rocket')).toBeVisible();
-  await expect(page.getByText('Alice Smith (Falcon)')).toHaveCount(0);
+  await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
+  await expect(page.getByText('Team Rocket')).toHaveCount(0);
 });
 
 test('players view search matches tournament names and can be reset', async ({ page }) => {
@@ -161,9 +161,9 @@ test('players view search matches tournament names and can be reset', async ({ p
     });
   });
 
-  await page.goto('/?view=players');
+  await page.goto('/?view=single');
 
-  const searchInput = page.getByPlaceholder('Search name, team, email, phone, tournament...');
+  const searchInput = page.getByPlaceholder('Search name, team, email, tournament...');
   await searchInput.fill('Spring Open');
 
   await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
@@ -171,5 +171,5 @@ test('players view search matches tournament names and can be reset', async ({ p
 
   await searchInput.fill('');
   await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
-  await expect(page.getByText('Team Rocket')).toBeVisible();
+  await expect(page.getByText('Team Rocket')).toHaveCount(0);
 });

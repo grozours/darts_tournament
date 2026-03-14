@@ -23,9 +23,67 @@ type TournamentLogoUploadResult = {
   deleteLogo: (logoUrl: string) => Promise<void>;
 };
 
+type UploadLogoResult = { logo_url?: string; logo_urls?: string[]; logoUrl?: string; logoUrls?: string[] };
+
 const mergeLogoUrls = (...values: Array<string[] | undefined>) => {
   const merged = values.flatMap((entry) => entry ?? []);
   return Array.from(new Set(merged.filter((entry): entry is string => entry.trim().length > 0)));
+};
+
+const applyUploadedLogos = (
+  current: Tournament | undefined,
+  refreshedLogos: { logoUrl?: string; logoUrls?: string[] },
+  latestResult: UploadLogoResult | undefined
+): Tournament | undefined => {
+  if (!current) {
+    return current;
+  }
+
+  const nextLogoUrl = refreshedLogos.logoUrl
+    ?? latestResult?.logoUrl
+    ?? latestResult?.logo_url
+    ?? current.logoUrl;
+  const nextLogoUrls = mergeLogoUrls(
+    refreshedLogos.logoUrls,
+    latestResult?.logoUrls,
+    latestResult?.logo_urls,
+    current.logoUrls,
+    nextLogoUrl ? [nextLogoUrl] : []
+  );
+
+  return {
+    ...current,
+    ...(nextLogoUrl ? { logoUrl: nextLogoUrl } : {}),
+    ...(nextLogoUrls.length > 0 ? { logoUrls: nextLogoUrls } : { logoUrls: [] }),
+  };
+};
+
+const applyDeletedLogo = (
+  current: Tournament | undefined,
+  result: { logoUrl?: string; logoUrls?: string[] }
+): Tournament | undefined => {
+  if (!current) {
+    return current;
+  }
+
+  const nextLogoUrl = result.logoUrl;
+  const nextLogoUrls = mergeLogoUrls(result.logoUrls);
+
+  if (nextLogoUrl) {
+    return {
+      ...current,
+      logoUrl: nextLogoUrl,
+      logoUrls: nextLogoUrls,
+    };
+  }
+
+  const currentWithoutLogoUrl = { ...current };
+  delete currentWithoutLogoUrl.logoUrl;
+
+  return {
+    ...currentWithoutLogoUrl,
+    logoUrls: nextLogoUrls,
+  };
 };
 
 const useTournamentLogoUpload = ({
@@ -46,7 +104,7 @@ const useTournamentLogoUpload = ({
     setEditError(undefined);
     try {
       const token = await getSafeAccessToken();
-      let latestResult: { logo_url?: string; logo_urls?: string[]; logoUrl?: string; logoUrls?: string[] } | undefined;
+      let latestResult: UploadLogoResult | undefined;
 
       for (const logoFile of logoFiles) {
         const result = await uploadTournamentLogo(editingTournament.id, logoFile, token);
@@ -54,27 +112,7 @@ const useTournamentLogoUpload = ({
       }
 
       const refreshedLogos = await fetchTournamentLogos(editingTournament.id, token);
-      setEditingTournament((current) => {
-        if (!current) return current;
-
-        const nextLogoUrl = refreshedLogos.logoUrl
-          ?? latestResult?.logoUrl
-          ?? latestResult?.logo_url
-          ?? current.logoUrl;
-        const nextLogoUrls = mergeLogoUrls(
-          refreshedLogos.logoUrls,
-          latestResult?.logoUrls,
-          latestResult?.logo_urls,
-          current.logoUrls,
-          nextLogoUrl ? [nextLogoUrl] : []
-        );
-
-        return {
-          ...current,
-          ...(nextLogoUrl ? { logoUrl: nextLogoUrl } : {}),
-          ...(nextLogoUrls.length > 0 ? { logoUrls: nextLogoUrls } : { logoUrls: [] }),
-        };
-      });
+      setEditingTournament((current) => applyUploadedLogos(current, refreshedLogos, latestResult));
       setLogoFiles([]);
       fetchTournaments();
     } catch (error_) {
@@ -95,30 +133,7 @@ const useTournamentLogoUpload = ({
     try {
       const token = await getSafeAccessToken();
       const result = await deleteTournamentLogo(editingTournament.id, logoUrl, token);
-      setEditingTournament((current) => {
-        if (!current) {
-          return current;
-        }
-
-        const nextLogoUrl = result.logoUrl;
-        const nextLogoUrls = mergeLogoUrls(result.logoUrls);
-
-        if (nextLogoUrl) {
-          return {
-            ...current,
-            logoUrl: nextLogoUrl,
-            logoUrls: nextLogoUrls,
-          };
-        }
-
-        const currentWithoutLogoUrl = { ...current };
-        delete currentWithoutLogoUrl.logoUrl;
-
-        return {
-          ...currentWithoutLogoUrl,
-          logoUrls: nextLogoUrls,
-        };
-      });
+      setEditingTournament((current) => applyDeletedLogo(current, result));
       fetchTournaments();
     } catch (error_) {
       setEditError(error_ instanceof Error ? error_.message : t('edit.error.failedUploadLogo'));

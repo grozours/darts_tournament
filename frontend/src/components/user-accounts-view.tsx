@@ -38,6 +38,105 @@ const mapUserToForm = (user: UserAccount): UserEditForm => ({
   skillLevel: user.skillLevel ?? '',
 });
 
+const buildAuthorizationHeaders = (token: string | undefined): HeadersInit => (
+  token ? { Authorization: `Bearer ${token}` } : {}
+);
+
+const buildUserAccountsQuery = (search: string, tournamentId: string): string => {
+  const parameters = new URLSearchParams();
+  const trimmedSearch = search.trim();
+  if (trimmedSearch) {
+    parameters.set('q', trimmedSearch);
+  }
+  if (tournamentId) {
+    parameters.set('tournamentId', tournamentId);
+  }
+  parameters.set('limit', '200');
+  return parameters.toString();
+};
+
+type UserAccountEditPanelProperties = {
+  user: UserAccount;
+  editForm: UserEditForm;
+  saving: boolean;
+  t: (key: string) => string;
+  onFieldChange: (field: keyof UserEditForm, value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+};
+
+const UserAccountEditPanel = ({
+  user,
+  editForm,
+  saving,
+  t,
+  onFieldChange,
+  onSave,
+  onCancel,
+}: UserAccountEditPanelProperties): JSX.Element => (
+  <div className="mt-4 space-y-2">
+    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t('userAccounts.editTitle')}</p>
+    <p className="text-xs text-slate-400">{t('userAccounts.currentTournamentCount')}: {user.tournamentCount ?? 0}</p>
+    <p className="text-xs text-slate-400">{t('edit.surname')}: {user.surname ?? '-'}</p>
+    <p className="text-xs text-slate-400">{t('edit.email')}: {user.email ?? '-'}</p>
+    <p className="text-xs text-slate-400">{t('edit.skillLevel')}: {user.skillLevel ? t(`skill.${user.skillLevel.toLowerCase()}`) : '-'}</p>
+    <p className="text-xs text-slate-500">{t('account.lastUpdated')}: {new Date(user.updatedAt).toLocaleDateString()}</p>
+    <div className="grid gap-2 md:grid-cols-2">
+      <input
+        value={editForm.firstName}
+        onChange={(event_) => onFieldChange('firstName', event_.target.value)}
+        placeholder={t('edit.firstName')}
+        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+      />
+      <input
+        value={editForm.lastName}
+        onChange={(event_) => onFieldChange('lastName', event_.target.value)}
+        placeholder={t('edit.lastName')}
+        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+      />
+      <input
+        value={editForm.surname}
+        onChange={(event_) => onFieldChange('surname', event_.target.value)}
+        placeholder={t('edit.surname')}
+        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+      />
+      <input
+        value={editForm.email}
+        onChange={(event_) => onFieldChange('email', event_.target.value)}
+        placeholder={t('edit.email')}
+        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+      />
+      <select
+        value={editForm.skillLevel}
+        onChange={(event_) => onFieldChange('skillLevel', event_.target.value)}
+        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 md:col-span-2"
+      >
+        <option value="">{t('edit.selectSkillLevelOptional')}</option>
+        <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
+        <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
+        <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
+      </select>
+    </div>
+    <div className="mt-2 space-y-2">
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving}
+        className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-70"
+      >
+        {saving ? t('common.loading') : t('common.save')}
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+      >
+        {t('common.cancel')}
+      </button>
+    </div>
+  </div>
+);
+
 function UserAccountsView() {
   const { t } = useI18n();
   const {
@@ -97,22 +196,12 @@ function UserAccountsView() {
 
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const parameters = new URLSearchParams();
       const effectiveSearch = nextFilters?.search ?? search;
       const effectiveTournamentId = nextFilters?.tournamentId ?? selectedTournamentId;
-      const trimmedSearch = effectiveSearch.trim();
-      if (trimmedSearch) {
-        parameters.set('q', trimmedSearch);
-      }
-      if (effectiveTournamentId) {
-        parameters.set('tournamentId', effectiveTournamentId);
-      }
-      parameters.set('limit', '200');
+      const queryString = buildUserAccountsQuery(effectiveSearch, effectiveTournamentId);
 
-      const response = await fetch(`/api/auth/users?${parameters.toString()}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      const response = await fetch(`/api/auth/users?${queryString}`, {
+        headers: buildAuthorizationHeaders(token),
       });
 
       if (!response.ok) {
@@ -146,9 +235,7 @@ function UserAccountsView() {
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch('/api/tournaments?limit=100', {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: buildAuthorizationHeaders(token),
       });
 
       if (!response.ok) {
@@ -192,9 +279,7 @@ function UserAccountsView() {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const response = await fetch('/api/auth/users?scope=without-tournament', {
         method: 'DELETE',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: buildAuthorizationHeaders(token),
       });
 
       const payload = await response.json().catch(() => undefined) as { message?: string; deletedCount?: number } | undefined;
@@ -212,6 +297,48 @@ function UserAccountsView() {
     }
   };
 
+  const renderUserCard = (user: UserAccount): JSX.Element => {
+    const isEditingThisUser = editingUserId === user.id && Boolean(editForm);
+
+    return (
+      <div key={user.id} className="flex h-full flex-col rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div />
+          <div className="text-center">
+            <h3 className="font-semibold text-white">{user.firstName} {user.lastName}</h3>
+          </div>
+          {!isEditingThisUser ? (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => startEditing(user)}
+                className="rounded-full border border-cyan-500/60 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+              >
+                {t('edit.edit')}
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
+        </div>
+
+        {isEditingThisUser && editForm && (
+          <UserAccountEditPanel
+            user={user}
+            editForm={editForm}
+            saving={saving}
+            t={t}
+            onFieldChange={updateEditField}
+            onSave={() => {
+              void saveEdit();
+            }}
+            onCancel={cancelEditing}
+          />
+        )}
+      </div>
+    );
+  };
+
   const renderAccountsContent = (): JSX.Element => {
     if (loading) {
       return <p className="text-sm text-slate-300">{t('common.loading')}</p>;
@@ -221,104 +348,7 @@ function UserAccountsView() {
       return <p className="text-sm text-slate-300">{t('userAccounts.empty')}</p>;
     }
 
-    return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {sortedUsers.map((user) => {
-          const isEditingThisUser = editingUserId === user.id && Boolean(editForm);
-          return (
-            <div key={user.id} className="flex h-full flex-col rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4">
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <div />
-                <div className="text-center">
-                  <h3 className="font-semibold text-white">{user.firstName} {user.lastName}</h3>
-                </div>
-                {!isEditingThisUser ? (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => startEditing(user)}
-                      className="rounded-full border border-cyan-500/60 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
-                    >
-                      {t('edit.edit')}
-                    </button>
-                  </div>
-                ) : (
-                  <div />
-                )}
-              </div>
-
-              {isEditingThisUser && editForm && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t('userAccounts.editTitle')}</p>
-                  <p className="text-xs text-slate-400">
-                    {t('userAccounts.currentTournamentCount')}: {user.tournamentCount ?? 0}
-                  </p>
-                  <p className="text-xs text-slate-400">{t('edit.surname')}: {user.surname ?? '-'}</p>
-                  <p className="text-xs text-slate-400">{t('edit.email')}: {user.email ?? '-'}</p>
-                  <p className="text-xs text-slate-400">{t('edit.skillLevel')}: {user.skillLevel ? t(`skill.${user.skillLevel.toLowerCase()}`) : '-'}</p>
-                  <p className="text-xs text-slate-500">{t('account.lastUpdated')}: {new Date(user.updatedAt).toLocaleDateString()}</p>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <input
-                      value={editForm.firstName}
-                      onChange={(event_) => setEditForm((current) => (current ? { ...current, firstName: event_.target.value } : current))}
-                      placeholder={t('edit.firstName')}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                    />
-                    <input
-                      value={editForm.lastName}
-                      onChange={(event_) => setEditForm((current) => (current ? { ...current, lastName: event_.target.value } : current))}
-                      placeholder={t('edit.lastName')}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                    />
-                    <input
-                      value={editForm.surname}
-                      onChange={(event_) => setEditForm((current) => (current ? { ...current, surname: event_.target.value } : current))}
-                      placeholder={t('edit.surname')}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                    />
-                    <input
-                      value={editForm.email}
-                      onChange={(event_) => setEditForm((current) => (current ? { ...current, email: event_.target.value } : current))}
-                      placeholder={t('edit.email')}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                    />
-                    <select
-                      value={editForm.skillLevel}
-                      onChange={(event_) => setEditForm((current) => (current ? { ...current, skillLevel: event_.target.value as SkillLevel | '' } : current))}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 md:col-span-2"
-                    >
-                      <option value="">{t('edit.selectSkillLevelOptional')}</option>
-                      <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
-                      <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
-                      <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
-                    </select>
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void saveEdit();
-                      }}
-                      disabled={saving}
-                      className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-70"
-                    >
-                      {saving ? t('common.loading') : t('common.save')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelEditing}
-                      className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
-                    >
-                      {t('common.cancel')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
+    return <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{sortedUsers.map(renderUserCard)}</div>;
   };
 
   const startEditing = (user: UserAccount) => {
@@ -330,6 +360,18 @@ function UserAccountsView() {
   const cancelEditing = () => {
     setEditingUserId(undefined);
     setEditForm(undefined);
+  };
+
+  const updateEditField = (field: keyof UserEditForm, value: string) => {
+    setEditForm((current) => {
+      if (!current) {
+        return current;
+      }
+      if (field === 'skillLevel') {
+        return { ...current, skillLevel: value as SkillLevel | '' };
+      }
+      return { ...current, [field]: value };
+    });
   };
 
   const saveEdit = async () => {

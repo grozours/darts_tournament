@@ -107,13 +107,13 @@ describe('player-helpers', () => {
     const context = buildContext();
 
     context.tournamentModel.findPersonByEmailAndPhone.mockResolvedValueOnce({ id: 'person-existing' });
-    await expect(resolvePersonId(context as never, 'Alice', 'Doe', ' alice@example.com ')).resolves.toBe('person-existing');
+    await expect(resolvePersonId(context as never, 'Alice', 'Doe', undefined, ' alice@example.com ')).resolves.toBe('person-existing');
 
     expect(context.tournamentModel.findPersonByEmailAndPhone).toHaveBeenCalledWith('alice@example.com', '');
 
     context.tournamentModel.findPersonByEmailAndPhone.mockResolvedValueOnce(undefined);
     context.tournamentModel.createPerson.mockResolvedValueOnce({ id: 'person-created' });
-    await expect(resolvePersonId(context as never, 'Alice', 'Doe', ' alice@example.com ')).resolves.toBe('person-created');
+    await expect(resolvePersonId(context as never, 'Alice', 'Doe', undefined, ' alice@example.com ')).resolves.toBe('person-created');
 
     context.tournamentModel.createPerson.mockResolvedValueOnce({ id: 'person-created-2' });
     await expect(resolvePersonId(context as never, 'Alice', 'Doe')).resolves.toBe('person-created-2');

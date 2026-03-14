@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import {
   DEVELOPMENT_AUTOLOGIN_COOKIE_NAME,
   DEVELOPMENT_AUTOLOGIN_MODES,
@@ -324,6 +324,146 @@ const handleAdminAccountUpdateError = (
   response.status(500).json({ error: 'Internal Server Error' });
 };
 
+type AdminUserRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  surname: string | null;
+  email: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type TournamentLinkRow = {
+  personId: string | null;
+  tournamentId: string | null;
+};
+
+type ActivePlayerLinkRow = {
+  personId: string | null;
+  skillLevel: string | null;
+};
+
+const buildUsersWhereClause = (query?: string, tournamentId?: string): Prisma.PersonWhereInput | undefined => {
+  const where: Prisma.PersonWhereInput = {};
+
+  if (query) {
+    where.OR = [
+      { firstName: { contains: query, mode: 'insensitive' } },
+      { lastName: { contains: query, mode: 'insensitive' } },
+      { surname: { contains: query, mode: 'insensitive' } },
+      { email: { contains: query, mode: 'insensitive' } },
+    ];
+  }
+
+  if (tournamentId) {
+    where.players = {
+      some: {
+        tournamentId,
+        isActive: true,
+      },
+    };
+  }
+
+  return Object.keys(where).length > 0 ? where : undefined;
+};
+
+const fetchAdminUsers = async (
+  query: string | undefined,
+  tournamentId: string | undefined,
+  limit: number
+): Promise<AdminUserRow[]> => {
+  const where = buildUsersWhereClause(query, tournamentId);
+  return prisma.person.findMany({
+    ...(where ? { where } : {}),
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      surname: true,
+      email: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: [
+      { updatedAt: 'desc' },
+      { createdAt: 'desc' },
+    ],
+    take: limit,
+  });
+};
+
+const fetchTournamentLinksForPersons = async (personIds: string[]): Promise<TournamentLinkRow[]> => {
+  if (personIds.length === 0) {
+    return [];
+  }
+
+  return prisma.player.findMany({
+    where: {
+      personId: { in: personIds },
+      isActive: true,
+      // eslint-disable-next-line unicorn/no-null
+      tournamentId: { not: null },
+    },
+    select: {
+      personId: true,
+      tournamentId: true,
+    },
+    distinct: ['personId', 'tournamentId'],
+  });
+};
+
+const fetchActivePlayerLinksForPersons = async (personIds: string[]): Promise<ActivePlayerLinkRow[]> => {
+  if (personIds.length === 0) {
+    return [];
+  }
+
+  return prisma.player.findMany({
+    where: {
+      personId: { in: personIds },
+      isActive: true,
+    },
+    select: {
+      personId: true,
+      skillLevel: true,
+    },
+    orderBy: [
+      { registeredAt: 'desc' },
+    ],
+  });
+};
+
+const buildSkillLevelByPersonId = (activePlayerLinks: ActivePlayerLinkRow[]): Map<string, string> => {
+  const skillLevelByPersonId = new Map<string, string>();
+  for (const link of activePlayerLinks) {
+    if (!link.personId || !link.skillLevel || skillLevelByPersonId.has(link.personId)) {
+      continue;
+    }
+    skillLevelByPersonId.set(link.personId, link.skillLevel);
+  }
+  return skillLevelByPersonId;
+};
+
+const buildTournamentCountByPersonId = (tournamentLinks: TournamentLinkRow[]): Map<string, number> => {
+  const tournamentCountByPersonId = new Map<string, number>();
+  for (const link of tournamentLinks) {
+    if (!link.personId || !link.tournamentId) {
+      continue;
+    }
+    const current = tournamentCountByPersonId.get(link.personId) ?? 0;
+    tournamentCountByPersonId.set(link.personId, current + 1);
+  }
+  return tournamentCountByPersonId;
+};
+
+const buildActivePlayersByPersonId = (activePlayerLinks: ActivePlayerLinkRow[]): Set<string> => (
+  new Set(
+    activePlayerLinks
+      .map((link) => link.personId)
+      .filter((personId): personId is string => typeof personId === 'string' && personId.length > 0)
+  )
+);
+
 const isLocalDevelopmentRequest = (request: Request): boolean => {
   const host = request.hostname?.toLowerCase();
   return config.isDevelopment && (host === 'localhost' || host === '127.0.0.1' || host === '::1');
@@ -521,96 +661,16 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
     : 100;
 
   try {
-    const users = await prisma.person.findMany({
-      ...(query
-        || tournamentId
-        ? {
-          where: {
-            ...(query
-              ? {
-                OR: [
-                  { firstName: { contains: query, mode: 'insensitive' } },
-                  { lastName: { contains: query, mode: 'insensitive' } },
-                  { surname: { contains: query, mode: 'insensitive' } },
-                  { email: { contains: query, mode: 'insensitive' } },
-                ],
-              }
-              : {}),
-            ...(tournamentId
-              ? {
-                players: {
-                  some: {
-                    tournamentId,
-                    isActive: true,
-                  },
-                },
-              }
-              : {}),
-          },
-        }
-        : {}),
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        surname: true,
-        email: true,
-        skillLevel: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: [
-        { updatedAt: 'desc' },
-        { createdAt: 'desc' },
-      ],
-      take: limit,
-    });
-
+    const users = await fetchAdminUsers(query, tournamentId, limit);
     const personIds = users.map((user) => user.id);
-    const tournamentLinks = personIds.length > 0
-      ? await prisma.player.findMany({
-        where: {
-          personId: { in: personIds },
-          isActive: true,
-          // eslint-disable-next-line unicorn/no-null
-          tournamentId: { not: null },
-        },
-        select: {
-          personId: true,
-          tournamentId: true,
-        },
-        distinct: ['personId', 'tournamentId'],
-      })
-      : [];
+    const [tournamentLinks, activePlayerLinks] = await Promise.all([
+      fetchTournamentLinksForPersons(personIds),
+      fetchActivePlayerLinksForPersons(personIds),
+    ]);
 
-    const activePlayerLinks = personIds.length > 0
-      ? await prisma.player.findMany({
-        where: {
-          personId: { in: personIds },
-          isActive: true,
-        },
-        select: {
-          personId: true,
-        },
-        distinct: ['personId'],
-      })
-      : [];
-
-    const activePlayersByPersonId = new Set(
-      activePlayerLinks
-        .map((link) => link.personId)
-        .filter(Boolean) as string[]
-    );
-
-    const tournamentCountByPersonId = new Map<string, number>();
-    for (const link of tournamentLinks) {
-      if (!link.personId || !link.tournamentId) {
-        continue;
-      }
-
-      const current = tournamentCountByPersonId.get(link.personId) ?? 0;
-      tournamentCountByPersonId.set(link.personId, current + 1);
-    }
+    const activePlayersByPersonId = buildActivePlayersByPersonId(activePlayerLinks);
+    const skillLevelByPersonId = buildSkillLevelByPersonId(activePlayerLinks);
+    const tournamentCountByPersonId = buildTournamentCountByPersonId(tournamentLinks);
 
     response.json({
       users: users.map((user) => {
@@ -625,7 +685,9 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
           email: user.email,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          ...(user.skillLevel ? { skillLevel: user.skillLevel } : {}),
+          ...(skillLevelByPersonId.has(user.id)
+            ? { skillLevel: skillLevelByPersonId.get(user.id) }
+            : {}),
           tournamentCount: tournamentCountByPersonId.get(user.id) ?? 0,
           isAdminAccount: adminAccount,
           activePlayerCount: hasActivePlayers ? 1 : 0,
@@ -676,26 +738,21 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
 
   try {
     const { skillLevel, ...personUpdates } = updates;
-    const personUpdateData = {
-      ...personUpdates,
-      ...(skillLevel === undefined ? {} : { skillLevel }),
-    };
     const updated = await prisma.person.update({
       where: { id: userId },
-      data: personUpdateData,
+      data: personUpdates,
       select: {
         id: true,
         firstName: true,
         lastName: true,
         surname: true,
         email: true,
-        skillLevel: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
-    let resolvedSkillLevel: string | undefined = updated.skillLevel ?? undefined;
+    let resolvedSkillLevel: string | undefined;
     if (skillLevel !== undefined) {
       await prisma.player.updateMany({
         where: {
@@ -707,6 +764,20 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
         },
       });
       resolvedSkillLevel = skillLevel ?? undefined;
+    } else {
+      const latestActivePlayer = await prisma.player.findFirst({
+        where: {
+          personId: userId,
+          isActive: true,
+        },
+        orderBy: [
+          { registeredAt: 'desc' },
+        ],
+        select: {
+          skillLevel: true,
+        },
+      });
+      resolvedSkillLevel = latestActivePlayer?.skillLevel ?? undefined;
     }
 
     response.json({ user: { ...updated, ...(resolvedSkillLevel ? { skillLevel: resolvedSkillLevel } : {}) } });

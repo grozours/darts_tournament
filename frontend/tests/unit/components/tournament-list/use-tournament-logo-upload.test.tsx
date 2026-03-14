@@ -84,6 +84,7 @@ describe('useTournamentLogoUpload uploadLogo', () => {
       logoUrl: '/uploads/logo.png',
       logoUrls: ['/uploads/logo.png'],
     });
+    expect(updater(undefined as never)).toBeUndefined();
     expect(setLogoFiles).toHaveBeenCalledWith([]);
     expect(fetchTournaments).toHaveBeenCalledTimes(1);
   });
@@ -140,7 +141,7 @@ describe('useTournamentLogoUpload deleteLogo', () => {
     });
 
     expect(deleteTournamentLogo).toHaveBeenCalledWith('t1', '/uploads/logo.png', 'token');
-    const updater = setEditingTournament.mock.calls[0][0] as (current: { id: string }) => {
+    const updater = setEditingTournament.mock.calls[0][0] as (current: { id: string; logoUrl?: string }) => {
       id: string;
       logoUrl?: string;
       logoUrls?: string[];
@@ -151,6 +152,21 @@ describe('useTournamentLogoUpload deleteLogo', () => {
       logoUrls: ['/uploads/next.png', '/uploads/other.png'],
     });
     expect(fetchTournaments).toHaveBeenCalledTimes(1);
+
+    deleteTournamentLogo.mockResolvedValueOnce({ logoUrls: [] });
+    await act(async () => {
+      await result.current.deleteLogo('/uploads/next.png');
+    });
+    const updaterWithoutPrimary = setEditingTournament.mock.calls[1][0] as (current: { id: string; logoUrl?: string }) => {
+      id: string;
+      logoUrl?: string;
+      logoUrls?: string[];
+    };
+    expect(updaterWithoutPrimary({ id: 't1', logoUrl: '/uploads/next.png' })).toEqual({
+      id: 't1',
+      logoUrls: [],
+    });
+    expect(updaterWithoutPrimary(undefined as never)).toBeUndefined();
   });
 
   it('sets translated error when delete throws non-error', async () => {
@@ -174,5 +190,25 @@ describe('useTournamentLogoUpload deleteLogo', () => {
     });
 
     expect(setEditError).toHaveBeenCalledWith('edit.error.failedUploadLogo');
+  });
+
+  it('returns early when logo url is empty', async () => {
+    const { result } = renderHook(() => useTournamentLogoUpload({
+      t: (key: string) => key,
+      editingTournament: { id: 't1', name: 'Cup' } as never,
+      logoFiles: [],
+      getSafeAccessToken: vi.fn(async () => 'token'),
+      setEditError: vi.fn(),
+      setIsUploadingLogo: vi.fn(),
+      setEditingTournament: vi.fn(),
+      setLogoFiles: vi.fn(),
+      fetchTournaments: vi.fn(),
+    }));
+
+    await act(async () => {
+      await result.current.deleteLogo('');
+    });
+
+    expect(deleteTournamentLogo).not.toHaveBeenCalled();
   });
 });

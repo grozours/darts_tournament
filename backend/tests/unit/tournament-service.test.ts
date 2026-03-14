@@ -1055,7 +1055,6 @@ describe('TournamentService core logic', () => {
       firstName: 'Ada',
       lastName: 'Lovelace',
       email: 'ada@example.com',
-      phone: '+1234567',
     });
 
     expect(mockModel.findPersonByEmailAndPhone).toHaveBeenCalled();
@@ -1083,7 +1082,6 @@ describe('TournamentService core logic', () => {
       firstName: 'Grace',
       lastName: 'Hopper',
       email: 'grace@example.com',
-      phone: '+33777777',
     });
 
     expect(mockModel.updatePerson).toHaveBeenCalledWith('person-2', expect.any(Object));

@@ -15,6 +15,36 @@ type TournamentListDataResult = {
   deleteTournament: (tournamentId: string) => Promise<void>;
 };
 
+const buildFetchOptions = (token: string | undefined): RequestInit => (
+  token
+    ? { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+    : { cache: 'no-store' }
+);
+
+const normalizeTournament = (item: Tournament): Tournament => {
+  const fallbackLogoUrl = (item as Tournament & { logo_url?: string }).logo_url;
+  const fallbackLogoUrls = (item as Tournament & { logo_urls?: string[] }).logo_urls;
+  const rawLogoUrls = [
+    ...(item.logoUrls ?? fallbackLogoUrls ?? []),
+    ...(item.logoUrl ? [item.logoUrl] : []),
+    ...(fallbackLogoUrl ? [fallbackLogoUrl] : []),
+  ];
+  const normalizedLogoUrls = Array.from(new Set(rawLogoUrls.filter((value): value is string => (
+    typeof value === 'string' && value.trim().length > 0
+  ))));
+
+  return {
+    ...item,
+    logoUrl: item.logoUrl ?? fallbackLogoUrl,
+    ...(normalizedLogoUrls.length > 0 ? { logoUrls: normalizedLogoUrls } : {}),
+  };
+};
+
+const extractTournamentsFromPayload = (payload: unknown): Tournament[] => {
+  const tournaments = (payload as { tournaments?: Tournament[] })?.tournaments;
+  return Array.isArray(tournaments) ? tournaments.map(normalizeTournament) : [];
+};
+
 const useTournamentListData = (
   { getSafeAccessToken }: UseTournamentListDataProperties
 ): TournamentListDataResult => {
@@ -31,31 +61,12 @@ const useTournamentListData = (
 
     try {
       const token = await getSafeAccessToken();
-      const response = await fetch('/api/tournaments', token
-        ? { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
-        : { cache: 'no-store' });
+      const response = await fetch('/api/tournaments', buildFetchOptions(token));
       if (!response.ok) {
         throw new Error(`Failed to fetch tournaments: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
-      const normalizedTournaments = (data.tournaments || []).map((item: Tournament) => {
-        const fallbackLogoUrl = (item as Tournament & { logo_url?: string }).logo_url;
-        const fallbackLogoUrls = (item as Tournament & { logo_urls?: string[] }).logo_urls;
-        const rawLogoUrls = [
-          ...(item.logoUrls ?? fallbackLogoUrls ?? []),
-          ...(item.logoUrl ? [item.logoUrl] : []),
-          ...(fallbackLogoUrl ? [fallbackLogoUrl] : []),
-        ];
-        const normalizedLogoUrls = Array.from(new Set(rawLogoUrls.filter((value): value is string => (
-          typeof value === 'string' && value.trim().length > 0
-        ))));
-
-        return {
-          ...item,
-          logoUrl: item.logoUrl ?? fallbackLogoUrl,
-          ...(normalizedLogoUrls.length > 0 ? { logoUrls: normalizedLogoUrls } : {}),
-        };
-      });
+      const normalizedTournaments = extractTournamentsFromPayload(data);
       if (requestId === latestFetchRequestId.current) {
         setTournaments(normalizedTournaments);
       }

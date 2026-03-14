@@ -821,6 +821,86 @@ const pickPoolForStageOnePlayer = <TPoolState extends { players: string[] }>(
   return undefined;
 };
 
+const POOL_ASSIGNMENT_SKILL_SCORE: Record<string, number> = {
+  EXPERT: 4,
+  ADVANCED: 3,
+  INTERMEDIATE: 2,
+  BEGINNER: 1,
+};
+
+const buildPoolAssignmentSkillDistribution = <TPlayer extends { skillLevel?: string | null }>(players: TPlayer[]) => (
+  players.reduce((accumulator: Record<string, number>, player) => {
+    const normalizedSkill = normalizeSkillLevel(player.skillLevel);
+    const bucket = normalizedSkill || 'UNSET';
+    accumulator[bucket] = (accumulator[bucket] ?? 0) + 1;
+    return accumulator;
+  }, {})
+);
+
+const rankPlayersForPoolAssignment = <TPlayer extends { skillLevel?: string | null }>(players: TPlayer[]) => (
+  players
+    .map((player) => ({
+      player,
+      score: POOL_ASSIGNMENT_SKILL_SCORE[normalizeSkillLevel(player.skillLevel)] || 0,
+      tiebreaker: randomInt(0, 1_000_000),
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.tiebreaker - b.tiebreaker;
+    })
+    .map((item) => item.player)
+);
+
+const buildPoolAssignments = <TPlayer extends { id: string; skillLevel?: string | null }, TPool extends { id: string }>(
+  selectedPlayers: TPlayer[],
+  poolState: Array<{ pool: TPool; players: string[] }>,
+  playersPerPool: number,
+  isFirstPoolStage: boolean,
+  opponentMap: Map<string, Set<string>>
+) => {
+  const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber: number }> = [];
+  const debugDecisions: Array<Record<string, unknown>> = [];
+
+  for (const [index, player] of selectedPlayers.entries()) {
+    const preferredPoolIndex = poolState.length > 0 ? index % poolState.length : 0;
+    const preferredPoolId = poolState[preferredPoolIndex]?.pool.id;
+    const chosenPoolState = isFirstPoolStage
+      ? pickPoolForStageOnePlayer(poolState, playersPerPool, index)
+      : pickPoolForPlayer(player.id, poolState, playersPerPool, opponentMap);
+
+    if (!chosenPoolState) {
+      continue;
+    }
+
+    const normalizedSkill = normalizeSkillLevel(player.skillLevel);
+    const playerSkillScore = POOL_ASSIGNMENT_SKILL_SCORE[normalizedSkill] || 0;
+    debugDecisions.push({
+      seedNumber: index + 1,
+      sortedListPosition: index + 1,
+      playerId: player.id,
+      rawSkillLevel: player.skillLevel ?? null,
+      normalizedSkillLevel: normalizedSkill || 'UNSET',
+      score: playerSkillScore,
+      preferredPoolIndex,
+      preferredPoolId: preferredPoolId ?? null,
+      chosenPoolId: chosenPoolState.pool.id,
+      chosenPoolSizeBefore: chosenPoolState.players.length,
+    });
+
+    chosenPoolState.players.push(player.id);
+    assignments.push({
+      poolId: chosenPoolState.pool.id,
+      playerId: player.id,
+      assignmentType: AssignmentType.SEEDED,
+      seedNumber: index + 1,
+    });
+  }
+
+  return { assignments, debugDecisions };
+};
+
 const collectRankingDestinationInfo = (
   destinations: PoolStageRankingDestinationInput[],
   playersPerPool: number
@@ -1795,20 +1875,7 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
     if (players.length === 0) return;
 
     const opponentMap = await buildOpponentMap(tournamentId, stage.stageNumber, isFirstPoolStage);
-
-    const skillScore: Record<string, number> = {
-      EXPERT: 4,
-      ADVANCED: 3,
-      INTERMEDIATE: 2,
-      BEGINNER: 1,
-    };
-
-    const skillDistribution = players.reduce((accumulator: Record<string, number>, player: (typeof players)[number]) => {
-      const normalizedSkill = normalizeSkillLevel(player.skillLevel);
-      const bucket = normalizedSkill || 'UNSET';
-      accumulator[bucket] = (accumulator[bucket] ?? 0) + 1;
-      return accumulator;
-    }, {});
+    const skillDistribution = buildPoolAssignmentSkillDistribution(players);
 
     logPoolAssignmentDebug('Assignment run started', {
       tournamentId,
@@ -1823,66 +1890,19 @@ export const createPoolStageHandlers = (context: PoolStageHandlerContext) => {
       previousStageNumbers: previousStages.map((item: (typeof previousStages)[number]) => item.stageNumber),
     });
 
-    const shuffled = players
-      .map((player: (typeof players)[number]) => ({
-        player,
-        normalizedSkill: normalizeSkillLevel(player.skillLevel),
-        score: skillScore[normalizeSkillLevel(player.skillLevel)] || 0,
-        tiebreaker: randomInt(0, 1_000_000),
-      }))
-      .sort((a: { score: number; tiebreaker: number }, b: { score: number; tiebreaker: number }) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return a.tiebreaker - b.tiebreaker;
-      })
-      .map((item: { player: (typeof players)[number] }) => item.player);
+    const rankedPlayers = rankPlayersForPoolAssignment(players);
 
     const capacity = poolCount * playersPerPool;
-    const selected = shuffled.slice(0, capacity);
-    const assignments: Array<{ poolId: string; playerId: string; assignmentType: AssignmentType; seedNumber?: number }> = [];
-    const debugDecisions: Array<Record<string, unknown>> = [];
+    const selected = rankedPlayers.slice(0, capacity);
     const poolState = pools.map((pool: (typeof pools)[number]) => ({ pool, players: [] as string[] }));
 
-    for (const [index, player] of selected.entries()) {
-      if (!player) continue;
-      const normalizedSkill = normalizeSkillLevel(player.skillLevel);
-      const playerSkillScore = skillScore[normalizedSkill] || 0;
-      const preferredPoolIndex = poolState.length > 0 ? index % poolState.length : 0;
-      const preferredPoolId = poolState[preferredPoolIndex]?.pool.id;
-      const chosenPoolState = isFirstPoolStage
-        ? pickPoolForStageOnePlayer(
-          poolState,
-          playersPerPool,
-          index
-        )
-        : pickPoolForPlayer(
-          player.id,
-          poolState,
-          playersPerPool,
-          opponentMap
-        );
-      if (!chosenPoolState) continue;
-
-      debugDecisions.push({
-        seedNumber: index + 1,
-        sortedListPosition: index + 1,
-        playerId: player.id,
-        rawSkillLevel: player.skillLevel ?? null,
-        normalizedSkillLevel: normalizedSkill || 'UNSET',
-        score: playerSkillScore,
-        preferredPoolIndex,
-        preferredPoolId: preferredPoolId ?? null,
-        chosenPoolId: chosenPoolState.pool.id,
-        chosenPoolSizeBefore: chosenPoolState.players.length,
-      });
-
-      chosenPoolState.players.push(player.id);
-      assignments.push({
-        poolId: chosenPoolState.pool.id,
-        playerId: player.id,
-        assignmentType: AssignmentType.SEEDED,
-        seedNumber: index + 1,
-      });
-    }
+    const { assignments, debugDecisions } = buildPoolAssignments(
+      selected,
+      poolState,
+      playersPerPool,
+      isFirstPoolStage,
+      opponentMap
+    );
 
     const byPool = poolState.map((state) => ({
       poolId: state.pool.id,

@@ -65,6 +65,42 @@ describe('buildAutoFillRegistrations', () => {
     expect(result.error).toBeUndefined();
     expect(result.registrations).toHaveLength(2);
     expect(result.registrations[0]?.email).toContain('@example.com');
-    expect(result.registrations[0]?.phone).toMatch(/^0\d{9}$/);
+    expect(result.registrations[0]?.firstName).toBeTruthy();
+    expect(result.registrations[0]?.lastName).toBeTruthy();
+  });
+
+  it('builds team registrations with unique team names', () => {
+    const result = buildAutoFillRegistrations({
+      remainingSlots: 1,
+      players: [],
+      isTeamFormat: true,
+      sampleFirstNames: ['Alice'],
+      sampleLastNames: ['Smith'],
+      lastNameModifiers: [],
+      sampleSurnames: ['Eagle'],
+      sampleTeams: ['Team A'],
+      teamModifiers: [],
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.registrations).toHaveLength(1);
+    expect(result.registrations[0]?.teamName).toBe('Team A');
+  });
+
+  it('returns an error when unique names are exhausted by existing players', () => {
+    const result = buildAutoFillRegistrations({
+      remainingSlots: 2,
+      players: [{ name: 'Alice Smith' } as never],
+      isTeamFormat: false,
+      sampleFirstNames: ['Alice'],
+      sampleLastNames: ['Smith'],
+      lastNameModifiers: [],
+      sampleSurnames: ['Eagle', 'Falcon'],
+      sampleTeams: ['Team A', 'Team B'],
+      teamModifiers: [],
+    });
+
+    expect(result.registrations).toHaveLength(0);
+    expect(result.error).toBe('Not enough unique names to fill remaining slots.');
   });
 });

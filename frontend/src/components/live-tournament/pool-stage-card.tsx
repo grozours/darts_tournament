@@ -366,6 +366,55 @@ export const findBestOptimisticCandidate = (
   return findBestFromQueues(queuesWithMatches) ?? bestFromFairnessQueues;
 };
 
+const reserveInProgressMatches = ({
+  inProgressMatches,
+  inProgressToReserve,
+  nowTimestamp,
+  resolveDurationMinutes,
+  targetAvailability,
+  playerAvailabilityById,
+  poolAvailabilityByPoolId,
+  poolIdByMatchId,
+}: {
+  inProgressMatches: LiveViewMatch[];
+  inProgressToReserve: number;
+  nowTimestamp: number;
+  resolveDurationMinutes: (match: LiveViewMatch) => number;
+  targetAvailability: number[];
+  playerAvailabilityById: Map<string, number>;
+  poolAvailabilityByPoolId: Map<string, number[]>;
+  poolIdByMatchId: Map<string, string>;
+}) => {
+  for (const inProgressMatch of inProgressMatches.slice(0, inProgressToReserve)) {
+    const finishTimestamp = nowTimestamp + resolveDurationMinutes(inProgressMatch) * 60_000;
+    targetAvailability.push(finishTimestamp);
+    setPlayersAvailabilityForMatch(inProgressMatch, playerAvailabilityById, finishTimestamp);
+
+    const poolId = poolIdByMatchId.get(inProgressMatch.id);
+    if (!poolId) {
+      continue;
+    }
+
+    const poolAvailability = poolAvailabilityByPoolId.get(poolId) ?? [nowTimestamp];
+    const earliestPoolSlotIndex = findEarliestAvailabilityIndex(poolAvailability);
+    poolAvailability[earliestPoolSlotIndex] = finishTimestamp;
+    poolAvailabilityByPoolId.set(poolId, poolAvailability);
+  }
+};
+
+const seedInProgressFinishTimes = (
+  finishTimestampByMatchId: Map<string, number>,
+  inProgressMatches: LiveViewMatch[],
+  inProgressToReserve: number,
+  nowTimestamp: number,
+  resolveDurationMinutes: (match: LiveViewMatch) => number
+) => {
+  for (const inProgressMatch of inProgressMatches.slice(0, inProgressToReserve)) {
+    const finishTimestamp = nowTimestamp + resolveDurationMinutes(inProgressMatch) * 60_000;
+    finishTimestampByMatchId.set(inProgressMatch.id, finishTimestamp);
+  }
+};
+
 export const computeOptimisticStartTimes = ({
   pools,
   stagePlayersPerPool,
@@ -398,19 +447,16 @@ export const computeOptimisticStartTimes = ({
   const poolAvailabilityByPoolId = buildPoolAvailabilityByPoolId(poolQueues, nowTimestamp);
 
   const inProgressToReserve = Math.min(totalTargetCount, inProgressMatches.length);
-  for (const inProgressMatch of inProgressMatches.slice(0, inProgressToReserve)) {
-    const finishTimestamp = nowTimestamp + resolveDurationMinutes(inProgressMatch) * 60_000;
-    targetAvailability.push(finishTimestamp);
-    setPlayersAvailabilityForMatch(inProgressMatch, playerAvailabilityById, finishTimestamp);
-
-    const poolId = poolIdByMatchId.get(inProgressMatch.id);
-    if (poolId) {
-      const poolAvailability = poolAvailabilityByPoolId.get(poolId) ?? [nowTimestamp];
-      const earliestPoolSlotIndex = findEarliestAvailabilityIndex(poolAvailability);
-      poolAvailability[earliestPoolSlotIndex] = finishTimestamp;
-      poolAvailabilityByPoolId.set(poolId, poolAvailability);
-    }
-  }
+  reserveInProgressMatches({
+    inProgressMatches,
+    inProgressToReserve,
+    nowTimestamp,
+    resolveDurationMinutes,
+    targetAvailability,
+    playerAvailabilityById,
+    poolAvailabilityByPoolId,
+    poolIdByMatchId,
+  });
 
   const freeTargetCount = Math.max(0, totalTargetCount - inProgressToReserve);
   for (let index = 0; index < freeTargetCount; index += 1) {
@@ -419,11 +465,13 @@ export const computeOptimisticStartTimes = ({
 
   const optimisticById = new Map<string, string>();
   const finishTimestampByMatchId = new Map<string, number>();
-
-  for (const inProgressMatch of inProgressMatches.slice(0, inProgressToReserve)) {
-    const finishTimestamp = nowTimestamp + resolveDurationMinutes(inProgressMatch) * 60_000;
-    finishTimestampByMatchId.set(inProgressMatch.id, finishTimestamp);
-  }
+  seedInProgressFinishTimes(
+    finishTimestampByMatchId,
+    inProgressMatches,
+    inProgressToReserve,
+    nowTimestamp,
+    resolveDurationMinutes
+  );
 
   while (poolQueues.some((queue) => queue.queuedMatches.length > 0)) {
     const bestCandidate = findBestOptimisticCandidate(
