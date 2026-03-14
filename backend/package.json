@@ -19,6 +19,7 @@
     "db:push": "node ./node_modules/prisma/build/index.js db push",
     "db:export-seed": "node scripts/export-seed-from-db.mjs",
     "db:sync-presets-seed": "node scripts/sync-presets-seed.mjs",
+    "db:backfill-user-skills": "node scripts/backfill-user-account-skill-levels.mjs",
     "db:import-presets": "sh -lc 'if [ -f dist/scripts/import-presets.js ]; then node dist/scripts/import-presets.js; elif [ -f dist/backend/src/scripts/import-presets.js ]; then node dist/backend/src/scripts/import-presets.js; else node scripts/import-presets.mjs; fi'",
     "db:seed": "node scripts/run-seed.cjs",
     "db:reset": "node ./node_modules/prisma/build/index.js migrate reset --force",

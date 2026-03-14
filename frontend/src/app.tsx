@@ -54,7 +54,7 @@ const resolveMainContent = (
   }
 
   switch (view) {
-    case 'players': {
+    case 'single': {
       return renderAdminOnly(isAdmin, t, <PlayersView />);
     }
     case 'registration-players': {

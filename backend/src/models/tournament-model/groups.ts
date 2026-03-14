@@ -61,6 +61,7 @@ type EquipeMembership = {
 
 type GroupSearchPlayer = {
   id: string;
+  personId?: string | null;
   firstName: string;
   lastName: string;
   email: string | null;
@@ -655,26 +656,65 @@ export const createTournamentModelGroups = (prisma: PrismaClient) => {
       return await groupPrisma.player.findMany({
         where: {
           isActive: true,
-          OR: [
-            { firstName: { contains: query, mode: 'insensitive' } },
-            { lastName: { contains: query, mode: 'insensitive' } },
-            { surname: { contains: query, mode: 'insensitive' } },
-            { teamName: { contains: query, mode: 'insensitive' } },
-            { email: { contains: query, mode: 'insensitive' } },
+          AND: [
+            {
+              OR: [
+                { firstName: { contains: query, mode: 'insensitive' } },
+                { lastName: { contains: query, mode: 'insensitive' } },
+                { surname: { contains: query, mode: 'insensitive' } },
+                { teamName: { contains: query, mode: 'insensitive' } },
+                { email: { contains: query, mode: 'insensitive' } },
+                {
+                  doubletteMemberships: {
+                    some: {
+                      doublette: {
+                        name: { contains: query, mode: 'insensitive' },
+                      },
+                    },
+                  },
+                },
+                {
+                  equipeMemberships: {
+                    some: {
+                      equipe: {
+                        name: { contains: query, mode: 'insensitive' },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              OR: [
+                { tournamentId: null },
+                { tournamentId: { not: tournamentId } },
+              ],
+            },
+            {
+              NOT: {
+                person: {
+                  players: {
+                    some: {
+                      tournamentId,
+                    },
+                  },
+                },
+              },
+            },
             {
               doubletteMemberships: {
-                some: {
+                none: {
                   doublette: {
-                    name: { contains: query, mode: 'insensitive' },
+                    tournamentId,
                   },
                 },
               },
             },
             {
               equipeMemberships: {
-                some: {
+                none: {
                   equipe: {
-                    name: { contains: query, mode: 'insensitive' },
+                    tournamentId,
                   },
                 },
               },

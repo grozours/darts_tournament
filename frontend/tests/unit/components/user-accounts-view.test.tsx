@@ -29,7 +29,7 @@ vi.mock('../../../src/i18n', () => ({
 
 const createDefaultFetchMock = () => vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input.toString();
-  if (url.startsWith('/api/tournaments?limit=200')) {
+  if (url.startsWith('/api/tournaments?limit=100')) {
     return {
       ok: true,
       json: async () => ({
@@ -125,9 +125,9 @@ describe('UserAccountsView', () => {
     render(<UserAccountsView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
     });
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.queryByText(/userAccounts\.tournamentCount\s*:\s*2/i)).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('userAccounts.searchPlaceholder'), {
       target: { value: 'alice' },
@@ -145,11 +145,30 @@ describe('UserAccountsView', () => {
     });
   });
 
+  it('applies tournament filter on select change', async () => {
+    render(<UserAccountsView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('userAccounts.tournamentFilter'), {
+      target: { value: 't1' },
+    });
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/users?tournamentId=t1&limit=200'),
+        expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer token-1' }) })
+      );
+    });
+  });
+
   it('edits and saves an account', async () => {
     render(<UserAccountsView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'edit.edit' }));
@@ -176,9 +195,9 @@ describe('UserAccountsView', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Alicia')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Alicia Martin/i })).toBeInTheDocument();
     });
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.queryByText(/userAccounts\.tournamentCount\s*:\s*3/i)).not.toBeInTheDocument();
 
     const firstEditButton = screen.getAllByRole('button', { name: 'edit.edit' })[0];
     if (!firstEditButton) {
@@ -206,7 +225,7 @@ describe('UserAccountsView', () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
 
-      if (url.startsWith('/api/tournaments?limit=200')) {
+      if (url.startsWith('/api/tournaments?limit=100')) {
         return {
           ok: true,
           json: async () => ({ tournaments: [{ id: 't1', name: 'Open Spring Cup' }] }),
@@ -246,7 +265,7 @@ describe('UserAccountsView', () => {
     render(<UserAccountsView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'userAccounts.deleteOrphansButton' }));
@@ -260,4 +279,5 @@ describe('UserAccountsView', () => {
 
     expect(screen.getByText('userAccounts.deleteOrphansSuccess 2')).toBeInTheDocument();
   });
+
 });

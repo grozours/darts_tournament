@@ -1256,42 +1256,57 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          <p className="text-xs text-slate-400">{t('groups.requiredMembers').replace('{count}', String(requiredMembers))}</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{title}</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">
+            {t('groups.requiredMembers').replace('{count}', String(requiredMembers))}
+          </h2>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {!selectedTournamentId && (
-            <select
-              value={selectedTournamentFilterId}
-              onChange={(event) => setSelectedTournamentFilterId(event.target.value)}
-              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-            >
-              <option value="">{t('live.allTournaments')}</option>
-              {availableTournaments.map((tournament) => (
-                <option key={tournament.id} value={tournament.id}>
-                  {tournament.name ?? tournament.id}
-                </option>
-              ))}
-            </select>
-          )}
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('groups.searchPlaceholder')}
-            className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-          />
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => {
               void loadGroups();
             }}
-            className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-100 hover:border-slate-500"
+            className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
           >
-            {t('groups.search')}
+            {t('common.refresh')}
           </button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t('groups.searchPlaceholder')}
+          className="w-full max-w-md rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-white"
+        />
+        {!selectedTournamentId && (
+          <select
+            value={selectedTournamentFilterId}
+            onChange={(event) => setSelectedTournamentFilterId(event.target.value)}
+            className="w-full max-w-xs rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-white"
+          >
+            <option value="">{t('live.allTournaments')}</option>
+            {availableTournaments.map((tournament) => (
+              <option key={tournament.id} value={tournament.id}>
+                {tournament.name ?? tournament.id}
+              </option>
+            ))}
+          </select>
+        )}
+        <span className="text-xs text-slate-400">{visibleGroups.length} {title.toLowerCase()}</span>
+        <button
+          type="button"
+          onClick={() => {
+            void loadGroups();
+          }}
+          className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+        >
+          {t('groups.search')}
+        </button>
       </div>
 
       {(mode === 'doublettes' || mode === 'equipes') && effectiveIsAuthenticated && selectedTournamentId && (

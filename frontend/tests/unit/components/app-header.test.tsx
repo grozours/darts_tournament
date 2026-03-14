@@ -75,7 +75,7 @@ describe('AppHeader', () => {
     expect(userAccountsLink).toBeInTheDocument();
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     const signUpLink = screen.getByRole('link', { name: 'nav.signUp' });
-    expect(userAccountsLink.compareDocumentPosition(signUpLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(signUpLink.compareDocumentPosition(userAccountsLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('link', { name: 'nav.players' })).toBeInTheDocument();
     const playersLink = screen.getByRole('link', { name: 'nav.players' });
     expect(signUpLink.compareDocumentPosition(playersLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

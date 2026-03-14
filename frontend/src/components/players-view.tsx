@@ -84,8 +84,11 @@ function PlayersView() {
     try {
       const token = await getSafeAccessToken();
       const tournaments = await fetchTournaments(token);
+      const singleTournaments = tournaments.filter(
+        (tournament) => tournament.format === TournamentFormat.SINGLE
+      );
       const playerLists = await Promise.all(
-        tournaments.map(async (tournament) => {
+        singleTournaments.map(async (tournament) => {
           const list = await fetchTournamentPlayers(tournament.id, token);
           return list.map((player) => ({
             ...player,
@@ -345,7 +348,7 @@ function PlayersView() {
           {t('players.none')}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredPlayers.map((player) => {
             const isEditing = editingPlayerId === player.playerId;
             const showTeamName =
@@ -353,40 +356,54 @@ function PlayersView() {
               || player.tournamentFormat === TournamentFormat.TEAM_4_PLAYER;
             const canEdit = Boolean(player.tournamentId);
             return (
-              <div key={player.playerId} className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{buildPlayerLabel(player)}</h3>
-                    <p className="text-xs text-slate-400">
-                      {t('players.tournament')}: {player.tournamentName} · {t('players.format')}: {player.tournamentFormat}
-                    </p>
-                    {player.surname && (
-                      <p className="text-xs text-slate-400">{t('players.surname')}: {player.surname}</p>
-                    )}
-                    {player.teamName && (
-                      <p className="text-xs text-emerald-200">{t('players.teamName')}: {player.teamName}</p>
-                    )}
+              <div key={player.playerId} className="flex h-full flex-col rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                  <div />
+                  <div className="text-center">
+                    <h3 className="font-semibold text-white">{buildPlayerLabel(player)}</h3>
                   </div>
-                  {!isEditing && (
-                    <button
-                      onClick={() => startEdit(player)}
-                      disabled={!canEdit}
-                      className="rounded-full border border-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:border-slate-500 disabled:opacity-60"
-                    >
-                      {t('edit.edit')}
-                    </button>
+                  {!isEditing ? (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => startEdit(player)}
+                        disabled={!canEdit}
+                        className="rounded-full border border-cyan-500/60 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-60"
+                      >
+                        {t('edit.edit')}
+                      </button>
+                    </div>
+                  ) : (
+                    <div />
                   )}
                 </div>
 
+                {!isEditing && (
+                  <div className="mt-3 space-y-1 text-center text-xs text-slate-400">
+                    <p>
+                      {player.tournamentName} · {t('players.format')}: {
+                        player.tournamentFormat === TournamentFormat.SINGLE
+                          ? 'Simple'
+                          : player.tournamentFormat
+                      }
+                    </p>
+                    {player.surname && (
+                      <p>{t('players.surname')}: {player.surname}</p>
+                    )}
+                    {player.teamName && (
+                      <p>{t('players.teamName')}: {player.teamName}</p>
+                    )}
+                  </div>
+                )}
+
                 {isEditing && (
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="mt-4 grid gap-2 md:grid-cols-2">
                     <label className="text-xs text-slate-400">
                       {t('edit.firstName')}
                       <input
                         type="text"
                         value={form.firstName}
                         onChange={(event_) => setForm({ ...form, firstName: event_.target.value })}
-                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                       />
                     </label>
                     <label className="text-xs text-slate-400">
@@ -395,7 +412,7 @@ function PlayersView() {
                         type="text"
                         value={form.lastName}
                         onChange={(event_) => setForm({ ...form, lastName: event_.target.value })}
-                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                       />
                     </label>
                     <label className="text-xs text-slate-400">
@@ -404,7 +421,7 @@ function PlayersView() {
                         type="text"
                         value={form.surname}
                         onChange={(event_) => setForm({ ...form, surname: event_.target.value })}
-                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                       />
                     </label>
                     {showTeamName && (
@@ -414,7 +431,7 @@ function PlayersView() {
                           type="text"
                           value={form.teamName}
                           onChange={(event_) => setForm({ ...form, teamName: event_.target.value })}
-                          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                          className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                         />
                       </label>
                     )}
@@ -424,7 +441,7 @@ function PlayersView() {
                         type="email"
                         value={form.email}
                         onChange={(event_) => setForm({ ...form, email: event_.target.value })}
-                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                       />
                     </label>
                     <label className="text-xs text-slate-400 md:col-span-2">
@@ -432,7 +449,7 @@ function PlayersView() {
                       <select
                         value={form.skillLevel}
                         onChange={(event_) => setForm({ ...form, skillLevel: event_.target.value as SkillLevel })}
-                        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                        className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                       >
                         <option value="">{t('edit.selectSkillLevelOptional')}</option>
                         <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
@@ -440,17 +457,17 @@ function PlayersView() {
                         <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
                       </select>
                     </label>
-                    <div className="md:col-span-2 flex flex-wrap justify-end gap-3">
+                    <div className="md:col-span-2 mt-2 space-y-2">
                       <button
                         onClick={cancelEdit}
-                        className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                        className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
                       >
                         {t('edit.cancelEdit')}
                       </button>
                       <button
                         onClick={() => saveEdit(player)}
                         disabled={saving}
-                        className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-60"
+                        className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"
                       >
                         {saving ? t('edit.saving') : t('edit.saveChanges')}
                       </button>

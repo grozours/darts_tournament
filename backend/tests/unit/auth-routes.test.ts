@@ -8,6 +8,8 @@ const parseDevelopmentAutologinModeMock = jest.fn();
 const findFirstPersonMock = jest.fn();
 const findManyPersonMock = jest.fn();
 const findManyPlayerMock = jest.fn();
+const findFirstPlayerMock = jest.fn();
+const updateManyPlayerMock = jest.fn();
 const createPersonMock = jest.fn();
 const updatePersonMock = jest.fn();
 const deleteManyPersonMock = jest.fn();
@@ -23,6 +25,8 @@ jest.mock('@prisma/client', () => ({
     },
     player: {
       findMany: (...args: unknown[]) => findManyPlayerMock(...args),
+      findFirst: (...args: unknown[]) => findFirstPlayerMock(...args),
+      updateMany: (...args: unknown[]) => updateManyPlayerMock(...args),
     },
   })),
 }));
@@ -67,12 +71,16 @@ describe('auth routes', () => {
     findFirstPersonMock.mockReset();
     findManyPersonMock.mockReset();
     findManyPlayerMock.mockReset();
+    findFirstPlayerMock.mockReset();
+    updateManyPlayerMock.mockReset();
     createPersonMock.mockReset();
     updatePersonMock.mockReset();
     deleteManyPersonMock.mockReset();
     findFirstPersonMock.mockResolvedValue(null);
     findManyPersonMock.mockResolvedValue([]);
     findManyPlayerMock.mockResolvedValue([]);
+    findFirstPlayerMock.mockResolvedValue(null);
+    updateManyPlayerMock.mockResolvedValue({ count: 0 });
     createPersonMock.mockResolvedValue({
       id: 'person-1',
       firstName: 'Admin',

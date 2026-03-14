@@ -168,6 +168,103 @@ type AdminAccountUpdatePayload = {
   lastName?: string;
   surname?: string;
   email?: string | null;
+  skillLevel?: 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT' | null;
+};
+
+const applyNormalizedNameField = (
+  updates: AdminAccountUpdatePayload,
+  body: Record<string, unknown>,
+  field: 'firstName' | 'lastName'
+): string | undefined => {
+  if (body[field] === undefined) {
+    return undefined;
+  }
+
+  const normalized = normalizeNamePart(body[field]);
+  if (!normalized) {
+    return `Invalid ${field}`;
+  }
+
+  updates[field] = normalized;
+  return undefined;
+};
+
+const applySurnameField = (
+  updates: AdminAccountUpdatePayload,
+  body: Record<string, unknown>
+): string | undefined => {
+  if (body.surname === undefined) {
+    return undefined;
+  }
+
+  if (typeof body.surname !== 'string') {
+    return 'Invalid surname';
+  }
+
+  updates.surname = body.surname.trim().slice(0, 50);
+  return undefined;
+};
+
+const applyEmailField = (
+  updates: AdminAccountUpdatePayload,
+  body: Record<string, unknown>
+): string | undefined => {
+  if (body.email === undefined) {
+    return undefined;
+  }
+
+  const email = resolveOptionalEmail(body.email);
+  if (email === undefined) {
+    return 'Invalid email';
+  }
+
+  if (email !== '') {
+    updates.email = email;
+  }
+
+  return undefined;
+};
+
+const applySkillLevelField = (
+  updates: AdminAccountUpdatePayload,
+  body: Record<string, unknown>
+): string | undefined => {
+  if (body.skillLevel === undefined) {
+    return undefined;
+  }
+
+  const skillLevel = parseOptionalSkillLevel(body.skillLevel);
+  if (skillLevel === undefined) {
+    return 'Invalid skillLevel';
+  }
+
+  updates.skillLevel = skillLevel;
+  return undefined;
+};
+
+const parseOptionalSkillLevel = (value: unknown): 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT' | null | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  if (
+    normalized === 'BEGINNER'
+    || normalized === 'INTERMEDIATE'
+    || normalized === 'EXPERT'
+  ) {
+    return normalized;
+  }
+
+  return undefined;
 };
 
 const parseAdminAccountUpdatePayload = (
@@ -175,37 +272,15 @@ const parseAdminAccountUpdatePayload = (
 ): { updates?: AdminAccountUpdatePayload; errorMessage?: string } => {
   const updates: AdminAccountUpdatePayload = {};
 
-  if (body.firstName !== undefined) {
-    const firstName = normalizeNamePart(body.firstName);
-    if (!firstName) {
-      return { errorMessage: 'Invalid firstName' };
-    }
-    updates.firstName = firstName;
-  }
+  const fieldError =
+    applyNormalizedNameField(updates, body, 'firstName')
+    || applyNormalizedNameField(updates, body, 'lastName')
+    || applySurnameField(updates, body)
+    || applyEmailField(updates, body)
+    || applySkillLevelField(updates, body);
 
-  if (body.lastName !== undefined) {
-    const lastName = normalizeNamePart(body.lastName);
-    if (!lastName) {
-      return { errorMessage: 'Invalid lastName' };
-    }
-    updates.lastName = lastName;
-  }
-
-  if (body.surname !== undefined) {
-    if (typeof body.surname !== 'string') {
-      return { errorMessage: 'Invalid surname' };
-    }
-    updates.surname = body.surname.trim().slice(0, 50);
-  }
-
-  if (body.email !== undefined) {
-    const email = resolveOptionalEmail(body.email);
-    if (email === undefined) {
-      return { errorMessage: 'Invalid email' };
-    }
-    if (email !== '') {
-      updates.email = email;
-    }
+  if (fieldError) {
+    return { errorMessage: fieldError };
   }
 
   if (Object.keys(updates).length === 0) {
@@ -478,6 +553,18 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
         email: true,
         createdAt: true,
         updatedAt: true,
+        players: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            skillLevel: true,
+          },
+          orderBy: {
+            registeredAt: 'desc',
+          },
+          take: 1,
+        },
       },
       orderBy: [
         { updatedAt: 'desc' },
@@ -533,7 +620,14 @@ router.get('/users', requireAuth, async (request: Request, response: Response): 
 
     response.json({
       users: users.map((user) => ({
-        ...user,
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        surname: user.surname,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        skillLevel: user.players?.[0]?.skillLevel ?? null,
         tournamentCount: tournamentCountByPersonId.get(user.id) ?? 0,
         isAdminAccount: isAdminEmail(user.email),
         activePlayerCount: activePlayersByPersonId.has(user.id) ? 1 : 0,
@@ -582,9 +676,10 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
   }
 
   try {
+    const { skillLevel, ...personUpdates } = updates;
     const updated = await prisma.person.update({
       where: { id: userId },
-      data: updates,
+      data: personUpdates,
       select: {
         id: true,
         firstName: true,
@@ -596,7 +691,35 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
       },
     });
 
-    response.json({ user: updated });
+    let resolvedSkillLevel: string | null = null;
+    if (skillLevel !== undefined) {
+      await prisma.player.updateMany({
+        where: {
+          personId: userId,
+          isActive: true,
+        },
+        data: {
+          skillLevel,
+        },
+      });
+      resolvedSkillLevel = skillLevel;
+    } else {
+      const latestPlayer = await prisma.player.findFirst({
+        where: {
+          personId: userId,
+          isActive: true,
+        },
+        select: {
+          skillLevel: true,
+        },
+        orderBy: {
+          registeredAt: 'desc',
+        },
+      });
+      resolvedSkillLevel = latestPlayer?.skillLevel ?? null;
+    }
+
+    response.json({ user: { ...updated, skillLevel: resolvedSkillLevel } });
   } catch (error) {
     handleAdminAccountUpdateError(request, response, userId, error);
   }

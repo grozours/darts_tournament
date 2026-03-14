@@ -51,7 +51,7 @@ describe('PlayersView branches', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => ({
-        tournaments: [{ id: 't1', name: 'Double cup', format: TournamentFormat.DOUBLE }],
+        tournaments: [{ id: 't1', name: 'Single cup', format: TournamentFormat.SINGLE }],
       }),
     })));
 
@@ -85,7 +85,7 @@ describe('PlayersView branches', () => {
     vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
   });
 
-  it('saves edited player with optional fields for grouped tournament', async () => {
+  it('saves edited player fields for single tournament', async () => {
     render(<PlayersView />);
 
     await screen.findByText('Ava Archer');
@@ -96,9 +96,7 @@ describe('PlayersView branches', () => {
     fireEvent.change(screen.getByLabelText('edit.firstName'), { target: { value: ' Ava ' } });
     fireEvent.change(screen.getByLabelText('edit.lastName'), { target: { value: ' Archer ' } });
     fireEvent.change(screen.getByLabelText('edit.surname'), { target: { value: ' Falcon ' } });
-    fireEvent.change(screen.getByLabelText('edit.teamName'), { target: { value: ' Team X ' } });
     fireEvent.change(screen.getByLabelText('edit.email'), { target: { value: ' ava@example.com ' } });
-    fireEvent.change(screen.getByLabelText('edit.phone'), { target: { value: ' 123 ' } });
     fireEvent.change(screen.getByLabelText('edit.skillLevel'), { target: { value: SkillLevel.INTERMEDIATE } });
 
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }));
@@ -111,9 +109,8 @@ describe('PlayersView branches', () => {
           firstName: 'Ava',
           lastName: 'Archer',
           surname: 'Falcon',
-          teamName: 'Team X',
+          teamName: 'Old Team',
           email: 'ava@example.com',
-          phone: '123',
           skillLevel: SkillLevel.INTERMEDIATE,
         },
         'token'

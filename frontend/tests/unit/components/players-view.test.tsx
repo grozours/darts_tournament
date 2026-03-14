@@ -32,13 +32,12 @@ describe('PlayersView', () => {
     vi.clearAllMocks();
   });
 
-  it('renders players across tournaments', async () => {
+  it('renders players for single tournaments only', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
         tournaments: [
           { id: 't1', name: 'Spring Open', format: TournamentFormat.SINGLE },
-          { id: 't2', name: 'Doubles Night', format: TournamentFormat.DOUBLE },
         ],
       }),
     });
@@ -53,15 +52,6 @@ describe('PlayersView', () => {
           name: 'Alice Smith',
         },
       ],
-      t2: [
-        {
-          playerId: 'p2',
-          firstName: 'Bob',
-          lastName: 'Lee',
-          name: 'Bob Lee',
-          teamName: 'Team Rocket',
-        },
-      ],
     } as const;
 
     vi.mocked(fetchTournamentPlayers).mockImplementation(async (tournamentId: string) => {
@@ -74,10 +64,9 @@ describe('PlayersView', () => {
       expect(screen.getByText(/Alice Smith \(Falcon\)/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Team Rocket/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Spring Open/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Doubles Night/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/2\s+(Players|Joueurs)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Doubles Night/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/1\s+(Players|Joueurs)/i)).toBeInTheDocument();
   });
 
   it('filters players by search input', async () => {
@@ -111,7 +100,7 @@ describe('PlayersView', () => {
     });
 
     fireEvent.change(
-      screen.getByPlaceholderText(/search name, team, email, phone, tournament|Rechercher nom, équipe, email, téléphone, tournoi/i),
+      screen.getByPlaceholderText(/search name, team, email, tournament|Rechercher nom, équipe, email, tournoi/i),
       {
         target: { value: 'falcon' },
       }

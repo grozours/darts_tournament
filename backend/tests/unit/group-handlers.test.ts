@@ -236,6 +236,7 @@ describe('group-handlers', () => {
     tournamentModel.searchPlayersForGroups.mockImplementation(async () => ([
       {
         id: 'p1',
+        personId: 'person-1',
         firstName: 'Ana',
         lastName: 'Diaz',
         email: 'ana@example.com',
@@ -244,16 +245,26 @@ describe('group-handlers', () => {
         doubletteMemberships: [{ doublette: { id: 'd1', name: 'Duo A' } }],
         equipeMemberships: [{ equipe: { id: 'e1', name: 'Team A' } }],
       },
+      {
+        id: 'p2',
+        personId: 'person-1',
+        firstName: 'Ana',
+        lastName: 'Diaz',
+        email: 'ana+dup@example.com',
+        teamName: 'Team B',
+        surname: 'A1',
+        doubletteMemberships: [],
+        equipeMemberships: [],
+      },
     ]));
 
     const result = await handlers.searchGroupPlayers('t1', 'ana');
-    expect(result).toEqual([
-      expect.objectContaining({
-        id: 'p1',
-        doublettes: [{ id: 'd1', name: 'Duo A' }],
-        equipes: [{ id: 'e1', name: 'Team A' }],
-      }),
-    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(expect.objectContaining({
+      id: 'p1',
+      doublettes: [{ id: 'd1', name: 'Duo A' }],
+      equipes: [{ id: 'e1', name: 'Team A' }],
+    }));
   });
 
   it('lists equipes for TEAM_4_PLAYER format', async () => {

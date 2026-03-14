@@ -66,9 +66,9 @@ describe('App routing', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders admin-only guard for players view when non-admin', async () => {
+  it('renders admin-only guard for single view when non-admin', async () => {
     adminState.isAdmin = false;
-    navigateTo('/?view=players');
+    navigateTo('/?view=single');
     render(<App />);
     expect(await screen.findByText('auth.adminOnly')).toBeInTheDocument();
   });

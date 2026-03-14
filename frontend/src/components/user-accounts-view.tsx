@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type JSX } from 'react';
+import { SkillLevel } from '@shared/types';
 import SignInPanel from '../auth/sign-in-panel';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
@@ -10,6 +11,7 @@ type UserAccount = {
   lastName: string;
   surname?: string | null;
   email?: string | null;
+  skillLevel?: SkillLevel | null;
   createdAt: string;
   updatedAt: string;
   tournamentCount?: number;
@@ -25,6 +27,7 @@ type UserEditForm = {
   lastName: string;
   surname: string;
   email: string;
+  skillLevel: SkillLevel | '';
 };
 
 const mapUserToForm = (user: UserAccount): UserEditForm => ({
@@ -32,6 +35,7 @@ const mapUserToForm = (user: UserAccount): UserEditForm => ({
   lastName: user.lastName,
   surname: user.surname ?? '',
   email: user.email ?? '',
+  skillLevel: user.skillLevel ?? '',
 });
 
 function UserAccountsView() {
@@ -55,16 +59,38 @@ function UserAccountsView() {
   const [saving, setSaving] = useState(false);
   const [deletingOrphans, setDeletingOrphans] = useState(false);
   const [notice, setNotice] = useState<string | undefined>();
+  const accountsRequestSequence = useRef(0);
+
+  const normalizedTournamentOptions = useMemo(() => {
+    const uniqueById = new Map<string, TournamentOption>();
+    for (const tournament of tournaments) {
+      if (!tournament.id) {
+        continue;
+      }
+      if (!uniqueById.has(tournament.id)) {
+        uniqueById.set(tournament.id, tournament);
+      }
+    }
+
+    return [...uniqueById.values()].sort((left, right) => {
+      const leftLabel = left.name?.trim() || left.id;
+      const rightLabel = right.name?.trim() || right.id;
+      return leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' });
+    });
+  }, [tournaments]);
 
   const sortedUsers = useMemo(
     () => [...users].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
     [users]
   );
 
-  const fetchAccounts = useCallback(async () => {
+  const fetchAccounts = useCallback(async (nextFilters?: { search?: string; tournamentId?: string }) => {
     if (!isAdmin) {
       return;
     }
+
+    const requestSequence = accountsRequestSequence.current + 1;
+    accountsRequestSequence.current = requestSequence;
 
     setLoading(true);
     setError(undefined);
@@ -72,12 +98,14 @@ function UserAccountsView() {
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
       const parameters = new URLSearchParams();
-      const trimmedSearch = search.trim();
+      const effectiveSearch = nextFilters?.search ?? search;
+      const effectiveTournamentId = nextFilters?.tournamentId ?? selectedTournamentId;
+      const trimmedSearch = effectiveSearch.trim();
       if (trimmedSearch) {
         parameters.set('q', trimmedSearch);
       }
-      if (selectedTournamentId) {
-        parameters.set('tournamentId', selectedTournamentId);
+      if (effectiveTournamentId) {
+        parameters.set('tournamentId', effectiveTournamentId);
       }
       parameters.set('limit', '200');
 
@@ -92,11 +120,21 @@ function UserAccountsView() {
       }
 
       const payload = await response.json() as { users?: UserAccount[] };
+      if (requestSequence !== accountsRequestSequence.current) {
+        return;
+      }
+
       setUsers(Array.isArray(payload.users) ? payload.users : []);
     } catch (error_) {
+      if (requestSequence !== accountsRequestSequence.current) {
+        return;
+      }
+
       setError(error_ instanceof Error ? error_.message : 'userAccounts.loadFailed');
     } finally {
-      setLoading(false);
+      if (requestSequence === accountsRequestSequence.current) {
+        setLoading(false);
+      }
     }
   }, [authEnabled, getAccessTokenSilently, isAdmin, search, selectedTournamentId]);
 
@@ -107,7 +145,7 @@ function UserAccountsView() {
 
     try {
       const token = authEnabled ? await getAccessTokenSilently() : undefined;
-      const response = await fetch('/api/tournaments?limit=200', {
+      const response = await fetch('/api/tournaments?limit=100', {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
@@ -184,41 +222,101 @@ function UserAccountsView() {
     }
 
     return (
-      <div className="overflow-x-auto rounded-xl border border-slate-800/70">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-900/70 text-slate-300">
-            <tr>
-              <th className="px-3 py-2 text-left">{t('edit.firstName')}</th>
-              <th className="px-3 py-2 text-left">{t('edit.lastName')}</th>
-              <th className="px-3 py-2 text-left">{t('edit.surname')}</th>
-              <th className="px-3 py-2 text-left">{t('edit.email')}</th>
-              <th className="px-3 py-2 text-left">{t('userAccounts.tournamentCount')}</th>
-              <th className="px-3 py-2 text-left">{t('account.lastUpdated')}</th>
-              <th className="px-3 py-2 text-left">{t('edit.edit')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/40 text-slate-100">
-            {sortedUsers.map((user) => (
-              <tr key={user.id}>
-                <td className="px-3 py-2">{user.firstName}</td>
-                <td className="px-3 py-2">{user.lastName}</td>
-                <td className="px-3 py-2">{user.surname ?? '-'}</td>
-                <td className="px-3 py-2">{user.email ?? '-'}</td>
-                <td className="px-3 py-2">{user.tournamentCount ?? 0}</td>
-                <td className="px-3 py-2">{new Date(user.updatedAt).toLocaleDateString()}</td>
-                <td className="px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => startEditing(user)}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
-                  >
-                    {t('edit.edit')}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {sortedUsers.map((user) => {
+          const isEditingThisUser = editingUserId === user.id && Boolean(editForm);
+          return (
+            <div key={user.id} className="flex h-full flex-col rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                <div />
+                <div className="text-center">
+                  <h3 className="font-semibold text-white">{user.firstName} {user.lastName}</h3>
+                </div>
+                {!isEditingThisUser ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => startEditing(user)}
+                      className="rounded-full border border-cyan-500/60 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                    >
+                      {t('edit.edit')}
+                    </button>
+                  </div>
+                ) : (
+                  <div />
+                )}
+              </div>
+
+              {isEditingThisUser && editForm && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t('userAccounts.editTitle')}</p>
+                  <p className="text-xs text-slate-400">
+                    {t('userAccounts.currentTournamentCount')}: {user.tournamentCount ?? 0}
+                  </p>
+                  <p className="text-xs text-slate-400">{t('edit.surname')}: {user.surname ?? '-'}</p>
+                  <p className="text-xs text-slate-400">{t('edit.email')}: {user.email ?? '-'}</p>
+                  <p className="text-xs text-slate-400">{t('edit.skillLevel')}: {user.skillLevel ? t(`skill.${user.skillLevel.toLowerCase()}`) : '-'}</p>
+                  <p className="text-xs text-slate-500">{t('account.lastUpdated')}: {new Date(user.updatedAt).toLocaleDateString()}</p>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <input
+                      value={editForm.firstName}
+                      onChange={(event_) => setEditForm((current) => (current ? { ...current, firstName: event_.target.value } : current))}
+                      placeholder={t('edit.firstName')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <input
+                      value={editForm.lastName}
+                      onChange={(event_) => setEditForm((current) => (current ? { ...current, lastName: event_.target.value } : current))}
+                      placeholder={t('edit.lastName')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <input
+                      value={editForm.surname}
+                      onChange={(event_) => setEditForm((current) => (current ? { ...current, surname: event_.target.value } : current))}
+                      placeholder={t('edit.surname')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <input
+                      value={editForm.email}
+                      onChange={(event_) => setEditForm((current) => (current ? { ...current, email: event_.target.value } : current))}
+                      placeholder={t('edit.email')}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                    <select
+                      value={editForm.skillLevel}
+                      onChange={(event_) => setEditForm((current) => (current ? { ...current, skillLevel: event_.target.value as SkillLevel | '' } : current))}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 md:col-span-2"
+                    >
+                      <option value="">{t('edit.selectSkillLevelOptional')}</option>
+                      <option value={SkillLevel.BEGINNER}>{t('skill.beginner')}</option>
+                      <option value={SkillLevel.INTERMEDIATE}>{t('skill.intermediate')}</option>
+                      <option value={SkillLevel.EXPERT}>{t('skill.expert')}</option>
+                    </select>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void saveEdit();
+                      }}
+                      disabled={saving}
+                      className="w-full rounded-full border border-emerald-500/60 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-70"
+                    >
+                      {saving ? t('common.loading') : t('common.save')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      className="w-full rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -255,6 +353,7 @@ function UserAccountsView() {
           lastName: editForm.lastName,
           surname: editForm.surname,
           email: editForm.email,
+          skillLevel: editForm.skillLevel || null,
         }),
       });
 
@@ -298,46 +397,80 @@ function UserAccountsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-white">{t('userAccounts.title')}</h2>
-        <p className="mt-1 text-sm text-slate-400">{t('userAccounts.subtitle')}</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">{t('userAccounts.title')}</p>
+        <h2 className="mt-2 text-2xl font-semibold text-white">{t('userAccounts.subtitle')}</h2>
       </div>
 
-      <form onSubmit={onSubmitSearch} className="flex gap-2">
-        <select
-          value={selectedTournamentId}
-          onChange={(event_) => setSelectedTournamentId(event_.target.value)}
-          aria-label={t('userAccounts.tournamentFilter')}
-          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-        >
-          <option value="">{t('userAccounts.allTournaments')}</option>
-          {tournaments.map((tournament) => (
-            <option key={tournament.id} value={tournament.id}>
-              {tournament.name ?? tournament.id}
-            </option>
-          ))}
-        </select>
-        <input
-          value={search}
-          onChange={(event_) => setSearch(event_.target.value)}
-          placeholder={t('userAccounts.searchPlaceholder')}
-          className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-        />
-        <button
-          type="submit"
-          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-400"
-        >
-          {t('common.search')}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void deleteAccountsWithoutTournament();
-          }}
-          disabled={deletingOrphans}
-          className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-70"
-        >
-          {deletingOrphans ? t('common.loading') : t('userAccounts.deleteOrphansButton')}
-        </button>
+      <form
+        onSubmit={onSubmitSearch}
+        className="rounded-2xl border border-slate-800/80 bg-gradient-to-br from-slate-900/65 to-slate-950/65 p-4 shadow-[0_8px_30px_rgba(2,6,23,0.35)]"
+      >
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[240px] flex-1">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              {t('common.search')}
+            </p>
+            <input
+              value={search}
+              onChange={(event_) => setSearch(event_.target.value)}
+              placeholder={t('userAccounts.searchPlaceholder')}
+              className="w-full rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-white"
+            />
+          </div>
+
+          <div className="w-full max-w-xs">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              {t('userAccounts.tournamentFilter')}
+            </p>
+            <select
+              value={selectedTournamentId}
+              onChange={(event_) => {
+                const nextTournamentId = event_.target.value;
+                setSelectedTournamentId(nextTournamentId);
+                void fetchAccounts({ tournamentId: nextTournamentId });
+              }}
+              onFocus={() => {
+                void fetchTournaments();
+              }}
+              aria-label={t('userAccounts.tournamentFilter')}
+              className="w-full rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-white"
+            >
+              <option value="">{t('userAccounts.allTournaments')}</option>
+              {normalizedTournamentOptions.map((tournament) => (
+                <option key={tournament.id} value={tournament.id}>
+                  {tournament.name ?? tournament.id}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="rounded-full bg-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 hover:bg-cyan-400"
+          >
+            {t('common.search')}
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+            <span className="rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1 font-medium text-slate-200">
+              {sortedUsers.length}
+            </span>
+            <span className="text-slate-400">{t('userAccounts.title')}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void deleteAccountsWithoutTournament();
+            }}
+            disabled={deletingOrphans}
+            className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-70"
+          >
+            {deletingOrphans ? t('common.loading') : t('userAccounts.deleteOrphansButton')}
+          </button>
+        </div>
       </form>
 
       {displayedError && (
@@ -349,60 +482,6 @@ function UserAccountsView() {
       )}
 
       {renderAccountsContent()}
-
-      {editingUserId && editForm && (
-        <div className="rounded-xl border border-slate-800/70 bg-slate-900/50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">{t('userAccounts.editTitle')}</h3>
-          <p className="mb-3 text-xs text-slate-400">
-            {t('userAccounts.currentTournamentCount')}: {users.find((user) => user.id === editingUserId)?.tournamentCount ?? 0}
-          </p>
-          <div className="grid gap-3 md:grid-cols-2">
-            <input
-              value={editForm.firstName}
-              onChange={(event_) => setEditForm((current) => (current ? { ...current, firstName: event_.target.value } : current))}
-              placeholder={t('edit.firstName')}
-              className="rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-            />
-            <input
-              value={editForm.lastName}
-              onChange={(event_) => setEditForm((current) => (current ? { ...current, lastName: event_.target.value } : current))}
-              placeholder={t('edit.lastName')}
-              className="rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-            />
-            <input
-              value={editForm.surname}
-              onChange={(event_) => setEditForm((current) => (current ? { ...current, surname: event_.target.value } : current))}
-              placeholder={t('edit.surname')}
-              className="rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-            />
-            <input
-              value={editForm.email}
-              onChange={(event_) => setEditForm((current) => (current ? { ...current, email: event_.target.value } : current))}
-              placeholder={t('edit.email')}
-              className="rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                void saveEdit();
-              }}
-              disabled={saving}
-              className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-400 disabled:opacity-70"
-            >
-              {saving ? t('common.loading') : t('common.save')}
-            </button>
-            <button
-              type="button"
-              onClick={cancelEditing}
-              className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
-            >
-              {t('common.cancel')}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

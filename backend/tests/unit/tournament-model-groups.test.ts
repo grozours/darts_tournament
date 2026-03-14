@@ -1,6 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { createTournamentModelGroups } from '../../src/models/tournament-model/groups';
 
+const TEST_HASH = 'test-hash';
+
 const buildPrisma = () => ({
   doublette: {
     findMany: jest.fn().mockImplementation(async () => []),
@@ -43,7 +45,7 @@ describe('tournament-model groups', () => {
 
     await expect(groups.listDoublettes('t1', 'ab')).resolves.toEqual([]);
     await expect(groups.getDoubletteById('t1', 'd1')).resolves.toBeNull();
-    await expect(groups.createDoublette({ tournamentId: 't1', captainPlayerId: 'p1', name: 'D1', passwordHash: 'h' })).resolves.toEqual({ id: 'd1' });
+    await expect(groups.createDoublette({ tournamentId: 't1', captainPlayerId: 'p1', name: 'D1', passwordHash: TEST_HASH })).resolves.toEqual({ id: 'd1' });
     await expect(groups.updateDoublettePassword('d1', 'h2')).resolves.toEqual({ id: 'd1' });
     await expect(groups.updateDoublette('d1', { name: 'new' })).resolves.toEqual({ id: 'd1' });
     await expect(groups.addDoubletteMember('d1', 'p2')).resolves.toEqual({ id: 'dm1' });
@@ -55,7 +57,7 @@ describe('tournament-model groups', () => {
 
     await expect(groups.listEquipes('t1', 'ab')).resolves.toEqual([]);
     await expect(groups.getEquipeById('t1', 'e1')).resolves.toBeNull();
-    await expect(groups.createEquipe({ tournamentId: 't1', captainPlayerId: 'p1', name: 'E1', passwordHash: 'h' })).resolves.toEqual({ id: 'e1' });
+    await expect(groups.createEquipe({ tournamentId: 't1', captainPlayerId: 'p1', name: 'E1', passwordHash: TEST_HASH })).resolves.toEqual({ id: 'e1' });
     await expect(groups.updateEquipePassword('e1', 'h2')).resolves.toEqual({ id: 'e1' });
     await expect(groups.updateEquipe('e1', { name: 'new' })).resolves.toEqual({ id: 'e1' });
     await expect(groups.addEquipeMember('e1', 'p2')).resolves.toEqual({ id: 'em1' });
@@ -66,6 +68,57 @@ describe('tournament-model groups', () => {
     await expect(groups.findEquipeMembershipByPlayer('t1', 'p1')).resolves.toBeNull();
 
     await expect(groups.searchPlayersForGroups('t1', 'ana')).resolves.toEqual([]);
+
+    const searchArgs = prisma.player.findMany.mock.calls.at(-1)?.[0] as {
+      take?: number;
+      where?: {
+        AND?: Array<
+        | { OR: Array<{ tournamentId: null } | { tournamentId: { not: string } }> }
+        | { NOT: { person: { players: { some: { tournamentId: string } } } } }
+        | { doubletteMemberships: { none: { doublette: { tournamentId: string } } } }
+        | { equipeMemberships: { none: { equipe: { tournamentId: string } } } }
+        >;
+      };
+    };
+
+    expect(searchArgs?.take).toBe(30);
+    expect(searchArgs?.where?.AND).toEqual(expect.arrayContaining([
+      {
+        OR: [
+          { tournamentId: null },
+          { tournamentId: { not: 't1' } },
+        ],
+      },
+      {
+        NOT: {
+          person: {
+            players: {
+              some: {
+                tournamentId: 't1',
+              },
+            },
+          },
+        },
+      },
+      {
+        doubletteMemberships: {
+          none: {
+            doublette: {
+              tournamentId: 't1',
+            },
+          },
+        },
+      },
+      {
+        equipeMemberships: {
+          none: {
+            equipe: {
+              tournamentId: 't1',
+            },
+          },
+        },
+      },
+    ]));
   });
 
   it('maps unique-constraint errors for create methods', async () => {
@@ -81,10 +134,10 @@ describe('tournament-model groups', () => {
 
     const groups = createTournamentModelGroups(prisma as never);
 
-    await expect(groups.createDoublette({ tournamentId: 't1', captainPlayerId: 'p1', name: 'D1', passwordHash: 'h' }))
+    await expect(groups.createDoublette({ tournamentId: 't1', captainPlayerId: 'p1', name: 'D1', passwordHash: TEST_HASH }))
       .rejects.toThrow('Doublette name is already used in this tournament');
 
-    await expect(groups.createEquipe({ tournamentId: 't1', captainPlayerId: 'p1', name: 'E1', passwordHash: 'h' }))
+    await expect(groups.createEquipe({ tournamentId: 't1', captainPlayerId: 'p1', name: 'E1', passwordHash: TEST_HASH }))
       .rejects.toThrow('Equipe name is already used in this tournament');
   });
 

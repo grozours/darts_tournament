@@ -1360,7 +1360,28 @@ export const createGroupHandlers = (context: GroupHandlerContext) => ({
   searchGroupPlayers: async (tournamentId: string, query: string) => {
     context.validateUUID(tournamentId);
     const players = await context.tournamentModel.searchPlayersForGroups(tournamentId, query);
-    return players.map((player) => ({
+    const getSearchResultKey = (player: typeof players[number]): string => {
+      if (player.personId) {
+        return `person:${player.personId}`;
+      }
+
+      const normalizedEmail = player.email?.trim().toLowerCase();
+      if (normalizedEmail) {
+        return `email:${normalizedEmail}`;
+      }
+
+      return `name:${player.firstName.trim().toLowerCase()}|${player.lastName.trim().toLowerCase()}|${(player.surname ?? '').trim().toLowerCase()}`;
+    };
+
+    const uniquePlayers = new Map<string, typeof players[number]>();
+    for (const player of players) {
+      const key = getSearchResultKey(player);
+      if (!uniquePlayers.has(key)) {
+        uniquePlayers.set(key, player);
+      }
+    }
+
+    return Array.from(uniquePlayers.values()).map((player) => ({
       id: player.id,
       firstName: player.firstName,
       lastName: player.lastName,

@@ -600,7 +600,7 @@ function TournamentPlayersView() {
     return (
       <div
         key={player.playerId}
-        className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4"
+        className="flex h-full flex-col rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4"
       >
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -753,7 +753,7 @@ function TournamentPlayersView() {
           )}
         </div>
         {canEditThisPlayer && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-auto pt-4 space-y-2">
             {isEditing ? (
               <>
                 <button
