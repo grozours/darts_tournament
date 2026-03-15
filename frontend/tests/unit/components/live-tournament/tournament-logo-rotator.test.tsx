@@ -16,7 +16,7 @@ describe('TournamentLogoRotator', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders the unique normalized logo list and rotates every 10 seconds', async () => {
+  it('renders the unique normalized logo list and rotates every 5 seconds', async () => {
     vi.useFakeTimers();
 
     render(
@@ -30,12 +30,12 @@ describe('TournamentLogoRotator', () => {
     expect(logo).toHaveAttribute('src', '/uploads/a.png');
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(logo).toHaveAttribute('src', '/uploads/b.png');
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(logo).toHaveAttribute('src', '/uploads/a.png');
   });

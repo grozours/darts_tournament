@@ -129,7 +129,7 @@ describe('MatchFormatsView', () => {
     expect(await screen.findByText(/Segment 1: format invalide/i)).toBeInTheDocument();
   });
 
-  it('creates with auth fallback token and parses tableaux segments', async () => {
+  it('creates with auth fallback token and parses Cricket tableaux segments', async () => {
     adminState.isAdmin = true;
     authState.enabled = true;
     authState.isAuthenticated = true;
@@ -140,7 +140,7 @@ describe('MatchFormatsView', () => {
 
     await screen.findByText('Create new format');
     fireEvent.change(screen.getByLabelText('Key'), { target: { value: 'CRICKET_BO' } });
-    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: '501 DO - 3 tableaux' } });
+    fireEvent.change(screen.getByLabelText('Description du segment 1'), { target: { value: 'Cricket - 2 Tableaux' } });
     fireEvent.click(screen.getByText('Create format'));
 
     await waitFor(() => {
@@ -148,7 +148,7 @@ describe('MatchFormatsView', () => {
         {
           key: 'CRICKET_BO',
           durationMinutes: 30,
-          segments: [{ game: '501_DO', targetCount: 3 }],
+          segments: [{ game: 'CRICKET', targetCount: 2 }],
         },
         undefined
       );
@@ -266,7 +266,7 @@ describe('MatchFormatsView', () => {
     expect(await screen.findByText('Failed to save format')).toBeInTheDocument();
   });
 
-  it('covers target count parsing edge cases and segment patching across multiple segments', async () => {
+  it('covers target count parsing edge cases and keeps default tableaux count for bare game labels', async () => {
     adminState.isAdmin = true;
     fetchMatchFormatPresets
       .mockResolvedValueOnce([
@@ -301,7 +301,7 @@ describe('MatchFormatsView', () => {
     await waitFor(() => {
       expect(createMatchFormatPreset).toHaveBeenCalledWith(
         expect.objectContaining({
-          segments: [{ game: '501_DO', targetCount: 501 }],
+          segments: [{ game: '501_DO', targetCount: 1 }],
         }),
         undefined
       );
@@ -313,7 +313,7 @@ describe('MatchFormatsView', () => {
     await waitFor(() => {
       expect(createMatchFormatPreset).toHaveBeenCalledWith(
         expect.objectContaining({
-          segments: [{ game: '501_DO', targetCount: 501 }],
+          segments: [{ game: '501_DO', targetCount: 1 }],
         }),
         undefined
       );
@@ -325,7 +325,7 @@ describe('MatchFormatsView', () => {
     await waitFor(() => {
       expect(createMatchFormatPreset).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          segments: [{ game: '501_DO', targetCount: 501 }],
+          segments: [{ game: '501_DO', targetCount: 1 }],
         }),
         undefined
       );

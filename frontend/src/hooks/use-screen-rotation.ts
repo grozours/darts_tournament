@@ -41,6 +41,7 @@ type UseScreenRotationProperties = {
 };
 
 const SCREEN_SCOPE_PARAM = 'screenScope';
+const SCREEN_VIEW_ROTATION_DELAY_MS = 20_000;
 
 const loadLiveView = async (tournamentId: string): Promise<LiveViewSummary | undefined> => {
   const response = await fetch(`/api/tournaments/${tournamentId}/live`);
@@ -364,7 +365,7 @@ const useScreenRotation = ({
     });
     const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % screenRotationItems.length;
     const nextItem = screenRotationItems[nextIndex] ?? { view: 'targets' as const };
-    const delayMs = 10_000;
+    const delayMs = SCREEN_VIEW_ROTATION_DELAY_MS;
 
     const timeoutId = windowReference.setTimeout(() => {
       navigateToScreenRotationItem(windowReference, nextItem, status, rotationScope);

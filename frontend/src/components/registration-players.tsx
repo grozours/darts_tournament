@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TournamentFormat } from '@shared/types';
 import { useOptionalAuth } from '../auth/optional-auth';
 import { useAdminStatus } from '../auth/use-admin-status';
-import SignInPanel from '../auth/sign-in-panel';
 import {
   fetchDoublettes,
   fetchEquipes,
@@ -20,11 +19,14 @@ interface TournamentSummary {
   totalParticipants: number;
 }
 
-function RegistrationPlayers() { // NOSONAR
+type RegistrationPlayersProperties = {
+  formats?: TournamentFormat[];
+};
+
+function RegistrationPlayers({ formats }: RegistrationPlayersProperties) { // NOSONAR
   const { t } = useI18n();
   const {
     enabled: authEnabled,
-    isAuthenticated,
     isLoading: authLoading,
     getAccessTokenSilently,
   } = useOptionalAuth();
@@ -36,9 +38,11 @@ function RegistrationPlayers() { // NOSONAR
   const [equipesByTournament, setEquipesByTournament] = useState<Record<string, TournamentGroupEntity[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [selectedTournamentFilterId, setSelectedTournamentFilterId] = useState('');
+  const [singleSearchTerm, setSingleSearchTerm] = useState('');
 
-  const formatSections = useMemo(
-    () => [
+  const formatSections = useMemo(() => {
+    const allSections = [
       {
         title: t('registration.single'),
         format: TournamentFormat.SINGLE,
@@ -51,15 +55,64 @@ function RegistrationPlayers() { // NOSONAR
         title: t('registration.team'),
         format: TournamentFormat.TEAM_4_PLAYER,
       },
-    ],
-    [t]
-  );
+    ];
+
+    if (!formats || formats.length === 0) {
+      return allSections;
+    }
+
+    return allSections.filter((section) => formats.includes(section.format));
+  }, [formats, t]);
 
   const visibleTournaments = useMemo(() => {
     return tournaments.filter((tournament) =>
       formatSections.some((section) => section.format === tournament.format)
     );
   }, [formatSections, tournaments]);
+
+  const isSingleOnlyMode = useMemo(() => (
+    formatSections.length === 1 && formatSections[0]?.format === TournamentFormat.SINGLE
+  ), [formatSections]);
+
+  useEffect(() => {
+    if (!selectedTournamentFilterId) {
+      return;
+    }
+
+    const selectedStillExists = visibleTournaments.some((tournament) => tournament.id === selectedTournamentFilterId);
+    if (!selectedStillExists) {
+      setSelectedTournamentFilterId('');
+    }
+  }, [selectedTournamentFilterId, visibleTournaments]);
+
+  const displayedTournaments = useMemo(() => {
+    if (!selectedTournamentFilterId) {
+      return visibleTournaments;
+    }
+
+    return visibleTournaments.filter((tournament) => tournament.id === selectedTournamentFilterId);
+  }, [selectedTournamentFilterId, visibleTournaments]);
+
+  const normalizedSingleSearchTerm = singleSearchTerm.trim().toLowerCase();
+
+  const matchesSingleSearch = useCallback((player: TournamentPlayer): boolean => {
+    if (!isSingleOnlyMode || normalizedSingleSearchTerm.length === 0) {
+      return true;
+    }
+
+    const searchHaystack = [
+      player.name,
+      player.firstName,
+      player.lastName,
+      player.surname,
+      player.email,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return searchHaystack.includes(normalizedSingleSearchTerm);
+  }, [isSingleOnlyMode, normalizedSingleSearchTerm]);
 
   // Helper to safely get access token, falling back to undefined if it fails
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
@@ -131,10 +184,8 @@ function RegistrationPlayers() { // NOSONAR
   }, [formatSections, getSafeAccessToken]);
 
   useEffect(() => {
-    if (!authEnabled || isAuthenticated) {
-      fetchRegistrationPlayers();
-    }
-  }, [authEnabled, isAuthenticated, fetchRegistrationPlayers]);
+    fetchRegistrationPlayers();
+  }, [fetchRegistrationPlayers]);
 
   if (authLoading) {
     return (
@@ -145,15 +196,6 @@ function RegistrationPlayers() { // NOSONAR
         </div>
         <span className="ml-3 text-slate-300">{t('auth.checkingSession')}</span>
       </div>
-    );
-  }
-
-  if (authEnabled && !isAuthenticated) {
-    return (
-      <SignInPanel
-        title={t('auth.signInToViewRegistrationPlayers')}
-        description={t('auth.protectedContinue')}
-      />
     );
   }
 
@@ -189,7 +231,11 @@ function RegistrationPlayers() { // NOSONAR
 
   const renderGroupCards = (groups: TournamentGroupEntity[]) => {
     if (groups.length === 0) {
-      return <p className="mt-4 text-sm text-slate-400">{t('registration.noneRegisteredGroups')}</p>;
+      return (
+        <p className="mt-4 text-sm text-slate-400">
+          {isAdmin ? t('registration.noneRegisteredGroups') : 'Aucune inscription pour le moment'}
+        </p>
+      );
     }
 
     return (
@@ -231,15 +277,17 @@ function RegistrationPlayers() { // NOSONAR
     const isDoubleTournament = tournament.format === TournamentFormat.DOUBLE;
     const slots = getSlotCapacity(tournament);
 
+    const visiblePlayers = players.filter(matchesSingleSearch);
+
     let currentCount = equipes.length;
     if (isSingleTournament) {
-      currentCount = players.length;
+      currentCount = visiblePlayers.length;
     } else if (isDoubleTournament) {
       currentCount = doublettes.length;
     }
 
     return {
-      players,
+      players: visiblePlayers,
       isSingleTournament,
       isDoubleTournament,
       slots,
@@ -251,7 +299,9 @@ function RegistrationPlayers() { // NOSONAR
   const renderSingleTournamentPlayers = (players: TournamentPlayer[]) => {
     if (players.length === 0) {
       return (
-        <p className="mt-4 text-sm text-slate-400">{t('registration.noneRegisteredPlayers')}</p>
+        <p className="mt-4 text-sm text-slate-400">
+          {isAdmin ? t('registration.noneRegisteredPlayers') : 'Aucune inscription pour le moment'}
+        </p>
       );
     }
 
@@ -330,17 +380,69 @@ function RegistrationPlayers() { // NOSONAR
         </button>
       </div>
 
-      {visibleTournaments.length === 0 ? (
+      {isSingleOnlyMode && (
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="sr-only" htmlFor="single-player-search">{t('players.search')}</label>
+          <input
+            id="single-player-search"
+            value={singleSearchTerm}
+            onChange={(event) => setSingleSearchTerm(event.target.value)}
+            placeholder={t('players.search')}
+            className="w-full max-w-md rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-white"
+          />
+          <label className="sr-only" htmlFor="single-tournament-filter">{t('live.selectTournament')}</label>
+          <select
+            id="single-tournament-filter"
+            value={selectedTournamentFilterId}
+            onChange={(event) => setSelectedTournamentFilterId(event.target.value)}
+            className="w-full max-w-xs rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-white"
+          >
+            <option value="">{t('live.allTournaments')}</option>
+            {visibleTournaments.map((tournament) => (
+              <option key={tournament.id} value={tournament.id}>
+                {tournament.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-slate-400">
+            {displayedTournaments.reduce((count, tournament) => (
+              count + (playersByTournament[tournament.id] || []).filter(matchesSingleSearch).length
+            ), 0)} {t('registration.single').toLowerCase()}
+          </span>
+          <button
+            type="button"
+            onClick={fetchRegistrationPlayers}
+            className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+          >
+            {t('groups.search')}
+          </button>
+        </div>
+      )}
+
+      {displayedTournaments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center text-slate-300">
-          <p className="text-lg font-semibold text-white">{t('registration.none')}</p>
-          <p className="mt-2">{t('registration.none.subtitle')}</p>
+          {isAdmin ? (
+            <>
+              <p className="text-lg font-semibold text-white">{t('registration.none')}</p>
+              <p className="mt-2">{t('registration.none.subtitle')}</p>
+            </>
+          ) : (
+            <p className="text-lg font-semibold text-white">Aucune inscription pour le moment</p>
+          )}
         </div>
       ) : (
         <div className="space-y-10">
           {formatSections.map((section) => {
-            const sectionTournaments = visibleTournaments.filter(
-              (tournament) => tournament.format === section.format
-            );
+            const sectionTournaments = displayedTournaments
+              .filter((tournament) => tournament.format === section.format)
+              .filter((tournament) => {
+                if (!isSingleOnlyMode || section.format !== TournamentFormat.SINGLE || normalizedSingleSearchTerm.length === 0) {
+                  return true;
+                }
+
+                const players = playersByTournament[tournament.id] || [];
+                return players.some(matchesSingleSearch);
+              });
 
             return (
               <div key={section.format} className="space-y-4">
@@ -350,7 +452,7 @@ function RegistrationPlayers() { // NOSONAR
                 </div>
                 {sectionTournaments.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
-                    {t('common.noCategory')}
+                    {isAdmin ? t('common.noCategory') : 'Aucune inscription pour le moment'}
                   </div>
                 ) : (
                   <div className="space-y-6">

@@ -11,6 +11,7 @@ import {
   resolveUserEmailFromPayload,
 } from '../middleware/auth';
 import { config } from '../config/environment';
+import { redis } from '../config/redis';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -418,6 +419,10 @@ type ImportedTournamentSummary = {
   singleRegistrationsCreated: number;
   doublettesCreated: number;
   doublePlayersCreated: number;
+  singlePoolStagesCount: number;
+  singleBracketsCount: number;
+  doublePoolStagesCount: number;
+  doubleBracketsCount: number;
   issues: string[];
   singleTournamentId?: string;
   doubleTournamentId?: string;
@@ -1047,9 +1052,622 @@ const importSingleUserAccount = async (account: ImportedUserCandidate): Promise<
   return 'updated';
 };
 
+type ImportedTournamentFormat = 'SINGLE' | 'DOUBLE' | 'TEAM_4_PLAYER';
+type ImportedPresetType = 'single-pool-stage' | 'three-pool-stages' | 'custom';
+
+type ImportedPresetTemplateConfig = {
+  format: ImportedTournamentFormat;
+  stages: Array<{
+    name: string;
+    poolCount: number;
+    playersPerPool: number;
+    advanceCount: number;
+    matchFormatKey?: string;
+    inParallelWith?: string[];
+  }>;
+  brackets: Array<{
+    name: string;
+    totalRounds: number;
+    roundMatchFormats?: Record<string, string>;
+    inParallelWith?: string[];
+  }>;
+  routingRules: Array<{
+    stageNumber: number;
+    position: number;
+    destinationType: 'BRACKET' | 'POOL_STAGE' | 'ELIMINATED';
+    destinationBracketName?: string;
+    destinationStageNumber?: number;
+  }>;
+};
+
+const isImportedPresetType = (value: unknown): value is ImportedPresetType => (
+  value === 'single-pool-stage' || value === 'three-pool-stages' || value === 'custom'
+);
+
+const pickImportedPresetTypeByFormat = (format: ImportedTournamentFormat): ImportedPresetType => (
+  format === 'DOUBLE' ? 'three-pool-stages' : 'single-pool-stage'
+);
+
+const getImportedPresetPoolCounts = (totalParticipants: number) => {
+  const safeParticipants = Number.isFinite(totalParticipants) && totalParticipants > 0
+    ? totalParticipants
+    : 16;
+  const stage1PoolCount = Math.max(1, Math.floor(safeParticipants / 5));
+  const stage2PoolCount = Math.max(1, Math.ceil(stage1PoolCount / 2));
+  const stage3PoolCount = Math.max(1, Math.ceil(stage1PoolCount / 2));
+  return { stage1PoolCount, stage2PoolCount, stage3PoolCount };
+};
+
+const getDefaultImportedPresetTemplateConfig = (
+  format: ImportedTournamentFormat,
+  presetType: ImportedPresetType,
+  totalParticipants: number
+): ImportedPresetTemplateConfig => {
+  const { stage1PoolCount, stage2PoolCount, stage3PoolCount } = getImportedPresetPoolCounts(totalParticipants);
+
+  if (presetType !== 'three-pool-stages') {
+    return {
+      format,
+      stages: [
+        {
+          name: 'Stage 1',
+          poolCount: stage1PoolCount,
+          playersPerPool: 5,
+          advanceCount: 2,
+          matchFormatKey: 'BO3',
+        },
+      ],
+      brackets: [
+        {
+          name: 'Loser Bracket',
+          totalRounds: 3,
+          roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        },
+        {
+          name: 'Winner Bracket',
+          totalRounds: 3,
+          roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        },
+      ],
+      routingRules: [
+        { stageNumber: 1, position: 1, destinationType: 'BRACKET', destinationBracketName: 'Winner Bracket' },
+        { stageNumber: 1, position: 2, destinationType: 'BRACKET', destinationBracketName: 'Winner Bracket' },
+        { stageNumber: 1, position: 3, destinationType: 'BRACKET', destinationBracketName: 'Loser Bracket' },
+        { stageNumber: 1, position: 4, destinationType: 'BRACKET', destinationBracketName: 'Loser Bracket' },
+        { stageNumber: 1, position: 5, destinationType: 'BRACKET', destinationBracketName: 'Loser Bracket' },
+      ],
+    };
+  }
+
+  return {
+    format,
+    stages: [
+      {
+        name: 'Brassage',
+        poolCount: stage1PoolCount,
+        playersPerPool: 5,
+        advanceCount: 5,
+        matchFormatKey: 'BO3',
+      },
+      {
+        name: 'Niveau A',
+        poolCount: stage2PoolCount,
+        playersPerPool: 4,
+        advanceCount: 2,
+        matchFormatKey: 'BO5',
+        inParallelWith: ['stage:3'],
+      },
+      {
+        name: 'Niveau B',
+        poolCount: stage3PoolCount,
+        playersPerPool: 4,
+        advanceCount: 2,
+        matchFormatKey: 'BO5',
+        inParallelWith: ['stage:2'],
+      },
+    ],
+    brackets: [
+      {
+        name: 'Niveau A',
+        totalRounds: 3,
+        roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        inParallelWith: ['bracket:Niveau B'],
+      },
+      {
+        name: 'Niveau B',
+        totalRounds: 3,
+        roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+        inParallelWith: ['bracket:Niveau A'],
+      },
+      {
+        name: 'Niveau C',
+        totalRounds: 3,
+        roundMatchFormats: { '1': 'BO3', '2': 'BO5', '3': 'BO5_F' },
+      },
+    ],
+    routingRules: [
+      { stageNumber: 1, position: 1, destinationType: 'POOL_STAGE', destinationStageNumber: 2 },
+      { stageNumber: 1, position: 2, destinationType: 'POOL_STAGE', destinationStageNumber: 2 },
+      { stageNumber: 1, position: 3, destinationType: 'POOL_STAGE', destinationStageNumber: 3 },
+      { stageNumber: 1, position: 4, destinationType: 'POOL_STAGE', destinationStageNumber: 3 },
+      { stageNumber: 1, position: 5, destinationType: 'BRACKET', destinationBracketName: 'Niveau C' },
+      { stageNumber: 2, position: 1, destinationType: 'BRACKET', destinationBracketName: 'Niveau A' },
+      { stageNumber: 2, position: 2, destinationType: 'BRACKET', destinationBracketName: 'Niveau A' },
+      { stageNumber: 2, position: 3, destinationType: 'ELIMINATED' },
+      { stageNumber: 2, position: 4, destinationType: 'ELIMINATED' },
+      { stageNumber: 3, position: 1, destinationType: 'BRACKET', destinationBracketName: 'Niveau B' },
+      { stageNumber: 3, position: 2, destinationType: 'BRACKET', destinationBracketName: 'Niveau B' },
+      { stageNumber: 3, position: 3, destinationType: 'ELIMINATED' },
+      { stageNumber: 3, position: 4, destinationType: 'ELIMINATED' },
+    ],
+  };
+};
+
+const parseImportedPresetTemplateConfig = (value: Prisma.JsonValue | null): ImportedPresetTemplateConfig | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.stages) || !Array.isArray(candidate.brackets) || !Array.isArray(candidate.routingRules)) {
+    return undefined;
+  }
+
+  const format = candidate.format;
+  if (format !== 'SINGLE' && format !== 'DOUBLE' && format !== 'TEAM_4_PLAYER') {
+    return undefined;
+  }
+
+  return candidate as unknown as ImportedPresetTemplateConfig;
+};
+
+const resolveImportedPresetStructure = async (
+  format: ImportedTournamentFormat,
+  participantTotal: number
+): Promise<{ targetCount: number; templateConfig: ImportedPresetTemplateConfig }> => {
+  const preferredPresetType = pickImportedPresetTypeByFormat(format);
+
+  const presets = await prisma.tournamentPreset.findMany({
+    select: {
+      presetType: true,
+      totalParticipants: true,
+      targetCount: true,
+      templateConfig: true,
+      isSystem: true,
+      updatedAt: true,
+    },
+    orderBy: [
+      { isSystem: 'desc' },
+      { updatedAt: 'desc' },
+    ],
+  });
+
+  const presetsWithConfig = presets.map((preset) => ({
+    ...preset,
+    templateConfigParsed: parseImportedPresetTemplateConfig(preset.templateConfig),
+  }));
+
+  const formatSpecificPreset = presetsWithConfig.find((preset) => preset.templateConfigParsed?.format === format);
+  const preferredTypePreset = presetsWithConfig.find((preset) => preset.presetType === preferredPresetType);
+  const selectedPreset = formatSpecificPreset ?? preferredTypePreset;
+
+  const selectedPresetType = isImportedPresetType(selectedPreset?.presetType)
+    ? selectedPreset.presetType
+    : preferredPresetType;
+
+  const templateConfig = selectedPreset?.templateConfigParsed
+    ?? getDefaultImportedPresetTemplateConfig(format, selectedPresetType, participantTotal);
+
+  const targetCount = Math.max(1, selectedPreset?.targetCount ?? 8);
+
+  return {
+    targetCount,
+    templateConfig,
+  };
+};
+
+const createMissingImportedPoolStages = async (
+  tournamentId: string,
+  templateConfig: ImportedPresetTemplateConfig,
+  existingStages: Array<{ id: string; stageNumber: number }>
+): Promise<Array<{ id: string; stageNumber: number }>> => {
+  const stageByNumber = new Map(existingStages.map((stage) => [stage.stageNumber, stage.id]));
+  const allStages = [...existingStages];
+
+  for (const [index, stage] of templateConfig.stages.entries()) {
+    const stageNumber = index + 1;
+    if (stageByNumber.has(stageNumber)) {
+      continue;
+    }
+
+    const createdStage = await prisma.poolStage.create({
+      data: {
+        tournamentId,
+        stageNumber,
+        name: stage.name,
+        poolCount: Math.max(1, stage.poolCount),
+        playersPerPool: Math.max(2, stage.playersPerPool),
+        advanceCount: Math.max(1, stage.advanceCount),
+        losersAdvanceToBracket: templateConfig.routingRules.some(
+          (rule) => rule.stageNumber === stageNumber && rule.destinationType === 'BRACKET'
+        ),
+        ...(stage.matchFormatKey ? { matchFormatKey: stage.matchFormatKey } : {}),
+        ...(stage.inParallelWith && stage.inParallelWith.length > 0
+          ? { inParallelWith: stage.inParallelWith }
+          : {}),
+      },
+      select: { id: true },
+    });
+
+    stageByNumber.set(stageNumber, createdStage.id);
+    allStages.push({ id: createdStage.id, stageNumber });
+  }
+
+  return allStages;
+};
+
+const createMissingImportedBrackets = async (
+  tournamentId: string,
+  templateConfig: ImportedPresetTemplateConfig,
+  existingBrackets: Array<{ id: string; name: string }>
+): Promise<Array<{ id: string; name: string }>> => {
+  const bracketByName = new Map(existingBrackets.map((bracket) => [bracket.name, bracket.id]));
+  const allBrackets = [...existingBrackets];
+
+  for (const bracket of templateConfig.brackets) {
+    if (bracketByName.has(bracket.name)) {
+      continue;
+    }
+
+    const createdBracket = await prisma.bracket.create({
+      data: {
+        tournamentId,
+        name: bracket.name,
+        bracketType: 'SINGLE_ELIMINATION',
+        totalRounds: Math.max(1, bracket.totalRounds),
+        ...(bracket.roundMatchFormats ? { roundMatchFormats: bracket.roundMatchFormats } : {}),
+        ...(bracket.inParallelWith && bracket.inParallelWith.length > 0
+          ? { inParallelWith: bracket.inParallelWith }
+          : {}),
+      },
+      select: { id: true },
+    });
+
+    bracketByName.set(bracket.name, createdBracket.id);
+    allBrackets.push({ id: createdBracket.id, name: bracket.name });
+  }
+
+  return allBrackets;
+};
+
+const resolveImportedRankingDestinations = (
+  stageNumber: number,
+  templateConfig: ImportedPresetTemplateConfig,
+  stageByNumber: Map<number, string>,
+  bracketByName: Map<string, string>
+) => {
+  const routingRules = templateConfig.routingRules
+    .filter((rule) => rule.stageNumber === stageNumber)
+    .sort((left, right) => left.position - right.position);
+
+  return routingRules
+    .map((rule) => {
+      if (rule.destinationType === 'POOL_STAGE') {
+        const destinationStageId = rule.destinationStageNumber
+          ? stageByNumber.get(rule.destinationStageNumber)
+          : undefined;
+        if (!destinationStageId) {
+          return undefined;
+        }
+        return {
+          position: rule.position,
+          destinationType: 'POOL_STAGE' as const,
+          poolStageId: destinationStageId,
+        };
+      }
+
+      if (rule.destinationType === 'BRACKET') {
+        const destinationBracketId = rule.destinationBracketName
+          ? bracketByName.get(rule.destinationBracketName)
+          : undefined;
+        if (!destinationBracketId) {
+          return undefined;
+        }
+        return {
+          position: rule.position,
+          destinationType: 'BRACKET' as const,
+          bracketId: destinationBracketId,
+        };
+      }
+
+      return {
+        position: rule.position,
+        destinationType: 'ELIMINATED' as const,
+      };
+    })
+    .filter((destination): destination is NonNullable<typeof destination> => destination !== undefined);
+};
+
+const applyImportedPresetRouting = async (
+  createdStages: Array<{ id: string; stageNumber: number }>,
+  templateConfig: ImportedPresetTemplateConfig,
+  createdBrackets: Array<{ id: string; name: string }>
+): Promise<void> => {
+  const stageByNumber = new Map(createdStages.map((stage) => [stage.stageNumber, stage.id]));
+  const bracketByName = new Map(createdBrackets.map((bracket) => [bracket.name, bracket.id]));
+
+  for (const stage of createdStages) {
+    const rankingDestinations = resolveImportedRankingDestinations(
+      stage.stageNumber,
+      templateConfig,
+      stageByNumber,
+      bracketByName
+    );
+    if (rankingDestinations.length === 0) {
+      continue;
+    }
+
+    await prisma.poolStage.update({
+      where: { id: stage.id },
+      data: { rankingDestinations },
+      select: { id: true },
+    });
+  }
+};
+
+const buildImportedRoundRobinSkeleton = (playersPerPool: number) => {
+  const placeholders = Array.from({ length: playersPerPool }, (_, index) => `slot-${index + 1}`);
+  if (placeholders.length < 2) {
+    return [] as Array<{ roundNumber: number; matchNumber: number }>;
+  }
+
+  if (placeholders.length % 2 !== 0) {
+    placeholders.push('');
+  }
+
+  const rounds = placeholders.length - 1;
+  const half = placeholders.length / 2;
+  const schedule: Array<{ roundNumber: number; pairs: number }> = [];
+  const rotation = [...placeholders];
+
+  for (let round = 0; round < rounds; round += 1) {
+    let pairCount = 0;
+    for (let index = 0; index < half; index += 1) {
+      const home = rotation[index];
+      const away = rotation[rotation.length - 1 - index];
+      if (home && away) {
+        pairCount += 1;
+      }
+    }
+
+    schedule.push({ roundNumber: round + 1, pairs: pairCount });
+
+    const fixed = rotation[0] ?? '';
+    const rest = rotation.slice(1);
+    const last = rest.pop();
+    if (last !== undefined) {
+      rest.unshift(last);
+    }
+    rotation.splice(0, rotation.length, fixed, ...rest);
+  }
+
+  let nextMatchNumber = 1;
+  const matches: Array<{ roundNumber: number; matchNumber: number }> = [];
+  for (const round of schedule) {
+    for (let index = 0; index < round.pairs; index += 1) {
+      matches.push({
+        roundNumber: round.roundNumber,
+        matchNumber: nextMatchNumber,
+      });
+      nextMatchNumber += 1;
+    }
+  }
+
+  return matches;
+};
+
+type ImportedStageStructure = {
+  id: string;
+  poolCount: number;
+  playersPerPool: number;
+  matchFormatKey: string | null;
+};
+
+const createMissingImportedPools = async (
+  stage: ImportedStageStructure,
+  existingPools: Array<{ id: string; poolNumber: number }>
+): Promise<void> => {
+  if (existingPools.length >= stage.poolCount) {
+    return;
+  }
+
+  const existingNumbers = new Set(existingPools.map((pool) => pool.poolNumber));
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const missingPools = Array.from({ length: stage.poolCount }, (_, index) => index + 1)
+    .filter((poolNumber) => !existingNumbers.has(poolNumber))
+    .map((poolNumber) => ({
+      poolStageId: stage.id,
+      poolNumber,
+      name: `Pool ${alphabet[poolNumber - 1] || poolNumber}`,
+    }));
+
+  if (missingPools.length === 0) {
+    return;
+  }
+
+  await prisma.pool.createMany({
+    data: missingPools,
+    skipDuplicates: true,
+  });
+};
+
+const ensureImportedEmptyMatchesForPool = async (
+  tournamentId: string,
+  poolId: string,
+  matchFormatKey: string | null,
+  skeletonMatches: Array<{ roundNumber: number; matchNumber: number }>
+): Promise<void> => {
+  const existingMatchCount = await prisma.match.count({
+    where: { poolId },
+  });
+  if (existingMatchCount > 0) {
+    return;
+  }
+
+  await prisma.match.createMany({
+    data: skeletonMatches.map((match) => ({
+      tournamentId,
+      poolId,
+      roundNumber: match.roundNumber,
+      matchNumber: match.matchNumber,
+      ...(matchFormatKey ? { matchFormatKey } : {}),
+    })),
+  });
+};
+
+const ensureImportedPoolsAndMatchesForStage = async (
+  tournamentId: string,
+  stage: ImportedStageStructure
+): Promise<void> => {
+  if (stage.poolCount < 1 || stage.playersPerPool < 2) {
+    return;
+  }
+
+  const initialPools = await prisma.pool.findMany({
+    where: { poolStageId: stage.id },
+    select: { id: true, poolNumber: true },
+    orderBy: { poolNumber: 'asc' },
+  });
+  await createMissingImportedPools(stage, initialPools);
+
+  const pools = await prisma.pool.findMany({
+    where: { poolStageId: stage.id },
+    select: { id: true },
+    orderBy: { poolNumber: 'asc' },
+  });
+  if (pools.length === 0) {
+    return;
+  }
+
+  const skeletonMatches = buildImportedRoundRobinSkeleton(stage.playersPerPool);
+  if (skeletonMatches.length === 0) {
+    return;
+  }
+
+  for (const pool of pools) {
+    await ensureImportedEmptyMatchesForPool(
+      tournamentId,
+      pool.id,
+      stage.matchFormatKey,
+      skeletonMatches
+    );
+  }
+};
+
+const ensureImportedPoolsAndEmptyMatches = async (
+  tournamentId: string,
+  stages: ImportedStageStructure[]
+): Promise<void> => {
+  for (const stage of stages) {
+    await ensureImportedPoolsAndMatchesForStage(tournamentId, stage);
+  }
+};
+
+const ensureImportedTournamentPresetStructure = async (
+  tournamentId: string,
+  format: ImportedTournamentFormat,
+  participantTotal: number
+): Promise<void> => {
+  const { targetCount, templateConfig } = await resolveImportedPresetStructure(format, participantTotal);
+  const targetStartNumber = 1;
+
+  await prisma.tournament.update({
+    where: { id: tournamentId },
+    data: {
+      targetCount,
+      targetStartNumber,
+      shareTargets: true,
+      doubleStageEnabled: format === 'DOUBLE',
+    },
+    select: { id: true },
+  });
+
+  if (targetCount > 0) {
+    const targets = Array.from({ length: targetCount }, (_, index) => {
+      const targetNumber = targetStartNumber + index;
+      return {
+        tournamentId,
+        targetNumber,
+        targetCode: `target${targetNumber}`,
+      };
+    });
+
+    await prisma.target.createMany({
+      data: targets,
+      skipDuplicates: true,
+    });
+  }
+
+  const [existingStages, existingBrackets] = await Promise.all([
+    prisma.poolStage.findMany({
+      where: { tournamentId },
+      select: { id: true, stageNumber: true, poolCount: true, playersPerPool: true, matchFormatKey: true },
+    }),
+    prisma.bracket.findMany({
+      where: { tournamentId },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  const createdStages = await createMissingImportedPoolStages(tournamentId, templateConfig, existingStages);
+  const createdBrackets = await createMissingImportedBrackets(tournamentId, templateConfig, existingBrackets);
+  await applyImportedPresetRouting(createdStages, templateConfig, createdBrackets);
+
+  const stagesWithPools = await prisma.poolStage.findMany({
+    where: { tournamentId },
+    select: { id: true, poolCount: true, playersPerPool: true, matchFormatKey: true },
+    orderBy: { stageNumber: 'asc' },
+  });
+  await ensureImportedPoolsAndEmptyMatches(tournamentId, stagesWithPools);
+};
+
+const invalidateImportedTournamentCaches = async (tournamentId: string): Promise<void> => {
+  if (config.env === 'test') {
+    return;
+  }
+
+  try {
+    const client = redis.getClient();
+    const cacheKeys = new Set<string>([
+      `tournaments:live:${tournamentId}:admin`,
+      `tournaments:live:${tournamentId}:public`,
+    ]);
+
+    const summaryKeys = await client.keys('tournaments:live-summary:*');
+    const listKeys = await client.keys('tournaments:list:*');
+    const poolStageKeys = await client.keys('tournaments:pool-stages:*');
+    const poolStagePoolsKeys = await client.keys('tournaments:pool-stage-pools:*');
+
+    for (const key of [...summaryKeys, ...listKeys, ...poolStageKeys, ...poolStagePoolsKeys]) {
+      cacheKeys.add(key);
+    }
+
+    if (cacheKeys.size > 0) {
+      await client.del([...cacheKeys]);
+    }
+  } catch (error) {
+    logger.error('Failed to invalidate caches after tournament import', {
+      metadata: {
+        tournamentId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+};
+
 const upsertImportedTournament = async (
   name: string,
-  format: 'SINGLE' | 'DOUBLE',
+  format: ImportedTournamentFormat,
   startTime: Date,
   participantTotal: number
 ): Promise<{ id: string; created: boolean }> => {
@@ -1078,10 +1696,14 @@ const upsertImportedTournament = async (
         endTime,
         totalParticipants: Math.max(participantTotal, existing.totalParticipants, 2),
         targetCount: Math.max(existing.targetCount, 8),
+        targetStartNumber: 1,
+        shareTargets: true,
         status: existing.status === 'DRAFT' ? 'OPEN' : existing.status,
       },
       select: { id: true },
     });
+    await ensureImportedTournamentPresetStructure(existing.id, format, participantTotal);
+    await invalidateImportedTournamentCaches(existing.id);
     return { id: existing.id, created: false };
   }
 
@@ -1094,11 +1716,15 @@ const upsertImportedTournament = async (
       endTime,
       totalParticipants: Math.max(participantTotal, 2),
       targetCount: 8,
+      targetStartNumber: 1,
+      shareTargets: true,
       status: 'OPEN',
     },
     select: { id: true },
   });
 
+  await ensureImportedTournamentPresetStructure(created.id, format, participantTotal);
+  await invalidateImportedTournamentCaches(created.id);
   return { id: created.id, created: true };
 };
 
@@ -1348,6 +1974,10 @@ const importTournamentRegistrations = async (content: string): Promise<ImportedT
       singleRegistrationsCreated: 0,
       doublettesCreated: 0,
       doublePlayersCreated: 0,
+      singlePoolStagesCount: 0,
+      singleBracketsCount: 0,
+      doublePoolStagesCount: 0,
+      doubleBracketsCount: 0,
       issues: issues.slice(0, 20),
     };
   }
@@ -1376,12 +2006,23 @@ const importTournamentRegistrations = async (content: string): Promise<ImportedT
     parsed.doublettes
   );
 
+  const [singlePoolStagesCount, singleBracketsCount, doublePoolStagesCount, doubleBracketsCount] = await Promise.all([
+    prisma.poolStage.count({ where: { tournamentId: singleTournament.id } }),
+    prisma.bracket.count({ where: { tournamentId: singleTournament.id } }),
+    prisma.poolStage.count({ where: { tournamentId: doubleTournament.id } }),
+    prisma.bracket.count({ where: { tournamentId: doubleTournament.id } }),
+  ]);
+
   return {
     tournamentsCreated: Number(singleTournament.created) + Number(doubleTournament.created),
     tournamentsUpdated: Number(!singleTournament.created) + Number(!doubleTournament.created),
     singleRegistrationsCreated,
     doublettesCreated,
     doublePlayersCreated,
+    singlePoolStagesCount,
+    singleBracketsCount,
+    doublePoolStagesCount,
+    doubleBracketsCount,
     issues: issues.slice(0, 20),
     singleTournamentId: singleTournament.id,
     doubleTournamentId: doubleTournament.id,

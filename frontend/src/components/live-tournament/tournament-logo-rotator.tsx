@@ -6,7 +6,7 @@ type TournamentLogoRotatorProperties = {
   className?: string;
 };
 
-const LOGO_ROTATION_INTERVAL_MS = 10_000;
+const LOGO_ROTATION_INTERVAL_MS = 5_000;
 
 const normalizeLogoUrls = (logoUrls: string[] | undefined): string[] => {
   if (!logoUrls || logoUrls.length === 0) {

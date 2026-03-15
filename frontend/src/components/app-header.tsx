@@ -63,7 +63,6 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
   const [devAutologinMode, setDevAutologinMode] = useState<DevAutologinMode>('anonymous');
   const [devAutologinReady, setDevAutologinReady] = useState(false);
   const [devAutologinUpdating, setDevAutologinUpdating] = useState(false);
-  const [showDoublettesLink, setShowDoublettesLink] = useState(false);
   const [showEquipesLink, setShowEquipesLink] = useState(false);
   const hostname = globalThis.window?.location.hostname;
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
@@ -161,13 +160,11 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
           return;
         }
 
-        setShowDoublettesLink(tournamentsInAllowedStatuses.some((tournament) => isDoubleTournamentFormat(tournament.format)));
         setShowEquipesLink(tournamentsInAllowedStatuses.some((tournament) => isTeamTournamentFormat(tournament.format)));
       } catch {
         if (!isMounted) {
           return;
         }
-        setShowDoublettesLink(false);
         setShowEquipesLink(false);
       }
     };
@@ -311,16 +308,12 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
                     {t('nav.userAccounts')}
                   </a>
                 )}
-                {isAdmin && (
-                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=single">
-                    {t('nav.players')}
-                  </a>
-                )}
-                {showDoublettesLink && (
-                  <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=doublettes">
-                    {t('groups.doublettes')}
-                  </a>
-                )}
+                <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=single">
+                  Individuels
+                </a>
+                <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=doublettes">
+                  {t('groups.doublettes')}
+                </a>
                 {showEquipesLink && (
                   <a className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800" href="/?view=equipes">
                     {t('groups.equipes')}

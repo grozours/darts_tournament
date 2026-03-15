@@ -76,9 +76,9 @@ describe('AppHeader', () => {
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     const signUpLink = screen.getByRole('link', { name: 'nav.signUp' });
     expect(signUpLink.compareDocumentPosition(userAccountsLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'nav.players' })).toBeInTheDocument();
-    const playersLink = screen.getByRole('link', { name: 'nav.players' });
-    expect(signUpLink.compareDocumentPosition(playersLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Individuels' })).toBeInTheDocument();
+    const singleRegistrationsLink = screen.getByRole('link', { name: 'Individuels' });
+    expect(signUpLink.compareDocumentPosition(singleRegistrationsLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByLabelText('1 unread notifications')).toBeInTheDocument();
   });
 
@@ -100,7 +100,7 @@ describe('AppHeader', () => {
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'nav.userAccounts' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'nav.signUp' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'nav.players' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Individuels' })).toBeInTheDocument();
 
     globalThis.localStorage.setItem('notifications:match-started', JSON.stringify([{ id: '1' }, { id: '2' }]));
     globalThis.dispatchEvent(new Event('notifications:updated'));
@@ -186,7 +186,7 @@ describe('AppHeader', () => {
     fetchMock.mockRestore();
   });
 
-  it('shows doublettes/equipes links for non-admin only when matching formats exist in OPEN,SIGNATURE,LIVE', async () => {
+  it('keeps doublettes link visible for non-admin even without matching tournament formats', async () => {
     fetchMock.mockRestore();
     mockHeaderFetch([
       { format: 'DOUBLE', status: 'FINISHED' },
@@ -209,7 +209,7 @@ describe('AppHeader', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole('link', { name: 'groups.doublettes' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();
     });
     expect(screen.queryByRole('link', { name: 'groups.equipes' })).not.toBeInTheDocument();
   });
@@ -237,7 +237,7 @@ describe('AppHeader', () => {
     });
   });
 
-  it('falls back to hiding registration format links when tournaments fetch fails', async () => {
+  it('keeps doublettes visible and hides equipes when tournaments fetch fails', async () => {
     fetchMock.mockRestore();
     fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = resolveRequestUrl(input);
@@ -264,7 +264,7 @@ describe('AppHeader', () => {
       expect(fetchMock).toHaveBeenCalled();
     });
 
-    expect(screen.queryByRole('link', { name: 'groups.doublettes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'groups.doublettes' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'groups.equipes' })).not.toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ const authState = { isAuthenticated: true };
 const adminState = { isAdmin: true };
 const fetchMatchFormatPresetsMock = vi.fn(async () => []);
 const fetchLiveTournamentSummaryMock = vi.fn(async () => []);
+const fetchTournamentLogosMock = vi.fn(async () => ({ logoUrls: [] as string[] }));
 const setMatchFormatPresetsMock = vi.fn();
 const navigateTo = (url: string) => {
   globalThis.history.pushState({}, '', url);
@@ -22,6 +23,7 @@ vi.mock('../../src/components/notifications/use-match-started-notifications', ()
 vi.mock('../../src/services/tournament-service', () => ({
   fetchMatchFormatPresets: (...arguments_: unknown[]) => fetchMatchFormatPresetsMock(...arguments_),
   fetchLiveTournamentSummary: (...arguments_: unknown[]) => fetchLiveTournamentSummaryMock(...arguments_),
+  fetchTournamentLogos: (...arguments_: unknown[]) => fetchTournamentLogosMock(...arguments_),
 }));
 vi.mock('../../src/utils/match-format-presets', () => ({
   setMatchFormatPresets: (...arguments_: unknown[]) => setMatchFormatPresetsMock(...arguments_),
@@ -58,6 +60,8 @@ describe('App routing', () => {
     fetchMatchFormatPresetsMock.mockResolvedValue([]);
     fetchLiveTournamentSummaryMock.mockReset();
     fetchLiveTournamentSummaryMock.mockResolvedValue([]);
+    fetchTournamentLogosMock.mockReset();
+    fetchTournamentLogosMock.mockResolvedValue({ logoUrls: [] });
     setMatchFormatPresetsMock.mockReset();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ tournaments: [] }) })));
   });
@@ -66,11 +70,11 @@ describe('App routing', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders admin-only guard for single view when non-admin', async () => {
+  it('renders registration players for single view when non-admin', async () => {
     adminState.isAdmin = false;
     navigateTo('/?view=single');
     render(<App />);
-    expect(await screen.findByText('auth.adminOnly')).toBeInTheDocument();
+    expect(await screen.findByText('REGISTRATION_PLAYERS')).toBeInTheDocument();
   });
 
   it('renders requested views from query params', async () => {
@@ -119,6 +123,44 @@ describe('App routing', () => {
     await waitFor(() => {
       expect(fetchLiveTournamentSummaryMock).toHaveBeenCalledWith(['LIVE']);
     });
+  });
+
+  it('shows rotating logo in non-live screen view', async () => {
+    fetchTournamentLogosMock.mockResolvedValue({ logoUrls: ['https://example.test/logo-1.png'] });
+
+    navigateTo('/?screen=1&view=targets&tournamentId=t1');
+    render(<App />);
+
+    await waitFor(() => {
+      expect(fetchTournamentLogosMock).toHaveBeenCalledWith('t1');
+    });
+    const logo = await screen.findByRole('img', { name: /tournament logo/i });
+    expect(logo).toHaveAttribute('src', 'https://example.test/logo-1.png');
+  });
+
+  it('shows rotating logo in pool-stages screen view', async () => {
+    fetchTournamentLogosMock.mockResolvedValue({ logoUrls: ['https://example.test/logo-pool.png'] });
+
+    navigateTo('/?screen=1&view=pool-stages&tournamentId=t1&stageId=s1');
+    render(<App />);
+
+    await waitFor(() => {
+      expect(fetchTournamentLogosMock).toHaveBeenCalledWith('t1');
+    });
+    const logo = await screen.findByRole('img', { name: /tournament logo/i });
+    expect(logo).toHaveAttribute('src', 'https://example.test/logo-pool.png');
+  });
+
+  it('does not render rotating logo when logo fetch fails in screen view', async () => {
+    fetchTournamentLogosMock.mockRejectedValueOnce(new Error('network'));
+
+    navigateTo('/?screen=1&view=targets&tournamentId=t1');
+    render(<App />);
+
+    await waitFor(() => {
+      expect(fetchTournamentLogosMock).toHaveBeenCalledWith('t1');
+    });
+    expect(screen.queryByRole('img', { name: /tournament logo/i })).not.toBeInTheDocument();
   });
 
   it('resolves screen rotation from explicit tournament live endpoint', async () => {

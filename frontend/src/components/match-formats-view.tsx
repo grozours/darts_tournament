@@ -174,7 +174,13 @@ const MatchFormatsView = () => {
       return null;
     }
 
-    return Math.max(...parsedValues);
+    // Ignore game identifiers (501/701) and keep only valid board counts.
+    const boardCounts = parsedValues.filter((value) => value >= 1 && value <= 10 && value !== 501 && value !== 701);
+    if (boardCounts.length === 0) {
+      return null;
+    }
+
+    return Math.max(...boardCounts);
   };
 
   const parseSegmentDescription = (description: string): MatchFormatPresetSegment | undefined => {
@@ -186,7 +192,9 @@ const MatchFormatsView = () => {
     const lower = normalized.toLowerCase();
     let game: MatchFormatPresetSegment['game'] | undefined;
 
-    if (lower.includes('701')) {
+    if (lower.includes('cricket')) {
+      game = 'CRICKET';
+    } else if (lower.includes('701')) {
       game = '701_DO';
     } else if (lower.includes('501')) {
       game = '501_DO';

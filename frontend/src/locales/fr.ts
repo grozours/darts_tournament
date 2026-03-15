@@ -351,7 +351,7 @@ export const frMessages: Record<string, string> = {
   'notifications.acknowledge': 'Accuser réception',
   'notifications.acknowledged': 'Accusé',
   'registration.title': 'Inscriptions',
-  'registration.subtitle': 'Inscriptions doubles et équipes',
+  'registration.subtitle': 'Inscriptions Individuels',
   'registration.loading': 'Chargement des inscriptions...',
   'registration.none': 'Aucune inscription pour le moment',
   'registration.none.subtitle': 'Ouvrez les inscriptions des tournois individuels, doubles ou équipes pour voir les inscrits ici.',

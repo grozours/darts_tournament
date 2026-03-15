@@ -92,7 +92,7 @@ describe('useScreenRotation', () => {
     });
 
     await waitFor(() => {
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10_000);
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 20_000);
     });
   });
 });

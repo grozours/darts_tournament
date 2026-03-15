@@ -1,12 +1,14 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import type { JSX as ReactJSX } from 'react';
-import { fetchMatchFormatPresets } from './services/tournament-service';
+import { TournamentFormat } from '@shared/types';
+import { fetchMatchFormatPresets, fetchTournamentLogos } from './services/tournament-service';
 import { setMatchFormatPresets } from './utils/match-format-presets';
 import useMatchStartedNotifications from "./components/notifications/use-match-started-notifications";
 import { useI18n } from './i18n';
 import { useOptionalAuth } from './auth/optional-auth';
 import { useAdminStatus } from './auth/use-admin-status';
 import useScreenRotation from './hooks/use-screen-rotation';
+import TournamentLogoRotator from './components/live-tournament/tournament-logo-rotator';
 const AppHeader = lazy(() => import('./components/app-header'));
 
 const TournamentList = lazy(() => import('./components/tournament-list'));
@@ -55,7 +57,7 @@ const resolveMainContent = (
 
   switch (view) {
     case 'single': {
-      return renderAdminOnly(isAdmin, t, <PlayersView />);
+      return <RegistrationPlayers formats={[TournamentFormat.SINGLE]} />;
     }
     case 'registration-players': {
       return <RegistrationPlayers />;
@@ -202,6 +204,7 @@ function App() {
   const [locationSearch, setLocationSearch] = useState(
     globalThis.window?.location.search ?? ''
   );
+  const [screenTournamentLogoUrls, setScreenTournamentLogoUrls] = useState<string[]>([]);
 
   useEffect(() => {
     if (!globalThis.window || !globalThis.document) {
@@ -261,10 +264,56 @@ function App() {
     getAccessTokenSilently: async () => getAccessTokenSilently(),
   });
 
+  useEffect(() => {
+    if (!screenMode || !tournamentId) {
+      setScreenTournamentLogoUrls([]);
+      return;
+    }
+
+    let isActive = true;
+    const loadScreenTournamentLogos = async () => {
+      try {
+        const logos = await fetchTournamentLogos(tournamentId);
+        if (!isActive) {
+          return;
+        }
+
+        const nextLogos = [
+          ...(logos.logoUrls ?? []),
+          ...(logos.logoUrl ? [logos.logoUrl] : []),
+        ].filter((value, index, items) => value.trim().length > 0 && items.indexOf(value) === index);
+
+        setScreenTournamentLogoUrls(nextLogos);
+      } catch {
+        if (isActive) {
+          setScreenTournamentLogoUrls([]);
+        }
+      }
+    };
+
+    void loadScreenTournamentLogos();
+
+    return () => {
+      isActive = false;
+    };
+  }, [screenMode, tournamentId]);
+
+  const hasEmbeddedLiveLogo = view === 'live' || (!view && normalizedStatus === 'live');
+
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.25),_transparent_45%),radial-gradient(circle_at_30%_20%,_rgba(99,102,241,0.18),_transparent_40%)]" />
+
+      {screenMode && !hasEmbeddedLiveLogo && screenTournamentLogoUrls.length > 0 && (
+        <div className="pointer-events-none fixed right-6 top-6 z-20">
+          <TournamentLogoRotator
+            tournamentName="Tournament"
+            logoUrls={screenTournamentLogoUrls}
+            className="h-24 w-24 rounded-2xl border border-cyan-400/40 bg-slate-950/75 object-contain p-2 shadow-[0_0_40px_rgba(34,211,238,0.2)]"
+          />
+        </div>
+      )}
 
       {debugEnabled && (
         <div className="border-b border-amber-500/40 bg-amber-500/10 px-6 py-2 text-xs text-amber-100">

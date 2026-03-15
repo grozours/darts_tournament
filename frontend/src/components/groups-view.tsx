@@ -369,7 +369,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
   } else if (visibleGroups.length === 0) {
     content = (
       <div className="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-300">
-        {t('groups.none')}
+        {isAdmin ? t('groups.none') : 'Aucune inscription pour le moment'}
       </div>
     );
   } else {
@@ -379,13 +379,13 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
           const member = group.members.find((item) => item.email?.toLowerCase() === effectiveUserEmail);
           const isMember = Boolean(member);
           const isCaptain = member?.playerId === group.captainPlayerId;
-          const canManageGroup = isAdmin || (isMember && isCaptain);
+          const canManageGroup = isAdmin || (effectiveIsAuthenticated && isMember && isCaptain);
           const canJoin = effectiveIsAuthenticated && !isMember && !group.isRegistered && group.memberCount < requiredMembers;
           const normalizedTournamentStatus = tournamentStatusesById[group.tournamentId] ?? '';
           const isLiveOrArchivedTournament = normalizedTournamentStatus === 'LIVE' || normalizedTournamentStatus === 'FINISHED';
-          const canRegister = (isCaptain || isAdmin) && !group.isRegistered && group.memberCount === requiredMembers;
-          const canUnregister = group.isRegistered && (isAdmin || isCaptain) && !isLiveOrArchivedTournament;
-          const canLeave = isMember && !group.isRegistered;
+          const canRegister = effectiveIsAuthenticated && (isCaptain || isAdmin) && !group.isRegistered && group.memberCount === requiredMembers;
+          const canUnregister = effectiveIsAuthenticated && group.isRegistered && (isAdmin || isCaptain) && !isLiveOrArchivedTournament;
+          const canLeave = effectiveIsAuthenticated && isMember && !group.isRegistered;
           const canDelete = isAdmin || (canManageGroup && !group.isRegistered);
           const canChangePassword = isAdmin || (canManageGroup && !group.isRegistered);
           const canRename = isAdmin || (canManageGroup && !group.isRegistered);

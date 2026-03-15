@@ -19,6 +19,10 @@ type LiveTournamentLoadersResult = {
   reloadLiveViews: (options?: { showLoader?: boolean }) => Promise<void>;
 };
 
+type LiveTournamentIdentifier = {
+  id: string;
+};
+
 const getErrorCode = (value: unknown): string | undefined => {
   if (!value || typeof value !== 'object') {
     return undefined;
@@ -60,6 +64,75 @@ const fetchViewsForStatuses = async (
   return views as LiveViewData[];
 };
 
+const updateTournamentIdInUrl = (tournamentId: string): void => {
+  const windowReference = globalThis.window;
+  if (!windowReference) {
+    return;
+  }
+
+  const url = new URL(windowReference.location.href);
+  url.searchParams.set('tournamentId', tournamentId);
+  windowReference.history.replaceState({}, '', `${url.pathname}${url.search}`);
+};
+
+const resolveLiveFallbackTournamentId = (
+  fallbackViews: LiveTournamentIdentifier[],
+  currentTournamentId?: string
+): string | undefined => {
+  const firstLiveView = fallbackViews.at(0);
+  if (!firstLiveView) {
+    return undefined;
+  }
+
+  if (currentTournamentId && fallbackViews.some((view) => view.id === currentTournamentId)) {
+    return currentTournamentId;
+  }
+
+  return firstLiveView.id;
+};
+
+type ResolveSingleLiveErrorProperties = {
+  errorValue: unknown;
+  hasAttemptsLeft: boolean;
+  tournamentId: string;
+  getSafeAccessToken: () => Promise<string | undefined>;
+  setLiveViews: (value: LiveViewData[]) => void;
+  setError: (value: string | undefined) => void;
+};
+
+const resolveSingleLiveError = async ({
+  errorValue,
+  hasAttemptsLeft,
+  tournamentId,
+  getSafeAccessToken,
+  setLiveViews,
+  setError,
+}: ResolveSingleLiveErrorProperties): Promise<{ retry: boolean; handled: boolean }> => {
+  const isTransientNotLive = getErrorCode(errorValue) === 'TOURNAMENT_NOT_LIVE';
+
+  if (isTransientNotLive && hasAttemptsLeft) {
+    await wait(NOT_LIVE_RETRY_DELAY_MS);
+    return { retry: true, handled: true };
+  }
+
+  if (isTransientNotLive) {
+    const token = await getSafeAccessToken();
+    const fallbackViews = await fetchViewsForStatuses(['LIVE'], token);
+    const fallbackTournamentId = resolveLiveFallbackTournamentId(fallbackViews, tournamentId);
+
+    if (fallbackTournamentId && fallbackTournamentId !== tournamentId) {
+      const fallbackData = (await fetchTournamentLiveView(fallbackTournamentId, token)) as LiveViewData;
+      setLiveViews([fallbackData]);
+      setError(undefined);
+      updateTournamentIdInUrl(fallbackTournamentId);
+      return { retry: false, handled: true };
+    }
+  }
+
+  setError(getUserFacingError(errorValue));
+  return { retry: false, handled: false };
+};
+
 const useLiveTournamentLoaders = ({
   getSafeAccessToken,
   viewMode,
@@ -87,15 +160,18 @@ const useLiveTournamentLoaders = ({
           setLiveViews([data]);
           return;
         } catch (error_) {
-          const isTransientNotLive = getErrorCode(error_) === 'TOURNAMENT_NOT_LIVE';
-          const hasAttemptsLeft = attempt < MAX_NOT_LIVE_RETRIES;
+          const { retry } = await resolveSingleLiveError({
+            errorValue: error_,
+            hasAttemptsLeft: attempt < MAX_NOT_LIVE_RETRIES,
+            tournamentId,
+            getSafeAccessToken,
+            setLiveViews,
+            setError,
+          });
 
-          if (isTransientNotLive && hasAttemptsLeft) {
-            await wait(NOT_LIVE_RETRY_DELAY_MS);
+          if (retry) {
             continue;
           }
-
-          setError(getUserFacingError(error_));
           return;
         }
       }

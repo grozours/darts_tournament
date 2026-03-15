@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RegistrationPlayers from '../../../src/components/registration-players';
+import { TournamentFormat } from '@shared/types';
 
 const mockFetchTournamentPlayers = vi.fn();
 const mockFetchDoublettes = vi.fn();
@@ -73,15 +74,20 @@ describe('RegistrationPlayers', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows sign-in panel when auth is required', () => {
+  it('allows anonymous consultation when auth is enabled', async () => {
     authEnabled = true;
     isAuthenticated = false;
 
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tournaments: [] }),
+    }) as typeof fetch;
+
     render(<RegistrationPlayers />);
 
-    expect(screen.getByText('auth.signInToViewRegistrationPlayers')).toBeInTheDocument();
-    expect(screen.getByText('auth.protectedContinue')).toBeInTheDocument();
-    expect(mockFetchTournamentPlayers).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByText('Aucune inscription pour le moment')).toBeInTheDocument();
+    });
   });
 
   it('loads and displays registration tournaments by format', async () => {
@@ -117,14 +123,27 @@ describe('RegistrationPlayers', () => {
       }),
     }) as typeof fetch;
 
-    mockFetchTournamentPlayers.mockResolvedValue([
-      {
-        playerId: 'p1',
-        name: 'Alice',
-        email: 'alice@example.com',
-        skillLevel: 'EXPERT',
-      },
-    ]);
+    mockFetchTournamentPlayers.mockImplementation(async (tournamentId: string) => {
+      if (tournamentId === 't2') {
+        return [
+          {
+            playerId: 'p2',
+            name: 'Bob',
+            email: 'bob@example.com',
+            skillLevel: 'EXPERT',
+          },
+        ];
+      }
+
+      return [
+        {
+          playerId: 'p1',
+          name: 'Alice',
+          email: 'alice@example.com',
+          skillLevel: 'EXPERT',
+        },
+      ];
+    });
 
     mockFetchDoublettes.mockResolvedValue([
       {
@@ -187,6 +206,90 @@ describe('RegistrationPlayers', () => {
     expect(mockFetchTournamentPlayers.mock.calls[0]?.[0]).toBe('t0');
     expect(mockFetchDoublettes.mock.calls[0]?.[0]).toBe('t1');
     expect(mockFetchEquipes.mock.calls[0]?.[0]).toBe('t2');
+  });
+
+  it('shows only single tournaments when filtered to single format', async () => {
+    authEnabled = false;
+    isAuthenticated = false;
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tournaments: [
+          {
+            id: 't0',
+            name: 'Singles Cup',
+            format: 'SINGLE',
+            status: 'OPEN',
+            totalParticipants: 8,
+          },
+          {
+            id: 't2',
+            name: 'Singles Cup 2',
+            format: 'SINGLE',
+            status: 'OPEN',
+            totalParticipants: 8,
+          },
+          {
+            id: 't1',
+            name: 'Double Cup',
+            format: 'DOUBLE',
+            status: 'OPEN',
+            totalParticipants: 16,
+          },
+        ],
+      }),
+    }) as typeof fetch;
+
+    mockFetchTournamentPlayers.mockImplementation(async (tournamentId: string) => {
+      if (tournamentId === 't2') {
+        return [
+          {
+            playerId: 'p2',
+            name: 'Bob',
+            email: 'bob@example.com',
+            skillLevel: 'EXPERT',
+          },
+        ];
+      }
+
+      return [
+        {
+          playerId: 'p1',
+          name: 'Alice',
+          email: 'alice@example.com',
+          skillLevel: 'EXPERT',
+        },
+      ];
+    });
+
+    render(<RegistrationPlayers formats={[TournamentFormat.SINGLE]} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 4, name: 'Singles Cup' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 4, name: 'Singles Cup 2' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Double Cup')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('players.search'), { target: { value: 'bob' } });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { level: 4, name: 'Singles Cup' })).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 4, name: 'Singles Cup 2' })).toBeInTheDocument();
+      expect(screen.getByText('Bob')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('live.selectTournament'), { target: { value: 't2' } });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { level: 4, name: 'Singles Cup' })).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 4, name: 'Singles Cup 2' })).toBeInTheDocument();
+    });
+
+    expect(mockFetchTournamentPlayers).toHaveBeenCalledTimes(2);
+    expect(mockFetchDoublettes).not.toHaveBeenCalled();
+    expect(mockFetchEquipes).not.toHaveBeenCalled();
   });
 
   it('shows an error and retries when fetch fails', async () => {

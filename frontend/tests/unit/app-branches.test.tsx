@@ -1,9 +1,11 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/app';
 
 const fetchLiveTournamentSummaryMock = vi.fn();
 const fetchMatchFormatPresetsMock = vi.fn(async () => []);
+const fetchTournamentLogosMock = vi.fn(async () => ({ logoUrls: [] as string[] }));
 const socketHandlers: Record<string, ((payload?: unknown) => void) | undefined> = {};
 const emitMock = vi.fn();
 const disconnectMock = vi.fn();
@@ -23,6 +25,7 @@ vi.mock('../../src/components/notifications/use-match-started-notifications', ()
 vi.mock('../../src/services/tournament-service', () => ({
   fetchLiveTournamentSummary: (statuses: string[], token?: string) => fetchLiveTournamentSummaryMock(statuses, token),
   fetchMatchFormatPresets: () => fetchMatchFormatPresetsMock(),
+  fetchTournamentLogos: (tournamentId: string) => fetchTournamentLogosMock(tournamentId),
 }));
 vi.mock('../../src/utils/match-format-presets', () => ({ setMatchFormatPresets: vi.fn() }));
 
@@ -78,6 +81,8 @@ describe('App branch coverage', () => {
         ],
       },
     ]);
+    fetchTournamentLogosMock.mockReset();
+    fetchTournamentLogosMock.mockResolvedValue({ logoUrls: [] });
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => ({

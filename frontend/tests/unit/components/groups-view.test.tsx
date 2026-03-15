@@ -156,7 +156,7 @@ describe('GroupsView', () => {
 
   it('loads groups and supports search refresh', async () => {
     render(<GroupsView mode="doublettes" />);
-    await screen.findByText('groups.none');
+    await screen.findByText('Aucune inscription pour le moment');
 
     fireEvent.change(screen.getByPlaceholderText('groups.searchPlaceholder'), { target: { value: 'abc' } });
     fireEvent.click(screen.getByText('groups.search'));
@@ -252,7 +252,7 @@ describe('GroupsView', () => {
 
   it('creates group for authenticated users', async () => {
     render(<GroupsView mode="doublettes" />);
-    await screen.findByText('groups.none');
+    await screen.findByText('Aucune inscription pour le moment');
 
     fireEvent.change(screen.getByPlaceholderText('groups.promptName'), { target: { value: 'New Duo' } });
     fireEvent.change(screen.getByPlaceholderText('groups.promptPassword'), { target: { value: 'secret' } });
@@ -318,11 +318,11 @@ describe('GroupsView', () => {
 
   it('wrapper components render base view', async () => {
     render(<DoublettesView />);
-    await screen.findByText('groups.none');
+    await screen.findByText('Aucune inscription pour le moment');
 
     globalThis.history.pushState({}, '', '/?view=equipes&tournamentId=t1');
     render(<EquipesView />);
-    await screen.findByText('groups.none');
+    await screen.findByText('Aucune inscription pour le moment');
   });
 
   it('hides group skill level in doublettes view for non-admin accounts', async () => {
@@ -764,6 +764,33 @@ describe('GroupsView', () => {
     });
   });
 
+  it('hides unregister action for anonymous users on registered groups', async () => {
+    authState.isAuthenticated = false;
+    authState.user = { email: 'me@example.com' };
+    adminState.isAdmin = false;
+
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-anon',
+        name: 'Anon Duo',
+        captainPlayerId: 'p-captain',
+        isRegistered: true,
+        createdAt: new Date().toISOString(),
+        memberCount: 2,
+        members: [
+          { playerId: 'p-captain', firstName: 'Cap', lastName: 'Tain', email: 'me@example.com', joinedAt: new Date().toISOString() },
+          { playerId: 'p-member', firstName: 'Mem', lastName: 'Ber', email: 'mem@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<GroupsView mode="doublettes" />);
+    await screen.findByText('Anon Duo');
+
+    expect(screen.queryByText('tournaments.unregister')).not.toBeInTheDocument();
+    expect(screen.queryByText('desinscrire')).not.toBeInTheDocument();
+  });
+
   it('shows admin register label as inscrire', async () => {
     adminState.isAdmin = true;
     fetchDoublettes.mockResolvedValue([
@@ -1036,7 +1063,7 @@ describe('GroupsView', () => {
     fetchDoublettes.mockResolvedValue([]);
 
     render(<GroupsView mode="doublettes" />);
-    await screen.findByText('groups.none');
+    await screen.findByText('Aucune inscription pour le moment');
 
     expect(screen.queryByText('groups.create')).not.toBeInTheDocument();
   });

@@ -43,6 +43,10 @@ type UserImportSummary = {
     singleRegistrationsCreated: number;
     doublettesCreated: number;
     doublePlayersCreated: number;
+    singlePoolStagesCount?: number;
+    singleBracketsCount?: number;
+    doublePoolStagesCount?: number;
+    doubleBracketsCount?: number;
     issues?: string[];
   };
 };
@@ -86,7 +90,11 @@ const buildImportNotice = (t: (key: string) => string, summary: UserImportSummar
       `Tournois +${summary.tournamentImport.tournamentsCreated}`,
       `MAJ ${summary.tournamentImport.tournamentsUpdated}`,
       `Inscriptions simple +${summary.tournamentImport.singleRegistrationsCreated}`,
-      `Doublettes +${summary.tournamentImport.doublettesCreated}`
+      `Doublettes +${summary.tournamentImport.doublettesCreated}`,
+      `Simple phases ${summary.tournamentImport.singlePoolStagesCount ?? 0}`,
+      `Simple brackets ${summary.tournamentImport.singleBracketsCount ?? 0}`,
+      `Double phases ${summary.tournamentImport.doublePoolStagesCount ?? 0}`,
+      `Double brackets ${summary.tournamentImport.doubleBracketsCount ?? 0}`
     );
   }
 

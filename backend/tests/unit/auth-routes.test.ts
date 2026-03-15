@@ -9,10 +9,31 @@ const findFirstPersonMock = jest.fn();
 const findManyPersonMock = jest.fn();
 const findManyPlayerMock = jest.fn();
 const findFirstPlayerMock = jest.fn();
+const createPlayerMock = jest.fn();
+const updatePlayerMock = jest.fn();
 const updateManyPlayerMock = jest.fn();
 const createPersonMock = jest.fn();
 const updatePersonMock = jest.fn();
 const deleteManyPersonMock = jest.fn();
+const findFirstTournamentMock = jest.fn();
+const createTournamentMock = jest.fn();
+const updateTournamentMock = jest.fn();
+const findManyPoolStageMock = jest.fn();
+const countPoolStageMock = jest.fn();
+const createPoolStageMock = jest.fn();
+const updatePoolStageMock = jest.fn();
+const findManyBracketMock = jest.fn();
+const countBracketMock = jest.fn();
+const createBracketMock = jest.fn();
+const findManyTournamentPresetMock = jest.fn();
+const findFirstDoubletteMock = jest.fn();
+const createDoubletteMock = jest.fn();
+const createManyDoubletteMemberMock = jest.fn();
+const createManyTargetMock = jest.fn();
+const findManyPoolMock = jest.fn();
+const createManyPoolMock = jest.fn();
+const countMatchMock = jest.fn();
+const createManyMatchMock = jest.fn();
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn().mockImplementation(() => ({
@@ -26,7 +47,46 @@ jest.mock('@prisma/client', () => ({
     player: {
       findMany: (...args: unknown[]) => findManyPlayerMock(...args),
       findFirst: (...args: unknown[]) => findFirstPlayerMock(...args),
+      create: (...args: unknown[]) => createPlayerMock(...args),
+      update: (...args: unknown[]) => updatePlayerMock(...args),
       updateMany: (...args: unknown[]) => updateManyPlayerMock(...args),
+    },
+    tournament: {
+      findFirst: (...args: unknown[]) => findFirstTournamentMock(...args),
+      create: (...args: unknown[]) => createTournamentMock(...args),
+      update: (...args: unknown[]) => updateTournamentMock(...args),
+    },
+    target: {
+      createMany: (...args: unknown[]) => createManyTargetMock(...args),
+    },
+    pool: {
+      findMany: (...args: unknown[]) => findManyPoolMock(...args),
+      createMany: (...args: unknown[]) => createManyPoolMock(...args),
+    },
+    poolStage: {
+      findMany: (...args: unknown[]) => findManyPoolStageMock(...args),
+      count: (...args: unknown[]) => countPoolStageMock(...args),
+      create: (...args: unknown[]) => createPoolStageMock(...args),
+      update: (...args: unknown[]) => updatePoolStageMock(...args),
+    },
+    bracket: {
+      findMany: (...args: unknown[]) => findManyBracketMock(...args),
+      count: (...args: unknown[]) => countBracketMock(...args),
+      create: (...args: unknown[]) => createBracketMock(...args),
+    },
+    tournamentPreset: {
+      findMany: (...args: unknown[]) => findManyTournamentPresetMock(...args),
+    },
+    doublette: {
+      findFirst: (...args: unknown[]) => findFirstDoubletteMock(...args),
+      create: (...args: unknown[]) => createDoubletteMock(...args),
+    },
+    doubletteMember: {
+      createMany: (...args: unknown[]) => createManyDoubletteMemberMock(...args),
+    },
+    match: {
+      count: (...args: unknown[]) => countMatchMock(...args),
+      createMany: (...args: unknown[]) => createManyMatchMock(...args),
     },
   })),
 }));
@@ -72,14 +132,37 @@ describe('auth routes', () => {
     findManyPersonMock.mockReset();
     findManyPlayerMock.mockReset();
     findFirstPlayerMock.mockReset();
+    createPlayerMock.mockReset();
+    updatePlayerMock.mockReset();
     updateManyPlayerMock.mockReset();
     createPersonMock.mockReset();
     updatePersonMock.mockReset();
     deleteManyPersonMock.mockReset();
+    findFirstTournamentMock.mockReset();
+    createTournamentMock.mockReset();
+    updateTournamentMock.mockReset();
+    findManyPoolStageMock.mockReset();
+    countPoolStageMock.mockReset();
+    createPoolStageMock.mockReset();
+    updatePoolStageMock.mockReset();
+    findManyBracketMock.mockReset();
+    countBracketMock.mockReset();
+    createBracketMock.mockReset();
+    findManyTournamentPresetMock.mockReset();
+    findFirstDoubletteMock.mockReset();
+    createDoubletteMock.mockReset();
+    createManyDoubletteMemberMock.mockReset();
+    createManyTargetMock.mockReset();
+    findManyPoolMock.mockReset();
+    createManyPoolMock.mockReset();
+    countMatchMock.mockReset();
+    createManyMatchMock.mockReset();
     findFirstPersonMock.mockResolvedValue(null);
     findManyPersonMock.mockResolvedValue([]);
     findManyPlayerMock.mockResolvedValue([]);
     findFirstPlayerMock.mockResolvedValue(null);
+    createPlayerMock.mockResolvedValue({ id: 'player-1' });
+    updatePlayerMock.mockResolvedValue({ id: 'player-1' });
     updateManyPlayerMock.mockResolvedValue({ count: 0 });
     createPersonMock.mockResolvedValue({
       id: 'person-1',
@@ -98,6 +181,25 @@ describe('auth routes', () => {
       skillLevel: null,
     });
     deleteManyPersonMock.mockResolvedValue({ count: 0 });
+    findFirstTournamentMock.mockResolvedValue(null);
+    createTournamentMock.mockResolvedValue({ id: 'tournament-1' });
+    updateTournamentMock.mockResolvedValue({ id: 'tournament-1' });
+    findManyPoolStageMock.mockResolvedValue([]);
+    countPoolStageMock.mockResolvedValue(0);
+    createPoolStageMock.mockResolvedValue({ id: 'stage-1' });
+    updatePoolStageMock.mockResolvedValue({ id: 'stage-1' });
+    findManyBracketMock.mockResolvedValue([]);
+    countBracketMock.mockResolvedValue(0);
+    createBracketMock.mockResolvedValue({ id: 'bracket-1' });
+    findManyTournamentPresetMock.mockResolvedValue([]);
+    findFirstDoubletteMock.mockResolvedValue(null);
+    createDoubletteMock.mockResolvedValue({ id: 'doublette-1' });
+    createManyDoubletteMemberMock.mockResolvedValue({ count: 2 });
+    createManyTargetMock.mockResolvedValue({ count: 8 });
+    findManyPoolMock.mockResolvedValue([]);
+    createManyPoolMock.mockResolvedValue({ count: 0 });
+    countMatchMock.mockResolvedValue(0);
+    createManyMatchMock.mockResolvedValue({ count: 0 });
   });
 
   afterAll(() => {
@@ -740,6 +842,166 @@ describe('auth routes', () => {
       }),
     }));
     expect(updatePersonMock).not.toHaveBeenCalled();
+  });
+
+  it('imports tournaments with preset structure when includeTournamentImport is true', async () => {
+    isAdminMock.mockReturnValue(true);
+
+    findManyPoolStageMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'single-stage-1', stageNumber: 1, poolCount: 8, playersPerPool: 5, matchFormatKey: null },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'double-stage-1', stageNumber: 1, poolCount: 8, playersPerPool: 4, matchFormatKey: null },
+        { id: 'double-stage-2', stageNumber: 2, poolCount: 4, playersPerPool: 4, matchFormatKey: null },
+        { id: 'double-stage-3', stageNumber: 3, poolCount: 4, playersPerPool: 4, matchFormatKey: null },
+      ]);
+
+    findManyPoolMock.mockImplementation(({ where }: { where: { poolStageId: string } }) => {
+      const stageId = where.poolStageId;
+      if (stageId === 'single-stage-1') {
+        return Promise.resolve([{ id: 'single-stage-1-pool-1', poolNumber: 1 }]);
+      }
+
+      if (stageId === 'double-stage-1') {
+        return Promise.resolve([{ id: 'double-stage-1-pool-1', poolNumber: 1 }]);
+      }
+
+      if (stageId === 'double-stage-2') {
+        return Promise.resolve([{ id: 'double-stage-2-pool-1', poolNumber: 1 }]);
+      }
+
+      if (stageId === 'double-stage-3') {
+        return Promise.resolve([{ id: 'double-stage-3-pool-1', poolNumber: 1 }]);
+      }
+
+      return Promise.resolve([]);
+    });
+
+    createTournamentMock
+      .mockResolvedValueOnce({ id: 'single-tournament' })
+      .mockResolvedValueOnce({ id: 'double-tournament' });
+
+    createPoolStageMock
+      .mockResolvedValueOnce({ id: 'single-stage-1' })
+      .mockResolvedValueOnce({ id: 'double-stage-1' })
+      .mockResolvedValueOnce({ id: 'double-stage-2' })
+      .mockResolvedValueOnce({ id: 'double-stage-3' });
+
+    createBracketMock
+      .mockResolvedValueOnce({ id: 'single-loser' })
+      .mockResolvedValueOnce({ id: 'single-winner' })
+      .mockResolvedValueOnce({ id: 'double-a' })
+      .mockResolvedValueOnce({ id: 'double-b' })
+      .mockResolvedValueOnce({ id: 'double-c' });
+
+    createPlayerMock
+      .mockResolvedValueOnce({ id: 'single-player-1' })
+      .mockResolvedValueOnce({ id: 'double-player-1' })
+      .mockResolvedValueOnce({ id: 'double-player-2' });
+
+    createPersonMock
+      .mockResolvedValueOnce({ id: 'person-single' })
+      .mockResolvedValueOnce({ id: 'person-double-1' })
+      .mockResolvedValueOnce({ id: 'person-double-2' });
+
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json({ limit: '2mb' }));
+    app.use((req, _res, next) => {
+      (req as { auth?: { payload?: Record<string, unknown> } }).auth = {
+        payload: {
+          sub: 'admin-1',
+          email: 'admin@example.com',
+        },
+      };
+      next();
+    });
+    app.use('/api/auth', router);
+
+    const content = [
+      '\tIndividuel\tDCDA\t03/04/2026\t\t\t\t\t\tDoublette\tDCDA\t04/04/2026',
+      '\tNom_I\tPrenom_I\tMail_I\tNiveau_I\t\t\tEquipe\tNom_D1\tPrenom_D1\tMail_D1\tNom_D2\tPrenom_D2\tMail_D2\tNiveau_D\tConfirme',
+      '1\tTalarmin\tAnthony\t\t1\t\t\tPaname\tBoucher\tAdrien\t\tTreguer\tYann\tytreguer29@gmail.com\t3\tOui',
+    ].join('\n');
+
+    const response = await request(app)
+      .post('/api/auth/users/import')
+      .send({ content, includeTournamentImport: true });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      tournamentImport: {
+        tournamentsCreated: 2,
+        tournamentsUpdated: 0,
+        singleRegistrationsCreated: 1,
+        doublettesCreated: 1,
+      },
+    });
+    expect(findManyTournamentPresetMock).toHaveBeenCalledTimes(2);
+    expect(createPoolStageMock).toHaveBeenCalled();
+    expect(createBracketMock).toHaveBeenCalled();
+    expect(updatePoolStageMock).toHaveBeenCalled();
+    expect(createManyTargetMock).toHaveBeenCalledTimes(2);
+    expect(createManyPoolMock).toHaveBeenCalled();
+    expect(createManyMatchMock).toHaveBeenCalled();
+  });
+
+  it('creates missing pool stages when tournament has only bracket structure', async () => {
+    isAdminMock.mockReturnValue(true);
+
+    findFirstTournamentMock
+      .mockResolvedValueOnce({
+        id: 'existing-single',
+        totalParticipants: 40,
+        targetCount: 8,
+        status: 'OPEN',
+      })
+      .mockResolvedValueOnce({
+        id: 'existing-double',
+        totalParticipants: 40,
+        targetCount: 8,
+        status: 'OPEN',
+      });
+
+    findManyPoolStageMock.mockResolvedValue([]);
+    findManyBracketMock.mockResolvedValue([{ id: 'existing-bracket', name: 'Winner Bracket' }]);
+
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json({ limit: '2mb' }));
+    app.use((req, _res, next) => {
+      (req as { auth?: { payload?: Record<string, unknown> } }).auth = {
+        payload: {
+          sub: 'admin-1',
+          email: 'admin@example.com',
+        },
+      };
+      next();
+    });
+    app.use('/api/auth', router);
+
+    const content = [
+      '\tIndividuel\tDCDA\t03/04/2026\t\t\t\t\t\tDoublette\tDCDA\t04/04/2026',
+      '\tNom_I\tPrenom_I\tMail_I\tNiveau_I\t\t\tEquipe\tNom_D1\tPrenom_D1\tMail_D1\tNom_D2\tPrenom_D2\tMail_D2\tNiveau_D\tConfirme',
+      '1\tTalarmin\tAnthony\t\t1\t\t\tPaname\tBoucher\tAdrien\t\tTreguer\tYann\tytreguer29@gmail.com\t3\tOui',
+    ].join('\n');
+
+    const response = await request(app)
+      .post('/api/auth/users/import')
+      .send({ content, includeTournamentImport: true });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      tournamentImport: {
+        tournamentsCreated: 0,
+        tournamentsUpdated: 2,
+      },
+    });
+    expect(createPoolStageMock).toHaveBeenCalled();
+    expect(createManyTargetMock).toHaveBeenCalledTimes(2);
   });
 
   it('rejects import when content is missing', async () => {
