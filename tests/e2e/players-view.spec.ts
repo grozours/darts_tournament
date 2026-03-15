@@ -75,18 +75,33 @@ test('players view renders and filters players', async ({ page }) => {
     });
   });
 
-  await page.goto('/?view=single');
+  await page.route('**/api/tournaments/t1', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 't1',
+        name: 'Spring Open',
+        format: 'SINGLE',
+        status: 'OPEN',
+        totalParticipants: 32,
+      }),
+    });
+  });
 
-  await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
+  await page.goto('/?view=tournament-players&tournamentId=t1');
+
+  await expect(page.getByRole('heading', { name: 'Alice Smith' })).toBeVisible();
+  await expect(page.getByText('"Falcon"')).toBeVisible();
   await expect(page.getByText('Team Rocket')).toHaveCount(0);
 
-  await page.getByPlaceholder('Search name, team, email, tournament...').fill('Falcon');
+  await page.locator('#tournament-players-search').fill('Falcon');
 
-  await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Alice Smith' })).toBeVisible();
   await expect(page.getByText('Team Rocket')).toHaveCount(0);
 });
 
-test('players view search matches tournament names and can be reset', async ({ page }) => {
+test('players view search matches player data and can be reset', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('lang', 'en');
   });
@@ -161,15 +176,29 @@ test('players view search matches tournament names and can be reset', async ({ p
     });
   });
 
-  await page.goto('/?view=single');
+  await page.route('**/api/tournaments/t1', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 't1',
+        name: 'Spring Open',
+        format: 'SINGLE',
+        status: 'OPEN',
+        totalParticipants: 32,
+      }),
+    });
+  });
 
-  const searchInput = page.getByPlaceholder('Search name, team, email, tournament...');
-  await searchInput.fill('Spring Open');
+  await page.goto('/?view=tournament-players&tournamentId=t1');
 
-  await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
+  const searchInput = page.locator('#tournament-players-search');
+  await searchInput.fill('Falcon');
+
+  await expect(page.getByRole('heading', { name: 'Alice Smith' })).toBeVisible();
   await expect(page.getByText('Team Rocket')).toHaveCount(0);
 
   await searchInput.fill('');
-  await expect(page.getByText('Alice Smith (Falcon)')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Alice Smith' })).toBeVisible();
   await expect(page.getByText('Team Rocket')).toHaveCount(0);
 });

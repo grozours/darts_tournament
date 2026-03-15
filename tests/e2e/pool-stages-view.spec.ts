@@ -428,9 +428,9 @@ test('screen mode rotates across multiple live tournaments', async ({ page }) =>
     });
   });
 
-  await page.goto('/?screen=1&status=LIVE');
+  await page.goto('/?screen=1&status=LIVE&view=pool-stages&tournamentId=tournament-a&stageId=stage-a1&screenScope=global');
 
-  await expect(page).toHaveURL(/tournamentId=tournament-a/, { timeout: 15_000 });
-  await expect(page).toHaveURL(/tournamentId=tournament-b/, { timeout: 30_000 });
-  await expect(page).toHaveURL(/tournamentId=tournament-c/, { timeout: 45_000 });
+  await expect(page).toHaveURL(/tournamentId=tournament-a/, { timeout: 10_000 });
+  await expect(page).toHaveURL(/tournamentId=tournament-b/, { timeout: 35_000 });
+  await expect(page).toHaveURL(/tournamentId=tournament-c/, { timeout: 55_000 });
 });

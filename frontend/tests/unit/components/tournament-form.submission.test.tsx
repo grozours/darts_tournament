@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import TournamentForm from '../../../src/components/tournaments/tournament-form';
@@ -19,17 +20,35 @@ const defaultProps = {
   isLoading: false,
 };
 
-const validFormData = {
-  name: 'Test Tournament',
-  format: TournamentFormat.SINGLE,
-  durationType: DurationType.FULL_DAY,
-  startTime: '2026-03-15T10:00',
-  endTime: '2026-03-15T18:00',
-  totalParticipants: '16',
-  targetCount: '3',
+const toLocalDateTimeInputValue = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-const fillForm = async (user: ReturnType<typeof userEvent.setup>, data = validFormData) => {
+const buildValidFormData = () => {
+  const startDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  startDate.setSeconds(0, 0);
+  const endDate = new Date(startDate.getTime() + 8 * 60 * 60 * 1000);
+
+  return {
+    name: 'Test Tournament',
+    format: TournamentFormat.SINGLE,
+    durationType: DurationType.FULL_DAY,
+    startTime: toLocalDateTimeInputValue(startDate),
+    endTime: toLocalDateTimeInputValue(endDate),
+    totalParticipants: '16',
+    targetCount: '3',
+  };
+};
+
+const fillForm = async (
+  user: ReturnType<typeof userEvent.setup>,
+  data = buildValidFormData()
+) => {
   await act(async () => {
     await user.type(screen.getByLabelText(/tournament name/i), data.name);
     await user.selectOptions(screen.getByLabelText(/format/i), data.format);
@@ -46,19 +65,24 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('TournamentForm submission', () => {
   it('should submit form with valid data', async () => {
     const user = userEvent.setup();
     const mockOnSubmit = vi.fn();
+    const formData = buildValidFormData();
 
     mockCreateTournament.mockResolvedValueOnce({
       id: 'tournament-123',
-      ...validFormData,
+      ...formData,
     });
 
     render(<TournamentForm {...defaultProps} onSubmit={mockOnSubmit} />);
 
-    await fillForm(user);
+    await fillForm(user, formData);
     await act(async () => {
       await user.click(screen.getByRole('button', { name: /create tournament/i }));
     });
@@ -66,11 +90,11 @@ describe('TournamentForm submission', () => {
     await waitFor(() => {
       const createCall = mockCreateTournament.mock.calls[0] ?? [];
       expect(createCall[0]).toEqual({
-        name: validFormData.name,
-        format: validFormData.format,
-        durationType: validFormData.durationType,
-        startTime: new Date(validFormData.startTime).toISOString(),
-        endTime: new Date(validFormData.endTime).toISOString(),
+        name: formData.name,
+        format: formData.format,
+        durationType: formData.durationType,
+        startTime: new Date(formData.startTime).toISOString(),
+        endTime: new Date(formData.endTime).toISOString(),
         totalParticipants: 16,
         targetCount: 3,
         targetStartNumber: 1,
@@ -84,10 +108,11 @@ describe('TournamentForm submission', () => {
   it('should handle form submission with logo upload', async () => {
     const user = userEvent.setup();
     const mockOnSubmit = vi.fn();
+    const formData = buildValidFormData();
 
     mockCreateTournament.mockResolvedValueOnce({
       id: 'tournament-123',
-      ...validFormData,
+      ...formData,
     });
     mockUploadLogo.mockResolvedValueOnce({
       logo_url: '/uploads/logo-123.png',
@@ -95,7 +120,7 @@ describe('TournamentForm submission', () => {
 
     render(<TournamentForm {...defaultProps} onSubmit={mockOnSubmit} />);
 
-    await fillForm(user);
+    await fillForm(user, formData);
 
     const logoInput = screen.getByLabelText(/tournament logo/i);
     const file = new File(['test'], 'logo.png', { type: 'image/png' });
@@ -121,11 +146,13 @@ describe('TournamentForm submission states', () => {
   it('should show loading state during submission', async () => {
     vi.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const formData = buildValidFormData();
 
-    mockCreateTournament.mockImplementation(() =>
-      new Promise((resolve) => {
-        setTimeout(() => resolve({ id: '123' }), 1000);
-      })
+    mockCreateTournament.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ id: '123' }), 1000);
+        })
     );
 
     render(<TournamentForm {...defaultProps} />);
@@ -134,8 +161,8 @@ describe('TournamentForm submission states', () => {
       await user.type(screen.getByLabelText(/tournament name/i), 'Test');
       await user.selectOptions(screen.getByLabelText(/format/i), TournamentFormat.SINGLE);
       await user.selectOptions(screen.getByLabelText(/duration type/i), DurationType.FULL_DAY);
-      await user.type(screen.getByLabelText(/start time/i), '2026-03-15T10:00');
-      await user.type(screen.getByLabelText(/end time/i), '2026-03-15T18:00');
+      await user.type(screen.getByLabelText(/start time/i), formData.startTime);
+      await user.type(screen.getByLabelText(/end time/i), formData.endTime);
       await user.type(screen.getByLabelText(/total slots/i), '8');
       await user.type(screen.getByLabelText(/target count/i), '2');
     });
@@ -150,7 +177,6 @@ describe('TournamentForm submission states', () => {
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-    vi.useRealTimers();
   });
 
   it('should handle submission errors', async () => {

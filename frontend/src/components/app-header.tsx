@@ -16,7 +16,6 @@ const NOTIFICATIONS_STORAGE_KEY = 'notifications:match-started';
 const ADMIN_REGISTRATION_MENU_ALLOWED_STATUSES = new Set(['OPEN', 'SIGNATURE', 'LIVE', 'FINISHED']);
 const VIEWER_REGISTRATION_MENU_ALLOWED_STATUSES = new Set(['OPEN', 'SIGNATURE', 'LIVE']);
 
-const isDoubleTournamentFormat = (format?: string) => (format ?? '').toUpperCase() === 'DOUBLE';
 const isTeamTournamentFormat = (format?: string) => {
   const normalizedFormat = (format ?? '').toUpperCase();
   return normalizedFormat === 'TEAM_4_PLAYER' || normalizedFormat === 'TEAM';

@@ -262,7 +262,7 @@ for (const configuration of modeConfigurations) {
       });
 
       await page.goto(`/?view=${configuration.view}&tournamentId=${tournamentId}`);
-      await expect(page.getByText(/No group found|Aucun groupe/i)).toBeVisible();
+      await expect(page.getByText(/Aucune inscription pour le moment/i)).toBeVisible();
 
       const createButton = page.getByRole('button', { name: createLabel });
       const createForm = createButton.locator('xpath=ancestor::div[contains(@class,"grid")][1]');

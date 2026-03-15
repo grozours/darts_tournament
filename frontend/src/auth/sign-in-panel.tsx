@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type JSX as ReactJSX } from 'react';
 import { useOptionalAuth } from './optional-auth';
 import { useI18n } from '../i18n';
 
@@ -14,7 +14,7 @@ type ProviderConfig = {
   label: string;
   connection: string;
   className: string;
-  logo: JSX.Element;
+  logo: ReactJSX.Element;
 };
 
 const GoogleLogo = () => (

@@ -13,7 +13,6 @@ const AppHeader = lazy(() => import('./components/app-header'));
 
 const TournamentList = lazy(() => import('./components/tournament-list'));
 const RegistrationPlayers = lazy(() => import('./components/registration-players'));
-const PlayersView = lazy(() => import('./components/players-view'));
 const LiveTournament = lazy(() => import('./components/live-tournament-page'));
 const TargetsView = lazy(() => import('./components/targets-view'));
 const NotificationsView = lazy(() => import('./components/notifications-view'));

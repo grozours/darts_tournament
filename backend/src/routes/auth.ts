@@ -352,7 +352,7 @@ type ImportSkillLevel = 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT';
 type ImportedUserCandidate = {
   firstName: string;
   lastName: string;
-  email: string | null;
+  email?: string;
   skillLevel?: ImportSkillLevel;
 };
 
@@ -429,7 +429,7 @@ type ImportedTournamentSummary = {
 };
 
 const IMPORT_DELIMITERS = ['\t', ';', ','] as const;
-const IMPORT_HEADER_KEYS: ImportHeaderKey[] = [
+const IMPORT_HEADER_KEYS = new Set<ImportHeaderKey>([
   'nomi',
   'prenomi',
   'maili',
@@ -442,7 +442,7 @@ const IMPORT_HEADER_KEYS: ImportHeaderKey[] = [
   'prenomd2',
   'maild2',
   'niveaud',
-];
+]);
 
 const normalizeImportedNamePart = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
@@ -455,31 +455,36 @@ const normalizeImportedNamePart = (value: unknown): string | undefined => {
 
 const normalizeImportLookupName = (value: string): string => value
   .normalize('NFD')
-  .replaceAll(/[\u0300-\u036f]/g, '')
+  .replaceAll(/[\u0300-\u036F]/g, '')
   .replaceAll(/\s+/g, ' ')
   .trim()
   .toLowerCase();
 
-const normalizeImportEmail = (value: unknown): string | null | undefined => {
+type NormalizedImportEmailResult = {
+  email?: string;
+  invalid: boolean;
+};
+
+const normalizeImportEmail = (value: unknown): NormalizedImportEmailResult => {
   if (typeof value !== 'string') {
-    return null;
+    return { invalid: false };
   }
 
   const normalized = value.trim().toLowerCase();
   if (!normalized) {
-    return null;
+    return { invalid: false };
   }
 
   if (!normalized.includes('@') || normalized.length > 255) {
-    return undefined;
+    return { invalid: true };
   }
 
-  return normalized;
+  return { email: normalized, invalid: false };
 };
 
 const normalizeImportHeaderValue = (value: string): string => value
   .normalize('NFD')
-  .replaceAll(/[\u0300-\u036f]/g, '')
+  .replaceAll(/[\u0300-\u036F]/g, '')
   .replaceAll(/[^a-zA-Z0-9]+/g, '')
   .trim()
   .toLowerCase();
@@ -488,29 +493,33 @@ const parseDelimitedLine = (line: string, delimiter: (typeof IMPORT_DELIMITERS)[
   const cells: string[] = [];
   let current = '';
   let inQuotes = false;
+  let cursor = 0;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
+  while (cursor < line.length) {
+    const character = line[cursor];
 
     if (character === '"') {
-      const nextCharacter = line[index + 1];
+      const nextCharacter = line[cursor + 1];
       if (inQuotes && nextCharacter === '"') {
         current += '"';
-        index += 1;
+        cursor += 2;
         continue;
       }
 
       inQuotes = !inQuotes;
+      cursor += 1;
       continue;
     }
 
     if (character === delimiter && !inQuotes) {
       cells.push(current.trim());
       current = '';
+      cursor += 1;
       continue;
     }
 
     current += character;
+    cursor += 1;
   }
 
   cells.push(current.trim());
@@ -551,7 +560,7 @@ const parseTournamentDateFromLine = (
 ): Date | undefined => {
   const cells = parseDelimitedLine(line, delimiter).map((cell) => cell.trim());
   const labelIndex = cells.findIndex((cell) => cell.toLowerCase() === label);
-  if (labelIndex < 0) {
+  if (labelIndex === -1) {
     return undefined;
   }
 
@@ -577,7 +586,7 @@ const parseSeriesNameFromLine = (
 ): string | undefined => {
   const cells = parseDelimitedLine(line, delimiter).map((cell) => cell.trim());
   const labelIndex = cells.findIndex((cell) => cell.toLowerCase() === label);
-  if (labelIndex < 0) {
+  if (labelIndex === -1) {
     return undefined;
   }
 
@@ -595,12 +604,12 @@ const parseSeriesNameFromLine = (
 const buildImportColumnIndexes = (cells: string[]): ImportColumnIndexes => {
   const indexes: ImportColumnIndexes = {};
 
-  cells.forEach((cell, index) => {
+  for (const [index, cell] of cells.entries()) {
     const normalizedHeader = normalizeImportHeaderValue(cell);
-    if (IMPORT_HEADER_KEYS.includes(normalizedHeader as ImportHeaderKey)) {
+    if (IMPORT_HEADER_KEYS.has(normalizedHeader as ImportHeaderKey)) {
       indexes[normalizedHeader as ImportHeaderKey] = index;
     }
-  });
+  }
 
   return indexes;
 };
@@ -626,7 +635,7 @@ const parseImportStructure = (content: string): ParsedImportStructure | undefine
     }
     | undefined;
 
-  lines.forEach((line, lineIndex) => {
+  for (const [lineIndex, line] of lines.entries()) {
     for (const delimiter of IMPORT_DELIMITERS) {
       const indexes = buildImportColumnIndexes(parseDelimitedLine(line, delimiter));
       const score = countImportHeaderMatches(indexes);
@@ -634,7 +643,7 @@ const parseImportStructure = (content: string): ParsedImportStructure | undefine
         bestMatch = { lineIndex, delimiter, indexes, score };
       }
     }
-  });
+  }
 
   if (!bestMatch) {
     return undefined;
@@ -747,10 +756,10 @@ const buildImportCandidate = (
     issues.push(`Ligne ${rowNumber}: compte ${sourceLabel} incomplet, valeur NC appliquee.`);
   }
 
-  const email = normalizeImportEmail(
+  const emailResult = normalizeImportEmail(
     nameIndexes.email === undefined ? undefined : cells[nameIndexes.email]
   );
-  if (email === undefined) {
+  if (emailResult.invalid) {
     issues.push(`Ligne ${rowNumber}: email invalide pour ${firstName} ${lastName}.`);
     return undefined;
   }
@@ -762,7 +771,7 @@ const buildImportCandidate = (
   return {
     firstName: resolvedFirstName,
     lastName: resolvedLastName,
-    email,
+    ...(emailResult.email ? { email: emailResult.email } : {}),
     ...(skillLevel ? { skillLevel } : {}),
   };
 };
@@ -785,7 +794,7 @@ const parseImportedUsersFile = (content: string): ParsedImportFile => {
   const accounts: ImportedUserCandidate[] = [];
   const { headerIndexes, dataLines, delimiter } = structure;
 
-  dataLines.forEach((line, rowOffset) => {
+  for (const [rowOffset, line] of dataLines.entries()) {
     const rowNumber = rowOffset + 1;
     const cells = parseDelimitedLine(line, delimiter);
     const individual = buildImportCandidate(cells, rowNumber, 'individuel', {
@@ -798,12 +807,93 @@ const parseImportedUsersFile = (content: string): ParsedImportFile => {
     if (individual) {
       accounts.push(individual);
     }
-  });
+  }
 
   return {
     rowsRead: dataLines.length,
     accounts: mergeImportedUsers(accounts),
     issues,
+  };
+};
+
+const resolveImportedTournamentMetadata = (structure: ParsedImportStructure): {
+  singleDate?: Date;
+  doubleDate?: Date;
+  seriesName?: string;
+} => {
+  const { delimiter } = structure;
+  let singleDate: Date | undefined;
+  let doubleDate: Date | undefined;
+  let seriesName: string | undefined;
+
+  for (const line of structure.lines.slice(0, Math.max(structure.headerLineIndex, 1))) {
+    if (!singleDate) {
+      singleDate = parseTournamentDateFromLine(line, delimiter, 'individuel');
+    }
+    if (!doubleDate) {
+      doubleDate = parseTournamentDateFromLine(line, delimiter, 'doublette');
+    }
+    if (!seriesName) {
+      seriesName = parseSeriesNameFromLine(line, delimiter, 'individuel')
+        ?? parseSeriesNameFromLine(line, delimiter, 'doublette');
+    }
+  }
+
+  return {
+    ...(singleDate ? { singleDate } : {}),
+    ...(doubleDate ? { doubleDate } : {}),
+    ...(seriesName ? { seriesName } : {}),
+  };
+};
+
+const collectImportedTournamentRow = (
+  cells: string[],
+  rowNumber: number,
+  headerIndexes: ImportColumnIndexes,
+  issues: string[]
+): {
+  singlePlayer?: ImportedUserCandidate;
+  doublette?: ImportedDoubletteCandidate;
+} => {
+  const singlePlayer = buildImportCandidate(cells, rowNumber, 'individuel', {
+    lastName: headerIndexes.nomi,
+    firstName: headerIndexes.prenomi,
+    email: headerIndexes.maili,
+    skillLevel: headerIndexes.niveaui,
+  }, issues);
+
+  const memberOne = buildImportCandidate(cells, rowNumber, 'doublette-1', {
+    lastName: headerIndexes.nomd1,
+    firstName: headerIndexes.prenomd1,
+    email: headerIndexes.maild1,
+    skillLevel: headerIndexes.niveaud,
+  }, issues);
+  const memberTwo = buildImportCandidate(cells, rowNumber, 'doublette-2', {
+    lastName: headerIndexes.nomd2,
+    firstName: headerIndexes.prenomd2,
+    email: headerIndexes.maild2,
+    skillLevel: headerIndexes.niveaud,
+  }, issues);
+
+  let doublette: ImportedDoubletteCandidate | undefined;
+  if (memberOne && memberTwo) {
+    const teamNameCell = normalizeImportedNamePart(
+      headerIndexes.equipe === undefined ? undefined : cells[headerIndexes.equipe]
+    );
+    const teamName = teamNameCell ?? `${memberOne.firstName} - ${memberTwo.firstName}`;
+    const skillLevel = memberOne.skillLevel ?? memberTwo.skillLevel;
+
+    doublette = {
+      name: teamName.slice(0, 100),
+      ...(skillLevel ? { skillLevel } : {}),
+      memberOne,
+      memberTwo,
+    };
+  }
+
+  return {
+    ...(singlePlayer ? { singlePlayer } : {}),
+    ...(doublette ? { doublette } : {}),
   };
 };
 
@@ -829,65 +919,20 @@ const parseImportedTournamentsFile = (content: string): ParsedTournamentImportFi
   const singlePlayers: ImportedUserCandidate[] = [];
   const doublettes: ImportedDoubletteCandidate[] = [];
   const { delimiter, dataLines, headerIndexes } = structure;
+  const metadata = resolveImportedTournamentMetadata(structure);
 
-  let singleDate: Date | undefined;
-  let doubleDate: Date | undefined;
-  let seriesName: string | undefined;
-
-  for (const line of structure.lines.slice(0, Math.max(structure.headerLineIndex, 1))) {
-    if (!singleDate) {
-      singleDate = parseTournamentDateFromLine(line, delimiter, 'individuel');
-    }
-    if (!doubleDate) {
-      doubleDate = parseTournamentDateFromLine(line, delimiter, 'doublette');
-    }
-    if (!seriesName) {
-      seriesName = parseSeriesNameFromLine(line, delimiter, 'individuel')
-        ?? parseSeriesNameFromLine(line, delimiter, 'doublette');
-    }
-  }
-
-  dataLines.forEach((line, rowOffset) => {
+  for (const [rowOffset, line] of dataLines.entries()) {
     const rowNumber = rowOffset + 1;
     const cells = parseDelimitedLine(line, delimiter);
 
-    const individual = buildImportCandidate(cells, rowNumber, 'individuel', {
-      lastName: headerIndexes.nomi,
-      firstName: headerIndexes.prenomi,
-      email: headerIndexes.maili,
-      skillLevel: headerIndexes.niveaui,
-    }, issues);
-    if (individual) {
-      singlePlayers.push(individual);
+    const rowImport = collectImportedTournamentRow(cells, rowNumber, headerIndexes, issues);
+    if (rowImport.singlePlayer) {
+      singlePlayers.push(rowImport.singlePlayer);
     }
-
-    const memberOne = buildImportCandidate(cells, rowNumber, 'doublette-1', {
-      lastName: headerIndexes.nomd1,
-      firstName: headerIndexes.prenomd1,
-      email: headerIndexes.maild1,
-      skillLevel: headerIndexes.niveaud,
-    }, issues);
-    const memberTwo = buildImportCandidate(cells, rowNumber, 'doublette-2', {
-      lastName: headerIndexes.nomd2,
-      firstName: headerIndexes.prenomd2,
-      email: headerIndexes.maild2,
-      skillLevel: headerIndexes.niveaud,
-    }, issues);
-
-    if (memberOne && memberTwo) {
-      const teamNameCell = normalizeImportedNamePart(
-        headerIndexes.equipe === undefined ? undefined : cells[headerIndexes.equipe]
-      );
-      const teamName = teamNameCell ?? `${memberOne.firstName} - ${memberTwo.firstName}`;
-      const skillLevel = memberOne.skillLevel ?? memberTwo.skillLevel;
-      doublettes.push({
-        name: teamName.slice(0, 100),
-        ...(skillLevel ? { skillLevel } : {}),
-        memberOne,
-        memberTwo,
-      });
+    if (rowImport.doublette) {
+      doublettes.push(rowImport.doublette);
     }
-  });
+  }
 
   const uniqueDoublettes = new Map<string, ImportedDoubletteCandidate>();
   for (const doublette of doublettes) {
@@ -898,9 +943,7 @@ const parseImportedTournamentsFile = (content: string): ParsedTournamentImportFi
   }
 
   return {
-    ...(singleDate ? { singleDate } : {}),
-    ...(doubleDate ? { doubleDate } : {}),
-    ...(seriesName ? { seriesName } : {}),
+    ...metadata,
     singlePlayers: mergeImportedUsers(singlePlayers),
     doublettes: [...uniqueDoublettes.values()],
     issues,
@@ -1340,52 +1383,123 @@ const createMissingImportedBrackets = async (
   return allBrackets;
 };
 
+type ImportedRoutingRule = ImportedPresetTemplateConfig['routingRules'][number];
+
+type ImportedRankingDestination =
+  | { position: number; destinationType: 'POOL_STAGE'; poolStageId: string }
+  | { position: number; destinationType: 'BRACKET'; bracketId: string }
+  | { position: number; destinationType: 'ELIMINATED' };
+
+const collectSortedRoutingRulesForStage = (
+  stageNumber: number,
+  templateConfig: ImportedPresetTemplateConfig
+): ImportedRoutingRule[] => {
+  const routingRules: ImportedRoutingRule[] = [];
+  for (const rule of templateConfig.routingRules) {
+    if (rule.stageNumber !== stageNumber) {
+      continue;
+    }
+
+    const insertionIndex = routingRules.findIndex((existing) => existing.position > rule.position);
+    if (insertionIndex === -1) {
+      routingRules.push(rule);
+    } else {
+      routingRules.splice(insertionIndex, 0, rule);
+    }
+  }
+  return routingRules;
+};
+
+const resolveRankingDestinationFromRule = (
+  rule: ImportedRoutingRule,
+  stageByNumber: Map<number, string>,
+  bracketByName: Map<string, string>
+): ImportedRankingDestination | undefined => {
+  if (rule.destinationType === 'POOL_STAGE') {
+    const destinationStageId = rule.destinationStageNumber
+      ? stageByNumber.get(rule.destinationStageNumber)
+      : undefined;
+    if (!destinationStageId) {
+      return undefined;
+    }
+    return {
+      position: rule.position,
+      destinationType: 'POOL_STAGE' as const,
+      poolStageId: destinationStageId,
+    };
+  }
+
+  if (rule.destinationType === 'BRACKET') {
+    const destinationBracketId = rule.destinationBracketName
+      ? bracketByName.get(rule.destinationBracketName)
+      : undefined;
+    if (!destinationBracketId) {
+      return undefined;
+    }
+    return {
+      position: rule.position,
+      destinationType: 'BRACKET' as const,
+      bracketId: destinationBracketId,
+    };
+  }
+
+  return {
+    position: rule.position,
+    destinationType: 'ELIMINATED' as const,
+  };
+};
+
 const resolveImportedRankingDestinations = (
   stageNumber: number,
   templateConfig: ImportedPresetTemplateConfig,
   stageByNumber: Map<number, string>,
   bracketByName: Map<string, string>
 ) => {
-  const routingRules = templateConfig.routingRules
-    .filter((rule) => rule.stageNumber === stageNumber)
-    .sort((left, right) => left.position - right.position);
+  const routingRules = collectSortedRoutingRulesForStage(stageNumber, templateConfig);
 
-  return routingRules
-    .map((rule) => {
-      if (rule.destinationType === 'POOL_STAGE') {
-        const destinationStageId = rule.destinationStageNumber
-          ? stageByNumber.get(rule.destinationStageNumber)
-          : undefined;
-        if (!destinationStageId) {
-          return undefined;
-        }
-        return {
-          position: rule.position,
-          destinationType: 'POOL_STAGE' as const,
-          poolStageId: destinationStageId,
-        };
-      }
+  const rankingDestinations: ImportedRankingDestination[] = [];
+  for (const rule of routingRules) {
+    const destination = resolveRankingDestinationFromRule(rule, stageByNumber, bracketByName);
+    if (destination) {
+      rankingDestinations.push(destination);
+    }
+  }
 
-      if (rule.destinationType === 'BRACKET') {
-        const destinationBracketId = rule.destinationBracketName
-          ? bracketByName.get(rule.destinationBracketName)
-          : undefined;
-        if (!destinationBracketId) {
-          return undefined;
-        }
-        return {
-          position: rule.position,
-          destinationType: 'BRACKET' as const,
-          bracketId: destinationBracketId,
-        };
-      }
+  return rankingDestinations;
+};
 
-      return {
-        position: rule.position,
-        destinationType: 'ELIMINATED' as const,
-      };
-    })
-    .filter((destination): destination is NonNullable<typeof destination> => destination !== undefined);
+const resolveUserSkillLevelAfterAdminUpdate = async (
+  userId: string,
+  incomingSkillLevel: AdminAccountUpdatePayload['skillLevel'],
+  updatedSkillLevel: string | null
+): Promise<string | undefined> => {
+  if (incomingSkillLevel === undefined) {
+    const resolvedFromUser = updatedSkillLevel ?? undefined;
+    if (resolvedFromUser) {
+      return resolvedFromUser;
+    }
+
+    const latestActivePlayer = await prisma.player.findFirst({
+      where: {
+        personId: userId,
+        isActive: true,
+      },
+      orderBy: [{ registeredAt: 'desc' }],
+      select: { skillLevel: true },
+    });
+    return latestActivePlayer?.skillLevel ?? undefined;
+  }
+
+  await prisma.player.updateMany({
+    where: {
+      personId: userId,
+      isActive: true,
+    },
+    data: {
+      skillLevel: incomingSkillLevel,
+    },
+  });
+  return incomingSkillLevel ?? undefined;
 };
 
 const applyImportedPresetRouting = async (
@@ -2499,36 +2613,11 @@ router.patch('/users/:id', requireAuth, async (request: Request, response: Respo
       },
     });
 
-    let resolvedSkillLevel: string | undefined;
-    if (skillLevel === undefined) {
-      resolvedSkillLevel = updated.skillLevel ?? undefined;
-      if (!resolvedSkillLevel) {
-        const latestActivePlayer = await prisma.player.findFirst({
-          where: {
-            personId: userId,
-            isActive: true,
-          },
-          orderBy: [
-            { registeredAt: 'desc' },
-          ],
-          select: {
-            skillLevel: true,
-          },
-        });
-        resolvedSkillLevel = latestActivePlayer?.skillLevel ?? undefined;
-      }
-    } else {
-      await prisma.player.updateMany({
-        where: {
-          personId: userId,
-          isActive: true,
-        },
-        data: {
-          skillLevel,
-        },
-      });
-      resolvedSkillLevel = skillLevel ?? undefined;
-    }
+    const resolvedSkillLevel = await resolveUserSkillLevelAfterAdminUpdate(
+      userId,
+      skillLevel,
+      updated.skillLevel
+    );
 
     response.json({ user: { ...updated, ...(resolvedSkillLevel ? { skillLevel: resolvedSkillLevel } : {}) } });
   } catch (error) {
