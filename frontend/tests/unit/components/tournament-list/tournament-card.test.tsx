@@ -196,8 +196,8 @@ describe('TournamentCard', () => {
     render(<TournamentCard {...baseProperties} />);
 
     const qrLink = screen.getByRole('link', { name: 'Live QR Cup' });
-    expect(qrLink).toHaveAttribute('href', '/?view=live&tournamentId=t1');
-    expect(qrLink).toHaveAttribute('title', expect.stringContaining('/?view=live&tournamentId=t1'));
+    expect(qrLink).toHaveAttribute('href', '/?tournamentId=t1#tournament-t1');
+    expect(qrLink).toHaveAttribute('title', expect.stringContaining('/?tournamentId=t1#tournament-t1'));
   });
 
   it('opens QR SVG in new tab for admin click', () => {
@@ -219,6 +219,19 @@ describe('TournamentCard', () => {
 
     createObjectURLSpy.mockRestore();
     openSpy.mockRestore();
+  });
+
+  it('adds anchor id and highlight style when selected from root anchor', () => {
+    const { container } = render(
+      <TournamentCard
+        {...baseProperties}
+        isSelectedFromAnchor
+      />
+    );
+
+    const card = container.querySelector('#tournament-t1');
+    expect(card).toBeInTheDocument();
+    expect(card?.className).toContain('ring-cyan-400/50');
   });
 
   it('renders auto-fill action for OPEN admin tournaments', () => {

@@ -22,6 +22,7 @@ const translate = (key: string) => key;
 describe('TournamentListGroups', () => {
   const baseProperties = {
     normalizeStatus: (status?: string) => status ?? 'OPEN',
+    selectedTournamentId: undefined,
     isAuthenticated: true,
     t: translate,
     userRegistrations: new Set<string>(),

@@ -6,11 +6,13 @@ import type {
   Translator,
   UserTournamentGroupStatus,
 } from './types';
+import { useEffect } from 'react';
 
 export type TournamentListOverviewSectionProperties = {
   isEditPage: boolean;
   visibleTournaments: Tournament[];
   groupedTournaments: TournamentListGroup[];
+  selectedTournamentId?: string | null;
   isAdmin: boolean;
   isAuthenticated: boolean;
   t: Translator;
@@ -46,6 +48,7 @@ const TournamentListOverviewSection = ({
   isEditPage,
   visibleTournaments,
   groupedTournaments,
+  selectedTournamentId,
   isAdmin,
   isAuthenticated,
   t,
@@ -76,6 +79,23 @@ const TournamentListOverviewSection = ({
   autoFillProgressByTournament,
   confirmAllProgressByTournament,
 }: TournamentListOverviewSectionProperties) => {
+  useEffect(() => {
+    if (!selectedTournamentId) {
+      return;
+    }
+
+    const anchorId = `tournament-${selectedTournamentId}`;
+    const scrollToCard = () => {
+      const element = globalThis.document?.getElementById(anchorId);
+      if (!element) {
+        return;
+      }
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    globalThis.window?.requestAnimationFrame(scrollToCard);
+  }, [groupedTournaments, selectedTournamentId]);
+
   if (isEditPage) {
     return null;
   }
@@ -93,6 +113,7 @@ const TournamentListOverviewSection = ({
     <TournamentListGroups
       groupedTournaments={groupedTournaments}
       normalizeStatus={normalizeTournamentStatus}
+      selectedTournamentId={selectedTournamentId}
       isAdmin={isAdmin}
       isAuthenticated={isAuthenticated}
       t={t}

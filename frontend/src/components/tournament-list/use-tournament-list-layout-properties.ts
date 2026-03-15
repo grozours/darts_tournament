@@ -22,6 +22,7 @@ const useTournamentListLayoutProperties = (): TournamentListLayoutProperties => 
     isEditPage: shared.viewContext.isEditPage,
     visibleTournaments: shared.visibleTournaments,
     groupedTournaments: shared.grouping.groupedTournaments,
+    selectedTournamentId: shared.viewContext.selectedTournamentId,
     isAdmin: shared.isAdmin,
     isAuthenticated: shared.effectiveIsAuthenticated,
     t: shared.t,

@@ -4,6 +4,7 @@ type TournamentListViewContext = {
   view: string | null;
   status: string | null;
   editTournamentId: string | null;
+  selectedTournamentId: string | null;
   isEditPage: boolean;
   normalizedRequestedStatus: string;
   hideOpenSignatureAction: boolean;
@@ -19,8 +20,10 @@ const useTournamentListViewContext = (): TournamentListViewContext => {
 
   const view = parameters.get('view');
   const status = parameters.get('status');
-  const editTournamentId = parameters.get('tournamentId');
+  const requestedTournamentId = parameters.get('tournamentId');
   const isEditPage = view === 'edit-tournament';
+  const editTournamentId = isEditPage ? requestedTournamentId : null;
+  const selectedTournamentId = !isEditPage && requestedTournamentId ? requestedTournamentId : null;
   const normalizedRequestedStatus = normalizeTournamentStatus(status ?? undefined);
   const hideOpenSignatureAction = normalizedRequestedStatus === 'DRAFT';
   const isRootStatusView = normalizedRequestedStatus.length === 0;
@@ -31,6 +34,7 @@ const useTournamentListViewContext = (): TournamentListViewContext => {
     view,
     status,
     editTournamentId,
+    selectedTournamentId,
     isEditPage,
     normalizedRequestedStatus,
     hideOpenSignatureAction,

@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 
 export type TournamentCardProperties = {
   tournament: Tournament;
+  isSelectedFromAnchor?: boolean;
   normalizedStatus: string;
   statusLabel: string;
   showWaitingSignature: boolean;
@@ -392,6 +393,7 @@ const TournamentRegistrationActions = ({
 
 const TournamentCard = ({
   tournament,
+  isSelectedFromAnchor = false,
   normalizedStatus,
   statusLabel,
   showWaitingSignature,
@@ -431,6 +433,7 @@ const TournamentCard = ({
   const isRegistered = userRegistrations.has(tournament.id);
   const showRegistrationActions = isAuthenticated && !isLive && !isFinished;
   const tournamentId = tournament.id;
+  const tournamentAnchorId = `tournament-${tournamentId}`;
   let participantLabel = t('common.players');
   if (tournament.format === 'DOUBLE') {
     participantLabel = t('groups.doublettes');
@@ -446,10 +449,11 @@ const TournamentCard = ({
   const poolStagesUrl = `/?view=pool-stages&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
   const bracketsUrl = `/?view=brackets&tournamentId=${tournamentId}${isFinished ? '&status=FINISHED' : ''}`;
   const showBracketsAction = isAdmin || tournament.hasLiveBrackets === true;
+  const rootTournamentAnchorPath = `/?tournamentId=${encodeURIComponent(tournamentId)}#${tournamentAnchorId}`;
+  const rootTournamentAnchorUrl = globalThis.window?.location
+    ? `${globalThis.window.location.origin}${rootTournamentAnchorPath}`
+    : rootTournamentAnchorPath;
   const liveViewPath = `/?view=live&tournamentId=${encodeURIComponent(tournamentId)}`;
-  const liveViewUrl = globalThis.window?.location
-    ? `${globalThis.window.location.origin}${liveViewPath}`
-    : liveViewPath;
 
   const handleQrOpen = useCallback((event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!isAdmin) {
@@ -496,7 +500,8 @@ const TournamentCard = ({
 
   return (
   <div
-    className="group relative overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)]"
+    id={tournamentAnchorId}
+    className={`group relative overflow-hidden rounded-3xl border bg-slate-900/80 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.8)] transition hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-40px_rgba(34,211,238,0.8)] ${isSelectedFromAnchor ? 'border-cyan-400 ring-2 ring-cyan-400/50' : 'border-slate-700/70'}`}
   >
     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -527,13 +532,13 @@ const TournamentCard = ({
           {statusLabel}
         </span>
         <a
-          href={liveViewPath}
+          href={rootTournamentAnchorPath}
           aria-label={`Live QR ${tournament.name}`}
-          title={liveViewUrl}
+          title={rootTournamentAnchorUrl}
           onClick={handleQrOpen}
           className="rounded-lg border border-slate-700/70 bg-white p-1.5"
         >
-          <QRCodeSVG ref={qrCodeReference} value={liveViewUrl} size={52} level="M" />
+          <QRCodeSVG ref={qrCodeReference} value={rootTournamentAnchorUrl} size={52} level="M" />
         </a>
       </div>
     </div>

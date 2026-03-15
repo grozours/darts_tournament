@@ -9,6 +9,7 @@ import type {
 type TournamentListGroupsProperties = {
   groupedTournaments: TournamentListGroup[];
   normalizeStatus: (status?: string) => string;
+  selectedTournamentId?: string | null;
   isAdmin: boolean;
   isAuthenticated: boolean;
   t: Translator;
@@ -43,6 +44,7 @@ type TournamentListGroupsProperties = {
 const TournamentListGroups = ({
   groupedTournaments,
   normalizeStatus,
+  selectedTournamentId,
   isAdmin,
   isAuthenticated,
   t,
@@ -100,6 +102,7 @@ const TournamentListGroups = ({
                 <TournamentCard
                   key={tournament.id}
                   tournament={tournament}
+                  isSelectedFromAnchor={selectedTournamentId === tournament.id}
                   normalizedStatus={normalizedStatus}
                   statusLabel={statusLabel}
                   showWaitingSignature={showWaitingSignature}
