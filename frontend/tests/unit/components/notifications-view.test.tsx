@@ -110,8 +110,14 @@ describe('NotificationsView', () => {
       if (url.startsWith('/api/auth/me')) {
         return Promise.resolve({ ok: true, json: async () => ({ user: { email: 'test@example.com' } }) });
       }
+      if (url.startsWith('/api/tournaments?status=OPEN')) {
+        return Promise.resolve({ ok: true, json: async () => ({ tournaments: [{ id: 't1', name: 'Alpha Cup' }] }) });
+      }
       if (url.startsWith('/api/tournaments?status=')) {
         return Promise.resolve({ ok: true, json: async () => ({ tournaments: [] }) });
+      }
+      if (url.startsWith('/api/tournaments/t1/players')) {
+        return Promise.resolve({ ok: true, json: async () => ({ players: [{ playerId: 'p1', email: 'test@example.com' }] }) });
       }
       return Promise.resolve({ ok: false, json: async () => ({}) });
     });
@@ -123,5 +129,65 @@ describe('NotificationsView', () => {
 
     fireEvent.click(screen.getByText('notifications.acknowledge'));
     expect(await screen.findByText('notifications.acknowledged')).toBeInTheDocument();
+  });
+
+  it('purges notifications for finished or deleted tournaments on load', async () => {
+    authState.isAuthenticated = true;
+    authState.getAccessTokenSilently = vi.fn().mockResolvedValue('token');
+
+    globalThis.window?.localStorage.setItem('notifications:match-started', JSON.stringify([
+      {
+        id: 'note-active',
+        receivedAt: '2024-01-01T10:00:00.000Z',
+        payload: {
+          event: 'started',
+          matchId: 'm1',
+          tournamentId: 't1',
+          tournamentName: 'Active Cup',
+          match: { source: 'pool', matchNumber: 2, stageNumber: 1, poolNumber: 1 },
+          players: [{ id: 'p1', firstName: 'Ava', lastName: 'Archer' }],
+        },
+      },
+      {
+        id: 'note-stale',
+        receivedAt: '2024-01-01T11:00:00.000Z',
+        payload: {
+          event: 'started',
+          matchId: 'm2',
+          tournamentId: 't-gone',
+          tournamentName: 'Old Cup',
+          match: { source: 'pool', matchNumber: 3, stageNumber: 1, poolNumber: 1 },
+          players: [{ id: 'p2', firstName: 'Bob', lastName: 'Bolt' }],
+        },
+      },
+    ]));
+
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.startsWith('/api/auth/me')) {
+        return Promise.resolve({ ok: true, json: async () => ({ user: { email: 'test@example.com' } }) });
+      }
+      if (url.startsWith('/api/tournaments?status=OPEN')) {
+        return Promise.resolve({ ok: true, json: async () => ({ tournaments: [{ id: 't1', name: 'Active Cup' }] }) });
+      }
+      if (url.startsWith('/api/tournaments?status=LIVE')) {
+        return Promise.resolve({ ok: true, json: async () => ({ tournaments: [] }) });
+      }
+      if (url.startsWith('/api/tournaments?status=SIGNATURE')) {
+        return Promise.resolve({ ok: true, json: async () => ({ tournaments: [] }) });
+      }
+      if (url.startsWith('/api/tournaments/t1/players')) {
+        return Promise.resolve({ ok: true, json: async () => ({ players: [{ playerId: 'p1', email: 'test@example.com' }] }) });
+      }
+      return Promise.resolve({ ok: false, json: async () => ({}) });
+    });
+
+    render(<NotificationsView />);
+
+    expect(await screen.findByText('Active Cup')).toBeInTheDocument();
+    expect(screen.queryByText('Old Cup')).not.toBeInTheDocument();
+
+    const stored = JSON.parse(globalThis.window?.localStorage.getItem('notifications:match-started') || '[]');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.payload?.tournamentId).toBe('t1');
   });
 });

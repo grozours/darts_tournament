@@ -150,7 +150,7 @@ const fetchAuthEmail = async (token: string, t: (key: string) => string) => {
 };
 
 const fetchLiveTournaments = async (token: string, t: (key: string) => string) => {
-  const statuses = ['LIVE', 'SIGNATURE'];
+  const statuses = ['OPEN', 'LIVE', 'SIGNATURE'];
   const responses = await Promise.all(statuses.map((status) =>
     fetch(`/api/tournaments?status=${encodeURIComponent(status)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -233,6 +233,31 @@ function NotificationsView() {
     }
   }, []);
 
+  const purgeNotificationsForTournamentIds = useCallback((tournamentIds: Set<string>) => {
+    try {
+      const stored = globalThis.window?.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (!stored) {
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as NotificationItem[];
+      if (!Array.isArray(parsed)) {
+        return;
+      }
+
+      const filtered = parsed.filter((item) => {
+        const tournamentId = item?.payload?.tournamentId;
+        return typeof tournamentId === 'string' && tournamentIds.has(tournamentId);
+      });
+
+      if (filtered.length !== parsed.length) {
+        persistNotifications(filtered);
+      }
+    } catch {
+      void 0;
+    }
+  }, [persistNotifications]);
+
   const getSafeAccessToken = useCallback(async (): Promise<string | undefined> => {
     if (!authEnabled) return undefined;
     try {
@@ -293,6 +318,7 @@ function NotificationsView() {
 
       const email = await fetchAuthEmail(token, t);
       const tournaments = await fetchLiveTournaments(token, t);
+      purgeNotificationsForTournamentIds(new Set(tournaments.map((tournament) => tournament.id)));
       const data = await fetchPlayerIdsForEmail(token, tournaments, email);
 
       if (!isMounted()) {
@@ -310,7 +336,7 @@ function NotificationsView() {
         setLoading(false);
       }
     }
-  }, [getSafeAccessToken, t, updatePlayerIdsState]);
+  }, [getSafeAccessToken, purgeNotificationsForTournamentIds, t, updatePlayerIdsState]);
 
   const requestBrowserNotifications = useCallback(async () => {
     markNotificationPermissionAsRequested();

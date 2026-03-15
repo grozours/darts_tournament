@@ -569,4 +569,43 @@ describe('useMatchStartedNotifications', () => {
     expect(wrappedDoublettes).toHaveLength(1);
     expect(wrappedEquipes).toHaveLength(1);
   });
+
+  it('purges notifications for tournaments no longer tracked', async () => {
+    globalThis.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify([
+      {
+        id: 'keep',
+        receivedAt: '2026-03-10T10:00:00.000Z',
+        payload: {
+          event: 'started',
+          matchId: 'm-keep',
+          tournamentId: 't1',
+          tournamentName: 'Cup',
+          match: { source: 'pool', matchNumber: 1, stageNumber: 1, poolNumber: 1, poolId: 'pool-1' },
+          players: [{ id: 'p1' }],
+        },
+      },
+      {
+        id: 'purge',
+        receivedAt: '2026-03-10T11:00:00.000Z',
+        payload: {
+          event: 'started',
+          matchId: 'm-purge',
+          tournamentId: 't-deleted',
+          tournamentName: 'Old Cup',
+          match: { source: 'pool', matchNumber: 2, stageNumber: 1, poolNumber: 1, poolId: 'pool-old' },
+          players: [{ id: 'p1' }],
+        },
+      },
+    ]));
+
+    renderHook(() => useMatchStartedNotifications());
+
+    await waitFor(() => {
+      expect(io).toHaveBeenCalledTimes(1);
+    });
+
+    const stored = JSON.parse(globalThis.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) || '[]');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.payload?.tournamentId).toBe('t1');
+  });
 });

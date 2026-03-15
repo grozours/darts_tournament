@@ -106,6 +106,25 @@ const appendNotification = (payload: MatchNotificationPayload) => {
   }
 };
 
+const purgeStoredNotificationsByTournamentIds = (tournamentIds: Set<string>) => {
+  const stored = readStoredNotifications() as Array<{ payload?: { tournamentId?: string } }>;
+  const filtered = stored.filter((item) => {
+    const tournamentId = item?.payload?.tournamentId;
+    return typeof tournamentId === 'string' && tournamentIds.has(tournamentId);
+  });
+
+  if (filtered.length === stored.length) {
+    return;
+  }
+
+  try {
+    globalThis.window?.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(filtered));
+    globalThis.window?.dispatchEvent(new Event('notifications:updated'));
+  } catch {
+    void 0;
+  }
+};
+
 const fetchAuthEmail = async (token: string) => {
   const meResponse = await fetch('/api/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
@@ -482,7 +501,7 @@ const attachMatchSocketHandlers = (
 
   socket.on('tournament:updated', (payload: { status?: string }) => {
     const status = (payload.status ?? '').toUpperCase();
-    if (status === 'OPEN' || status === 'SIGNATURE' || status === 'LIVE') {
+    if (status === 'OPEN' || status === 'SIGNATURE' || status === 'LIVE' || status === 'FINISHED') {
       scheduleRefreshTrackedState();
     }
   });
@@ -646,6 +665,7 @@ const useMatchStartedNotifications = () => {
         return;
       }
       const tournaments = await fetchTrackedTournaments(token);
+      purgeStoredNotificationsByTournamentIds(new Set(tournaments.map((tournament) => tournament.id)));
       const data = await fetchPlayerIdsForEmail(token, tournaments, email);
 
       syncJoinedTournamentState(
