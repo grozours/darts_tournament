@@ -24,6 +24,7 @@ export type TournamentListOverviewSectionProperties = {
   onUnregisterGroup: (tournamentId: string) => Promise<void>;
   onUnregister: (tournamentId: string) => Promise<void>;
   onOpenDraft: (tournamentId: string) => Promise<void>;
+  onOpenLive: (tournamentId: string) => Promise<void>;
   onOpenRegistration: (tournamentId: string) => Promise<void>;
   onOpenSignature: (tournamentId: string) => Promise<void>;
   onAutoFillPlayers: (tournamentId: string) => Promise<void>;
@@ -32,6 +33,7 @@ export type TournamentListOverviewSectionProperties = {
   showOpenAutoFillAction: boolean;
   showSignatureAutoConfirmAction: boolean;
   openingDraftId: string | undefined;
+  openingLiveId: string | undefined;
   openingRegistrationId: string | undefined;
   openingSignatureId: string | undefined;
   autoFillingTournamentId: string | undefined;
@@ -57,6 +59,7 @@ const TournamentListOverviewSection = ({
   onUnregisterGroup,
   onUnregister,
   onOpenDraft,
+  onOpenLive,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -65,6 +68,7 @@ const TournamentListOverviewSection = ({
   showOpenAutoFillAction,
   showSignatureAutoConfirmAction,
   openingDraftId,
+  openingLiveId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
@@ -102,6 +106,7 @@ const TournamentListOverviewSection = ({
       onUnregisterGroup={onUnregisterGroup}
       onUnregister={onUnregister}
       onOpenDraft={onOpenDraft}
+      onOpenLive={onOpenLive}
       onOpenRegistration={onOpenRegistration}
       onOpenSignature={onOpenSignature}
       onAutoFillPlayers={onAutoFillPlayers}
@@ -110,6 +115,7 @@ const TournamentListOverviewSection = ({
       showOpenAutoFillAction={showOpenAutoFillAction}
       showSignatureAutoConfirmAction={showSignatureAutoConfirmAction}
       openingDraftId={openingDraftId}
+      openingLiveId={openingLiveId}
       openingRegistrationId={openingRegistrationId}
       openingSignatureId={openingSignatureId}
       autoFillingTournamentId={autoFillingTournamentId}

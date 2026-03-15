@@ -65,15 +65,18 @@ describe('useTournamentListCardActions status transitions', () => {
 
     await act(async () => {
       await result.current.openDraftFromCard('t1');
+      await result.current.openLiveFromCard('t1');
       await result.current.openRegistrationFromCard('t1');
       await result.current.openSignatureFromCard('t1');
     });
 
     expect(updateTournamentStatus).toHaveBeenNthCalledWith(1, 't1', 'DRAFT', 'token');
-    expect(updateTournamentStatus).toHaveBeenNthCalledWith(2, 't1', 'OPEN', 'token');
-    expect(updateTournamentStatus).toHaveBeenNthCalledWith(3, 't1', 'SIGNATURE', 'token');
-    expect(fetchTournaments).toHaveBeenCalledTimes(3);
+    expect(updateTournamentStatus).toHaveBeenNthCalledWith(2, 't1', 'LIVE', 'token');
+    expect(updateTournamentStatus).toHaveBeenNthCalledWith(3, 't1', 'OPEN', 'token');
+    expect(updateTournamentStatus).toHaveBeenNthCalledWith(4, 't1', 'SIGNATURE', 'token');
+    expect(fetchTournaments).toHaveBeenCalledTimes(4);
     expect(result.current.openingDraftId).toBeUndefined();
+    expect(result.current.openingLiveId).toBeUndefined();
     expect(result.current.openingRegistrationId).toBeUndefined();
     expect(result.current.openingSignatureId).toBeUndefined();
   });
@@ -83,17 +86,18 @@ describe('useTournamentListCardActions status transitions', () => {
       .mockRejectedValueOnce('boom')
       .mockRejectedValueOnce('boom')
       .mockRejectedValueOnce('boom');
+
     const { result } = buildHook();
 
     await act(async () => {
       await result.current.openDraftFromCard('t1');
+      await result.current.openLiveFromCard('t1');
       await result.current.openRegistrationFromCard('t1');
-      await result.current.openSignatureFromCard('t1');
     });
 
     expect(globalThis.alert).toHaveBeenNthCalledWith(1, 'edit.error.failedMoveToDraft');
-    expect(globalThis.alert).toHaveBeenNthCalledWith(2, 'edit.error.failedOpenRegistration');
-    expect(globalThis.alert).toHaveBeenNthCalledWith(3, 'edit.error.failedMoveToSignature');
+    expect(globalThis.alert).toHaveBeenNthCalledWith(2, 'edit.error.failedStart');
+    expect(globalThis.alert).toHaveBeenNthCalledWith(3, 'edit.error.failedOpenRegistration');
   });
 });
 

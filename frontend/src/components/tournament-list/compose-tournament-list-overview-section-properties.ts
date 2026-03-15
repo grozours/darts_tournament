@@ -2,10 +2,11 @@ import type { TournamentListOverviewSectionProperties } from './tournament-list-
 
 type ComposeTournamentListOverviewSectionPropertiesInput = Omit<
   TournamentListOverviewSectionProperties,
-  'registeringTournamentId' | 'openingDraftId' | 'openingRegistrationId' | 'openingSignatureId' | 'autoFillingTournamentId' | 'confirmingTournamentId'
+  'registeringTournamentId' | 'openingDraftId' | 'openingLiveId' | 'openingRegistrationId' | 'openingSignatureId' | 'autoFillingTournamentId' | 'confirmingTournamentId'
 > & {
   registeringTournamentId: string | null | undefined;
   openingDraftId: string | null | undefined;
+  openingLiveId: string | null | undefined;
   openingRegistrationId: string | null | undefined;
   openingSignatureId: string | null | undefined;
   autoFillingTournamentId: string | null | undefined;
@@ -15,6 +16,7 @@ type ComposeTournamentListOverviewSectionPropertiesInput = Omit<
 const composeTournamentListOverviewSectionProperties = ({
   registeringTournamentId,
   openingDraftId,
+  openingLiveId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
@@ -24,6 +26,7 @@ const composeTournamentListOverviewSectionProperties = ({
   ...properties,
   registeringTournamentId: registeringTournamentId ?? undefined,
   openingDraftId: openingDraftId ?? undefined,
+  openingLiveId: openingLiveId ?? undefined,
   openingRegistrationId: openingRegistrationId ?? undefined,
   openingSignatureId: openingSignatureId ?? undefined,
   autoFillingTournamentId: autoFillingTournamentId ?? undefined,

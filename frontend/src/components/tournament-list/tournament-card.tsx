@@ -17,6 +17,7 @@ export type TournamentCardProperties = {
   onUnregisterGroup: (tournamentId: string) => void;
   onUnregister: (tournamentId: string) => void;
   onOpenDraft: (tournamentId: string) => void;
+  onOpenLive: (tournamentId: string) => void;
   onOpenRegistration: (tournamentId: string) => void;
   onOpenSignature: (tournamentId: string) => void;
   onAutoFillPlayers: (tournamentId: string) => void;
@@ -26,6 +27,7 @@ export type TournamentCardProperties = {
   showSignatureAutoConfirmAction?: boolean;
   registeringTournamentId: string | undefined;
   openingDraftId: string | undefined;
+  openingLiveId: string | undefined;
   openingRegistrationId: string | undefined;
   openingSignatureId: string | undefined;
   autoFillingTournamentId: string | undefined;
@@ -403,6 +405,7 @@ const TournamentCard = ({
   onUnregisterGroup,
   onUnregister,
   onOpenDraft,
+  onOpenLive,
   onOpenRegistration,
   onOpenSignature,
   onAutoFillPlayers,
@@ -412,6 +415,7 @@ const TournamentCard = ({
   showSignatureAutoConfirmAction = false,
   registeringTournamentId,
   openingDraftId,
+  openingLiveId,
   openingRegistrationId,
   openingSignatureId,
   autoFillingTournamentId,
@@ -628,12 +632,30 @@ const TournamentCard = ({
           />
         )}
         {isAdmin && isFinished && (
-          <button
-            onClick={() => onDelete(tournament.id)}
-            className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
-          >
-            {t('tournaments.delete')}
-          </button>
+          <>
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => onOpenLive(tournament.id)}
+                disabled={openingLiveId === tournament.id}
+                className="w-full rounded-full border border-amber-500/60 px-4 py-1.5 text-center text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <BackEmoji />
+                  <span>
+                    {openingLiveId === tournament.id
+                      ? t('common.loading')
+                      : t('tournaments.backToLive')}
+                  </span>
+                </span>
+              </button>
+            </div>
+            <button
+              onClick={() => onDelete(tournament.id)}
+              className="w-full rounded-full border border-rose-500/60 px-4 py-1.5 text-center text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 sm:w-auto"
+            >
+              {t('tournaments.delete')}
+            </button>
+          </>
         )}
       </div>
     )}

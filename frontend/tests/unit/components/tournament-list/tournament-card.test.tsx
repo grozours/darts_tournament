@@ -28,11 +28,13 @@ describe('TournamentCard', () => {
     onUnregisterGroup: vi.fn(),
     onUnregister: vi.fn(),
     onOpenDraft: vi.fn(),
+    onOpenLive: vi.fn(),
     onOpenRegistration: vi.fn(),
     onOpenSignature: vi.fn(),
     onAutoFillPlayers: vi.fn(),
     onConfirmAllPlayers: vi.fn(),
     openingDraftId: undefined,
+    openingLiveId: undefined,
     openingRegistrationId: undefined,
     openingSignatureId: undefined,
     autoFillingTournamentId: undefined,
@@ -145,20 +147,26 @@ describe('TournamentCard', () => {
     expect(screen.queryByText('tournaments.registered')).not.toBeInTheDocument();
   });
 
-  it('shows delete button for admin and hides other admin/registration actions on FINISHED cards', () => {
+  it('shows live and delete buttons for admin and hides other admin/registration actions on FINISHED cards', () => {
+    const onOpenLive = vi.fn();
     const onDelete = vi.fn();
     const { rerender } = render(
       <TournamentCard
         {...baseProperties}
         isAdmin
         normalizedStatus="FINISHED"
+        onOpenLive={onOpenLive}
         onDelete={onDelete}
       />
     );
 
     expect(screen.queryByText('tournaments.edit')).not.toBeInTheDocument();
+    expect(screen.getByText('tournaments.backToLive')).toBeInTheDocument();
     expect(screen.getByText('tournaments.delete')).toBeInTheDocument();
     expect(screen.queryByText('tournaments.register')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('tournaments.backToLive'));
+    expect(onOpenLive).toHaveBeenCalledWith('t1');
 
     fireEvent.click(screen.getByText('tournaments.delete'));
     expect(onDelete).toHaveBeenCalledWith('t1');

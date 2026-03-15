@@ -20,6 +20,7 @@ const useTournamentListCardActions = ({
   fetchTournaments,
 }: UseTournamentListCardActionsProperties) => {
   const [openingDraftId, setOpeningDraftId] = useState<string | undefined>();
+  const [openingLiveId, setOpeningLiveId] = useState<string | undefined>();
   const [openingRegistrationId, setOpeningRegistrationId] = useState<string | undefined>();
   const [openingSignatureId, setOpeningSignatureId] = useState<string | undefined>();
   const [autoFillingTournamentId, setAutoFillingTournamentId] = useState<string | undefined>();
@@ -52,6 +53,20 @@ const useTournamentListCardActions = ({
       alert(error_ instanceof Error ? error_.message : t('edit.error.failedOpenRegistration'));
     } finally {
       setOpeningRegistrationId(undefined);
+    }
+  }, [fetchTournaments, getSafeAccessToken, t]);
+
+  const openLiveFromCard = useCallback(async (tournamentId: string) => {
+    setOpeningLiveId(tournamentId);
+    try {
+      const token = await getSafeAccessToken();
+      await updateTournamentStatus(tournamentId, 'LIVE', token);
+      navigateWithinApp('/?status=LIVE');
+      await fetchTournaments();
+    } catch (error_) {
+      alert(error_ instanceof Error ? error_.message : t('edit.error.failedStart'));
+    } finally {
+      setOpeningLiveId(undefined);
     }
   }, [fetchTournaments, getSafeAccessToken, t]);
 
@@ -149,6 +164,7 @@ const useTournamentListCardActions = ({
 
   return {
     openingDraftId,
+    openingLiveId,
     openingRegistrationId,
     openingSignatureId,
     autoFillingTournamentId,
@@ -156,6 +172,7 @@ const useTournamentListCardActions = ({
     autoFillProgressByTournament,
     confirmAllProgressByTournament,
     openDraftFromCard,
+    openLiveFromCard,
     openRegistrationFromCard,
     openSignatureFromCard,
     autoFillTournamentFromCard,

@@ -482,6 +482,53 @@ describe('auth routes', () => {
     });
   });
 
+  it('blocks authenticated profile update when user participates in a live tournament', async () => {
+    findFirstPersonMock.mockResolvedValueOnce({
+      id: 'person-existing',
+      firstName: 'Existing',
+      lastName: 'User',
+      surname: null,
+      email: 'existing@example.com',
+    });
+    findFirstPlayerMock.mockResolvedValueOnce({ id: 'player-live' });
+
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as { auth?: { payload?: Record<string, unknown> } }).auth = {
+        payload: {
+          sub: 'user-8',
+          email: 'existing@example.com',
+          name: 'Existing User',
+          picture: 'https://example.com/avatar-existing.png',
+        },
+      };
+      next();
+    });
+    app.use('/api/auth', router);
+
+    const response = await request(app)
+      .patch('/api/auth/me/profile')
+      .send({ firstName: 'Jordan', lastName: 'Player', surname: 'The Wall' });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      error: 'Conflict',
+      message: 'You cannot change your profile while participating in a live tournament',
+    });
+    expect(updatePersonMock).not.toHaveBeenCalled();
+    expect(findFirstPlayerMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        personId: 'person-existing',
+        isActive: true,
+        tournament: {
+          status: 'LIVE',
+        },
+      },
+    }));
+  });
+
   it('rejects invalid authenticated profile payload', async () => {
     const { default: router } = await import('../../src/routes/auth');
     const app = express();

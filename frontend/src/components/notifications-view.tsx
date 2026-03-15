@@ -665,6 +665,9 @@ function NotificationsView() {
                   {title}
                 </div>
                 <div className="mt-2 text-sm text-slate-300">{label}</div>
+                {item.payload.event === 'started' && (
+                  <div className="mt-1 text-sm text-amber-200">{t('notifications.matchStartDelayWarning')}</div>
+                )}
                 {item.payload.matchFormatTooltip && (
                   <div className="mt-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2">
                     <div className="text-xs uppercase tracking-widest text-cyan-200">{t('notifications.matchFormat')}</div>

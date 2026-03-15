@@ -95,6 +95,23 @@ const ensurePersonForAuthenticatedUser = async (
   return createdPerson;
 };
 
+const isPersonActiveInLiveTournament = async (personId: string): Promise<boolean> => {
+  const activeLiveParticipation = await prisma.player.findFirst({
+    where: {
+      personId,
+      isActive: true,
+      tournament: {
+        status: 'LIVE',
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return Boolean(activeLiveParticipation);
+};
+
 const buildDisplayName = (person: { firstName: string; lastName: string; surname: string | null }) => {
   const base = `${person.firstName} ${person.lastName}`.trim();
   if (person.surname) {
@@ -2455,6 +2472,16 @@ router.patch('/me/profile', requireAuth, async (request: Request, response: Resp
 
   try {
     const person = await ensurePersonForAuthenticatedUser(userPayload, email, request.correlationId);
+    const hasLiveParticipation = await isPersonActiveInLiveTournament(person.id);
+
+    if (hasLiveParticipation) {
+      response.status(409).json({
+        error: 'Conflict',
+        message: 'You cannot change your profile while participating in a live tournament',
+      });
+      return;
+    }
+
     const updated = await prisma.person.update({
       where: { id: person.id },
       data: {

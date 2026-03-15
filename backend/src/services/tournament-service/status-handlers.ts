@@ -35,7 +35,7 @@ export const createStatusHandlers = (context: StatusHandlerContext) => {
       [TournamentStatus.OPEN]: [TournamentStatus.SIGNATURE, TournamentStatus.DRAFT],
       [TournamentStatus.SIGNATURE]: [TournamentStatus.LIVE, TournamentStatus.OPEN],
       [TournamentStatus.LIVE]: [TournamentStatus.FINISHED, TournamentStatus.SIGNATURE],
-      [TournamentStatus.FINISHED]: [],
+      [TournamentStatus.FINISHED]: [TournamentStatus.LIVE],
     };
 
     if (!validTransitions[currentStatus].includes(newStatus)) {
@@ -158,7 +158,7 @@ export const createStatusHandlers = (context: StatusHandlerContext) => {
       const updatedTournament = await tournamentModel.updateStatus(
         tournamentId,
         newStatus,
-        newStatus === 'FINISHED' ? new Date() : undefined
+        newStatus === TournamentStatus.FINISHED ? new Date() : undefined
       );
 
       logger.tournamentStatusChanged(

@@ -459,7 +459,10 @@ const buildBrowserNotificationBody = (
     : '';
   const formatDetails = payload.matchFormatTooltip ? `\n${payload.matchFormatTooltip}` : '';
   const scoreSuffix = scoreSummary ? ` · ${translate('live.finalScore')}: ${scoreSummary}` : '';
-  return `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}${formatDetails}`.trim();
+  const delayWarning = payload.event === 'started'
+    ? `\n${translate('notifications.matchStartDelayWarning')}`
+    : '';
+  return `${payload.tournamentName} · ${matchLabel}${formatSuffix}${scoreSuffix}${formatDetails}${delayWarning}`.trim();
 };
 
 type ScoredNotificationPlayer = {

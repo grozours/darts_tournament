@@ -165,6 +165,29 @@ describe('status-handlers', () => {
     );
   });
 
+  it('allows transition from FINISHED back to LIVE', async () => {
+    const { handlers, tournamentModel, logger } = buildContext();
+    tournamentModel.findById.mockResolvedValue({
+      ...baseTournament,
+      status: TournamentStatus.FINISHED,
+      startTime: new Date(Date.now() - 1000),
+    });
+    tournamentModel.getParticipantCount.mockResolvedValue(8);
+    tournamentModel.updateStatus.mockResolvedValue({ ...baseTournament, status: TournamentStatus.LIVE });
+
+    await expect(handlers.transitionTournamentStatus('t1', TournamentStatus.LIVE)).resolves.toMatchObject({
+      status: TournamentStatus.LIVE,
+    });
+
+    expect(tournamentModel.updateStatus).toHaveBeenCalledWith('t1', TournamentStatus.LIVE, undefined);
+    expect(logger.tournamentStatusChanged).toHaveBeenCalledWith(
+      't1',
+      'Tournament',
+      TournamentStatus.FINISHED,
+      TournamentStatus.LIVE
+    );
+  });
+
   it('logs and rethrows unexpected errors', async () => {
     const { handlers, tournamentModel, logger } = buildContext();
     tournamentModel.findById.mockResolvedValue({
