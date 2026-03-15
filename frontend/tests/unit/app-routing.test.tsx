@@ -46,6 +46,7 @@ vi.mock('../../src/components/notifications-view', () => ({ default: () => <div>
 vi.mock('../../src/components/tournaments/create-tournament-page', () => ({ default: () => <div>CREATE_TOURNAMENT</div> }));
 vi.mock('../../src/components/account-view', () => ({ default: () => <div>ACCOUNT_VIEW</div> }));
 vi.mock('../../src/components/user-accounts-view', () => ({ default: () => <div>USER_ACCOUNTS_VIEW</div> }));
+vi.mock('../../src/components/import-view', () => ({ default: () => <div>IMPORT_VIEW</div> }));
 vi.mock('../../src/components/tournament-players-view', () => ({ default: () => <div>TOURNAMENT_PLAYERS</div> }));
 vi.mock('../../src/components/tournament-presets-view', () => ({ default: () => <div>TOURNAMENT_PRESETS</div> }));
 vi.mock('../../src/components/match-formats-view', () => ({ default: () => <div>MATCH_FORMATS</div> }));
@@ -268,6 +269,10 @@ describe('App routing', () => {
     navigateTo('/?view=user-accounts');
     rerender(<App />);
     expect(await screen.findByText('USER_ACCOUNTS_VIEW')).toBeInTheDocument();
+
+    navigateTo('/?view=import');
+    rerender(<App />);
+    expect(await screen.findByText('IMPORT_VIEW')).toBeInTheDocument();
 
     navigateTo('/?view=tournament-presets');
     rerender(<App />);

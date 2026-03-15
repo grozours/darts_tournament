@@ -404,102 +404,16 @@ describe('UserAccountsView', () => {
     expect(screen.getByText('userAccounts.deleteOrphansSuccess 2')).toBeInTheDocument();
   });
 
-  it('imports accounts from a TSV file', async () => {
+  it('does not expose import controls in user accounts view', async () => {
     render(<UserAccountsView />);
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
     });
 
-    const input = screen.getByLabelText('userAccounts.importButton');
-    const file = new File([
-      '\tNom_I\tPrenom_I\tMail_I\tNiveau_I\t\t\tEquipe\tNom_D1\tPrenom_D1\tMail_D1\tNom_D2\tPrenom_D2\tMail_D2\tNiveau_D\n'
-      + '1\tMartin\tAlice\talice@example.com\t2\t\t\tTeam\tDoe\tJohn\tjohn@example.com\tSmith\tJane\tjane@example.com\t3',
-    ], 'inscriptions.tsv', { type: 'text/tab-separated-values' });
-    Object.defineProperty(file, 'text', {
-      value: vi.fn(async () => await Promise.resolve('\tNom_I\tPrenom_I\tMail_I\tNiveau_I\n1\tMartin\tAlice\talice@example.com\t2')),
-    });
-
-    fireEvent.change(input, {
-      target: { files: [file] },
-    });
-
-    expect(globalThis.fetch).not.toHaveBeenCalledWith(
-      '/api/auth/users/import',
-      expect.anything()
-    );
-
-    expect(screen.getByText(/userAccounts.importSelectedFile/i)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'userAccounts.importSendButton' }));
-
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/auth/users/import',
-        expect.objectContaining({ method: 'POST' })
-      );
-    });
-
-    const importCall = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
-      .find((call) => call[0] === '/api/auth/users/import');
-    expect(importCall).toBeDefined();
-    const importInit = importCall?.[1] as RequestInit | undefined;
-    const parsedBody = JSON.parse((importInit?.body as string) ?? '{}') as { includeTournamentImport?: boolean };
-    expect(parsedBody.includeTournamentImport).toBe(true);
-
-    await waitFor(() => {
-      expect(screen.getByText(/userAccounts\.importSuccess/i)).toBeInTheDocument();
-    });
-  });
-
-  it('shows import error when backend import fails', async () => {
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input.toString();
-      if (url.startsWith('/api/tournaments?limit=100')) {
-        return {
-          ok: true,
-          json: async () => ({ tournaments: [] }),
-        } as Response;
-      }
-
-      if (url.startsWith('/api/auth/users?')) {
-        return {
-          ok: true,
-          json: async () => ({ users: [] }),
-        } as Response;
-      }
-
-      if (url === '/api/auth/users/import' && init?.method === 'POST') {
-        return {
-          ok: false,
-          json: async () => ({ message: 'userAccounts.importFailed' }),
-        } as Response;
-      }
-
-      throw new Error(`Unexpected fetch URL: ${url}`);
-    });
-
-    render(<UserAccountsView />);
-
-    await waitFor(() => {
-      expect(screen.getByText('userAccounts.empty')).toBeInTheDocument();
-    });
-
-    const input = screen.getByLabelText('userAccounts.importButton');
-    const file = new File(['Nom_I\tPrenom_I\nMartin\tAlice'], 'inscriptions.tsv', { type: 'text/tab-separated-values' });
-    Object.defineProperty(file, 'text', {
-      value: vi.fn(async () => await Promise.resolve('Nom_I\tPrenom_I\nMartin\tAlice')),
-    });
-
-    fireEvent.change(input, {
-      target: { files: [file] },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'userAccounts.importSendButton' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('userAccounts.importFailed')).toBeInTheDocument();
-    });
+    expect(screen.queryByLabelText('userAccounts.importButton')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'userAccounts.importSendButton' })).not.toBeInTheDocument();
+    expect(screen.queryByText('userAccounts.importHintTitle')).not.toBeInTheDocument();
   });
 
 });

@@ -284,6 +284,12 @@ const AppHeader = ({ t, isAdmin, isAuthenticated, lang, setLanguage }: AppHeader
                   >
                     Sauvegardes
                   </a>
+                  <a
+                    className="block rounded-md px-3 py-2 text-sm hover:bg-slate-800"
+                    href="/?view=import"
+                  >
+                    Importation
+                  </a>
                 </div>
               </div>
             </div>

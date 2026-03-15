@@ -20,6 +20,7 @@ const NotificationsView = lazy(() => import('./components/notifications-view'));
 const CreateTournamentPage = lazy(() => import('./components/tournaments/create-tournament-page'));
 const AccountView = lazy(() => import('./components/account-view'));
 const UserAccountsView = lazy(() => import('./components/user-accounts-view'));
+const ImportView = lazy(() => import('./components/import-view'));
 const TournamentPlayersView = lazy(() => import('./components/tournament-players-view'));
 const TournamentPresetsView = lazy(() => import('./components/tournament-presets-view'));
 const MatchFormatsView = lazy(() => import('./components/match-formats-view'));
@@ -102,6 +103,9 @@ const resolveMainContent = (
     }
     case 'user-accounts': {
       return renderAdminOnly(isAdmin, t, <UserAccountsView />);
+    }
+    case 'import': {
+      return renderAdminOnly(isAdmin, t, <ImportView />);
     }
     case 'doc': {
       return <DocsView accountType={docsAccountTypeOverride ?? docsAccountType} />;

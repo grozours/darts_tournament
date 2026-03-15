@@ -71,6 +71,7 @@ describe('AppHeader', () => {
     });
 
     expect(screen.getByText('nav.manage')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Importation' })).toHaveAttribute('href', '/?view=import');
     const userAccountsLink = screen.getByRole('link', { name: 'nav.userAccounts' });
     expect(userAccountsLink).toBeInTheDocument();
     expect(screen.getByText('nav.registrationPlayers')).toBeInTheDocument();
