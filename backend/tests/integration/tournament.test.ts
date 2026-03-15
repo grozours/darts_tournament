@@ -25,14 +25,21 @@ describe('Tournament Management - Integration Tests', () => {
   let server: any;
   let createdTournamentId: string;
 
-  const validTournamentData = {
-    name: 'Integration Test Tournament',
-    format: TournamentFormat.SINGLE,
-    durationType: DurationType.FULL_DAY,
-    startTime: new Date('2026-03-15T10:00:00.000Z').toISOString(),
-    endTime: new Date('2026-03-15T18:00:00.000Z').toISOString(),
-    totalParticipants: 16,
-    targetCount: 3,
+  const createValidTournamentData = (overrides: Partial<Record<string, unknown>> = {}) => {
+    const now = Date.now();
+    const startTime = new Date(now + (24 * 60 * 60 * 1000));
+    const endTime = new Date(now + (32 * 60 * 60 * 1000));
+
+    return {
+      name: 'Integration Test Tournament',
+      format: TournamentFormat.SINGLE,
+      durationType: DurationType.FULL_DAY,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      totalParticipants: 16,
+      targetCount: 3,
+      ...overrides,
+    };
   };
 
   beforeAll(async () => {
@@ -56,17 +63,17 @@ describe('Tournament Management - Integration Tests', () => {
       // Step 1: Create tournament
       const createResponse = await request(server)
         .post('/api/tournaments')
-        .send(validTournamentData)
+        .send(createValidTournamentData())
         .expect(201);
 
       createdTournamentId = createResponse.body.id;
       
       expect(createResponse.body).toMatchObject({
         id: expect.any(String),
-        name: validTournamentData.name,
-        format: validTournamentData.format,
+        name: 'Integration Test Tournament',
+        format: TournamentFormat.SINGLE,
         status: 'DRAFT',
-        totalParticipants: validTournamentData.totalParticipants,
+        totalParticipants: 16,
       });
 
       // Step 2: Verify tournament exists in database
@@ -75,7 +82,7 @@ describe('Tournament Management - Integration Tests', () => {
         .expect(200);
 
       expect(getResponse.body.id).toBe(createdTournamentId);
-      expect(getResponse.body.name).toBe(validTournamentData.name);
+      expect(getResponse.body.name).toBe('Integration Test Tournament');
 
       // Step 3: Upload logo
       const testImagePath = await createTestImage();
@@ -103,10 +110,7 @@ describe('Tournament Management - Integration Tests', () => {
     it('should enforce tournament status transitions', async () => {
       const createResponse = await request(server)
         .post('/api/tournaments')
-        .send({
-          ...validTournamentData,
-          name: 'Status Transition Tournament',
-        })
+        .send(createValidTournamentData({ name: 'Status Transition Tournament' }))
         .expect(201);
 
       const tournamentId = createResponse.body.id;
@@ -185,10 +189,10 @@ describe('Tournament Management - Integration Tests', () => {
       const tournamentIds: string[] = [];
       for (let i = 0; i < 3; i++) {
         const tournamentData = {
-          ...validTournamentData,
+          ...createValidTournamentData(),
           name: `List Test Tournament ${i + 1}`,
-          startTime: new Date(`2026-0${i + 4}-15T10:00:00.000Z`).toISOString(),
-          endTime: new Date(`2026-0${i + 4}-15T18:00:00.000Z`).toISOString(),
+          startTime: new Date(Date.now() + ((i + 2) * 24 * 60 * 60 * 1000)).toISOString(),
+          endTime: new Date(Date.now() + ((i + 2) * 24 * 60 * 60 * 1000) + (8 * 60 * 60 * 1000)).toISOString(),
         };
 
         const createResponse = await request(server)
@@ -273,7 +277,7 @@ describe('Tournament Management - Integration Tests', () => {
     it('should handle database constraint violations', async () => {
       // Create tournament with specific name
       const uniqueTournament = {
-        ...validTournamentData,
+        ...createValidTournamentData(),
         name: 'Unique Tournament Name Test',
       };
 
@@ -305,7 +309,7 @@ describe('Tournament Management - Integration Tests', () => {
         request(server)
           .post('/api/tournaments')
           .send({
-            ...validTournamentData,
+            ...createValidTournamentData(),
             name: `Concurrent Test Tournament ${index}`,
           })
           .expect(201)
@@ -326,7 +330,7 @@ describe('Tournament Management - Integration Tests', () => {
 
     it('should handle large tournament data efficiently', async () => {
       const largeTournament = {
-        ...validTournamentData,
+        ...createValidTournamentData(),
         name: 'Large Tournament Test', // Long name
         totalParticipants: 128, // Large participant count
         targetCount: 10, // Many targets
@@ -355,7 +359,7 @@ describe('Tournament Management - Integration Tests', () => {
       const createResponse = await request(server)
         .post('/api/tournaments')
         .send({
-          ...validTournamentData,
+          ...createValidTournamentData(),
           name: 'Consistency Test Tournament',
         })
         .expect(201);
@@ -398,7 +402,7 @@ describe('Tournament Management - Integration Tests', () => {
     it('should apply security headers consistently', async () => {
       const response = await request(server)
         .post('/api/tournaments')
-        .send(validTournamentData)
+        .send(createValidTournamentData())
         .expect(201);
 
       // Constitution: Security headers should be present
@@ -408,7 +412,7 @@ describe('Tournament Management - Integration Tests', () => {
 
     it('should handle malicious input safely', async () => {
       const maliciousData = {
-        ...validTournamentData,
+        ...createValidTournamentData(),
         name: '<script>alert("xss")</script>',
         // Note: More sophisticated attacks would be tested in security-specific tests
       };
