@@ -239,4 +239,36 @@ describe('TournamentPlayersView branches', () => {
       );
     });
   });
+
+  it('hides skill badge for non-admin accounts', async () => {
+    adminState.isAdmin = false;
+    authState.user = { email: 'player@example.com' };
+    globalThis.window.history.pushState({}, '', '/?tournamentId=t5');
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        id: 't5',
+        name: 'Skill Cup',
+        status: 'OPEN',
+        format: TournamentFormat.SINGLE,
+      }),
+    })));
+
+    fetchTournamentPlayersMock.mockResolvedValue([
+      {
+        playerId: 'p1',
+        firstName: 'Ava',
+        lastName: 'Archer',
+        skillLevel: 'EXPERT',
+        email: 'player@example.com',
+        checkedIn: false,
+      },
+    ]);
+
+    render(<TournamentPlayersView />);
+
+    await screen.findByText('Ava Archer');
+    expect(screen.queryByText('EXPERT')).not.toBeInTheDocument();
+  });
 });

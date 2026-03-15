@@ -1,6 +1,7 @@
 import type { TournamentPlayer } from '../../services/tournament-service';
 import type { JSX as ReactJSX } from 'react';
 import type { Translator } from './types';
+import { useAdminStatus } from '../../auth/use-admin-status';
 
 export type PlayerListProperties = {
   players: TournamentPlayer[];
@@ -40,9 +41,10 @@ const getCheckInLabel = (
 };
 
 export const RegistrationPlayersList = ({ players, playersLoading, t, onEdit, onRemove }: PlayerListProperties) => {
+  const { isAdmin } = useAdminStatus();
   const renderActions = (player: TournamentPlayer) => (
     <div className="flex flex-wrap items-center gap-2">
-      {player.skillLevel && (
+      {isAdmin && player.skillLevel && (
         <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
           {player.skillLevel}
         </span>
@@ -79,9 +81,10 @@ export const SignaturePlayersList = ({
   checkingInPlayerId,
   onToggleCheckIn,
 }: SignatureListProperties) => {
+  const { isAdmin } = useAdminStatus();
   const renderActions = (player: TournamentPlayer) => (
     <div className="flex flex-wrap items-center gap-2">
-      {player.skillLevel && (
+      {isAdmin && player.skillLevel && (
         <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
           {player.skillLevel}
         </span>

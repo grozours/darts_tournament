@@ -744,7 +744,7 @@ function TournamentPlayersView() {
           {isAdmin && isContactExpanded && player.email && (
             <p className="truncate">📧 {player.email}</p>
           )}
-          {player.skillLevel && (
+          {isAdmin && player.skillLevel && (
             <p className="mt-2">
               <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300">
                 {player.skillLevel}

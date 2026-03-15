@@ -6,6 +6,7 @@ const mockFetchTournamentPlayers = vi.fn();
 const mockFetchDoublettes = vi.fn();
 const mockFetchEquipes = vi.fn();
 const mockGetAccessTokenSilently = vi.fn();
+let isAdmin = false;
 
 let authEnabled = false;
 let isAuthenticated = true;
@@ -25,6 +26,10 @@ vi.mock('../../../src/i18n', () => ({
   useI18n: () => ({
     t: mockTranslate,
   }),
+}));
+
+vi.mock('../../../src/auth/use-admin-status', () => ({
+  useAdminStatus: () => ({ isAdmin }),
 }));
 
 vi.mock('../../../src/services/tournament-service', () => ({
@@ -50,6 +55,7 @@ describe('RegistrationPlayers', () => {
     authEnabled = false;
     isAuthenticated = true;
     authLoading = false;
+    isAdmin = false;
     mockFetchTournamentPlayers.mockReset();
     mockFetchDoublettes.mockReset();
     mockFetchEquipes.mockReset();
@@ -116,7 +122,7 @@ describe('RegistrationPlayers', () => {
         playerId: 'p1',
         name: 'Alice',
         email: 'alice@example.com',
-        skillLevel: 'A',
+        skillLevel: 'EXPERT',
       },
     ]);
 
@@ -162,6 +168,8 @@ describe('RegistrationPlayers', () => {
       expect(screen.getByText('Duo One')).toBeInTheDocument();
       expect(screen.getByText('Team One')).toBeInTheDocument();
     });
+
+    expect(screen.queryByText('EXPERT')).not.toBeInTheDocument();
 
     expect(screen.getAllByText((content, element) => {
       const text = element?.textContent ?? content;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TournamentFormat } from '@shared/types';
 import { useOptionalAuth } from '../auth/optional-auth';
+import { useAdminStatus } from '../auth/use-admin-status';
 import SignInPanel from '../auth/sign-in-panel';
 import {
   fetchDoublettes,
@@ -27,6 +28,7 @@ function RegistrationPlayers() { // NOSONAR
     isLoading: authLoading,
     getAccessTokenSilently,
   } = useOptionalAuth();
+  const { isAdmin } = useAdminStatus();
 
   const [tournaments, setTournaments] = useState<TournamentSummary[]>([]);
   const [playersByTournament, setPlayersByTournament] = useState<Record<string, TournamentPlayer[]>>({});
@@ -266,7 +268,7 @@ function RegistrationPlayers() { // NOSONAR
                 {player.email || t('registration.noEmail')}
               </p>
             </div>
-            {player.skillLevel && (
+            {isAdmin && player.skillLevel && (
               <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
                 {player.skillLevel}
               </span>
