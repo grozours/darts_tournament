@@ -325,6 +325,57 @@ describe('GroupsView', () => {
     await screen.findByText('groups.none');
   });
 
+  it('hides group skill level in doublettes view for non-admin accounts', async () => {
+    globalThis.history.pushState({}, '', '/?view=doublettes&tournamentId=t1');
+    adminState.isAdmin = false;
+
+    fetchDoublettes.mockResolvedValue([
+      {
+        id: 'd-skill-1',
+        name: 'Duo Skill',
+        captainPlayerId: 'p1',
+        isRegistered: false,
+        skillLevel: 'EXPERT',
+        createdAt: new Date().toISOString(),
+        memberCount: 1,
+        members: [
+          { playerId: 'p1', firstName: 'Ana', lastName: 'D', email: 'ana@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<DoublettesView />);
+
+    await screen.findByText('Duo Skill');
+    expect(screen.queryByText(/edit\.skillLevel:/)).not.toBeInTheDocument();
+  });
+
+  it('shows group skill level in equipes view for admin accounts', async () => {
+    globalThis.history.pushState({}, '', '/?view=equipes&tournamentId=t1');
+    adminState.isAdmin = true;
+
+    fetchEquipes.mockResolvedValue([
+      {
+        id: 'e-skill-1',
+        name: 'Equipe Skill',
+        captainPlayerId: 'p1',
+        isRegistered: false,
+        skillLevel: 'INTERMEDIATE',
+        createdAt: new Date().toISOString(),
+        memberCount: 1,
+        members: [
+          { playerId: 'p1', firstName: 'Ana', lastName: 'D', email: 'ana@example.com', joinedAt: new Date().toISOString() },
+        ],
+      },
+    ]);
+
+    render(<EquipesView />);
+
+    await screen.findByText('Equipe Skill');
+    expect(screen.getByText(/edit\.skillLevel:/)).toBeInTheDocument();
+    expect(screen.getByText(/skill\.intermediate/)).toBeInTheDocument();
+  });
+
   it('supports CRUD flow on DoublettesView wrapper', async () => {
     globalThis.history.pushState({}, '', '/?view=doublettes&tournamentId=t1');
     fetchDoublettes.mockResolvedValue([

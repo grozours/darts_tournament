@@ -403,7 +403,7 @@ const GroupsView = ({ mode }: GroupsViewProperties) => {
                   <p className="text-xs text-slate-400">
                     {group.memberCount}/{requiredMembers} · {group.isRegistered ? t('groups.registered') : t('groups.notRegistered')}
                   </p>
-                  {group.skillLevel && (
+                  {isAdmin && group.skillLevel && (
                     <p className="text-xs text-slate-400">{t('edit.skillLevel')}: {toSkillLevelLabel(group.skillLevel, t)}</p>
                   )}
                   {!selectedTournamentId && group.tournamentName && (
