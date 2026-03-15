@@ -30,6 +30,23 @@ type UserEditForm = {
   skillLevel: SkillLevel | '';
 };
 
+type UserImportSummary = {
+  rowsRead: number;
+  accountsDetected: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  issues?: string[];
+  tournamentImport?: {
+    tournamentsCreated: number;
+    tournamentsUpdated: number;
+    singleRegistrationsCreated: number;
+    doublettesCreated: number;
+    doublePlayersCreated: number;
+    issues?: string[];
+  };
+};
+
 const mapUserToForm = (user: UserAccount): UserEditForm => ({
   firstName: user.firstName,
   lastName: user.lastName,
@@ -53,6 +70,36 @@ const buildUserAccountsQuery = (search: string, tournamentId: string): string =>
   }
   parameters.set('limit', '200');
   return parameters.toString();
+};
+
+const buildImportNotice = (t: (key: string) => string, summary: UserImportSummary): string => {
+  const base = t('userAccounts.importSuccess')
+    .replace('{created}', String(summary.createdCount))
+    .replace('{updated}', String(summary.updatedCount))
+    .replace('{skipped}', String(summary.skippedCount))
+    .replace('{detected}', String(summary.accountsDetected))
+    .replace('{rows}', String(summary.rowsRead));
+
+  const details: string[] = [];
+  if (summary.tournamentImport) {
+    details.push(
+      `Tournois +${summary.tournamentImport.tournamentsCreated}`,
+      `MAJ ${summary.tournamentImport.tournamentsUpdated}`,
+      `Inscriptions simple +${summary.tournamentImport.singleRegistrationsCreated}`,
+      `Doublettes +${summary.tournamentImport.doublettesCreated}`
+    );
+  }
+
+  let firstIssue: string | undefined;
+  if (Array.isArray(summary.issues) && summary.issues.length > 0) {
+    firstIssue = summary.issues[0];
+  } else if (Array.isArray(summary.tournamentImport?.issues) && summary.tournamentImport.issues.length > 0) {
+    firstIssue = summary.tournamentImport.issues[0];
+  }
+
+  const extra = details.length > 0 ? ` ${details.join(' | ')}` : '';
+  const issueSuffix = firstIssue ? ` ${firstIssue}` : '';
+  return `${base}${extra}${issueSuffix}`;
 };
 
 type UserAccountEditPanelProperties = {
@@ -157,8 +204,11 @@ function UserAccountsView() {
   const [editForm, setEditForm] = useState<UserEditForm | undefined>();
   const [saving, setSaving] = useState(false);
   const [deletingOrphans, setDeletingOrphans] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [selectedImportFile, setSelectedImportFile] = useState<File | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const accountsRequestSequence = useRef(0);
+  const importInputReference = useRef<HTMLInputElement | null>(null);
 
   const normalizedTournamentOptions = useMemo(() => {
     const uniqueById = new Map<string, TournamentOption>();
@@ -295,6 +345,62 @@ function UserAccountsView() {
     } finally {
       setDeletingOrphans(false);
     }
+  };
+
+  const importAccountsFile = async (file: File) => {
+    if (!isAdmin || importing) {
+      return;
+    }
+
+    setImporting(true);
+    setError(undefined);
+    setNotice(undefined);
+
+    try {
+      const content = await file.text();
+      const token = authEnabled ? await getAccessTokenSilently() : undefined;
+      const response = await fetch('/api/auth/users/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildAuthorizationHeaders(token),
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          content,
+          includeTournamentImport: true,
+        }),
+      });
+
+      const payload = await response.json().catch(() => undefined) as (UserImportSummary & { message?: string }) | undefined;
+      if (!response.ok || !payload) {
+        throw new Error(payload?.message ?? 'userAccounts.importFailed');
+      }
+
+      setNotice(buildImportNotice(t, payload));
+      setSelectedImportFile(undefined);
+      await fetchAccounts();
+    } catch (error_) {
+      setError(error_ instanceof Error ? error_.message : 'userAccounts.importFailed');
+    } finally {
+      if (importInputReference.current) {
+        importInputReference.current.value = '';
+      }
+      setImporting(false);
+    }
+  };
+
+  const onImportFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setSelectedImportFile(file ?? undefined);
+  };
+
+  const submitImportFile = () => {
+    if (!selectedImportFile) {
+      return;
+    }
+
+    void importAccountsFile(selectedImportFile);
   };
 
   const renderUserCard = (user: UserAccount): JSX.Element => {
@@ -502,16 +608,49 @@ function UserAccountsView() {
             <span className="text-slate-400">{t('userAccounts.title')}</span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              void deleteAccountsWithoutTournament();
-            }}
-            disabled={deletingOrphans}
-            className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-70"
-          >
-            {deletingOrphans ? t('common.loading') : t('userAccounts.deleteOrphansButton')}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className="cursor-pointer rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20">
+              <input
+                ref={importInputReference}
+                type="file"
+                accept=".tsv,.csv,text/tab-separated-values,text/csv"
+                className="sr-only"
+                onChange={onImportFileChange}
+                aria-label={t('userAccounts.importButton')}
+              />
+              {importing ? t('common.loading') : t('userAccounts.importButton')}
+            </label>
+
+            <button
+              type="button"
+              onClick={submitImportFile}
+              disabled={!selectedImportFile || importing}
+              className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {importing ? t('common.loading') : t('userAccounts.importSendButton')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void deleteAccountsWithoutTournament();
+              }}
+              disabled={deletingOrphans}
+              className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-70"
+            >
+              {deletingOrphans ? t('common.loading') : t('userAccounts.deleteOrphansButton')}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-slate-800/70 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+          <p className="font-medium text-slate-100">{t('userAccounts.importHintTitle')}</p>
+          <p className="mt-1 text-xs text-slate-400">{t('userAccounts.importHintBody')}</p>
+          {selectedImportFile && (
+            <p className="mt-2 text-xs text-cyan-200">
+              {t('userAccounts.importSelectedFile')}: {selectedImportFile.name}
+            </p>
+          )}
         </div>
       </form>
 

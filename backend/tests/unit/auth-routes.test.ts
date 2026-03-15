@@ -87,6 +87,7 @@ describe('auth routes', () => {
       lastName: 'User',
       surname: null,
       email: 'admin@example.com',
+      skillLevel: null,
     });
     updatePersonMock.mockResolvedValue({
       id: 'person-1',
@@ -94,6 +95,7 @@ describe('auth routes', () => {
       lastName: 'User',
       surname: null,
       email: 'admin@example.com',
+      skillLevel: null,
     });
     deleteManyPersonMock.mockResolvedValue({ count: 0 });
   });
@@ -651,6 +653,7 @@ describe('auth routes', () => {
       lastName: 'Prime',
       surname: 'Sniper',
       email: 'jordan@example.com',
+      skillLevel: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -683,6 +686,129 @@ describe('auth routes', () => {
         email: 'jordan@example.com',
       },
     }));
+  });
+
+  it('imports user accounts from inscriptions TSV content', async () => {
+    isAdminMock.mockReturnValue(true);
+    findFirstPersonMock
+      .mockResolvedValueOnce(null);
+    createPersonMock.mockResolvedValueOnce({
+      id: 'person-created',
+      firstName: 'Anthony',
+      lastName: 'Talarmin',
+      surname: null,
+      email: null,
+      skillLevel: 'BEGINNER',
+    });
+
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json({ limit: '2mb' }));
+    app.use((req, _res, next) => {
+      (req as { auth?: { payload?: Record<string, unknown> } }).auth = {
+        payload: {
+          sub: 'admin-1',
+          email: 'admin@example.com',
+        },
+      };
+      next();
+    });
+    app.use('/api/auth', router);
+
+    const content = [
+      '\tIndividuel\tDCDA\t03/04/2026\t\t\t\t\t\tDoublette\tDCDA\t04/04/2026',
+      '\tNom_I\tPrenom_I\tMail_I\tNiveau_I\t\t\tEquipe\tNom_D1\tPrenom_D1\tMail_D1\tNom_D2\tPrenom_D2\tMail_D2\tNiveau_D\tConfirme',
+      '1\tTalarmin\tAnthony\t\t1\t\t\tPaname\tBoucher\tAdrien\t\tTreguer\tYann\tytreguer29@gmail.com\t3\tOui',
+    ].join('\n');
+
+    const response = await request(app)
+      .post('/api/auth/users/import')
+      .send({ content });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      rowsRead: 1,
+      accountsDetected: 1,
+      createdCount: 1,
+      updatedCount: 0,
+    });
+    expect(createPersonMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        firstName: 'Anthony',
+        lastName: 'Talarmin',
+        skillLevel: 'BEGINNER',
+      }),
+    }));
+    expect(updatePersonMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects import when content is missing', async () => {
+    isAdminMock.mockReturnValue(true);
+
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as { auth?: { payload?: Record<string, unknown> } }).auth = {
+        payload: {
+          sub: 'admin-1',
+          email: 'admin@example.com',
+        },
+      };
+      next();
+    });
+    app.use('/api/auth', router);
+
+    const response = await request(app)
+      .post('/api/auth/users/import')
+      .send({ content: '   ' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Bad Request');
+    expect(createPersonMock).not.toHaveBeenCalled();
+  });
+
+  it('fills missing first or last names with NC during import', async () => {
+    isAdminMock.mockReturnValue(true);
+
+    const { default: router } = await import('../../src/routes/auth');
+    const app = express();
+    app.use(express.json({ limit: '2mb' }));
+    app.use((req, _res, next) => {
+      (req as { auth?: { payload?: Record<string, unknown> } }).auth = {
+        payload: {
+          sub: 'admin-1',
+          email: 'admin@example.com',
+        },
+      };
+      next();
+    });
+    app.use('/api/auth', router);
+
+    const content = [
+      '\tNom_I\tPrenom_I\tMail_I\tNiveau_I\t\t\tEquipe\tNom_D1\tPrenom_D1\tMail_D1\tNom_D2\tPrenom_D2\tMail_D2\tNiveau_D',
+      '1\tMartin\t\talice@example.com\t2\t\t\tTeam\t\tJohn\tjohn@example.com\tDoe\t\tjane@example.com\t3',
+    ].join('\n');
+
+    const response = await request(app)
+      .post('/api/auth/users/import')
+      .send({ content });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      rowsRead: 1,
+      accountsDetected: 1,
+      createdCount: 1,
+      updatedCount: 0,
+      skippedCount: 1,
+    });
+    expect(createPersonMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        firstName: 'NC',
+        lastName: 'Martin',
+      }),
+    }));
+    expect(createPersonMock).toHaveBeenCalledTimes(1);
   });
 
   it('returns 404 when admin updates an unknown account', async () => {

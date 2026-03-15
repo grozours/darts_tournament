@@ -43,6 +43,7 @@ sonar-token
 
 # Uploads
 uploads/
+imports/
 
 # OS files
 .DS_Store

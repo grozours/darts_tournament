@@ -78,6 +78,28 @@ const createDefaultFetchMock = () => vi.fn(async (input: RequestInfo | URL, init
     } as Response;
   }
 
+  if (url === '/api/auth/users/import' && init?.method === 'POST') {
+    return {
+      ok: true,
+      json: async () => ({
+        rowsRead: 1,
+        accountsDetected: 3,
+        createdCount: 2,
+        updatedCount: 1,
+        skippedCount: 0,
+        issues: [],
+        tournamentImport: {
+          tournamentsCreated: 2,
+          tournamentsUpdated: 0,
+          singleRegistrationsCreated: 3,
+          doublettesCreated: 2,
+          doublePlayersCreated: 4,
+          issues: [],
+        },
+      }),
+    } as Response;
+  }
+
   throw new Error(`Unexpected fetch URL: ${url}`);
 });
 
@@ -164,6 +186,22 @@ describe('UserAccountsView', () => {
     });
   });
 
+  it('refreshes tournaments when tournament filter gains focus', async () => {
+    render(<UserAccountsView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
+    });
+
+    const fetchCallsBeforeFocus = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length;
+    fireEvent.focus(screen.getByLabelText('userAccounts.tournamentFilter'));
+
+    await waitFor(() => {
+      const fetchCallsAfterFocus = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.length;
+      expect(fetchCallsAfterFocus).toBeGreaterThan(fetchCallsBeforeFocus);
+    });
+  });
+
   it('edits and saves an account', async () => {
     render(<UserAccountsView />);
 
@@ -218,6 +256,88 @@ describe('UserAccountsView', () => {
 
     await waitFor(() => {
       expect(screen.getByText('userAccounts.loadFailed')).toBeInTheDocument();
+    });
+  });
+
+  it('shows update error when save account request fails', async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+
+      if (url.startsWith('/api/tournaments?limit=100')) {
+        return {
+          ok: true,
+          json: async () => ({ tournaments: [{ id: 't1', name: 'Open Spring Cup' }] }),
+        } as Response;
+      }
+
+      if (url.startsWith('/api/auth/users?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            users: [
+              {
+                id: 'u1',
+                firstName: 'Alice',
+                lastName: 'Martin',
+                surname: 'Ace',
+                email: 'alice@example.com',
+                createdAt: '2026-03-14T12:00:00.000Z',
+                updatedAt: '2026-03-14T12:00:00.000Z',
+                tournamentCount: 2,
+              },
+            ],
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/auth/users/u1' && init?.method === 'PATCH') {
+        return {
+          ok: false,
+          json: async () => ({ message: 'userAccounts.updateFailed' }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    render(<UserAccountsView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit.edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('userAccounts.updateFailed')).toBeInTheDocument();
+    });
+  });
+
+  it('shows empty state when no user account is returned', async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.startsWith('/api/tournaments?limit=100')) {
+        return {
+          ok: true,
+          json: async () => ({ tournaments: [] }),
+        } as Response;
+      }
+
+      if (url.startsWith('/api/auth/users?')) {
+        return {
+          ok: true,
+          json: async () => ({ users: [] }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    render(<UserAccountsView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('userAccounts.empty')).toBeInTheDocument();
     });
   });
 
@@ -278,6 +398,104 @@ describe('UserAccountsView', () => {
     });
 
     expect(screen.getByText('userAccounts.deleteOrphansSuccess 2')).toBeInTheDocument();
+  });
+
+  it('imports accounts from a TSV file', async () => {
+    render(<UserAccountsView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Alice Martin/i })).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText('userAccounts.importButton');
+    const file = new File([
+      '\tNom_I\tPrenom_I\tMail_I\tNiveau_I\t\t\tEquipe\tNom_D1\tPrenom_D1\tMail_D1\tNom_D2\tPrenom_D2\tMail_D2\tNiveau_D\n'
+      + '1\tMartin\tAlice\talice@example.com\t2\t\t\tTeam\tDoe\tJohn\tjohn@example.com\tSmith\tJane\tjane@example.com\t3',
+    ], 'inscriptions.tsv', { type: 'text/tab-separated-values' });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(async () => await Promise.resolve('\tNom_I\tPrenom_I\tMail_I\tNiveau_I\n1\tMartin\tAlice\talice@example.com\t2')),
+    });
+
+    fireEvent.change(input, {
+      target: { files: [file] },
+    });
+
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(
+      '/api/auth/users/import',
+      expect.anything()
+    );
+
+    expect(screen.getByText(/userAccounts.importSelectedFile/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'userAccounts.importSendButton' }));
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/auth/users/import',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    const importCall = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .find((call) => call[0] === '/api/auth/users/import');
+    expect(importCall).toBeDefined();
+    const importInit = importCall?.[1] as RequestInit | undefined;
+    const parsedBody = JSON.parse((importInit?.body as string) ?? '{}') as { includeTournamentImport?: boolean };
+    expect(parsedBody.includeTournamentImport).toBe(true);
+
+    await waitFor(() => {
+      expect(screen.getByText(/userAccounts\.importSuccess/i)).toBeInTheDocument();
+    });
+  });
+
+  it('shows import error when backend import fails', async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.startsWith('/api/tournaments?limit=100')) {
+        return {
+          ok: true,
+          json: async () => ({ tournaments: [] }),
+        } as Response;
+      }
+
+      if (url.startsWith('/api/auth/users?')) {
+        return {
+          ok: true,
+          json: async () => ({ users: [] }),
+        } as Response;
+      }
+
+      if (url === '/api/auth/users/import' && init?.method === 'POST') {
+        return {
+          ok: false,
+          json: async () => ({ message: 'userAccounts.importFailed' }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    render(<UserAccountsView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('userAccounts.empty')).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText('userAccounts.importButton');
+    const file = new File(['Nom_I\tPrenom_I\nMartin\tAlice'], 'inscriptions.tsv', { type: 'text/tab-separated-values' });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(async () => await Promise.resolve('Nom_I\tPrenom_I\nMartin\tAlice')),
+    });
+
+    fireEvent.change(input, {
+      target: { files: [file] },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'userAccounts.importSendButton' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('userAccounts.importFailed')).toBeInTheDocument();
+    });
   });
 
 });
