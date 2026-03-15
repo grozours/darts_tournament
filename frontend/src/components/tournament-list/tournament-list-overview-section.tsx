@@ -87,7 +87,7 @@ const TournamentListOverviewSection = ({
     const anchorId = `tournament-${selectedTournamentId}`;
     const scrollToCard = () => {
       const element = globalThis.document?.getElementById(anchorId);
-      if (!element) {
+      if (!element || typeof element.scrollIntoView !== 'function') {
         return;
       }
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
